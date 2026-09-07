@@ -1,6 +1,8 @@
 # ComfyUI-Capricorncd-Tools
 
-![ComfyUI-Capricorncd-Tools](./docs/ComfyUI-Capricorncd-Tools.png)
+<p style="width:100%;text-align:center;">
+   <img src="./docs/ComfyUI-Capricorncd-Tools.png" width="200" alt="ComfyUI-Capricorncd-Tools" />
+</p>
 
 A visual multi-track timeline editor for [ComfyUI](https://github.com/comfyanonymous/ComfyUI) with **one-click video creation**, **targeted clip editing**, **separate project management**, and **project and asset import/export**. Arrange your shots, generate a complete video through your workflow, and refine individual clips without regenerating the entire sequence.
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import io
 import json
-import logging
 import secrets
 from fractions import Fraction
 
@@ -20,9 +19,6 @@ from .cap_timeline_editor import (
     _timeline_prompt_includes,
 )
 from .timecode import resolve_media_path
-
-
-_LOG = logging.getLogger("cap_timeline_preview")
 
 
 def _node_output(name: str, *args):
@@ -58,10 +54,44 @@ def _find_clip(project: dict, clip_id: str) -> tuple[dict, dict]:
     return fallback
 
 
-def _preview_data(project_json: str, clip_id: str, width: int, height: int) -> tuple[dict, dict]:
+def _preview_size(settings: dict, width: int, height: int, preview_megapixels: float) -> tuple[int, int]:
+    source_width = max(1, int(settings.get("width") or 1344))
+    source_height = max(1, int(settings.get("height") or 768))
+    width = max(0, int(width or 0))
+    height = max(0, int(height or 0))
+    if width > 0 and height > 0:
+        return width, height
+
+    aspect = source_width / source_height
+    try:
+        target_pixels = max(0.01, float(preview_megapixels)) * 1_000_000
+    except (TypeError, ValueError):
+        target_pixels = 200_000
+    scale = min(1.0, (target_pixels / (source_width * source_height)) ** 0.5)
+    if width <= 0 and height <= 0:
+        width = source_width * scale
+        height = source_height * scale
+    elif width <= 0:
+        width = height * aspect
+    else:
+        height = width / aspect
+    return (
+        max(32, int(round(width / 16)) * 16),
+        max(32, int(round(height / 16)) * 16),
+    )
+
+
+def _preview_data(
+    project_json: str,
+    clip_id: str,
+    width: int,
+    height: int,
+    preview_megapixels: float = 0.2,
+) -> tuple[dict, dict]:
     project = CAP_TimelineEditor._project(project_json)
     _track, clip = _find_clip(project, clip_id)
     settings = project["settings"]
+    width, height = _preview_size(settings, width, height, preview_megapixels)
     start_ms, end_ms = _clip_range(clip)
     if end_ms <= start_ms:
         raise ValueError("The selected Clip has no previewable duration.")
@@ -117,8 +147,8 @@ def _preview_data(project_json: str, clip_id: str, width: int, height: int) -> t
     data = {
         "schema_version": project.get("schema_version"),
         "fps": float(settings.get("fps") or H3_FPS),
-        "width": int(width or settings.get("width") or 1344),
-        "height": int(height or settings.get("height") or 768),
+        "width": width,
+        "height": height,
         "prepend_prompt": str(settings.get("prepend_prompt") or ""),
         "append_prompt": str(settings.get("append_prompt") or ""),
         "materials": materials,
@@ -150,8 +180,8 @@ class CAP_TimelinePreview:
                 "audio_vae": ("VAE",),
                 "project_json": ("STRING", {"default": "", "multiline": True}),
                 "clip_id": ("STRING", {"default": ""}),
-                "width": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 32}),
-                "height": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 32}),
+                "width": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 16}),
+                "height": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 16}),
                 "steps": ("INT", {"default": 4, "min": 1, "max": 1000}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 0xffffffffffffffff}),
                 "ref_image_size": (["match", "max"], {"default": "match"}),
@@ -159,10 +189,10 @@ class CAP_TimelinePreview:
             "optional": {
                 "shift_video": ("FLOAT", {"default": 12.0, "min": 0.01, "max": 100.0, "step": 0.01}),
                 "shift_audio": ("FLOAT", {"default": 3.0, "min": 0.01, "max": 100.0, "step": 0.01}),
+                "preview_megapixels": ("FLOAT", {"default": 0.2, "min": 0.01, "max": 4.0, "step": 0.05}),
             },
             "hidden": {
                 "unique_id": "UNIQUE_ID",
-                "prompt_id": "PROMPT_ID",
             },
         }
 
@@ -181,13 +211,13 @@ class CAP_TimelinePreview:
     @classmethod
     def IS_CHANGED(cls, model, clip, video_vae, audio_vae, project_json, clip_id, width, height,
                    steps, seed, ref_image_size, shift_video=12.0, shift_audio=3.0,
-                   unique_id=None, prompt_id=None):
-        return (project_json, clip_id, width, height, steps, seed, ref_image_size, shift_video, shift_audio)
+                   preview_megapixels=0.2, unique_id=None, prompt_id=None):
+        return (project_json, clip_id, width, height, steps, seed, ref_image_size, shift_video, shift_audio, preview_megapixels)
 
     def generate(self, model, clip, video_vae, audio_vae, project_json, clip_id, width, height,
                  steps, seed, ref_image_size, shift_video=12.0, shift_audio=3.0,
-                 unique_id=None, prompt_id=None):
-        data, clip_row = _preview_data(project_json, clip_id, width, height)
+                 preview_megapixels=0.2, unique_id=None, prompt_id=None):
+        data, clip_row = _preview_data(project_json, clip_id, width, height, preview_megapixels)
         selected_id = str(clip_row.get("source_clip_id") or clip_id or "")
         resolved_seed = int(seed)
         if resolved_seed < 0:
@@ -238,32 +268,22 @@ class CAP_TimelinePreview:
             )
         )
 
-        try:
-            from server import PromptServer
-
-            buffer = io.BytesIO()
-            video.save_to(
-                buffer,
-                format=Types.VideoContainer.MP4,
-                codec=Types.VideoCodec.H264,
-                crf=23,
-            )
-            PromptServer.instance.send_sync(
-                "cap_timeline_preview",
-                {
-                    "prompt_id": str(prompt_id or ""),
-                    "node_id": str(unique_id or ""),
-                    "clip_id": selected_id,
-                    "mime": "video/mp4",
-                    "video": base64.b64encode(buffer.getvalue()).decode("ascii"),
-                    "seed": resolved_seed,
-                },
-                PromptServer.instance.client_id,
-            )
-        except Exception as exc:
-            _LOG.warning("Unable to send Timeline preview to the editor: %s", exc)
-
-        return video, frames, generated_audio, prompt, resolved_seed, selected_id
+        buffer = io.BytesIO()
+        video.save_to(
+            buffer,
+            format=Types.VideoContainer.MP4,
+            codec=Types.VideoCodec.H264,
+            crf=23,
+        )
+        return {
+            "ui": {"cap_timeline_preview": [{
+                "clip_id": selected_id,
+                "mime": "video/mp4",
+                "video": base64.b64encode(buffer.getvalue()).decode("ascii"),
+                "seed": resolved_seed,
+            }]},
+            "result": (video, frames, generated_audio, prompt, resolved_seed, selected_id),
+        }
 
 
 NODE_CLASS_MAPPINGS = {"CAP_TimelinePreview": CAP_TimelinePreview}

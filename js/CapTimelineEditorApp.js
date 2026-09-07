@@ -43,7 +43,7 @@ const STORAGE_AI_PROMPT_LANG = "cat-te-ai-prompt-lang";
 const STORAGE_AI_PROMPT_CONTEXT = "cat-te-ai-prompt-context";
 const STORAGE_MODEL_PREVIEW_WORKFLOW = "cat-te-model-preview-workflow";
 const STORAGE_MODEL_PREVIEW_WORKFLOW_NAME = "cat-te-model-preview-workflow-name";
-const STORAGE_MODEL_PREVIEW_MODEL = "cat-te-model-preview-model";
+const STORAGE_PREVIEW_MEGAPIXELS = "cat-te-preview-megapixels";
 const AI_PROMPT_LANGUAGES = ["简体中文", "繁體中文", "English", "日本語"];
 const AGENT_DEFAULT_MODELS = { openai: "gpt-5.4", gemini: "gemini-3.7-flash" };
 const DEFAULT_AUTOSAVE_INTERVAL_SEC = 5;
@@ -849,6 +849,7 @@ export class CapTimelineEditorApp {
         this._modelPreviewClipId = null;
         this._modelPreviewRunning = false;
         this._modelPreviewEntry = null;
+        this._modelPreviewOverrideNodeIds = null;
         this._watermark = this._defaultWatermark();
         /** When true, Run associates CapTimelineEditor/..._{clipId}.mp4 by specified name. */
         this._useClipSpecifiedVideoFilename = true;
@@ -3934,8 +3935,12 @@ export class CapTimelineEditorApp {
                       </div>
                     </div>
                     <label class="cat-te-modal-row">
-                      <span>${T("model_preview_model_label")}</span>
-                      <input class="cat-te-model-preview-model" type="text" placeholder="${T("model_preview_model_placeholder")}" />
+                      <span>${T("clip_seed_label")}</span>
+                      <input class="cat-te-model-preview-seed" type="number" min="-1" step="1" value="-1" />
+                    </label>
+                    <label class="cat-te-modal-row">
+                      <span>${T("preview_megapixels_label")}</span>
+                      <input class="cat-te-model-preview-megapixels" type="number" min="0.01" max="4" step="0.05" value="0.2" />
                     </label>
                     <div class="cat-te-model-preview-config-name"></div>
                     <div class="cat-te-agent-note">${T("model_preview_workflow_hint")}</div>
@@ -4348,7 +4353,8 @@ export class CapTimelineEditorApp {
         this.autosaveIntervalInput = el.querySelector(".cat-te-autosave-interval");
         this.promptFontSizeInput = el.querySelector(".cat-te-prompt-font-size");
         this.useClipVideoFilenameCb = el.querySelector(".cat-te-use-clip-video-filename");
-        this.modelPreviewModelInput = el.querySelector(".cat-te-model-preview-model");
+        this.modelPreviewSeedInput = el.querySelector(".cat-te-model-preview-seed");
+        this.modelPreviewMegapixelsInput = el.querySelector(".cat-te-model-preview-megapixels");
         this.modelPreviewFileInput = el.querySelector(".cat-te-model-preview-file");
         this.modelPreviewConfigName = el.querySelector(".cat-te-model-preview-config-name");
         this.agentList = el.querySelector(".cat-te-agent-list");
@@ -4474,8 +4480,20 @@ export class CapTimelineEditorApp {
         el.querySelector(".cat-te-model-preview-import")?.addEventListener("click", () => this.modelPreviewFileInput?.click());
         el.querySelector(".cat-te-model-preview-clear")?.addEventListener("click", () => this._clearModelPreviewWorkflow());
         this.modelPreviewFileInput?.addEventListener("change", (e) => void this._importModelPreviewWorkflow(e));
-        this.modelPreviewModelInput?.addEventListener("change", () => {
-            localStorage.setItem(STORAGE_MODEL_PREVIEW_MODEL, String(this.modelPreviewModelInput.value || "").trim());
+        this.modelPreviewSeedInput?.addEventListener("change", () => {
+            const clip = this._findClipById(this._aiOptimizeClipId);
+            if (!clip) return;
+            this._recordUndo();
+            const meta = this._ensureClipMeta(clip);
+            meta.seed = this._normalizeClipSeed(this.modelPreviewSeedInput.value);
+            this.modelPreviewSeedInput.value = String(meta.seed);
+            if (this._selClip?.id === clip.id && this.clipSeedInput) this.clipSeedInput.value = String(meta.seed);
+            this._saveToWidgets();
+        });
+        this.modelPreviewMegapixelsInput?.addEventListener("change", () => {
+            const value = this._previewMegapixels(this.modelPreviewMegapixelsInput.value);
+            this.modelPreviewMegapixelsInput.value = String(value);
+            localStorage.setItem(STORAGE_PREVIEW_MEGAPIXELS, String(value));
         });
         el.querySelector(".cat-te-track-rename-close")?.addEventListener("click", () => this._closeTrackRenameModal());
         el.querySelector(".cat-te-track-rename-cancel")?.addEventListener("click", () => this._closeTrackRenameModal());
@@ -6437,7 +6455,10 @@ export class CapTimelineEditorApp {
     _abortPendingGeneratedJob(e) {
         const promptId = this._promptIdFromEvent(e);
         if (promptId && promptId === this._modelPreviewPromptId) {
-            this._finishModelPreview(T("model_preview_stopped"));
+            const message = e?.detail?.exception_message;
+            this._finishModelPreview(message
+                ? T("model_preview_failed", { msg: String(message) })
+                : T("model_preview_stopped"));
             return;
         }
         let droppedStamp = null;
@@ -6773,6 +6794,12 @@ export class CapTimelineEditorApp {
         ));
     }
 
+    _previewMegapixels(value = localStorage.getItem(STORAGE_PREVIEW_MEGAPIXELS)) {
+        const number = Number(value);
+        return value == null || String(value).trim() === "" || !Number.isFinite(number)
+            ? 0.2 : Math.max(0.01, Math.min(4, number));
+    }
+
     async _startModelPreview() {
         const clip = this._findClipById(this._aiOptimizeClipId);
         if (!clip || this._modelPreviewPromptId) return;
@@ -6800,15 +6827,19 @@ export class CapTimelineEditorApp {
             this._saveToWidgets();
         }
         const files = this._clipAiOptimizeFiles(clip);
+        if (this.modelPreviewSeedInput) this.modelPreviewSeedInput.value = String(meta.seed);
+        const previewProject = this._buildProject();
+        const previewSettings = previewProject?.settings || {};
+        const projectWidth = Math.max(1, Number(previewSettings.width) || Number(this._w("width")?.value) || PY_SCALAR_DEFAULTS.width);
+        const projectHeight = Math.max(1, Number(previewSettings.height) || Number(this._w("height")?.value) || PY_SCALAR_DEFAULTS.height);
         const values = {
             prompt: this._composeFinalPrompt(clip, meta),
             seed: meta.seed,
             duration: Number(clip.duration) || 0,
             context: this._clampH3MotionContextLength(meta.h3MotionContextLength),
-            width: Number(this._w("width")?.value ?? PY_SCALAR_DEFAULTS.width),
-            height: Number(this._w("height")?.value ?? PY_SCALAR_DEFAULTS.height),
+            width: projectWidth,
+            height: projectHeight,
             fps: Number(this._w("fps")?.value ?? 24),
-            model: localStorage.getItem(STORAGE_MODEL_PREVIEW_MODEL) || "",
         };
         files.forEach((file, index) => {
             values[`media_${index + 1}`] = file.file;
@@ -6821,14 +6852,21 @@ export class CapTimelineEditorApp {
             ? projectValue
             : JSON.stringify(projectValue || {});
         const prompt = this._replaceModelPreviewTokens(workflow, values);
+        this._modelPreviewOverrideNodeIds = new Set(
+            Object.entries(prompt)
+                .filter(([, node]) => node?.class_type === "ModelPreviewOverrideKJ")
+                .map(([id]) => String(id)),
+        );
         for (const node of Object.values(prompt)) {
             if (node?.class_type !== "CAP_TimelinePreview") continue;
+            const inputs = node.inputs || {};
             node.inputs = {
-                ...(node.inputs || {}),
+                ...inputs,
                 project_json: projectJson,
                 clip_id: String(clip.id),
-                width: values.width,
-                height: values.height,
+                width: 0,
+                height: 0,
+                preview_megapixels: this._previewMegapixels(),
                 seed: values.seed,
             };
         }
@@ -6860,6 +6898,7 @@ export class CapTimelineEditorApp {
         } catch (error) {
             this._modelPreviewPromptId = null;
             this._modelPreviewClipId = null;
+            this._modelPreviewOverrideNodeIds = null;
             this._syncModelPreviewButton();
             this._renderModelPreview(null, T("model_preview_failed", { msg: error instanceof Error ? error.message : String(error) }));
         }
@@ -6891,6 +6930,7 @@ export class CapTimelineEditorApp {
         this._modelPreviewPromptId = null;
         this._modelPreviewClipId = null;
         this._modelPreviewRunning = false;
+        this._modelPreviewOverrideNodeIds = null;
         this._syncModelPreviewButton();
         if (String(this._aiOptimizeClipId) === String(clipId)) {
             this._renderModelPreview(this._modelPreviewEntry, status);
@@ -6932,7 +6972,10 @@ export class CapTimelineEditorApp {
         const d = e?.detail;
         if (!d || typeof d.image !== "string") return;
         const mime = typeof d.mime === "string" ? d.mime : "";
-        if (this._modelPreviewRunning && ["image/jpeg", "image/webp", "video/mp4"].includes(mime)) {
+        const previewNodeId = String(d.node_id || "");
+        const belongsToModelPreview = this._modelPreviewRunning
+            && this._modelPreviewOverrideNodeIds?.has(previewNodeId);
+        if (belongsToModelPreview && ["image/jpeg", "image/webp", "video/mp4"].includes(mime)) {
             let blob;
             try {
                 blob = this._b64ToBlob(d.image, mime);
@@ -7134,7 +7177,14 @@ export class CapTimelineEditorApp {
 
     _onPromptExecuted(e) {
         if (this._destroyed || !this._isNodeOnLiveGraph()) return;
-        if (this._promptIdFromEvent(e) === this._modelPreviewPromptId) return;
+        if (this._promptIdFromEvent(e) === this._modelPreviewPromptId) {
+            const preview = e?.detail?.output?.cap_timeline_preview?.[0];
+            if (preview) this._onTimelinePreviewEvent({ detail: {
+                ...preview,
+                prompt_id: this._promptIdFromEvent(e),
+            } });
+            return;
+        }
         const files = this._collectExecutedOutputVideos(e?.detail);
         if (!files.length) return;
         const promptId = this._promptIdFromEvent(e);
@@ -16843,9 +16893,8 @@ export class CapTimelineEditorApp {
         }
         this._restoreAiOutputLanguage();
         this._restoreAiPromptContext();
-        if (this.modelPreviewModelInput) {
-            this.modelPreviewModelInput.value = localStorage.getItem(STORAGE_MODEL_PREVIEW_MODEL) || "";
-        }
+        if (this.modelPreviewSeedInput) this.modelPreviewSeedInput.value = String(this._normalizeClipSeed(meta.seed));
+        if (this.modelPreviewMegapixelsInput) this.modelPreviewMegapixelsInput.value = String(this._previewMegapixels());
         this._updateModelPreviewConfigName();
         const targetAgent = ["MiniMaxH3", "LTX", "Bernini", "Wan", "other"].includes(meta.agent)
             ? meta.agent

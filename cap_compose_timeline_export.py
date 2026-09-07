@@ -10,6 +10,7 @@ import tempfile
 from typing import Any
 
 import folder_paths
+from PIL import ImageFilter
 
 from .cap_i18n import get_last_known_lang, t as _t
 from .cap_compose_clip_videos import _probe_has_audio, _probe_video_size, _run_ffmpeg
@@ -446,36 +447,45 @@ def _render_subtitle_png(text: str, style: dict) -> str:
     except (TypeError, ValueError):
         font_size = 36
     font_path = resolve_font_path(style.get("font_path") or "")
-    font = ImageFont.truetype(font_path, font_size) if font_path else ImageFont.load_default()
+    render_scale = 2
+    font = ImageFont.truetype(font_path, font_size * render_scale) if font_path else ImageFont.load_default(size=font_size * render_scale)
     color = str(style.get("color") or "#ffffff").lstrip("#")
     if len(color) != 6:
         color = "ffffff"
-    opacity = max(0.0, min(1.0, float(style.get("opacity", 1) or 1)))
+    opacity = max(0.0, min(1.0, float(style.get("opacity", 1))))
     fill = tuple(int(color[i:i + 2], 16) for i in (0, 2, 4)) + (round(255 * opacity),)
-    stroke_width = max(0, round(float(style.get("stroke_width", 0) or 0))) if style.get("stroke_enabled", True) is not False else 0
+    # Canvas strokes straddle the glyph edge; Pillow's stroke extends outward.
+    stroke_width = max(0, round(float(style.get("stroke_width", 0) or 0) * render_scale / 2)) if style.get("stroke_enabled", True) is not False else 0
     stroke_color = str(style.get("stroke_color") or "#000000").lstrip("#")
     if len(stroke_color) != 6:
         stroke_color = "000000"
     stroke_fill = tuple(int(stroke_color[i:i + 2], 16) for i in (0, 2, 4)) + (round(255 * opacity),)
     align = str(style.get("align") or "center").lower()
-    spacing = max(2, round(font_size * 0.25))
+    spacing = max(2, round(font_size * 0.25)) * render_scale
     scratch = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
     box = scratch.multiline_textbbox((0, 0), text, font=font, spacing=spacing, align=align, stroke_width=stroke_width)
-    shadow_x = round(float(style.get("shadow_offset_x", 0) or 0)) if style.get("shadow_enabled") else 0
-    shadow_y = round(float(style.get("shadow_offset_y", 0) or 0)) if style.get("shadow_enabled") else 0
-    pad = stroke_width + max(abs(shadow_x), abs(shadow_y)) + 2
+    shadow_enabled = style.get("shadow_enabled", True) is not False
+    shadow_x = round(float(style.get("shadow_offset_x", 0) or 0) * render_scale) if shadow_enabled else 0
+    shadow_y = round(float(style.get("shadow_offset_y", 0) or 0) * render_scale) if shadow_enabled else 0
+    shadow_radius = max(0, float(style.get("shadow_blur", 0) or 0)) * render_scale / 2 if shadow_enabled else 0
+    pad = stroke_width + max(abs(shadow_x), abs(shadow_y)) + round(shadow_radius * 3) + 2 * render_scale
     width = max(1, box[2] - box[0] + pad * 2)
     height = max(1, box[3] - box[1] + pad * 2)
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
     pos = (pad - box[0], pad - box[1])
-    if style.get("shadow_enabled"):
+    if shadow_enabled:
         shadow_color = str(style.get("shadow_color") or "#000000").lstrip("#")
         if len(shadow_color) != 6:
             shadow_color = "000000"
-        shadow_fill = tuple(int(shadow_color[i:i + 2], 16) for i in (0, 2, 4)) + (round(180 * opacity),)
-        draw.multiline_text((pos[0] + shadow_x, pos[1] + shadow_y), text, font=font, fill=shadow_fill, spacing=spacing, align=align)
+        shadow_fill = tuple(int(shadow_color[i:i + 2], 16) for i in (0, 2, 4)) + (round(255 * opacity),)
+        ImageDraw.Draw(image).multiline_text((pos[0] + shadow_x, pos[1] + shadow_y), text, font=font, fill=shadow_fill, spacing=spacing, align=align, stroke_width=stroke_width, stroke_fill=shadow_fill)
+        if shadow_radius:
+            image = image.filter(ImageFilter.GaussianBlur(shadow_radius))
+    foreground = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(foreground)
     draw.multiline_text(pos, text, font=font, fill=fill, spacing=spacing, align=align, stroke_width=stroke_width, stroke_fill=stroke_fill)
+    image = Image.alpha_composite(image, foreground)
+    image = image.resize((max(1, (width + 1) // render_scale), max(1, (height + 1) // render_scale)), Image.Resampling.LANCZOS)
     fd, path = tempfile.mkstemp(suffix=".png", prefix="cap_subtitle_")
     os.close(fd)
     image.save(path)
@@ -634,10 +644,10 @@ def compose_timeline_project(
         idx = i + 1
         start = float(seg["start_sec"])
         dur = float(seg["duration_sec"])
-        if seg.get("layer") == "media":
+        if seg.get("layer") == "media" or seg.get("kind") == "image":
             filters.append(
                 f"[{idx}:v]trim=start={seg['source_in_sec']:.6f}:duration={dur:.6f},setpts=PTS-STARTPTS+{start:.6f}/TB,"
-                f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                f"format=rgba,scale={width}:{height}:force_original_aspect_ratio=decrease,"
                 f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0,setsar=1,fps={fps},"
                 f"format=rgba[v{i}]"
             )

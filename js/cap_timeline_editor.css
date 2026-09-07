@@ -2270,7 +2270,7 @@ body.cat-te-media-dnd-over-tl {
 
 .cat-te-font-picker {
     position: fixed;
-    z-index: 10060;
+    z-index: 100060;
     max-height: min(360px, 50vh);
     overflow-x: hidden;
     overflow-y: auto;

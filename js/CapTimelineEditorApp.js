@@ -15486,9 +15486,7 @@ export class CapTimelineEditorApp {
             return;
         }
         this._programFrameKey = frameKey;
-        let layers = this._collectPreviewLayers(t);
-        // Generated playback fills the monitor: the top layer covers all lower videos.
-        if (layers.some((layer) => layer.kind === "generated")) layers = layers.slice(-1);
+        const layers = this._collectPreviewLayers(t);
         const hasSub = this._hasVisibleSubtitleAt(t);
         const usedVideoKeys = new Set();
 
@@ -16531,9 +16529,9 @@ export class CapTimelineEditorApp {
 
         if (m.shadowEnabled !== false) {
             ctx.shadowColor = m.shadowColor || "rgba(0,0,0,0.75)";
-            ctx.shadowBlur = Math.max(0, Number(m.shadowBlur) || 0);
-            ctx.shadowOffsetX = Number(m.shadowOffsetX) || 0;
-            ctx.shadowOffsetY = Number(m.shadowOffsetY) || 0;
+            ctx.shadowBlur = Math.max(0, Number(m.shadowBlur) || 0) * scale;
+            ctx.shadowOffsetX = (Number(m.shadowOffsetX) || 0) * scale;
+            ctx.shadowOffsetY = (Number(m.shadowOffsetY) || 0) * scale;
         } else {
             ctx.shadowColor = "transparent";
             ctx.shadowBlur = 0;
@@ -16545,7 +16543,7 @@ export class CapTimelineEditorApp {
         for (let i = 0; i < lines.length; i++) {
             const ly = startY + i * lineHeight;
             if (m.strokeEnabled !== false && Number(m.strokeWidth) > 0) {
-                ctx.lineWidth = Number(m.strokeWidth) || 1;
+                ctx.lineWidth = (Number(m.strokeWidth) || 1) * scale;
                 ctx.strokeStyle = m.strokeColor || "#000";
                 ctx.lineJoin = "round";
                 this._drawTextWithLetterSpacing(ctx, lines[i], x, ly, letterSpacing, "stroke");

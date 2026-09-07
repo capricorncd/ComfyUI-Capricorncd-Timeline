@@ -86,11 +86,13 @@ def _even_dim(value: int) -> int:
 
 
 def _size_from_video_segments(video_segs: list[dict], fallback_w: int, fallback_h: int) -> tuple[int, int]:
-    """Use the largest probed video frame size (keeps 2nd-sample upscales)."""
+    """Use the largest director video frame size (keeps 2nd-sample upscales)."""
     best_w = 0
     best_h = 0
     best_area = 0
     for seg in video_segs:
+        if seg.get("layer") != "director" or seg.get("kind") != "video":
+            continue
         path = str(seg.get("path") or "")
         if not path:
             continue
@@ -182,6 +184,10 @@ def _collect_plan(
                         "path": path,
                         "kind": kind,
                         "layer": "media",
+                        "opacity": max(0.0, min(1.0, float(clip.get("opacity", 1.0)))),
+                        "scale": max(1.0, min(300.0, float(clip.get("media_scale", 100)))) / 100,
+                        "offset_x": max(-100.0, min(100.0, float(clip.get("media_offset_x", 0)))) / 100,
+                        "offset_y": max(-100.0, min(100.0, float(clip.get("media_offset_y", 0)))) / 100,
                         "start_sec": segment_start,
                         "duration_sec": media_duration,
                         "end_sec": segment_start + media_duration,
@@ -485,7 +491,8 @@ def _render_subtitle_png(text: str, style: dict) -> str:
     draw = ImageDraw.Draw(foreground)
     draw.multiline_text(pos, text, font=font, fill=fill, spacing=spacing, align=align, stroke_width=stroke_width, stroke_fill=stroke_fill)
     image = Image.alpha_composite(image, foreground)
-    image = image.resize((max(1, (width + 1) // render_scale), max(1, (height + 1) // render_scale)), Image.Resampling.LANCZOS)
+    subtitle_scale = max(10.0, min(300.0, float(style.get("subtitle_scale", 100)))) / 100
+    image = image.resize((max(1, round(width * subtitle_scale / render_scale)), max(1, round(height * subtitle_scale / render_scale))), Image.Resampling.LANCZOS)
     fd, path = tempfile.mkstemp(suffix=".png", prefix="cap_subtitle_")
     os.close(fd)
     image.save(path)
@@ -645,11 +652,13 @@ def compose_timeline_project(
         start = float(seg["start_sec"])
         dur = float(seg["duration_sec"])
         if seg.get("layer") == "media" or seg.get("kind") == "image":
+            scaled_width = max(1, round(width * seg.get("scale", 1)))
+            scaled_height = max(1, round(height * seg.get("scale", 1)))
             filters.append(
                 f"[{idx}:v]trim=start={seg['source_in_sec']:.6f}:duration={dur:.6f},setpts=PTS-STARTPTS+{start:.6f}/TB,"
-                f"format=rgba,scale={width}:{height}:force_original_aspect_ratio=decrease,"
-                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0,setsar=1,fps={fps},"
-                f"format=rgba[v{i}]"
+                f"format=rgba,scale={scaled_width}:{scaled_height}:force_original_aspect_ratio=decrease,"
+                f"setsar=1,fps={fps},"
+                f"format=rgba,colorchannelmixer=aa={seg.get('opacity', 1.0):.6f}[v{i}]"
             )
         else:
             filters.append(
@@ -664,8 +673,10 @@ def compose_timeline_project(
         out = f"ov{i}"
         # Only show this clip between its timeline start and end.
         enable = _escape_enable(seg["start_sec"], seg["end_sec"])
+        x = f"(W-w)/2+W*{seg.get('offset_x', 0):.6f}"
+        y = f"(H-h)/2+H*{seg.get('offset_y', 0):.6f}"
         filters.append(
-            f"[{prev}][v{i}]overlay=0:0:eof_action=pass:repeatlast=0:enable='{enable}'[{out}]"
+            f"[{prev}][v{i}]overlay=x='{x}':y='{y}':eof_action=pass:repeatlast=0:enable='{enable}'[{out}]"
         )
         prev = out
     filters.append(f"[{prev}]format=yuv420p[vout]")

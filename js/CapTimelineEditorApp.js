@@ -536,6 +536,7 @@ function defaultSubtitleMeta(trackIndex = 0) {
         fontFamily: "",
         fontPath: "",
         fontSize: 48,
+        subtitleScale: 100,
         letterSpacing: 0,
         color: "#ffffff",
         bold: false,
@@ -563,7 +564,7 @@ const SUBTITLE_STYLE_KEYS = [
     "fontFamily", "fontPath", "fontSize", "letterSpacing", "color", "bold", "italic", "opacity",
     "strokeEnabled", "strokeColor", "strokeWidth",
     "shadowEnabled", "shadowColor", "shadowBlur", "shadowOffsetX", "shadowOffsetY",
-    "align", "vAlign", "offsetX", "offsetY",
+    "align", "vAlign", "offsetX", "offsetY", "subtitleScale",
 ];
 
 function pickSubtitleStyle(meta) {
@@ -581,6 +582,7 @@ function subtitleStyleFromJson(value) {
         fontFamily: src.font_family ?? src.fontFamily,
         fontPath: src.font_path ?? src.fontPath,
         fontSize: src.font_size ?? src.fontSize,
+        subtitleScale: src.subtitle_scale ?? src.subtitleScale ?? 100,
         letterSpacing: src.letter_spacing ?? src.letterSpacing,
         color: src.color,
         bold: src.bold,
@@ -607,6 +609,7 @@ function serializeSubtitleStyle(meta) {
         font_family: style.fontFamily,
         font_path: style.fontPath || "",
         font_size: style.fontSize,
+        subtitle_scale: style.subtitleScale ?? 100,
         letter_spacing: style.letterSpacing ?? 0,
         color: style.color,
         bold: !!style.bold,
@@ -3245,6 +3248,28 @@ export class CapTimelineEditorApp {
                   </div>
                 </div>
               </div>
+              <div class="cat-te-clip-opacity-panel" hidden>
+                <label class="cat-te-clip-setting-row">
+                  <span>${T("scale_label")} %</span>
+                  <input class="cat-te-media-scale" type="range" min="1" max="300" step="1" value="100" />
+                  <span class="cat-te-media-scale-value">100%</span>
+                </label>
+                <label class="cat-te-clip-setting-row">
+                  <span>${T("subtitle_offset_x_label")}</span>
+                  <input class="cat-te-media-x" type="range" min="-100" max="100" step="1" value="0" />
+                  <span class="cat-te-media-x-value">0%</span>
+                </label>
+                <label class="cat-te-clip-setting-row">
+                  <span>${T("subtitle_offset_y_label")}</span>
+                  <input class="cat-te-media-y" type="range" min="-100" max="100" step="1" value="0" />
+                  <span class="cat-te-media-y-value">0%</span>
+                </label>
+                <label class="cat-te-clip-setting-row">
+                  <span>${T("opacity_label")}</span>
+                  <input class="cat-te-clip-opacity" type="range" min="0" max="100" step="1" value="100" />
+                  <span class="cat-te-clip-opacity-value">100%</span>
+                </label>
+              </div>
               <div class="cat-te-clip-volume-panel" hidden>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("clip_volume_label")}</span>
@@ -3413,12 +3438,19 @@ export class CapTimelineEditorApp {
                   </select>
                 </label>
                 <label class="cat-te-clip-setting-row">
+                  <span>${T("scale_label")} %</span>
+                  <input class="cat-te-sub-scale" type="range" min="10" max="300" step="1" value="100" />
+                  <span class="cat-te-sub-scale-value">100%</span>
+                </label>
+                <label class="cat-te-clip-setting-row">
                   <span>${T("subtitle_offset_x_label")}</span>
-                  <input class="cat-te-sub-offset-x" type="number" min="-50" max="50" step="1" value="0" />
+                  <input class="cat-te-sub-offset-x" type="range" min="-100" max="100" step="0.1" value="0" />
+                  <span class="cat-te-sub-offset-x-value">0%</span>
                 </label>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("subtitle_offset_y_label")}</span>
-                  <input class="cat-te-sub-offset-y" type="number" min="-50" max="50" step="1" value="8" />
+                  <input class="cat-te-sub-offset-y" type="range" min="-100" max="100" step="0.1" value="0" />
+                  <span class="cat-te-sub-offset-y-value">0%</span>
                 </label>
                 <div class="cat-te-sub-apply-row">
                   <button type="button" class="cat-te-btn cat-te-sub-apply-all">${T("subtitle_apply_all_btn")}</button>
@@ -4111,6 +4143,14 @@ export class CapTimelineEditorApp {
         this.projectPanel = el.querySelector(".cat-te-project-panel");
         this.clipPanel = el.querySelector(".cat-te-clip-panel");
         this.clipVolumePanel = el.querySelector(".cat-te-clip-volume-panel");
+        this.clipOpacityPanel = el.querySelector(".cat-te-clip-opacity-panel");
+        this.mediaTransformInputs = [
+            [el.querySelector(".cat-te-media-scale"), "mediaScale", 100, 1, 300],
+            [el.querySelector(".cat-te-media-x"), "mediaOffsetX", 0, -100, 100],
+            [el.querySelector(".cat-te-media-y"), "mediaOffsetY", 0, -100, 100],
+        ];
+        this.clipOpacityInput = el.querySelector(".cat-te-clip-opacity");
+        this.clipOpacityValue = el.querySelector(".cat-te-clip-opacity-value");
         this.clipVolumeInput = el.querySelector(".cat-te-clip-volume");
         this.clipVolumeValue = el.querySelector(".cat-te-clip-volume-value");
         this.visualClipBody = el.querySelector(".cat-te-visual-clip-body");
@@ -4166,6 +4206,8 @@ export class CapTimelineEditorApp {
         this.subTextInput = el.querySelector(".cat-te-sub-text");
         this.subFontSelect = el.querySelector(".cat-te-sub-font");
         this.subSizeInput = el.querySelector(".cat-te-sub-size");
+        this.subScaleInput = el.querySelector(".cat-te-sub-scale");
+        this.subScaleValue = el.querySelector(".cat-te-sub-scale-value");
         this.subLetterSpacingInput = el.querySelector(".cat-te-sub-letter-spacing");
         this.subColorInput = el.querySelector(".cat-te-sub-color");
         this.subBoldCb = el.querySelector(".cat-te-sub-bold");
@@ -4604,6 +4646,38 @@ export class CapTimelineEditorApp {
         this.clipAgentSelect?.addEventListener("change", () => this._onClipAgentChange());
         this.clipAgentCustomInput?.addEventListener("change", () => this._onClipAgentCustomChange());
         this.clipVolumeInput?.addEventListener("pointerdown", () => this._armClipVolumeUndo());
+        for (const [input, key, fallback, min, max] of this.mediaTransformInputs) {
+            let undoArmed = false;
+            input.addEventListener("input", () => {
+                if (!this._selClip || input.value === "" || !Number.isFinite(input.valueAsNumber)) return;
+                if (!undoArmed) { this._recordUndo(); undoArmed = true; }
+                this._ensureClipMeta(this._selClip)[key] = Math.max(min, Math.min(max, input.valueAsNumber));
+                input.nextElementSibling.textContent = `${input.value}%`;
+                this._renderProgramPreview();
+            });
+            input.addEventListener("change", () => {
+                undoArmed = false;
+                input.value = String(this._ensureClipMeta(this._selClip)?.[key] ?? fallback);
+                input.nextElementSibling.textContent = `${input.value}%`;
+                this._saveToWidgets();
+            });
+            input.addEventListener("blur", () => { undoArmed = false; });
+        }
+        this.clipOpacityInput?.addEventListener("input", () => {
+            if (!this._selClip) return;
+            if (!this._clipOpacityUndoArmed) {
+                this._recordUndo();
+                this._clipOpacityUndoArmed = true;
+            }
+            const percent = Number(this.clipOpacityInput.value);
+            this._ensureClipMeta(this._selClip).opacity = percent / 100;
+            this.clipOpacityValue.textContent = `${percent}%`;
+            this._renderProgramPreview();
+        });
+        this.clipOpacityInput?.addEventListener("change", () => {
+            this._clipOpacityUndoArmed = false;
+            this._saveToWidgets();
+        });
         this.clipVolumeInput?.addEventListener("keydown", (e) => {
             if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(e.key)) {
                 this._armClipVolumeUndo();
@@ -12573,6 +12647,10 @@ export class CapTimelineEditorApp {
                 ...defaultImageMeta(trackIdx),
                 clipType: isMediaTrackType(track.type) ? "media" : "image",
                 mediaKind: isMediaTrackType(track.type) ? "media" : "clip",
+                opacity: Math.max(0, Math.min(1, Number(c.opacity ?? 1))),
+                mediaScale: Math.max(1, Math.min(300, Number(c.media_scale ?? 100))),
+                mediaOffsetX: Math.max(-100, Math.min(100, Number(c.media_offset_x ?? 0))),
+                mediaOffsetY: Math.max(-100, Math.min(100, Number(c.media_offset_y ?? 0))),
                 prompt: c.prompt ?? "",
                 promptIncludes,
                 usePrependPrompt: c.use_prepend_prompt !== false,
@@ -15299,6 +15377,19 @@ export class CapTimelineEditorApp {
         return true;
     }
 
+    _drawMediaLayer(ctx, media, cw, ch, meta) {
+        const scale = Math.max(1, Math.min(300, Number(meta.mediaScale ?? 100))) / 100;
+        const x = Math.max(-100, Math.min(100, Number(meta.mediaOffsetX ?? 0))) / 100 * cw;
+        const y = Math.max(-100, Math.min(100, Number(meta.mediaOffsetY ?? 0))) / 100 * ch;
+        ctx.save();
+        ctx.translate(cw / 2 + x, ch / 2 + y);
+        ctx.scale(scale, scale);
+        ctx.translate(-cw / 2, -ch / 2);
+        const drew = this._drawContain(ctx, media, cw, ch);
+        ctx.restore();
+        return drew;
+    }
+
     _clipPreviewItemAtTime(clip, items, t) {
         if (!items?.length) return null;
         if (items.length === 1) return { item: items[0], index: 0 };
@@ -15420,12 +15511,15 @@ export class CapTimelineEditorApp {
                     audible: layer.kind === "generated" && layer.muted !== true,
                 });
                 const drawLayer = layer.mediaTrack
-                    ? (c, m, w, h) => this._drawContain(c, m, w, h)
+                    ? (c, m, w, h) => this._drawMediaLayer(c, m, w, h, layer.meta)
                     : drawMedia;
+                ctx.save();
+                if (layer.mediaTrack) ctx.globalAlpha *= Math.max(0, Math.min(1, Number(layer.meta.opacity ?? 1)));
                 if (this._previewVideoCanDraw(entry) && drawLayer(ctx, entry.el, cw, ch)) {
                     entry._hasDrawn = true;
                     drew = true;
                 }
+                ctx.restore();
                 continue;
             }
             const items = layer.items || [];
@@ -15436,9 +15530,12 @@ export class CapTimelineEditorApp {
             const startEntry = this._ensurePreviewImage(file ? this._imgUrl(file) : "");
             if (startEntry?.ready) {
                 const drawLayer = layer.mediaTrack
-                    ? (c, m, w, h) => this._drawContain(c, m, w, h)
+                    ? (c, m, w, h) => this._drawMediaLayer(c, m, w, h, layer.meta)
                     : drawMedia;
+                ctx.save();
+                if (layer.mediaTrack) ctx.globalAlpha *= Math.max(0, Math.min(1, Number(layer.meta.opacity ?? 1)));
                 if (drawLayer(ctx, startEntry.el, cw, ch)) drew = true;
+                ctx.restore();
             }
         }
         return drew;
@@ -16078,6 +16175,16 @@ export class CapTimelineEditorApp {
     }
 
     _fillClipVolumeControl(clip, isSubtitle) {
+        const media = !!clip && isMediaTrackType(clip.track?.type);
+        this.clipOpacityPanel.hidden = !media;
+        for (const [input, key, fallback] of this.mediaTransformInputs) {
+            input.value = String(media ? this._ensureClipMeta(clip)[key] ?? fallback : fallback);
+            input.nextElementSibling.textContent = `${input.value}%`;
+        }
+        const opacity = media ? Math.max(0, Math.min(1, Number(this._ensureClipMeta(clip).opacity ?? 1))) : 1;
+        this.clipOpacityInput.value = String(Math.round(opacity * 100));
+        this.clipOpacityValue.textContent = `${Math.round(opacity * 100)}%`;
+        this._clipOpacityUndoArmed = false;
         const visible = !!clip && !isSubtitle;
         if (this.clipVolumePanel) this.clipVolumePanel.hidden = !visible;
         if (!this.clipVolumeInput) return;
@@ -16301,6 +16408,7 @@ export class CapTimelineEditorApp {
         for (const [el, key, cast] of [
             [this.subFontSelect, "fontFamily", "str"],
             [this.subSizeInput, "fontSize", "num"],
+            [this.subScaleInput, "subtitleScale", "num"],
             [this.subLetterSpacingInput, "letterSpacing", "num"],
             [this.subColorInput, "color", "str"],
             [this.subBoldCb, "bold", "bool"],
@@ -16352,6 +16460,8 @@ export class CapTimelineEditorApp {
                 void this._ensureFontList();
             }
             if (this.subSizeInput) this.subSizeInput.value = String(Math.max(8, Math.round(Number(m.fontSize) || 48)));
+            this.subScaleInput.value = String(Math.max(10, Math.min(300, Number(m.subtitleScale ?? 100))));
+            this.subScaleValue.textContent = `${this.subScaleInput.value}%`;
             if (this.subLetterSpacingInput) {
                 this.subLetterSpacingInput.value = String(Math.max(-50, Math.min(200, Math.round(Number(m.letterSpacing) || 0))));
             }
@@ -16376,8 +16486,7 @@ export class CapTimelineEditorApp {
             if (this.subShadowYInput) this.subShadowYInput.value = String(Number(m.shadowOffsetY) || 0);
             if (this.subAlignSelect) this.subAlignSelect.value = ["left", "center", "right"].includes(m.align) ? m.align : "center";
             if (this.subVAlignSelect) this.subVAlignSelect.value = ["top", "middle", "bottom"].includes(m.vAlign) ? m.vAlign : "bottom";
-            if (this.subOffsetXInput) this.subOffsetXInput.value = String(Number(m.offsetX) || 0);
-            if (this.subOffsetYInput) this.subOffsetYInput.value = String(Number(m.offsetY) || 0);
+            this._fillSubtitlePosition(m);
         } finally {
             this._subPanelFilling = false;
         }
@@ -16393,6 +16502,8 @@ export class CapTimelineEditorApp {
             || "",
         );
         meta.fontSize = Math.max(8, Math.round(Number(this.subSizeInput?.value) || meta.fontSize || 48));
+        meta.subtitleScale = Math.max(10, Math.min(300, Number(this.subScaleInput.value)));
+        this.subScaleValue.textContent = `${meta.subtitleScale}%`;
         meta.letterSpacing = Math.max(-50, Math.min(200, Math.round(Number(this.subLetterSpacingInput?.value) || 0)));
         meta.color = String(this.subColorInput?.value || meta.color || "#ffffff");
         meta.bold = !!this.subBoldCb?.checked;
@@ -16410,9 +16521,22 @@ export class CapTimelineEditorApp {
         meta.shadowOffsetY = Number(this.subShadowYInput?.value) || 0;
         meta.align = String(this.subAlignSelect?.value || "center");
         meta.vAlign = String(this.subVAlignSelect?.value || "bottom");
-        meta.offsetX = Number(this.subOffsetXInput?.value) || 0;
-        meta.offsetY = Number(this.subOffsetYInput?.value) || 0;
         return meta;
+    }
+
+    _fillSubtitlePosition(m) {
+        const width = Math.max(1, Number(this._w("width")?.value) || 1920);
+        const height = Math.max(1, Number(this._w("height")?.value) || 1080);
+        const blockHeight = Math.max(8, Number(m.fontSize) || 48) * Math.max(10, Math.min(300, Number(m.subtitleScale ?? 100))) / 100 * 1.25 * String(m.text || "").trim().split(/\r?\n/).length;
+        const edge = (width * 0.04 + blockHeight / 2) / height * 100;
+        const x = (m.align === "left" ? -46 : m.align === "right" ? 46 : 0) + (Number(m.offsetX) || 0);
+        const y = m.vAlign === "top" ? -50 + edge + (Number(m.offsetY) || 0)
+            : m.vAlign === "middle" ? Number(m.offsetY) || 0
+            : 50 - edge - (Number(m.offsetY) || 0);
+        for (const [input, value] of [[this.subOffsetXInput, x], [this.subOffsetYInput, y]]) {
+            input.value = String(Math.max(-100, Math.min(100, value)));
+            input.nextElementSibling.textContent = `${Math.round(value * 10) / 10}%`;
+        }
     }
 
     _onSubtitleFieldChange(changes = {}) {
@@ -16430,6 +16554,13 @@ export class CapTimelineEditorApp {
         }
         const m = this._ensureClipMeta(clip);
         this._readSubtitlePanelInto(m);
+        if (changes.offsetX || changes.offsetY) {
+            m.offsetX = Number(this.subOffsetXInput.value) - (m.align === "left" ? -46 : m.align === "right" ? 46 : 0);
+            m.offsetY = Number(this.subOffsetYInput.value);
+            m.vAlign = "middle";
+            this.subVAlignSelect.value = "middle";
+        }
+        this._fillSubtitlePosition(m);
         if (!changes.text) {
             const style = pickSubtitleStyle(m);
             const info = this._trackInfo.get(clip.track.id) || {};
@@ -16500,7 +16631,8 @@ export class CapTimelineEditorApp {
     _paintSubtitle(ctx, cw, ch, m) {
         const text = String(m.text || "").trim();
         if (!text) return;
-        const scale = ch / Math.max(1, Number(this._w("height")?.value) || ch);
+        const scale = ch / Math.max(1, Number(this._w("height")?.value) || ch)
+            * Math.max(10, Math.min(300, Number(m.subtitleScale ?? 100))) / 100;
         const fontSize = Math.max(8, Number(m.fontSize) || 48) * scale;
         const letterSpacing = (Number(m.letterSpacing) || 0) * scale;
         const weight = m.bold ? "700" : "400";
@@ -17572,6 +17704,12 @@ export class CapTimelineEditorApp {
                     volume: normalizeClipVolume(m.volume),
                 };
                 if (Object.keys(source).length) row.source = source;
+                if (isMediaTrackType(track.type)) row.opacity = Math.max(0, Math.min(1, Number(m.opacity ?? 1)));
+                if (isMediaTrackType(track.type)) {
+                    row.media_scale = Math.max(1, Math.min(300, Number(m.mediaScale ?? 100)));
+                    row.media_offset_x = Math.max(-100, Math.min(100, Number(m.mediaOffsetX ?? 0)));
+                    row.media_offset_y = Math.max(-100, Math.min(100, Number(m.mediaOffsetY ?? 0)));
+                }
                 if (track.type === "audio") {
                     row.muted = !!m.muted;
                     const fadeInMs = Math.max(0, Math.round((clip.fadeIn || 0) * 1000));

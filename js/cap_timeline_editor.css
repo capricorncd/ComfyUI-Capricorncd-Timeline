@@ -4281,6 +4281,9 @@ body.cat-te-media-dnd-over-tl {
     height: 100%;
     object-fit: contain;
 }
+.cat-te-ai-preview-stage > [hidden] {
+    display: none !important;
+}
 .cat-te-ai-preview-empty {
     padding: 12px;
     color: #68688b;

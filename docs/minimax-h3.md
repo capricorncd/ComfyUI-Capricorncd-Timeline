@@ -62,8 +62,10 @@ The Prompt Manager MiniMaxH3 Skill library supports both the [official MiniMax S
 | `images` | IMAGE | Stacked still refs (letterboxed); blank 64×64 if none |
 | `videos` | IMAGE | Stacked video ref frames (letterboxed); blank if none |
 | `audio` | AUDIO | Mixed clip audio (master trim or `audios[]`) |
+| `seed` | INT | Clip seed from `clip_json` or `data_json[index]`; appended after `save_latent`. Missing/invalid values return `-1` (unset). |
 
 Wire `positive` / `latent` into your MiniMax H3 sampler / decode chain as you would with the stock Reference to Video node.
+Connect `seed` to `RandomNoise.noise_seed` or the sampler seed input. Set a nonnegative Clip seed (or generate a preview to save one) before sampling. Matching seeds alone do not reproduce a preview when resolution or sampling settings differ.
 
 ---
 

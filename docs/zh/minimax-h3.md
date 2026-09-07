@@ -62,8 +62,10 @@ Timeline Editor 的提示词按固定顺序拼接：启用的 `prepend_prompt` �
 | `images` | IMAGE | 堆叠静帧参考（letterbox）；无则为 64×64 空白 |
 | `videos` | IMAGE | 堆叠视频参考帧（letterbox）；无则为空白 |
 | `audio` | AUDIO | 片段混合音频（主轨裁剪或 `audios[]`） |
+| `seed` | INT | 读取 `clip_json` 或 `data_json[index]` 的 Clip 种子；追加在 `save_latent` 后。缺失或无效时返回 `-1`（未设置）。 |
 
 将 `positive` / `latent` 接到与官方 Reference to Video 相同的 MiniMax H3 采样 / 解码链路即可。
+将 `seed` 接到 `RandomNoise.noise_seed` 或采样器的种子输入。采样前请设置非负 Clip 种子，或先生成预览以保存种子。分辨率或采样参数不同时，仅使用相同种子不能复现预览画面。
 
 ---
 

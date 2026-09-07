@@ -219,10 +219,11 @@ class CAP_MiniMaxH3ReferenceToVideo:
             },
         }
 
-    RETURN_TYPES = ("CONDITIONING", "LATENT", "INT", "STRING", "IMAGE", "IMAGE", "AUDIO", "STRING", "INT", "BOOLEAN")
+    RETURN_TYPES = ("CONDITIONING", "LATENT", "INT", "STRING", "IMAGE", "IMAGE", "AUDIO", "STRING", "INT", "BOOLEAN", "INT")
     RETURN_NAMES = (
         "positive", "latent", "total_frame_count", "prompt",
         "images", "videos", "audio", "output_video", "trim_frames", "save_latent",
+        "seed",
     )
     FUNCTION = "execute"
     CATEGORY = "Capricorncd"
@@ -239,7 +240,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
         "When h3_motion_context_length > 0: prefer context_latent; else pin from the "
         "previous clip's output_video tail (frames+audio). Requires "
         "ComfyUI-H3-Motion-Context. trim_frames feeds H3 Motion Context Trim after decode. "
-        "save_latent mirrors the clip flag for gating Save Latent."
+        "save_latent mirrors the clip flag for gating Save Latent. "
+        "seed outputs the Clip seed for RandomNoise/noise_seed; -1 means unset."
     )
 
     @classmethod
@@ -552,9 +554,13 @@ class CAP_MiniMaxH3ReferenceToVideo:
 
         output_video = str(clip_row.get("output_video") or "").strip().replace("\\", "/")
         save_latent = bool(clip_row.get("save_latent", False))
+        try:
+            seed = max(-1, int(clip_row.get("seed", -1)))
+        except (TypeError, ValueError):
+            seed = -1
         return (
             positive, latent, length, prompt, images_out, videos_out,
-            audio_out, output_video, trim_frames, save_latent,
+            audio_out, output_video, trim_frames, save_latent, seed,
         )
 
 

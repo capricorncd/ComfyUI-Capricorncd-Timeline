@@ -3953,7 +3953,7 @@ export class CapTimelineEditorApp {
                     </div>
                     <div class="cat-te-ai-preview-stage">
                       <img class="cat-te-ai-preview-image" alt="${T("model_preview_title")}" hidden />
-                      <video class="cat-te-ai-preview-video" autoplay loop muted playsinline hidden></video>
+                      <video class="cat-te-ai-preview-video" controls autoplay loop muted playsinline hidden></video>
                       <div class="cat-te-ai-preview-empty"></div>
                     </div>
                   </div>
@@ -6745,20 +6745,31 @@ export class CapTimelineEditorApp {
         if (!this.aiPreviewPanel) return;
         this.aiPreviewPanel.hidden = false;
         if (this.aiPreviewStatus) this.aiPreviewStatus.textContent = status;
-        this.aiPreviewVideo?.pause();
-        if (this.aiPreviewVideo) {
-            this.aiPreviewVideo.hidden = true;
-            this.aiPreviewVideo.removeAttribute("src");
-            this.aiPreviewVideo.load();
+        const video = this.aiPreviewVideo;
+        const videoUrl = entry?.mime === "video/mp4" ? entry.url : null;
+        if (video) {
+            video.hidden = !videoUrl;
+            if (!videoUrl && video.hasAttribute("src")) {
+                video.pause();
+                video.removeAttribute("src");
+                video.load();
+            }
         }
         if (this.aiPreviewImage) {
             this.aiPreviewImage.hidden = true;
             this.aiPreviewImage.removeAttribute("src");
         }
-        if (entry?.url && entry.mime === "video/mp4" && this.aiPreviewVideo) {
-            this.aiPreviewVideo.src = entry.url;
-            this.aiPreviewVideo.hidden = false;
-            void this.aiPreviewVideo.play().catch(() => {});
+        if (videoUrl && video) {
+            if (video.getAttribute("src") !== videoUrl) {
+                video.onerror = () => {
+                    if (this.aiPreviewStatus) this.aiPreviewStatus.textContent = T("model_preview_failed", {
+                        msg: video.error?.message || `MediaError ${video.error?.code || ""}`,
+                    });
+                };
+                video.muted = true;
+                video.src = videoUrl;
+                void video.play().catch(() => { /* Playback controls remain available. */ });
+            }
         } else if (entry?.url && this.aiPreviewImage) {
             this.aiPreviewImage.src = entry.url;
             this.aiPreviewImage.hidden = false;
@@ -6943,19 +6954,14 @@ export class CapTimelineEditorApp {
         const promptId = String(d?.prompt_id || "").trim();
         if (!d || promptId !== String(this._modelPreviewPromptId || "")) return;
         if (typeof d.video !== "string" || d.mime !== "video/mp4") return;
-        let blob;
-        try {
-            blob = this._b64ToBlob(d.video, d.mime);
-        } catch {
-            return;
-        }
         if (this._modelPreviewEntry?.url) {
             try { URL.revokeObjectURL(this._modelPreviewEntry.url); } catch { /* ignore */ }
         }
+        const clipId = String(d.clip_id || this._modelPreviewClipId || "");
         this._modelPreviewEntry = {
-            url: URL.createObjectURL(blob),
+            url: api.apiURL(`/audio_keyframe_timeline/preview_video/${encodeURIComponent(promptId)}?clip_id=${encodeURIComponent(clipId)}`),
             mime: d.mime,
-            clipId: String(d.clip_id || this._modelPreviewClipId || ""),
+            clipId,
             step: 0,
             total: 0,
             seed: Number(d.seed),
@@ -7203,12 +7209,38 @@ export class CapTimelineEditorApp {
         }
     }
 
-    _flushPendingGeneratedVideos(e) {
+    async _flushPendingGeneratedVideos(e) {
         if (this._destroyed || !this._isNodeOnLiveGraph()) return;
         const promptId = this._promptIdFromEvent(e);
         if (promptId && promptId === this._modelPreviewPromptId) {
+            if (this._modelPreviewEntry?.mime !== "video/mp4") {
+                try {
+                    // execution_success can arrive just before the queue stores its history.
+                    let history;
+                    for (let attempt = 0; attempt < 4; attempt++) {
+                        const response = await api.fetchApi(`/history/${encodeURIComponent(promptId)}`);
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        history = await response.json();
+                        if (history[promptId] || attempt === 3) break;
+                        await new Promise((resolve) => setTimeout(resolve, 250));
+                        if (this._destroyed || this._modelPreviewPromptId !== promptId) return;
+                    }
+                    if (this._destroyed || this._modelPreviewPromptId !== promptId) return;
+                    for (const output of Object.values(history[promptId]?.outputs || {})) {
+                        const preview = output.cap_timeline_preview?.[0];
+                        if (preview) {
+                            this._onTimelinePreviewEvent({ detail: { ...preview, prompt_id: promptId } });
+                            break;
+                        }
+                    }
+                } catch (error) {
+                    if (this._destroyed || this._modelPreviewPromptId !== promptId) return;
+                    this._finishModelPreview(T("model_preview_failed", { msg: error.message }));
+                    return;
+                }
+            }
             this._finishModelPreview(
-                this._modelPreviewEntry ? T("model_preview_complete") : T("model_preview_not_received"),
+                this._modelPreviewEntry?.mime === "video/mp4" ? T("model_preview_complete") : T("model_preview_not_received"),
             );
             return;
         }

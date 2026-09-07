@@ -1,3 +1,5 @@
+import asyncio
+import base64
 import logging
 import os
 import shutil
@@ -209,6 +211,39 @@ def _register_routes():
     _soft_patch_h3_motion_context_load_latent()
 
     register_metadata_routes(routes)
+
+    @routes.get("/audio_keyframe_timeline/preview_video/{prompt_id}")
+    async def api_preview_video(request: web.Request) -> web.Response:
+        prompt_id = request.match_info["prompt_id"]
+        # The executed event precedes the queue's history update.
+        for attempt in range(5):
+            history = server.prompt_queue.get_history(prompt_id=prompt_id)
+            if prompt_id in history or attempt == 4:
+                break
+            await asyncio.sleep(0.25)
+        clip_id = request.query.get("clip_id", "")
+        for output in history.get(prompt_id, {}).get("outputs", {}).values():
+            for preview in output.get("cap_timeline_preview", []):
+                if preview.get("mime") != "video/mp4" or str(preview.get("clip_id", "")) != clip_id:
+                    continue
+                data = base64.b64decode(preview["video"])
+                size = len(data)
+                headers = {"Accept-Ranges": "bytes", "Cache-Control": "no-store"}
+                if "Range" not in request.headers:
+                    return web.Response(body=data, content_type="video/mp4", headers=headers)
+                try:
+                    byte_range = request.http_range
+                except ValueError:
+                    return web.Response(status=416, headers={"Content-Range": f"bytes */{size}"})
+                start = byte_range.start or 0
+                if start < 0:
+                    start = max(0, size + start)
+                stop = min(byte_range.stop if byte_range.stop is not None else size, size)
+                if start >= stop:
+                    return web.Response(status=416, headers={"Content-Range": f"bytes */{size}"})
+                headers["Content-Range"] = f"bytes {start}-{stop - 1}/{size}"
+                return web.Response(body=data[start:stop], status=206, content_type="video/mp4", headers=headers)
+        raise web.HTTPNotFound(text="Timeline preview is no longer in execution history. Generate it again.")
 
     @routes.get("/audio_keyframe_timeline/uploaded")
     async def api_list_uploaded(request: web.Request) -> web.Response:

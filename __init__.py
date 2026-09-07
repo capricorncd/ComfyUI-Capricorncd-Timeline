@@ -5,6 +5,8 @@ import os
 import shutil
 import subprocess
 import sys
+import time
+import uuid
 
 from aiohttp import web
 
@@ -211,6 +213,56 @@ def _register_routes():
     _soft_patch_h3_motion_context_load_latent()
 
     register_metadata_routes(routes)
+
+    # Transient encoded frames only: one per active preview, capped at 8 MiB total.
+    preview_images = {}
+
+    @routes.post("/audio_keyframe_timeline/preview_image/{prompt_id}")
+    async def api_put_preview_image(request: web.Request) -> web.Response:
+        try:
+            prompt_id = str(uuid.UUID(request.match_info["prompt_id"]))
+        except ValueError:
+            raise web.HTTPBadRequest(text="Invalid preview id.")
+        if request.content_type not in ("image/jpeg", "image/webp"):
+            raise web.HTTPUnsupportedMediaType()
+        try:
+            sequence = int(request.query.get("frame", "0"))
+        except ValueError:
+            raise web.HTTPBadRequest(text="Invalid frame number.")
+        data = bytearray()
+        async for chunk in request.content.iter_chunked(65536):
+            data.extend(chunk)
+            if len(data) > 1024 * 1024:
+                raise web.HTTPRequestEntityTooLarge(max_size=1024 * 1024, actual_size=len(data))
+        if not data:
+            raise web.HTTPBadRequest(text="Empty preview image.")
+        now = time.monotonic()
+        for key, (_, _, expires, _) in list(preview_images.items()):
+            if expires <= now:
+                del preview_images[key]
+        if prompt_id not in preview_images and len(preview_images) >= 8:
+            del preview_images[next(iter(preview_images))]
+        previous = preview_images.get(prompt_id)
+        if previous is None or sequence > previous[3]:
+            preview_images[prompt_id] = (bytes(data), request.content_type, now + 120, sequence)
+        return web.Response(status=204)
+
+    @routes.get("/audio_keyframe_timeline/preview_image/{prompt_id}")
+    async def api_get_preview_image(request: web.Request) -> web.Response:
+        key = request.match_info["prompt_id"]
+        frame = preview_images.get(key)
+        if frame is None:
+            raise web.HTTPNotFound()
+        data, mime, expires, _ = frame
+        if expires <= time.monotonic():
+            del preview_images[key]
+            raise web.HTTPNotFound()
+        return web.Response(body=data, content_type=mime, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+    @routes.delete("/audio_keyframe_timeline/preview_image/{prompt_id}")
+    async def api_delete_preview_image(request: web.Request) -> web.Response:
+        preview_images.pop(request.match_info["prompt_id"], None)
+        return web.Response(status=204)
 
     @routes.get("/audio_keyframe_timeline/preview_video/{prompt_id}")
     async def api_preview_video(request: web.Request) -> web.Response:

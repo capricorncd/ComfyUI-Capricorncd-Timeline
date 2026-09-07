@@ -6747,8 +6747,9 @@ export class CapTimelineEditorApp {
         if (this.aiPreviewStatus) this.aiPreviewStatus.textContent = status;
         const video = this.aiPreviewVideo;
         const videoUrl = entry?.mime === "video/mp4" ? entry.url : null;
+        const videoReady = videoUrl && video?.getAttribute("src") === videoUrl && video.readyState >= 2;
         if (video) {
-            video.hidden = !videoUrl;
+            video.hidden = !videoReady;
             if (!videoUrl && video.hasAttribute("src")) {
                 video.pause();
                 video.removeAttribute("src");
@@ -6756,11 +6757,16 @@ export class CapTimelineEditorApp {
             }
         }
         if (this.aiPreviewImage) {
-            this.aiPreviewImage.hidden = true;
-            this.aiPreviewImage.removeAttribute("src");
+            this.aiPreviewImage.hidden = !entry?.url || !!videoReady || !this.aiPreviewImage.hasAttribute("src");
+            if (!entry?.url) this.aiPreviewImage.removeAttribute("src");
         }
         if (videoUrl && video) {
             if (video.getAttribute("src") !== videoUrl) {
+                video.onloadeddata = () => {
+                    if (video.getAttribute("src") !== videoUrl) return;
+                    video.hidden = false;
+                    if (this.aiPreviewImage) this.aiPreviewImage.hidden = true;
+                };
                 video.onerror = () => {
                     if (this.aiPreviewStatus) this.aiPreviewStatus.textContent = T("model_preview_failed", {
                         msg: video.error?.message || `MediaError ${video.error?.code || ""}`,
@@ -6771,7 +6777,7 @@ export class CapTimelineEditorApp {
                 void video.play().catch(() => { /* Playback controls remain available. */ });
             }
         } else if (entry?.url && this.aiPreviewImage) {
-            this.aiPreviewImage.src = entry.url;
+            if (this.aiPreviewImage.getAttribute("src") !== entry.url) this.aiPreviewImage.src = entry.url;
             this.aiPreviewImage.hidden = false;
         }
         if (this.aiPreviewEmpty) {
@@ -6863,6 +6869,40 @@ export class CapTimelineEditorApp {
             ? projectValue
             : JSON.stringify(projectValue || {});
         const prompt = this._replaceModelPreviewTokens(workflow, values);
+        for (const [id, node] of Object.entries(prompt)) {
+            if (node?.class_type !== "CAP_TimelinePreview" || !Array.isArray(node.inputs?.model)) continue;
+            let source = node.inputs.model;
+            const visited = new Set();
+            let hasPreview = false;
+            while (Array.isArray(source) && !visited.has(String(source[0]))) {
+                const upstreamId = String(source[0]);
+                visited.add(upstreamId);
+                const upstream = prompt[upstreamId];
+                if (upstream?.class_type === "ModelPreviewOverrideKJ") {
+                    hasPreview = true;
+                    break;
+                }
+                source = upstream?.inputs?.model;
+            }
+            if (hasPreview) continue;
+            let previewId = `cap_preview_${id}`;
+            while (prompt[previewId]) previewId += "_";
+            prompt[previewId] = {
+                class_type: "ModelPreviewOverrideKJ",
+                inputs: {
+                    model: node.inputs.model,
+                    max_resolution: 768, jpeg_quality: 80,
+                    suppress_default_preview: true,
+                    preview_frames: 1, preview_fps: 12, tiny_vae: "none",
+                },
+            };
+            node.inputs.model = [previewId, 0];
+        }
+        for (const node of Object.values(prompt)) {
+            if (node?.class_type === "ModelPreviewOverrideKJ") {
+                node.inputs.preview_frames = 1;
+            }
+        }
         this._modelPreviewOverrideNodeIds = new Set(
             Object.entries(prompt)
                 .filter(([, node]) => node?.class_type === "ModelPreviewOverrideKJ")
@@ -6938,6 +6978,8 @@ export class CapTimelineEditorApp {
 
     _finishModelPreview(status) {
         const clipId = this._modelPreviewClipId;
+        const promptId = this._modelPreviewPromptId;
+        if (promptId) void api.fetchApi(`/audio_keyframe_timeline/preview_image/${encodeURIComponent(promptId)}`, { method: "DELETE" }).catch(() => {});
         this._modelPreviewPromptId = null;
         this._modelPreviewClipId = null;
         this._modelPreviewRunning = false;
@@ -6973,29 +7015,47 @@ export class CapTimelineEditorApp {
      * KJNodes Model Preview Override pushes sampling frames/videos over WS.
      * Attach the latest video/mp4 blob to the running timeline clip for hover preview.
      */
-    _onKjPreviewOverrideEvent(e) {
+    async _onKjPreviewOverrideEvent(e) {
         if (this._destroyed || !this._isNodeOnLiveGraph()) return;
         const d = e?.detail;
         if (!d || typeof d.image !== "string") return;
-        const mime = typeof d.mime === "string" ? d.mime : "";
+        // KJ's initial noise frame is JPEG but its step-0 payload omits mime.
+        const mime = typeof d.mime === "string" ? d.mime : (d.step === 0 ? "image/jpeg" : "");
         const previewNodeId = String(d.node_id || "");
         const belongsToModelPreview = this._modelPreviewRunning
             && this._modelPreviewOverrideNodeIds?.has(previewNodeId);
         if (belongsToModelPreview && ["image/jpeg", "image/webp", "video/mp4"].includes(mime)) {
+            if (mime === "video/mp4" || this._modelPreviewEntry?.mime === "video/mp4") return;
+            const promptId = this._modelPreviewPromptId;
+            const step = Number(d.step) || 0;
+            const sequence = (this._modelPreviewImageSequence || 0) + 1;
+            this._modelPreviewImageSequence = sequence;
             let blob;
             try {
                 blob = this._b64ToBlob(d.image, mime);
-            } catch {
+                const response = await api.fetchApi(`/audio_keyframe_timeline/preview_image/${encodeURIComponent(promptId)}?frame=${sequence}`, {
+                    method: "POST", headers: { "Content-Type": mime }, body: blob,
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            } catch (error) {
+                if (this._modelPreviewPromptId === promptId && this._modelPreviewEntry?.mime !== "video/mp4") {
+                    if (this.aiPreviewStatus) this.aiPreviewStatus.textContent = T("model_preview_failed", { msg: error.message });
+                }
                 return;
             }
+            if (this._destroyed || this._modelPreviewPromptId !== promptId || this._modelPreviewEntry?.mime === "video/mp4") {
+                if (this._modelPreviewPromptId !== promptId) void api.fetchApi(`/audio_keyframe_timeline/preview_image/${encodeURIComponent(promptId)}`, { method: "DELETE" }).catch(() => {});
+                return;
+            }
+            if (this._modelPreviewImageSequence !== sequence) return;
             if (this._modelPreviewEntry?.url) {
                 try { URL.revokeObjectURL(this._modelPreviewEntry.url); } catch { /* ignore */ }
             }
             this._modelPreviewEntry = {
-                url: URL.createObjectURL(blob),
+                url: api.apiURL(`/audio_keyframe_timeline/preview_image/${encodeURIComponent(promptId)}?frame=${sequence}`),
                 mime,
                 clipId: this._modelPreviewClipId,
-                step: Number(d.step) || 0,
+                step,
                 total: Number(d.total) || 0,
             };
             if (String(this._aiOptimizeClipId) === String(this._modelPreviewClipId)) {
@@ -7063,7 +7123,8 @@ export class CapTimelineEditorApp {
             const max = Number(d.max);
             if (max > 0) this._renderModelPreview(
                 this._modelPreviewEntry,
-                T("model_preview_progress", { pct: Math.round((Number(d.value) || 0) * 100 / max) }),
+                Number(d.value) >= max ? T("model_preview_decoding")
+                    : T("model_preview_progress", { pct: Math.round((Number(d.value) || 0) * 100 / max) }),
             );
             return;
         }

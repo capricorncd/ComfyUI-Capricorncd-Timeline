@@ -73,6 +73,7 @@ Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的
 - 弹窗中的**预览**按钮会运行导入的 API 格式工作流，该工作流必须包含**生成时间轴预览**（`CAP_TimelinePreview`）节点。
 - `user/default/workflows/CapTimeLinePreview_v1.json` 同时保存可视化工作流和内嵌 `output` API 图，可直接在“视频预览”Tab 中导入。宽高保持为 `0` 时，节点会保留工程原始宽高比，并等比缩小到设定的预览百万像素（默认 `0.2`，尺寸按 16 对齐）。
 - 只需给该节点连接 MiniMax H3 模型、CLIP、视频 VAE 和音频 VAE；编辑器会自动注入当前 `project_json`、Clip ID 及 Clip 已保存的种子。工作流内置的 Model Preview Override 会在每个采样步骤推送新画面，从早期噪点逐步显示到最终清晰结果。
+- 预览使用 WebSocket 接收初始噪声及逐步图片，通过本地 HTTP 地址显示；采样结束后保留最后一张图片，直到最终视频首帧可播放再切换。中间图是近似 latent 预览。运行时固定 `preview_frames=1`，不修改保存的工作流；中间图仅作短期内存缓存，结束时清理，不写入工程素材。
 - 节点内部完成 Clip 定位、参考素材和时间轴音频解析、最终提示词拼接、采样、解码，并返回内存 `VIDEO`、画面帧、音频、最终提示词、实际种子和 Clip ID；是否保存视频由下游自行决定。
 
 ---

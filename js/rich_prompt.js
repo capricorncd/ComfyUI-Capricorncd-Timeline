@@ -29,7 +29,7 @@ function refreshMirrorColors(ta) {
     m.style.color = textColor;
 }
 function formatLineHtml(line) {
-    const isComment = line.startsWith("#");
+    const isComment = line.trimStart().startsWith("#");
     const content = escapeHtml(line);
     if (isComment) return `<span class="cap-rich-comment" style="opacity:0.4">${content}</span>`;
     return content;
@@ -227,8 +227,8 @@ export function toggleComment(ta) {
     const region = text.slice(lineStart, lineEnd);
     const after = text.slice(lineEnd);
     const lines = region.split("\n");
-    const allC = lines.every(l => l.startsWith("#"));
-    const newLines = allC ? lines.map(l => l.slice(1)) : lines.map(l => "#" + l);
+    const allC = lines.every(l => l.trimStart().startsWith("#"));
+    const newLines = allC ? lines.map(l => l.replace(/^(\s*)#/, "$1")) : lines.map(l => "#" + l);
 
     ta.value = before + newLines.join("\n") + after;
     ta.dispatchEvent(new Event("input", { bubbles: true }));

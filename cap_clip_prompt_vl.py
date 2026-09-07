@@ -22,6 +22,7 @@ import torch
 from PIL import Image
 
 from .cap_i18n import get_last_known_lang, t as _t
+from .prompt_text import strip_comment_lines
 from .timecode import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS, resolve_media_path
 
 # Worker subprocess must not import ComfyUI CUDA/AIMDO while the parent holds the GPU.
@@ -232,11 +233,12 @@ def normalize_output_language(value: str) -> str:
 
 def with_output_language(system_prompt: str, language: str) -> str:
     instruction = _LANGUAGE_INSTRUCTIONS[normalize_output_language(language)]
-    base = str(system_prompt or "").strip()
+    base = strip_comment_lines(system_prompt).strip()
     return f"{base}\n\n{instruction}".strip() if base else instruction
 
 
 def with_prompt_skill(system_prompt: str, skill: str) -> str:
+    system_prompt = strip_comment_lines(system_prompt)
     skill = str(skill or "").strip()
     if not skill:
         return str(system_prompt or "").strip()
@@ -606,7 +608,7 @@ class ClipPromptVLEngine:
         if self._cancel.is_set():
             raise ClipPromptCancelled()
         system_text = with_prompt_skill(system_prompt, skill)
-        user_text = str(user_prompt or "").strip() or "Infer a complete video prompt from the attached media."
+        user_text = strip_comment_lines(user_prompt).strip() or "Infer a complete video prompt from the attached media."
         conversation = []
         if system_text:
             conversation.append({
@@ -903,7 +905,7 @@ def _file_label(index: int, kind: str, row: dict) -> str:
     tags = [str(tag).strip() for tag in tags if str(tag).strip()]
     meta = ", ".join(part for part in [media_type, *tags] if part)
     include_description = (row or {}).get("include_description") is not False
-    description = str((row or {}).get("setting_description") or "").strip() if include_description else ""
+    description = strip_comment_lines((row or {}).get("setting_description")).strip() if include_description else ""
     bits = [tag]
     if name:
         bits.append(name)
@@ -982,9 +984,9 @@ def build_user_prompt(payload: dict) -> str:
                 "Inspect it as evidence: compare it with the current Clip prompt and reference media, identify visible failures in subject identity, action, timing, camera, composition, continuity, and artifacts, then correct those failures in the rewritten Clip prompt. "
                 "Do not mention the review, diagnosis, previous result, or <Previous Generated Video> in the returned prompt. Return only the improved Clip prompt in the requested Agent format."
             )
-    clip_prompt = str(payload.get("clip_prompt") or "").strip()
-    global_prompt = str(payload.get("global_prompt") or "").strip()
-    lyrics = str(payload.get("lyrics") or payload.get("song_lyrics") or "").strip()
+    clip_prompt = strip_comment_lines(payload.get("clip_prompt")).strip()
+    global_prompt = strip_comment_lines(payload.get("global_prompt")).strip()
+    lyrics = strip_comment_lines(payload.get("lyrics") or payload.get("song_lyrics")).strip()
     if global_prompt:
         lines.append("Global prompt:")
         lines.append(global_prompt)
@@ -1011,7 +1013,7 @@ def build_user_prompt(payload: dict) -> str:
             "The user did not write a clip prompt. Infer a complete cinematic scene from the "
             "reference media. Do not describe character sheets or turnarounds as on-screen content."
         )
-    extra = str(payload.get("user_prompt") or "").strip()
+    extra = strip_comment_lines(payload.get("user_prompt")).strip()
     if extra:
         lines.append(extra)
     audio_mode = normalize_audio_mode(payload.get("audio_mode") or payload.get("ai_audio_mode") or "")

@@ -1,3 +1,6 @@
+from .prompt_text import strip_comment_lines
+
+
 class CAP_RichPromptInput:
     """Prompt editor with # comments, history/presets, and live highlighting."""
 
@@ -37,12 +40,7 @@ class CAP_RichPromptInput:
     )
 
     def process(self, prompt: str, add_blank_line_start: bool = False, add_blank_line_end: bool = False):
-        lines = prompt.split("\n")
-        active_lines = []
-        for line in lines:
-            if line.startswith("#"):
-                continue
-            active_lines.append(line)
+        active_lines = strip_comment_lines(prompt).split("\n")
         if add_blank_line_start:
             active_lines.insert(0, "")
         if add_blank_line_end:

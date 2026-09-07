@@ -9,6 +9,7 @@ import torch
 from PIL import Image
 
 from .cap_te_notify import EVENT_CLIP_RUNNING, notify_timeline
+from .prompt_text import strip_comment_lines
 from .timecode import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS, resolve_media_path
 
 
@@ -161,10 +162,7 @@ class CAP_DataJsonClipParser:
         return _clip_prompt_includes(clip)
 
     def _strip_comment_lines(self, text: str) -> str:
-        return "\n".join(
-            line for line in str(text or "").split("\n")
-            if not line.startswith("#")
-        )
+        return strip_comment_lines(text)
 
     def _normalize_prompt_concat_order(self, raw) -> list[str]:
         from .cap_audio_timeline import _normalize_prompt_concat_order

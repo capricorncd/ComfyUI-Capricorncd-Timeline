@@ -3,13 +3,7 @@ import json
 import os
 import folder_paths
 from .timecode import parse_timecode, resolve_assets_dir
-
-
-def _strip_comment_lines(text: str) -> str:
-    return "\n".join(
-        line for line in str(text or "").split("\n")
-        if not line.startswith("#")
-    )
+from .prompt_text import strip_comment_lines as _strip_comment_lines
 
 
 _PROMPT_PART_KEYS = ("global", "style", "clip", "detailed_description", "media", "non_diegetic_music", "negative")

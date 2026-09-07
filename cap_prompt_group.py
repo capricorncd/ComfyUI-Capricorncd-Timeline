@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
+from .prompt_text import strip_comment_lines
 
 
 def effective_prompt_lines(scene_prompt: str) -> list[str]:
     """Non-empty lines in scene_prompt (whitespace-only lines ignored)."""
-    return [line for line in (scene_prompt or "").splitlines() if line.strip()]
+    return [line for line in strip_comment_lines(scene_prompt).splitlines() if line.strip()]
 
 
 def count_effective_prompts(scene_prompt: str) -> int:
@@ -41,7 +42,7 @@ def select_scene_lines(scene_prompt: str, output_scenes: str) -> tuple[str, int]
     lines = effective_prompt_lines(scene_prompt)
     indices = parse_output_scenes(output_scenes)
     if indices is None:
-        return scene_prompt or "", len(lines)
+        return strip_comment_lines(scene_prompt), len(lines)
     selected = []
     for n in indices:
         if 1 <= n <= len(lines):
@@ -65,7 +66,7 @@ def merge_prompts(global_prompt: str, scene_lines: list[str], merge_global: bool
     scenes = "\n".join(scene_lines)
     if not merge_global:
         return scenes
-    global_text = global_prompt or ""
+    global_text = strip_comment_lines(global_prompt)
     if not global_text.strip():
         return scenes
     if not scenes:
@@ -134,8 +135,8 @@ class CAP_PromptGroup:
     ):
         out_scene, length = select_scene_lines(scene_prompt, output_scenes)
         return (
-            global_prompt or "",
-            negative_prompt or "",
+            strip_comment_lines(global_prompt),
+            strip_comment_lines(negative_prompt),
             out_scene,
             length,
         )

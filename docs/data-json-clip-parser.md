@@ -2,7 +2,7 @@
 
 **Category:** `Capricorncd`
 
-Parses the `data_json` output from **Audio Timeline** or **Timeline Editor** and extracts a single clip by index. Connect in a loop (via a counter or batch index node) to iterate over all clips and drive per-segment generation.
+Parses the `data_json` output from **Timeline Editor** and extracts a single clip by index. Connect in a loop (via a counter or batch index node) to iterate over all clips and drive per-segment generation.
 
 ---
 
@@ -15,24 +15,13 @@ Parses the `data_json` output from **Audio Timeline** or **Timeline Editor** and
 - The start and end keyframe images
 - The effective prompt assembled according to the source format
 
-The node auto-detects which upstream format produced the JSON:
+The node loads and mixes each entry in the clip's `audios[]` slice list.
 
-| Source | Audio handling |
-|--------|----------------|
-| **Audio Timeline** | Trims from the single `audio_path` using `trim_start_ms` + clip offsets |
-| **Timeline Editor** | Loads and mixes each entry in the clip's `audios[]` slice list |
-
-Both formats share the main image and timing fields. Audio Timeline retains its legacy `global_prompt` / `use_global_prompt` behavior; Timeline Editor uses fixed `prepend_prompt` and `append_prompt` fields around the enabled Clip prompt parts.
+Timeline Editor uses fixed `prepend_prompt` and `append_prompt` fields around the enabled Clip prompt parts.
 
 ---
 
-## Supported `data_json` formats
-
-### Audio Timeline
-
-Top-level fields include `audio_path`, `trim_start_ms`, and `trim_end_ms`. Each clip is a flat keyframe segment. See [Audio Timeline — `data_json` structure](audio-timeline.md#data_json-structure).
-
-### Timeline Editor
+## Timeline Editor `data_json`
 
 Top-level fields include `project_version`, `schema_version`, and no `audio_path`. Each runtime clip may include an `audios` array describing overlapping audio slices for that visual segment. See [Timeline Editor — `data_json` structure](timeline-editor.md#data_json-structure-runtime).
 
@@ -80,7 +69,6 @@ Multiple overlapping slices are mixed additively. Clips with no `audios` (or an 
 
 Adds extra seconds to the clip's audio end time. This is useful when the generation process needs a slightly longer audio tail for fade-out or overlap — it does **not** affect `frame_count`, only the duration of the `audio` output.
 
-- **Audio Timeline:** extends the trim end into the master `audio_path`
 - **Timeline Editor:** extends slices that reach the clip end; remaining tail is silence if no source continues
 
 ---
@@ -89,7 +77,7 @@ Adds extra seconds to the clip's audio end time. This is useful when the generat
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
-| `data_json` | STRING | — | JSON string from **Audio Timeline** or **Timeline Editor** `data_json` output |
+| `data_json` | STRING | — | JSON string from **Timeline Editor** `data_json` output |
 | `index` | INT | 0 | Zero-based index of the clip to extract |
 | `trim_offset` | INT | 1 | Extra seconds added to the clip's audio end time; does **not** affect `frame_count` |
 
@@ -121,7 +109,7 @@ Adds extra seconds to the clip's audio end time. This is useful when the generat
 ## Typical workflow
 
 ```
-Timeline Editor / Audio Timeline
+Timeline Editor
   └── data_json     ──►  Data Json Clip Parser (index = loop counter)
   └── clips_length  ──►  loop limit
                              ├── audio / frames / prompt ──► generation nodes

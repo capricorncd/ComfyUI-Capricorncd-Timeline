@@ -2,7 +2,9 @@
 
 **Category:** `Capricorncd`
 
-Fullscreen multi-track timeline editor for image / video / audio projects. Unlike [Audio Timeline](audio-timeline.md) (single audio + contiguous keyframe clips), Timeline Editor stores a **track-nested `project_json`** and emits a compact runtime `data_json` with per-clip audio slices.
+The extension's main editor for **one-click video creation**, **targeted clip editing**, **separate project management**, and **project and asset import/export** in ComfyUI. Use a connected generation workflow to create a complete video, then adjust and regenerate individual clips while keeping the other results. Arrange images, videos, and audio on a fullscreen multi-track timeline, set image keyframes and per-clip prompts, regenerate selected segments through your workflow, then preview and compose generated videos with audio.
+
+Timeline Editor stores a **track-nested `project_json`** and emits a compact runtime `data_json` with per-clip audio slices.
 
 Open the editor from the node launcher (fullscreen shell). Edits sync back into the node's `project_json` widget.
 
@@ -10,17 +12,6 @@ Open the editor from the node launcher (fullscreen shell). Edits sync back into 
 
 ---
 
-## Compared with Audio Timeline
-
-| | Audio Timeline | Timeline Editor |
-|--|----------------|-----------------|
-| Layout | Waveform + one clip track | Multi-track visual + audio tracks |
-| Editable document | Widget values + clip list | Track-nested `project_json` |
-| Runtime audio | Trim from one master `audio_path` | Mix overlapping slices into each clip's `audios[]` |
-
-Downstream [Data Json Clip Parser](data-json-clip-parser.md) accepts both formats.
-
----
 
 ## Editor UI
 
@@ -55,6 +46,7 @@ Downstream [Data Json Clip Parser](data-json-clip-parser.md) accepts both format
 
 ### Project chrome
 
+- Each video is organized as a separate timeline project with its own name, clips, and media references
 - Editable project name
 - **Import** / **Export**:
   - Directory package or ZIP (all media + linked generated videos under `media/generated/` + `project.json`)
@@ -102,7 +94,7 @@ Compose Video uses each clip’s first **enabled** generated video, placed from 
 
 ## Clip disable / enable
 
-Same idea as Audio Timeline: re-generate one segment without rebuilding the rest.
+Re-generate one segment without rebuilding the rest.
 
 | Shortcut | Action |
 |----------|--------|
@@ -504,7 +496,7 @@ MV and motion-comic project generators must split each MiniMax H3 result as foll
 | `z_index` | Track stacking order used when building segments |
 | `output_video` | Optional; when clip-specified filenames are enabled: `CapTimelineEditor/[project]/yyyyMMdd-HHmmss_[clip_id].mp4` (relative to `output/`) |
 
-There is no top-level `audio_path` (that field is Audio Timeline only).
+There is no top-level `audio_path`.
 
 ---
 

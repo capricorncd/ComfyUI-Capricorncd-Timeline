@@ -4,7 +4,7 @@
 
 Pretty-prints a JSON string for reading in the graph UI. Invalid JSON is shown with a parse-error header and the original text is preserved in the output.
 
-Useful for inspecting `data_json` from **Timeline Editor** / **Audio Timeline** without leaving ComfyUI.
+Useful for inspecting `data_json` from **Timeline Editor** without leaving ComfyUI.
 
 ---
 

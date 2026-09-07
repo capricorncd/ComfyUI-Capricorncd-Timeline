@@ -38,4 +38,4 @@ Output width, height, count, and fps (float + int) from size presets, scale, ori
 - Changing **Size**, **Scale**, or **Orientation** recalculates Width / Height.
 - With **Lock Aspect** on, editing Width updates Height (and vice versa) to keep the current ratio.
 - Orientation **纵向** keeps the preset as shown; **横向** swaps width and height (no-op for 1:1).
-- Connect `width` / `height` / `fps` into **Timeline Editor**, **Audio Timeline**, or any node that needs canvas size and frame rate.
+- Connect `width` / `height` / `fps` into **Timeline Editor** or any node that needs canvas size and frame rate.

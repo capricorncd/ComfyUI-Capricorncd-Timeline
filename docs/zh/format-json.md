@@ -4,7 +4,7 @@
 
 将 JSON 字符串格式化为缩进文本，便于在画布上阅读。解析失败时会在输出前附加错误注释，并保留原始文本。
 
-适合查看 **Timeline Editor** / **Audio Timeline** 的 `data_json`，无需离开 ComfyUI。
+适合查看 **Timeline Editor** 的 `data_json`，无需离开 ComfyUI。
 
 ---
 

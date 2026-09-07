@@ -2,21 +2,26 @@
 
 ![ComfyUI-Capricorncd-Tools](./docs/ComfyUI-Capricorncd-Tools.png)
 
-A collection of custom nodes for [ComfyUI](https://github.com/comfyanonymous/ComfyUI) built around **Timeline Editor** — a fullscreen, multi-track visual editor for assembling image/video/audio sequences — plus prompt editing, audio/image keyframe timeline editing, image batch utilities, directory cleanup, and video compositing.
+A visual multi-track timeline editor for [ComfyUI](https://github.com/comfyanonymous/ComfyUI) with **one-click video creation**, **targeted clip editing**, **separate project management**, and **project and asset import/export**. Arrange your shots, generate a complete video through your workflow, and refine individual clips without regenerating the entire sequence.
 
-![/ComfyUI-Capricorncd-Tools/timeline-editor](./docs/timeline-editor.jpg)
+Build your video workflow around **Timeline Editor**: arrange images, videos, and audio, define prompts for each clip, generate individual segments through ComfyUI, then preview and compose the results. Supporting nodes are included for prompt editing, image batches, and file management.
+
+![Timeline Editor — multi-track video workflow in ComfyUI](./docs/timeline-editor.jpg)
 
 ---
 
 ## ✨ Timeline Editor
 
-The flagship node: a fullscreen, multi-track timeline for building image/video/audio sequences directly inside ComfyUI.
+Create a complete video from a fullscreen timeline, then refine only the clips that need changes.
 
+- **One-click video creation** — use your connected ComfyUI workflow to generate timeline clips and compose them into a complete video
+- **Targeted clip editing** — adjust a clip’s images, timing, or prompt and regenerate that segment while keeping the other results
 - **Media library** — drag-and-drop image/video/audio assets, star ratings and filters, batch select, relink missing files
 - **Multi-track canvas** — per-track lock/visibility/mute, drag/resize/split clips, undo/redo, zoom and pan
 - **Per-clip prompts** — global + per-clip prompt fields, and an **AI Optimize** modal (Agent or local VL model, output-language selection, Prompt Skill library with GitHub sync)
 - **Generated videos** — attach ComfyUI `output/` MP4s to a clip, enable/mute/preview, then **Export → Compose Video** mixes them with unmuted audio tracks into one MP4 (watermark, filename prefix, ignore-audio-tracks options)
-- **Import / Export** — full project + assets as a directory or ZIP
+- **Separate project management** — organize each video as its own named timeline project
+- **Project and asset import/export** — import media into the project and transfer the complete project with its assets as a directory or ZIP
 - **Fully localized UI** — every panel, dialog, and menu follows ComfyUI's own **Settings → Comfy → Locale** setting (English / 简体中文 / 日本語), with English as the fallback; see [Internationalization](#internationalization-i18n) below
 
 [Read the full guide →](docs/timeline-editor.md) · [中文文档](docs/zh/timeline-editor.md)
@@ -27,13 +32,12 @@ The flagship node: a fullscreen, multi-track timeline for building image/video/a
 
 | Node | Description | Doc |
 |------|-------------|-----|
+| **Timeline Editor** | Fullscreen multi-track editor; generated-video preview/mute; Export → Compose Video; `swap_wh`; outputs `data_json` and `frame_seq_dir` | [→](docs/timeline-editor.md) · [中文](docs/zh/timeline-editor.md) |
 | **Rich Prompt Input** | Prompt editor with live syntax highlighting, `#` comments, and history/presets | [→](docs/prompt-input.md) · [中文](docs/zh/prompt-input.md) |
 | **Prompt Group** | Global / scene / negative prompts; counts non-empty scene prompt lines | [→](docs/prompt-group.md) · [中文](docs/zh/prompt-group.md) |
 | **Prompt From Batch** | Slice scene prompts by index/length; optionally merge global prompt | [→](docs/prompt-from-batch.md) · [中文](docs/zh/prompt-from-batch.md) |
-| **Audio Timeline** | Waveform trim + image keyframe clip track + per-clip prompts | [→](docs/audio-timeline.md) · [中文](docs/zh/audio-timeline.md) |
-| **Timeline Editor** | Fullscreen multi-track editor; generated-video preview/mute; Export → Compose Video; `swap_wh`; outputs `data_json` and `frame_seq_dir` | [→](docs/timeline-editor.md) · [中文](docs/zh/timeline-editor.md) |
 | **Generate Timeline Preview** | Current project + Clip ID → complete in-memory MiniMax H3 preview; sampling and AV decode are built in | [→](docs/timeline-editor.md#ai-optimize-prompt) · [中文](docs/zh/timeline-editor.md#ai-优化提示词) |
-| **Data Json Clip Parser** | Extracts a single clip from Audio Timeline / Timeline Editor `data_json` output | [→](docs/data-json-clip-parser.md) · [中文](docs/zh/data-json-clip-parser.md) |
+| **Data Json Clip Parser** | Extracts a single clip from Timeline Editor `data_json` output | [→](docs/data-json-clip-parser.md) · [中文](docs/zh/data-json-clip-parser.md) |
 | **MiniMaxH3** | Timeline `data_json` clip → MiniMax H3 Reference to Video (refs + prompt + latent) | [→](docs/minimax-h3.md) · [中文](docs/zh/minimax-h3.md) |
 | **Save Images** | Saves an `IMAGE` batch to disk; optional `{prefix}.json` sidecar with prompts and models | [→](docs/save-images.md) · [中文](docs/zh/save-images.md) |
 | **Load Images From Dir** | Loads images from a directory into an `IMAGE` batch | [→](docs/load-images-from-dir.md) · [中文](docs/zh/load-images-from-dir.md) |
@@ -51,8 +55,14 @@ The flagship node: a fullscreen, multi-track timeline for building image/video/a
 
 ## Typical pipeline
 
+1. Arrange visual clips and audio in **Timeline Editor**, then set image keyframes and per-clip prompts.
+2. Send clip data to your ComfyUI generation workflow; disable other clips when regenerating a specific segment.
+3. Attach generated MP4s to their clips, preview them, and use **Export → Compose Video** to assemble the final video with audio.
+
+Timeline Editor connects to the clip-processing nodes below.
+
 ```
-Timeline Editor / Audio Timeline
+Timeline Editor
   ├── trimmed_audio / clips_audio ──► (audio processing)
   ├── frame_seq_dir               ──► Save Images (frame output directory)
   ├── data_json                   ──► Data Json Clip Parser (looped per clip)
@@ -70,7 +80,7 @@ Timeline Editor / Audio Timeline
 2. `image_paths` — comma-separated paths from **Save Images**
 3. `frames_dir` — numbered sequence scan from a directory
 
-The **Disable / Enable** feature in Audio Timeline / Timeline Editor lets you re-generate a single segment without touching the rest of the timeline. See [Audio Timeline](docs/audio-timeline.md#clip-disable--enable) and [Timeline Editor](docs/timeline-editor.md#clip-disable--enable).
+The **Disable / Enable** feature in Timeline Editor lets you re-generate a single segment without touching the rest of the timeline. See [Timeline Editor](docs/timeline-editor.md#clip-disable--enable).
 
 **Timeline Editor** can also attach ComfyUI `output/` MP4s as **generated videos** per clip (enable / mute / preview), and **Export → Compose Video** mixes enabled generated videos with unmuted audio tracks into one MP4 under `output/` (default prefix `cap_timeline_compose/`). See [Timeline Editor](docs/timeline-editor.md#generated-videos).
 
@@ -102,7 +112,6 @@ docs/
 ├── prompt-input.md
 ├── prompt-group.md
 ├── prompt-from-batch.md
-├── audio-timeline.md
 ├── timeline-editor.md
 ├── data-json-clip-parser.md
 ├── minimax-h3.md
@@ -129,7 +138,7 @@ Node API fields are defined in code (`DESCRIPTION`, input `tooltip`, `OUTPUT_TOO
 The whole extension — not just node graph metadata — follows ComfyUI's own **Settings → Comfy → Locale** setting automatically, falling back to English wherever a language isn't available:
 
 - **Node graph metadata** (titles, widget names, tooltips, boolean on/off labels) via ComfyUI's built-in i18n system, plus a small patch for the two newer-schema nodes ComfyUI's own locale loader doesn't reach yet
-- **Every custom UI panel** — Timeline Editor (media library, clip settings, AI Optimize modal, Prompt Skill picker, import/export, compose video, etc.), Audio Timeline, and the Prompt Library (history/presets) — all dialogs, buttons, menus, and status/error messages
+- **Every custom UI panel** — Timeline Editor (media library, clip settings, AI Optimize modal, Prompt Skill picker, import/export, compose video, etc.), and the Prompt Library (history/presets) — all dialogs, buttons, menus, and status/error messages
 - **Backend error and status text** returned to the frontend
 
 Locale files live in `locales/`:

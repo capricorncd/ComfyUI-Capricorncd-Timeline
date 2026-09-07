@@ -2,7 +2,7 @@
 
 **分类：** `Capricorncd`
 
-从 Timeline Editor / Audio Timeline 的单个片段调用 ComfyUI 内置 **MiniMax H3 Reference to Video**。片段媒体映射为 H3 参考槽；帧数与提示词来自该片段。
+从 Timeline Editor 的单个片段调用 ComfyUI 内置 **MiniMax H3 Reference to Video**。片段媒体映射为 H3 参考槽；帧数与提示词来自该片段。
 
 支持两种输入：
 
@@ -31,7 +31,7 @@
 
 ## 提示词
 
-Timeline Editor 的提示词按固定顺序拼接：启用的 `prepend_prompt` → 启用的素材描述 → 启用的 Clip 提示词 → 启用的 `append_prompt`。MiniMax H3 工程中，`clip.prompt` 统一保存带标题的 `subject_definitions`、`summary`、`retention_analysis` 与 `detailed_description`，形成一个完整结构化提示词。旧 Audio Timeline JSON 仍保留原有全局提示词行为。
+Timeline Editor 的提示词按固定顺序拼接：启用的 `prepend_prompt` → 启用的素材描述 → 启用的 Clip 提示词 → 启用的 `append_prompt`。MiniMax H3 工程中，`clip.prompt` 统一保存带标题的 `subject_definitions`、`summary`、`retention_analysis` 与 `detailed_description`，形成一个完整结构化提示词。
 
 提示词管理器的 MiniMaxH3 Skill 库同时支持 [MiniMax 官方 Skills](https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills) 与原社区 Skill。官方 Skill 优先显示；选择 `h3-prompt-writing` 时会连同 `references/base-en.txt`、`references/ref-en.txt` 一起注入，以覆盖 T2VA、I2VA、FL2VA、L2VA 与 Ref2VA 的官方格式。Style Skill 有 `SKILL.cn.md` 时，中文界面优先使用中文版本。
 
@@ -47,7 +47,7 @@ Timeline Editor 的提示词按固定顺序拼接：启用的 `prepend_prompt` �
 | `width` | INT | 1344 | 生成宽度 |
 | `height` | INT | 768 | 生成高度 |
 | `ref_image_size` | `match` / `max` | `match` | `match` 按生成像素面积缩放参考图；`max` 短边 2048 |
-| `data_json` | STRING | — | Timeline Editor / Audio Timeline 运行时 JSON（有 `clip_json` 时忽略） |
+| `data_json` | STRING | — | Timeline Editor 运行时 JSON（有 `clip_json` 时忽略） |
 | `index` | INT | 0 | 从 0 开始的片段索引（有 `clip_json` 时忽略） |
 | `clip_json` | STRING | — | 可选。自包含片段 JSON；非空时覆盖 `data_json` / `index` |
 

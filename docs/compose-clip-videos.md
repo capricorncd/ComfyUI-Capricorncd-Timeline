@@ -25,7 +25,7 @@ Clips come from `data_json`. Each clip is matched to a video file in `clips_dir`
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
-| `data_json` | STRING | `""` | Timeline / Audio Timeline clip list |
+| `data_json` | STRING | `""` | Timeline Editor clip list |
 | `clips_dir` | STRING | `""` | Directory of per-clip videos; empty = `output/{run_prefix}` |
 | `name_mode` | ENUM | `from_start` | How to match clip video filenames |
 | `filename_prefix` | STRING | `composed` | Output prefix; may include subfolders under `output` |

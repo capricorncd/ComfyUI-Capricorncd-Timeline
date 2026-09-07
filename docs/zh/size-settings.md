@@ -38,4 +38,4 @@ Output width, height, count, and fps (float + int) from size presets, scale, ori
 - 修改 **尺寸**、**倍数** 或 **方向** 会重新计算宽度 / 高度。
 - 开启 **锁定比例** 时，改宽度会按比例更新高度（改高度同理）。
 - **纵向** 保持预设宽高；**横向** 交换宽高（1:1 无变化）。
-- 可将 `width` / `height` / `fps` 接到 **Timeline Editor**、**Audio Timeline** 或其他需要画布尺寸与帧率的节点。
+- 可将 `width` / `height` / `fps` 接到 **Timeline Editor** 或其他需要画布尺寸与帧率的节点。

@@ -2,23 +2,14 @@
 
 **分类：** `Capricorncd`
 
-全屏多轨时间轴编辑器，支持图像 / 视频 / 音频工程。与 [Audio Timeline](audio-timeline.md)（单音频 + 连续关键帧片段）不同，Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的运行时 `data_json`（每个视觉片段带 `audios[]` 切片）。
+本插件的核心编辑器，支持在 ComfyUI 中**一键出片、局部修改、独立项目管理与项目资源导入导出**。通过已连接的生成工作流制作完整视频，再按需调整并重新生成单个片段，保留其他生成结果。在全屏多轨时间轴上组织图像、视频和音频，设置图像关键帧与分片段提示词，通过工作流重新生成指定片段，再预览生成结果并与音频合成。
+
+Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的运行时 `data_json`（每个视觉片段带 `audios[]` 切片）。
 
 从节点启动器打开全屏编辑器；编辑内容会写回节点的 `project_json` 控件。
 
 ---
 
-## 与 Audio Timeline 的对比
-
-| | Audio Timeline | Timeline Editor |
-|--|----------------|-----------------|
-| 布局 | 波形 + 单条素材轨 | 多轨视觉轨 + 音频轨 |
-| 可编辑文档 | 控件值 + 片段列表 | 按轨道嵌套的 `project_json` |
-| 运行时音频 | 从单一 `audio_path` 裁剪 | 将重叠切片混入每个 clip 的 `audios[]` |
-
-下游 [Data Json Clip Parser](data-json-clip-parser.md) 同时支持两种格式。
-
----
 
 ## 编辑器界面
 
@@ -53,6 +44,7 @@
 
 ### 项目栏
 
+- 每个视频以独立的时间轴项目组织，分别管理项目名称、片段与素材引用
 - 可编辑项目名称
 - **导入** / **导出**：
   - 目录包与 ZIP（含全部素材 + Clip 关联的生成视频写入 `media/generated/` + `project.json`）
@@ -101,7 +93,7 @@
 
 ## 片段禁用 / 启用
 
-与 Audio Timeline 相同：只重跑某一段，不必重建整条时间轴。
+只重跑某一段，不必重建整条时间轴。
 
 | 快捷键 | 操作 |
 |--------|------|
@@ -503,7 +495,7 @@ MV、漫剧项目生成器必须按以下方式拆分每个 MiniMax H3 结果：
 | `z_index` | 构建片段时使用的轨道叠放顺序 |
 | `output_video` | 可选；开启「生成视频使用Clip指定文件名」时写入，形如 `CapTimelineEditor/[项目名]/yyyyMMdd-HHmmss_[clip_id].mp4`（相对 `output/`） |
 
-没有顶层 `audio_path`（该字段仅属于 Audio Timeline）。
+没有顶层 `audio_path`。
 
 整轨输出 `clips_audio`：按运行时视觉片段顺序，将各段对应音频混音后**首尾拼接**（视觉空档丢弃），时长与 `total_frame_count` / 序列帧对齐。
 

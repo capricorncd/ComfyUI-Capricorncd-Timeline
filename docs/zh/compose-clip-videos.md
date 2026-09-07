@@ -25,7 +25,7 @@
 
 | 名称 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `data_json` | STRING | `""` | 时间轴 / 音频时间轴的片段列表 |
+| `data_json` | STRING | `""` | Timeline Editor 的片段列表 |
 | `clips_dir` | STRING | `""` | 片段视频目录；留空 = `output/{run_prefix}` |
 | `name_mode` | ENUM | `from_start` | 如何匹配片段视频文件名 |
 | `filename_prefix` | STRING | `composed` | 输出前缀；可含子目录（相对 `output`） |

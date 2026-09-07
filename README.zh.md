@@ -2,21 +2,26 @@
 
 ![ComfyUI-Capricorncd-Tools](./docs/ComfyUI-Capricorncd-Tools.png)
 
-一套面向 [ComfyUI](https://github.com/comfyanonymous/ComfyUI) 的自定义节点集合，核心是 **Timeline Editor（时间轴编辑器）**——一个全屏、多轨道的可视化编辑器，用于搭建图像/视频/音频序列；此外还包含提示词编辑、音频/图像关键帧时间轴编辑、图像批处理、目录清理与视频合成等工具。
+面向 [ComfyUI](https://github.com/comfyanonymous/ComfyUI) 的可视化多轨**时间轴编辑器**，支持**一键出片、局部修改、独立项目管理与项目资源导入导出**。在时间轴上编排镜头，通过工作流生成完整视频；需要调整时，只修改并重新生成指定片段，无需整片重做。
 
-![Audio Timeline/ComfyUI-Capricorncd-Tools](docs/audio-timeline-00.jpg)
+以 **Timeline Editor（时间轴编辑器）** 为中心组织视频工作流：编排图像、视频和音频，为每个片段设置提示词，通过 ComfyUI 逐段生成，再预览并合成成片。项目还提供提示词编辑、图像批处理和文件管理等配套节点。
+
+![Timeline Editor — ComfyUI 多轨视频工作流](./docs/timeline-editor.jpg)
 
 ---
 
 ## ✨ Timeline Editor（时间轴编辑器）
 
-本项目的核心节点：一个全屏、多轨道的时间轴编辑器，可直接在 ComfyUI 中搭建图像/视频/音频序列。
+从镜头编排到完整成片，在 ComfyUI 的全屏时间轴中完成；需要修改时，精确调整到单个片段。
 
+- **一键出片** —— 通过已连接的 ComfyUI 工作流，按时间轴生成各片段并合成完整视频
+- **局部修改** —— 调整指定片段的图像、时长或提示词，仅重新生成该片段，保留其他生成结果
 - **素材库** —— 拖拽导入图片/视频/音频素材，支持星级评分与筛选、批量选择、缺失文件重新关联
 - **多轨画布** —— 每条轨道可锁定/显隐/禁音，拖拽/缩放/分割片段，撤销/重做，缩放与平移
 - **逐片段提示词** —— 全局与逐片段提示词输入，以及 **AI 优化** 弹窗（可选 Agent 或本地 VL 模型、输出语言、支持从 GitHub 同步的 Prompt Skill 库）
 - **生成视频** —— 为片段绑定 ComfyUI `output/` 下的 MP4，支持启用/禁音/预览，再通过 **导出 → 合成视频** 将其与未禁音的音频轨混合为一条 MP4（可选水印、文件名前缀、忽略音频轨道等）
-- **导入 / 导出** —— 整个工程与素材可导出为目录或 ZIP
+- **独立项目管理** —— 每个视频以独立的时间轴项目组织，分别管理项目名称、片段与素材
+- **项目与资源导入导出** —— 支持导入媒体素材，并以目录或 ZIP 打包导入导出完整项目及其资源，方便迁移与复用
 - **界面全面本地化** —— 所有面板、弹窗、菜单均自动跟随 ComfyUI 的 **Settings → Comfy → Locale** 语言设置（English / 简体中文 / 日本語），未覆盖的语言回退到英文；详见下方[国际化](#国际化i18n)
 
 [查看完整文档 →](docs/zh/timeline-editor.md) · [English](docs/timeline-editor.md)
@@ -27,12 +32,11 @@
 
 | 节点 | 说明 | 文档 |
 |------|------|------|
+| **Timeline Editor** | 全屏多轨编辑器；生成视频预览/禁音；导出 → 合成视频；`swap_wh`；输出 `data_json` 与 `frame_seq_dir` | [→](docs/zh/timeline-editor.md) |
 | **Rich Prompt Input** | 带实时语法高亮、`#` 注释与历史/预设的提示词编辑器 | [→](docs/zh/prompt-input.md) |
 | **Prompt Group** | 全局 / 场景 / 负面提示词输入；统计场景提示词有效条数 | [→](docs/zh/prompt-group.md) |
 | **Prompt From Batch** | 按索引/长度截取场景提示词；可选合并全局提示词 | [→](docs/zh/prompt-from-batch.md) |
-| **Audio Timeline** | 波形修剪 + 图像关键帧时间轴 + 每片段提示词 | [→](docs/zh/audio-timeline.md) |
-| **Timeline Editor** | 全屏多轨编辑器；生成视频预览/禁音；导出 → 合成视频；`swap_wh`；输出 `data_json` 与 `frame_seq_dir` | [→](docs/zh/timeline-editor.md) |
-| **Data Json Clip Parser** | 从 Audio Timeline / Timeline Editor 的 `data_json` 中提取单个片段 | [→](docs/zh/data-json-clip-parser.md) |
+| **Data Json Clip Parser** | 从 Timeline Editor 的 `data_json` 中提取单个片段 | [→](docs/zh/data-json-clip-parser.md) |
 | **MiniMaxH3** | 时间轴 `data_json` 片段 → MiniMax H3 Reference to Video（参考 + 提示词 + latent） | [→](docs/zh/minimax-h3.md) |
 | **Save Images** | 将一批图像保存到指定目录；可选写入 `{prefix}.json` 记录提示词与模型 | [→](docs/zh/save-images.md) |
 | **Load Images From Dir** | 从目录加载图像为 `IMAGE` 批次 | [→](docs/zh/load-images-from-dir.md) |
@@ -50,8 +54,14 @@
 
 ## 典型工作流
 
+1. 在 **Timeline Editor** 中编排视觉片段与音频，设置图像关键帧和分片段提示词。
+2. 将片段数据接入 ComfyUI 生成工作流；需要重做某一段时，禁用其他片段后重新运行。
+3. 将生成的 MP4 绑定到对应片段，预览后通过 **导出 → 合成视频** 合并画面与音频。
+
+Timeline Editor 可接入下方的片段处理节点。
+
 ```
-Timeline Editor / Audio Timeline
+Timeline Editor
   ├── trimmed_audio / clips_audio ──► （音频处理）
   ├── frame_seq_dir               ──► Save Images（序列帧输出目录）
   ├── data_json                   ──► Data Json Clip Parser（循环逐片段处理）
@@ -63,7 +73,7 @@ Timeline Editor / Audio Timeline
   └── clips_length                ──► 循环上限
 ```
 
-**禁用 / 启用** 可只重跑某一段而不改动其余时间轴。详见 [Audio Timeline](docs/zh/audio-timeline.md#片段禁用--启用) 与 [Timeline Editor](docs/zh/timeline-editor.md#片段禁用--启用)。
+**禁用 / 启用** 可只重跑某一段而不改动其余时间轴。详见 [Timeline Editor](docs/zh/timeline-editor.md#片段禁用--启用)。
 
 **Timeline Editor** 还可为每个视觉片段绑定 ComfyUI `output/` 下的 **生成视频**（启用 / 禁音 / 预览），并通过 **导出 → 合成视频** 将启用的生成视频与未禁音的音频轨混成一条 MP4，写入 `output/`（默认前缀 `cap_timeline_compose/`）。详见 [Timeline Editor](docs/zh/timeline-editor.md#生成视频)。
 
@@ -99,7 +109,7 @@ python scripts/gen_node_docs.py
 不只是节点图元数据，整个插件都会自动跟随 ComfyUI 的 **Settings → Comfy → Locale** 语言设置，未覆盖的语言回退到英文：
 
 - **节点图元数据**（标题、输入/输出名称、提示语、布尔开关的开/关文案）通过 ComfyUI 内置 i18n 系统本地化，另外为两个使用新版 Schema、ComfyUI 自身语言加载器暂时还覆盖不到的节点做了补丁
-- **每个自定义 UI 面板** —— Timeline Editor（素材库、片段设置、AI 优化弹窗、Prompt Skill 选择器、导入导出、合成视频等）、Audio Timeline、Prompt Library（历史记录/预设）—— 所有弹窗、按钮、菜单及状态/错误提示
+- **每个自定义 UI 面板** —— Timeline Editor（素材库、片段设置、AI 优化弹窗、Prompt Skill 选择器、导入导出、合成视频等）、Prompt Library（历史记录/预设）—— 所有弹窗、按钮、菜单及状态/错误提示
 - **后端返回给前端的错误与状态文案**
 
 语言文件位于 `locales/`：

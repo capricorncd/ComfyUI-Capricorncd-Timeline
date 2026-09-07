@@ -2,7 +2,7 @@
 
 **分类：** `Capricorncd`
 
-解析 **Audio Timeline** 或 **Timeline Editor** 的 `data_json` 输出，通过索引提取单个片段。配合计数器或批次索引节点在循环中使用，可逐片段驱动生成流程。
+解析 **Timeline Editor** 的 `data_json` 输出，通过索引提取单个片段。配合计数器或批次索引节点在循环中使用，可逐片段驱动生成流程。
 
 ---
 
@@ -19,24 +19,13 @@
 - `second_sample`
 - `from_start` / `from_preview_start`（`FROM_MMSS_帧_总帧数`，≥1 小时为 `FROM_HHMMSS_…`）
 
-节点会自动识别上游 JSON 格式：
+节点加载并混音 clip 内 `audios[]` 中的各条音频切片。
 
-| 来源 | 音频处理方式 |
-|------|-------------|
-| **Audio Timeline** | 从单一 `audio_path` 按 `trim_start_ms` + 片段偏移裁剪 |
-| **Timeline Editor** | 加载并混音 clip 内 `audios[]` 中的各条音频切片 |
-
-两种格式共用主要图片与时间字段。Audio Timeline 保留旧的 `global_prompt` / `use_global_prompt` 行为；Timeline Editor 使用固定的 `prepend_prompt` 和 `append_prompt` 包住 Clip 中启用的提示词部分。
+Timeline Editor 使用固定的 `prepend_prompt` 和 `append_prompt` 包住 Clip 中启用的提示词部分。
 
 ---
 
-## 支持的 `data_json` 格式
-
-### Audio Timeline
-
-顶层包含 `audio_path`、`trim_start_ms`、`trim_end_ms` 等字段，每个 clip 为扁平关键帧片段。详见 [Audio Timeline — `data_json` 数据结构](audio-timeline.md#data_json-数据结构)。
-
-### Timeline Editor
+## Timeline Editor `data_json` 格式
 
 顶层包含 `project_version`、`schema_version`，**无** `audio_path`。每个运行时 clip 可带 `audios` 数组，描述与该视觉片段重叠的音频切片。详见 [Timeline Editor — `data_json` 数据结构](timeline-editor.md#data_json-数据结构运行时)。
 
@@ -84,7 +73,6 @@
 
 为片段音频的结束时间额外追加若干秒，适用于生成流程需要稍长的音频尾部用于淡出或叠化的场景。**不影响 `frame_count`**，仅延长 `audio` 输出的时长。
 
-- **Audio Timeline：** 向主 `audio_path` 的裁剪末尾延伸
 - **Timeline Editor：** 延伸触及 clip 末尾的切片；无后续源时尾部为静音
 
 ---
@@ -93,7 +81,7 @@
 
 | 名称 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `data_json` | STRING | — | 来自 **Audio Timeline** 或 **Timeline Editor** 的 `data_json` JSON 字符串 |
+| `data_json` | STRING | — | 来自 **Timeline Editor** 的 `data_json` JSON 字符串 |
 | `index` | INT | 0 | 要提取的片段的从零开始的索引 |
 | `trim_offset` | INT | 1 | 追加到片段音频结束时间的秒数；**不影响** `frame_count` |
 
@@ -125,7 +113,7 @@
 ## 典型工作流
 
 ```
-Timeline Editor / Audio Timeline
+Timeline Editor
   └── data_json     ──►  Data Json Clip Parser（index = 循环计数器）
   └── clips_length  ──►  循环上限
                              ├── audio / 帧 / 提示词 ──► 生成节点

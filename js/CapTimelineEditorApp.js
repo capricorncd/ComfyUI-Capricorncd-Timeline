@@ -3808,11 +3808,18 @@ export class CapTimelineEditorApp {
               <div class="cat-te-ai-optimize-body">
                 <div class="cat-te-ai-optimize-left">
                   <div class="cat-te-ai-optimize-tabs">
-                    <span class="cat-te-ai-source-label">${T("clip_prompt_tab")}</span>
+                    <button type="button" class="cat-te-ai-tab cat-te-ai-source-tab is-active" data-source-tab="clip">${T("clip_prompt_tab")}</button>
+                    <button type="button" class="cat-te-ai-tab cat-te-ai-source-tab" data-source-tab="prepend_prompt">${T("global_prepend_prompt_tab")}</button>
+                    <button type="button" class="cat-te-ai-tab cat-te-ai-source-tab" data-source-tab="append_prompt">${T("global_append_prompt_tab")}</button>
                   </div>
                   <textarea class="cat-te-ai-src-text"></textarea>
                 </div>
                 <div class="cat-te-ai-optimize-right">
+                  <div class="cat-te-ai-optimize-tabs cat-te-ai-right-tabs">
+                    <button type="button" class="cat-te-ai-tab cat-te-ai-right-tab is-active" data-right-tab="ai">${T("ai_optimize_tab")}</button>
+                    <button type="button" class="cat-te-ai-tab cat-te-ai-right-tab" data-right-tab="preview">${T("video_preview_tab")}</button>
+                  </div>
+                  <div class="cat-te-ai-right-pane cat-te-ai-right-ai" data-right-pane="ai">
                   <div class="cat-te-prompt-includes" aria-label="${T("prompt_includes_label")}">
                     <div class="cat-te-prompt-includes-label">${T("prompt_includes_label")}</div>
                     <div class="cat-te-prompt-includes-chips" role="group">
@@ -3903,9 +3910,11 @@ export class CapTimelineEditorApp {
                     <span>${T("ai_instruction_label")}</span>
                     <textarea class="cat-te-ai-result" rows="8" placeholder="${T("ai_instruction_placeholder")}"></textarea>
                   </label>
-                  <div class="cat-te-ai-preview" hidden>
+                  </div>
+                  <div class="cat-te-ai-right-pane cat-te-ai-right-preview" data-right-pane="preview" hidden>
+                  <div class="cat-te-ai-preview">
                     <div class="cat-te-ai-preview-head">
-                      <span>${T("model_preview_title")}</span>
+                      <span>${T("video_preview_tab")}</span>
                       <span class="cat-te-ai-preview-status"></span>
                     </div>
                     <div class="cat-te-ai-preview-stage">
@@ -3913,6 +3922,7 @@ export class CapTimelineEditorApp {
                       <video class="cat-te-ai-preview-video" autoplay loop muted playsinline hidden></video>
                       <div class="cat-te-ai-preview-empty"></div>
                     </div>
+                  </div>
                   </div>
                   <div class="cat-te-ai-optimize-actions">
                     <button type="button" class="cat-te-btn cat-te-btn-primary cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></button>
@@ -4313,6 +4323,9 @@ export class CapTimelineEditorApp {
         this.aiPreviewVideo = el.querySelector(".cat-te-ai-preview-video");
         this.aiPreviewEmpty = el.querySelector(".cat-te-ai-preview-empty");
         this.aiSrcText = el.querySelector(".cat-te-ai-src-text");
+        this.aiSourceTabs = el.querySelectorAll(".cat-te-ai-source-tab");
+        this.aiRightTabs = el.querySelectorAll(".cat-te-ai-right-tab");
+        this.aiRightPanes = el.querySelectorAll(".cat-te-ai-right-pane");
         attachRichPromptHandler(this.aiSrcText, { mode: "widget" });
 
         this.settingsModal = el.querySelector(".cat-te-settings-modal");
@@ -4662,11 +4675,18 @@ export class CapTimelineEditorApp {
         this.aiSrcText?.addEventListener("focus", () => { this._promptManagerUndoArmed = true; });
         this.aiSrcText?.addEventListener("blur", () => { this._promptManagerUndoArmed = false; });
         this.aiSrcText?.addEventListener("input", () => this._onPromptManagerSourceInput());
+        this.aiSourceTabs?.forEach((tab) => {
+            tab.addEventListener("click", () => this._setAiOptimizeSrcTab(tab.dataset.sourceTab));
+        });
+        this.aiRightTabs?.forEach((tab) => {
+            tab.addEventListener("click", () => this._setAiOptimizeRightTab(tab.dataset.rightTab));
+        });
         this.aiGenerateBtn?.addEventListener("click", () => {
             if (this._aiOptimizeBusy) this._cancelAiOptimize();
             else void this._runAiOptimize();
         });
         this.aiPreviewBtn?.addEventListener("click", () => {
+            this._setAiOptimizeRightTab("preview");
             if (this._modelPreviewPromptId) void this._stopModelPreview();
             else void this._startModelPreview();
         });
@@ -16457,8 +16477,9 @@ export class CapTimelineEditorApp {
         this.promptInput.value = this._composeFinalPrompt(clip, meta);
     }
 
-    _promptManagerValue(_tab, clip) {
+    _promptManagerValue(tab, clip) {
         if (!clip) return "";
+        if (SETTING_PROMPT_KEYS.includes(tab)) return this._readSettingPrompt(tab);
         const meta = this._ensureClipMeta(clip);
         return String(meta.prompt || "");
     }
@@ -16468,6 +16489,10 @@ export class CapTimelineEditorApp {
         if (!clip) return false;
         if (recordUndo) this._recordUndo();
         const value = String(text ?? "");
+        if (SETTING_PROMPT_KEYS.includes(tab)) {
+            this._writeSettingPrompt(tab, value);
+            return true;
+        }
         const meta = this._ensureClipMeta(clip);
         meta.prompt = value;
         this._meta.set(clip.id, meta);
@@ -16538,8 +16563,14 @@ export class CapTimelineEditorApp {
         return rows.filter((row) => row.include_data || row.include_description);
     }
 
-    _setAiOptimizeSrcTab() {
-        this._aiOptimizeSrc = "clip";
+    _setAiOptimizeSrcTab(tab = "clip") {
+        const next = SETTING_PROMPT_KEYS.includes(tab) ? tab : "clip";
+        this._aiOptimizeSrc = next;
+        this.aiSourceTabs?.forEach((button) => {
+            const active = button.dataset.sourceTab === next;
+            button.classList.toggle("is-active", active);
+            button.setAttribute("aria-selected", active ? "true" : "false");
+        });
         if (this.aiSrcText) {
             this.aiSrcText.readOnly = false;
             this.aiSrcText.classList.remove("is-readonly");
@@ -16548,6 +16579,29 @@ export class CapTimelineEditorApp {
         this._promptManagerUndoArmed = false;
         this._fillAiOptimizeSrc();
         this._setAiOptimizeBusy(this._aiOptimizeBusy);
+    }
+
+    _setAiOptimizeRightTab(tab = "ai") {
+        const next = tab === "preview" ? "preview" : "ai";
+        this._aiOptimizeRightTab = next;
+        this.aiRightTabs?.forEach((button) => {
+            const active = button.dataset.rightTab === next;
+            button.classList.toggle("is-active", active);
+            button.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        this.aiRightPanes?.forEach((pane) => {
+            pane.hidden = pane.dataset.rightPane !== next;
+        });
+        if (next !== "preview") return;
+        const clipId = String(this._aiOptimizeClipId || "");
+        const matches = clipId && (
+            clipId === String(this._modelPreviewClipId || "")
+            || clipId === String(this._modelPreviewEntry?.clipId || "")
+        );
+        this._renderModelPreview(
+            matches ? this._modelPreviewEntry : null,
+            matches && this._modelPreviewPromptId ? T("model_preview_running") : T("model_preview_waiting"),
+        );
     }
 
     _fillAiOptimizeSrc() {
@@ -16639,6 +16693,7 @@ export class CapTimelineEditorApp {
         if (!clip || !isDirectorTrackType(clip.track?.type) || !this.aiOptimizeModal) return;
         this.aiOptimizeModal.hidden = false;
         this._aiOptimizeSrc = "clip";
+        this._setAiOptimizeRightTab("ai");
         if (this.aiResultInput) this.aiResultInput.value = "";
         await this._bindAiOptimizeToClip(clip, { reloadModels: true });
     }
@@ -16699,8 +16754,8 @@ export class CapTimelineEditorApp {
             this._renderModelPreview(this._modelPreviewEntry, this._modelPreviewPromptId
                 ? T("model_preview_running")
                 : T("model_preview_complete"));
-        } else if (this.aiPreviewPanel) {
-            this.aiPreviewPanel.hidden = true;
+        } else {
+            this._renderModelPreview(null, T("model_preview_waiting"));
         }
         this._syncModelPreviewButton();
     }
@@ -16824,7 +16879,6 @@ export class CapTimelineEditorApp {
 
     async _runAiOptimize() {
         const clip = this._findClipById(this._aiOptimizeClipId) || this._selClip;
-        const targetTab = this._aiOptimizeSrc || "clip";
         if (!clip || clip.track?.type === "audio" || this._aiOptimizeBusy) return;
         const meta = this._ensureClipMeta(clip);
         const modelChoice = String(this.aiModelSelect?.value || "").trim();
@@ -16865,7 +16919,7 @@ export class CapTimelineEditorApp {
                 generate_bgm: false,
                 lyrics: "",
                 duration_sec: Number(clip.duration) || 0,
-                clip_prompt: context.clip_prompt !== false ? this._promptManagerValue(targetTab, clip) : "",
+                clip_prompt: context.clip_prompt !== false ? this._promptManagerValue("clip", clip) : "",
                 global_prompt: "",
                 user_prompt: String(this.aiResultInput?.value || "").trim(),
                 files,
@@ -16885,8 +16939,8 @@ export class CapTimelineEditorApp {
             const preview = text.length > 800 ? `${text.slice(0, 800)}…` : text;
             const target = T("clip_prompt_tab");
             if (!confirm(T("confirm_apply_generated_prompt", { target, preview }))) return;
-            this._writePromptManagerValue(targetTab, text, { recordUndo: true });
-            this._fillAiOptimizeSrc();
+            this._writePromptManagerValue("clip", text, { recordUndo: true });
+            this._setAiOptimizeSrcTab("clip");
         } catch (error) {
             if (ac.signal.aborted || error?.name === "AbortError") return;
             alert(T("ai_optimize_failed", { msg: error instanceof Error ? error.message : String(error) }));

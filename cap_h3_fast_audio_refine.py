@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import torch
 
 import comfy.nested_tensor
@@ -10,6 +12,10 @@ import latent_preview
 import nodes
 from comfy_extras.nodes_minimax_h3 import MiniMaxH3SigmaShift
 from comfy_extras.nodes_model_advanced import ModelAttentionBackend
+
+
+_LOG = logging.getLogger("cap_h3_fast_audio_refine")
+_AUTO_CACHE_MAX_VIDEO_T = 40
 
 
 def _av_streams(samples):
@@ -122,13 +128,20 @@ class CAP_H3FastAudioRepair:
                     "default": 0.5, "min": 0.01, "max": 1.0, "step": 0.01,
                     "tooltip": "Repair strength. 0.3-0.6 preserves the original audio; 1.0 regenerates it.",
                 }),
+                "cache_mode": (("auto", "off", "ram", "vram"), {
+                    "default": "auto",
+                    "tooltip": "Auto disables the large frozen-video cache for long clips to avoid VRAM/RAM allocation failures.",
+                }),
             },
         }
 
     @staticmethod
-    def _patch_model(model):
+    def _patch_model(model, cache_mode):
         model = ModelAttentionBackend().patch(model, "comfy kitchen attention")[0]
         model = MiniMaxH3SigmaShift.execute(model, 12.0, 3.0)[0]
+
+        if cache_mode == "off":
+            return model
 
         cache_cls = nodes.NODE_CLASS_MAPPINGS.get("H3FrozenVideoCache")
         if cache_cls is None:
@@ -139,16 +152,20 @@ class CAP_H3FastAudioRepair:
             model,
             enabled=True,
             cache_contents="hidden",
-            backend="auto",
+            backend=cache_mode,
             precision="int4",
             refresh_interval=0,
             verbose=False,
             allow_disk=False,
-            vram_margin_gb=1.0,
+            vram_margin_gb=2.0,
         )[0]
 
-    def repair(self, model, positive, latent, seed, steps=3, audio_denoise=0.5):
-        model = self._patch_model(model)
+    def repair(self, model, positive, latent, seed, steps=3, audio_denoise=0.5, cache_mode="auto"):
+        video, _ = _av_streams(latent["samples"])
+        if cache_mode == "auto" and video.shape[2] > _AUTO_CACHE_MAX_VIDEO_T:
+            cache_mode = "off"
+            _LOG.info("H3 fast audio repair: long clip detected; frozen-video cache disabled to avoid OOM.")
+        model = self._patch_model(model, cache_mode)
         return CAP_H3FastAudioRefineSampler().refine(
             model=model,
             positive=positive,

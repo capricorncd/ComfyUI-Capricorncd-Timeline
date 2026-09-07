@@ -60,7 +60,7 @@ Downstream [Data Json Clip Parser](data-json-clip-parser.md) accepts both format
   - Directory package or ZIP (all media + linked generated videos under `media/generated/` + `project.json`)
   - **Compose Video**: modal with `filename_prefix` (default `cap_timeline_compose/`), leaf name `projectName_yyyyMMdd_hhmmss.mp4`, and **Ignore audio tracks** (default off). When on, audio-track clips are skipped; unmuted generated-video audio is still mixed. ffmpeg writes under ComfyUI `output/`. Requires **ffmpeg** on `PATH`.
 - Header shows `时间轴编辑器 | 项目名称`; click the project name to focus the right-panel name field (clears clip selection). Node width × height and fps are shown on the right (header + project panel).
-- Project-level Prepend and Append prompts live in the editor's right panel.
+- Project-level Prepend and Append prompts can be edited in the editor's right panel or the Prompt Management modal tabs.
 - Close returns to the ComfyUI graph
 
 ### Clip context menu (visual)
@@ -71,7 +71,9 @@ Downstream [Data Json Clip Parser](data-json-clip-parser.md) accepts both format
 
 ### AI optimize prompt
 
-- The modal only generates or edits the current `clip.prompt`; it does not write project-level prepend or append prompts.
+- The modal's left side provides editable tabs for the current Clip prompt, global Prepend prompt, and global Append prompt. AI generation still writes only the Clip prompt.
+- The right side provides AI Optimize and Video Preview tabs. Clicking the bottom Preview button switches to Video Preview before the preview workflow starts.
+- AI generation only writes the current `clip.prompt`; project-level Prepend and Append prompts change only through direct edits in their tabs or the project panel.
 - “Provide to model” independently controls the current Clip prompt, asset descriptions, image/keyframe data, video-reference data, and overlapping timeline audio data. Stored image-generation prompts are not sent to the Clip-prompt Agent.
 - Target Agent selects the output contract, while generation mode selects multi-reference, first/last-frame, text-to-video, video-reference, or video-edit behavior. The execution model is selected separately from configured Agents such as ChatGPT or Gemini, or a local Qwen3-VL model.
 - Local Qwen3-VL does not receive audio. When audio data is enabled, use a configured Agent that accepts audio; audio usage can be automatic, performance-driven, lip-sync, or disabled.

@@ -392,6 +392,13 @@ body.cat-te-row-resize * {
     color: #aaa4cf;
     font-size: 11px;
 }
+.cat-te-ai-right-preview .cat-te-model-preview-settings {
+    flex: 0 0 auto;
+    margin-top: 0;
+    padding: 0 0 10px;
+    border-top: 0;
+    border-bottom: 1px solid #2a2a48;
+}
 
 .cat-te-agent-heading,
 .cat-te-agent-row,

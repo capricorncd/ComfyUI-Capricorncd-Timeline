@@ -14,6 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import wave
 from pathlib import Path
 
 import numpy as np
@@ -889,7 +890,9 @@ def _kind_of(row: dict, path: str) -> str:
 
 def _file_label(index: int, kind: str, row: dict) -> str:
     name = str((row or {}).get("name") or (row or {}).get("file") or "").replace("\\", "/").rsplit("/", 1)[-1]
-    if kind == "video":
+    if (row or {}).get("generated_result") is True:
+        tag = "<Previous Generated Video>"
+    elif kind == "video":
         tag = f"<Video {index}>"
     elif kind == "audio":
         tag = f"<Audio {index}>"
@@ -936,13 +939,17 @@ def build_user_prompt(payload: dict) -> str:
     files = payload.get("files") if isinstance(payload.get("files"), list) else []
     media_lines = []
     picture_n = video_n = audio_n = audio_data_n = 0
+    has_generated_result = False
     for row in files:
         if not isinstance(row, dict):
             continue
         kind = str(row.get("kind") or "image").lower()
         if row.get("use_prompt") is False and not row.get("file"):
             continue
-        if kind == "video":
+        if kind == "video" and row.get("generated_result") is True:
+            has_generated_result = True
+            index = 0
+        elif kind == "video":
             video_n += 1
             index = video_n
         elif kind == "audio":
@@ -969,6 +976,12 @@ def build_user_prompt(payload: dict) -> str:
         )
         if picture_n:
             lines.append(_REF_SHEET_RULE)
+        if has_generated_result:
+            lines.append(
+                "<Previous Generated Video> is the latest generated result for this Clip, not a generation reference and not an allowed output tag. "
+                "Inspect it as evidence: compare it with the current Clip prompt and reference media, identify visible failures in subject identity, action, timing, camera, composition, continuity, and artifacts, then correct those failures in the rewritten Clip prompt. "
+                "Do not mention the review, diagnosis, previous result, or <Previous Generated Video> in the returned prompt. Return only the improved Clip prompt in the requested Agent format."
+            )
     clip_prompt = str(payload.get("clip_prompt") or "").strip()
     global_prompt = str(payload.get("global_prompt") or "").strip()
     lyrics = str(payload.get("lyrics") or payload.get("song_lyrics") or "").strip()
@@ -1051,6 +1064,39 @@ def audio_from_payload(payload: dict) -> list[tuple[str, str, str]]:
     for row in files:
         if not isinstance(row, dict) or row.get("include_data") is False:
             continue
+        if row.get("mixed_timeline_audio") is True:
+            from .cap_timeline_editor import CAP_TimelineEditor
+            duration_ms = max(1, int(row.get("duration_ms", 0) or 0))
+            audio_rows = row.get("audio_rows") if isinstance(row.get("audio_rows"), list) else []
+            mixed = CAP_TimelineEditor()._mix_audio_rows(audio_rows, duration_ms)
+            if not mixed:
+                raise ValueError("Unable to build the current Clip timeline audio mix.")
+            waveform = mixed["waveform"]
+            if waveform.dim() == 3:
+                waveform = waveform[0]
+            if waveform.dim() == 1:
+                waveform = waveform.unsqueeze(0)
+            pcm = (
+                torch.nan_to_num(waveform.detach().to(dtype=torch.float32, device="cpu"))
+                .clamp(-1.0, 1.0)
+                .transpose(0, 1)
+                .mul(32767.0)
+                .round()
+                .to(torch.int16)
+                .numpy()
+                .tobytes()
+            )
+            output = io.BytesIO()
+            with wave.open(output, "wb") as wav:
+                wav.setnchannels(int(waveform.shape[0]))
+                wav.setsampwidth(2)
+                wav.setframerate(int(mixed["sample_rate"]))
+                wav.writeframes(pcm)
+            data = output.getvalue()
+            if len(data) > MAX_AUDIO_BYTES:
+                raise ValueError(f"Current Clip timeline audio mix exceeds {MAX_AUDIO_BYTES // (1024 * 1024)} MB.")
+            result.append(("audio/wav", "wav", base64.b64encode(data).decode("ascii")))
+            break
         path = resolve_media_path(
             str(row.get("file") or ""),
             location=str(row.get("location") or "input"),

@@ -111,6 +111,7 @@ const DEFAULT_AI_PROMPT_CONTEXT = {
     image_data: true,
     video_data: true,
     audio_data: true,
+    generated_video_data: false,
 };
 const MEDIA_ASSET_TYPES = [
     { id: "character", get label() { return T("asset_type_character"); } },
@@ -1287,10 +1288,6 @@ export class CapTimelineEditorApp {
         if (this.useClipVideoFilenameCb) {
             this.useClipVideoFilenameCb.checked = this._useClipSpecifiedVideoFilename !== false;
         }
-        if (this.modelPreviewModelInput) {
-            this.modelPreviewModelInput.value = localStorage.getItem(STORAGE_MODEL_PREVIEW_MODEL) || "";
-        }
-        this._updateModelPreviewConfigName();
         this.settingsModal.hidden = false;
         void this._loadAgentConfigs();
     }
@@ -3837,6 +3834,7 @@ export class CapTimelineEditorApp {
                       <label><input type="checkbox" data-context="image_data" checked /><span>${T("ai_context_image_data")}</span></label>
                       <label><input type="checkbox" data-context="video_data" checked /><span>${T("ai_context_video_data")}</span></label>
                       <label><input type="checkbox" data-context="audio_data" checked /><span>${T("ai_context_audio_data")}</span></label>
+                      <label><input type="checkbox" data-context="generated_video_data" /><span>${T("ai_context_generated_video_data")}</span></label>
                     </div>
                   </div>
                   <div class="cat-te-ai-field-row">
@@ -3912,6 +3910,22 @@ export class CapTimelineEditorApp {
                   </label>
                   </div>
                   <div class="cat-te-ai-right-pane cat-te-ai-right-preview" data-right-pane="preview" hidden>
+                  <div class="cat-te-model-preview-settings">
+                    <div class="cat-te-agent-heading">
+                      <span>${T("model_preview_settings_title")}</span>
+                      <div class="cat-te-model-preview-config-actions">
+                        <button type="button" class="cat-te-btn cat-te-model-preview-import">${T("import_preview_workflow_btn")}</button>
+                        <button type="button" class="cat-te-btn cat-te-model-preview-clear">${T("clear_btn")}</button>
+                      </div>
+                    </div>
+                    <label class="cat-te-modal-row">
+                      <span>${T("model_preview_model_label")}</span>
+                      <input class="cat-te-model-preview-model" type="text" placeholder="${T("model_preview_model_placeholder")}" />
+                    </label>
+                    <div class="cat-te-model-preview-config-name"></div>
+                    <div class="cat-te-agent-note">${T("model_preview_workflow_hint")}</div>
+                    <input class="cat-te-model-preview-file" type="file" accept="application/json,.json" hidden />
+                  </div>
                   <div class="cat-te-ai-preview">
                     <div class="cat-te-ai-preview-head">
                       <span>${T("video_preview_tab")}</span>
@@ -4042,22 +4056,6 @@ export class CapTimelineEditorApp {
                     <span class="cat-te-info-tip-pop">${T("use_clip_specified_video_filename_info_text")}</span>
                   </span>
                 </label>
-                <div class="cat-te-model-preview-settings">
-                  <div class="cat-te-agent-heading">
-                    <span>${T("model_preview_settings_title")}</span>
-                    <div class="cat-te-model-preview-config-actions">
-                      <button type="button" class="cat-te-btn cat-te-model-preview-import">${T("import_preview_workflow_btn")}</button>
-                      <button type="button" class="cat-te-btn cat-te-model-preview-clear">${T("clear_btn")}</button>
-                    </div>
-                  </div>
-                  <label class="cat-te-modal-row">
-                    <span>${T("model_preview_model_label")}</span>
-                    <input class="cat-te-model-preview-model" type="text" placeholder="${T("model_preview_model_placeholder")}" />
-                  </label>
-                  <div class="cat-te-model-preview-config-name"></div>
-                  <div class="cat-te-agent-note">${T("model_preview_workflow_hint")}</div>
-                  <input class="cat-te-model-preview-file" type="file" accept="application/json,.json" hidden />
-                </div>
                 <div class="cat-te-agent-settings">
                   <div class="cat-te-agent-heading">
                     <span>AI Agent</span>
@@ -16512,8 +16510,23 @@ export class CapTimelineEditorApp {
 
     _clipAiOptimizeFiles(clip, context = DEFAULT_AI_PROMPT_CONTEXT) {
         const m = this._ensureClipMeta(clip);
-        const rows = this._clipItems(m)
-            .filter((item) => item.enabled !== false)
+        const rows = [];
+        if (context.generated_video_data !== false) {
+            const generated = this._firstEnabledGeneratedVideo(m);
+            if (generated?.file) {
+                rows.push({
+                    kind: "video",
+                    file: generated.file,
+                    location: "output",
+                    name: T("previous_generated_video_name"),
+                    generated_result: true,
+                    include_description: false,
+                    include_data: true,
+                });
+            }
+        }
+        rows.push(...this._clipItems(m)
+            .filter((item) => item.enabled !== false && item.kind !== "audio")
             .map((item) => {
             const media = (item.id && this._findMediaById(item.id)) || this._findMedia(item.kind, item.file);
             const status = this._mediaStatus.get(`${item.kind}:${item.file}`);
@@ -16527,11 +16540,12 @@ export class CapTimelineEditorApp {
                 include_description: context.resource_description !== false && item.useMediaPrompt !== false,
                 include_data: item.kind === "video"
                     ? context.video_data !== false
-                    : item.kind === "audio" ? context.audio_data !== false : context.image_data !== false,
+                    : context.image_data !== false,
             };
-        });
+        }));
         const start = Number(clip.startTime) || 0;
         const end = start + Math.max(0, Number(clip.duration) || 0);
+        const audioRows = [];
         for (const track of this._timeline?.tracks || []) {
             if (track.type !== "audio" || track.muted) continue;
             const info = this._trackInfo.get(track.id) || {};
@@ -16545,20 +16559,35 @@ export class CapTimelineEditorApp {
                 const media = (audioMeta.mediaId && this._findMediaById(audioMeta.mediaId))
                     || this._findMedia("audio", audioClip.src);
                 const file = String(media?.file || audioClip.src || "").trim();
-                if (!file || rows.some((row) => row.kind === "audio" && row.file === file)) continue;
+                if (!file) continue;
                 const status = this._mediaStatus.get(`audio:${file}`);
-                rows.push({
-                    kind: "audio",
+                const overlapStart = Math.max(start, audioStart);
+                const overlapEnd = Math.min(end, audioEnd);
+                const sourceOffset = Math.max(0, Number(audioClip.sourceOffset) || Number(audioMeta.trimIn) || 0);
+                audioRows.push({
                     file,
                     location: status?.location || media?.location || "input",
-                    setting_description: String(media?.setting_description || ""),
-                    media_type: String(media?.media_type || ""),
-                    tags: Array.isArray(media?.tags) ? media.tags : [],
-                    include_description: context.resource_description !== false,
-                    include_data: context.audio_data !== false,
-                    timeline_overlap_sec: [Math.max(start, audioStart), Math.min(end, audioEnd)],
+                    source_start_ms: Math.round((sourceOffset + overlapStart - audioStart) * 1000),
+                    source_end_ms: Math.round((sourceOffset + overlapEnd - audioStart) * 1000),
+                    clip_offset_ms: Math.round((overlapStart - start) * 1000),
+                    fade_in_ms: Math.max(0, Math.round((Number(audioClip.fadeIn) || 0) * 1000)),
+                    fade_out_ms: Math.max(0, Math.round((Number(audioClip.fadeOut) || 0) * 1000)),
+                    host_duration_ms: Math.max(1, Math.round((audioEnd - audioStart) * 1000)),
+                    host_local_start_ms: Math.max(0, Math.round((overlapStart - audioStart) * 1000)),
                 });
             }
+        }
+        if (context.audio_data !== false && audioRows.length) {
+            rows.push({
+                kind: "audio",
+                name: T("current_clip_audio_mix_name"),
+                mixed_timeline_audio: true,
+                duration_ms: Math.max(1, Math.round((end - start) * 1000)),
+                audio_rows: audioRows,
+                include_description: false,
+                include_data: true,
+                timeline_overlap_sec: [start, end],
+            });
         }
         return rows.filter((row) => row.include_data || row.include_description);
     }
@@ -16738,6 +16767,10 @@ export class CapTimelineEditorApp {
         }
         this._restoreAiOutputLanguage();
         this._restoreAiPromptContext();
+        if (this.modelPreviewModelInput) {
+            this.modelPreviewModelInput.value = localStorage.getItem(STORAGE_MODEL_PREVIEW_MODEL) || "";
+        }
+        this._updateModelPreviewConfigName();
         const targetAgent = ["MiniMaxH3", "LTX", "Bernini", "Wan", "other"].includes(meta.agent)
             ? meta.agent
             : "MiniMaxH3";

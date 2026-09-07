@@ -114,6 +114,10 @@ def resolve_media_path(name: str, *, assets_dir: str = "", location: str = "asse
         candidate = os.path.join(folder_paths.get_input_directory(), name.replace("/", os.sep))
         return os.path.normpath(candidate) if os.path.isfile(candidate) else os.path.normpath(candidate)
 
+    if location == "output":
+        candidate = _safe_join(folder_paths.get_output_directory(), name)
+        return os.path.normpath(candidate) if candidate else ""
+
     resolved = resolve_assets_dir(assets_dir)
     if resolved:
         path = _safe_join(resolved, name)

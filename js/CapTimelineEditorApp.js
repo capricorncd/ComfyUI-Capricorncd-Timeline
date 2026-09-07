@@ -6847,6 +6847,7 @@ export class CapTimelineEditorApp {
                     });
                 };
                 video.muted = true;
+                video.loop = true;
                 video.src = videoUrl;
                 void video.play().catch(() => { /* Playback controls remain available. */ });
             }
@@ -6967,14 +6968,14 @@ export class CapTimelineEditorApp {
                     model: node.inputs.model,
                     max_resolution: 768, jpeg_quality: 80,
                     suppress_default_preview: true,
-                    preview_frames: 1, preview_fps: 12, tiny_vae: "none",
+                    preview_frames: 24, preview_fps: 12, tiny_vae: "none",
                 },
             };
             node.inputs.model = [previewId, 0];
         }
         for (const node of Object.values(prompt)) {
             if (node?.class_type === "ModelPreviewOverrideKJ") {
-                node.inputs.preview_frames = 1;
+                if (!(Number(node.inputs.preview_frames) > 1)) node.inputs.preview_frames = 24;
             }
         }
         this._modelPreviewOverrideNodeIds = new Set(
@@ -7081,6 +7082,7 @@ export class CapTimelineEditorApp {
             step: 0,
             total: 0,
             seed: Number(d.seed),
+            final: true,
         };
         this._renderModelPreview(this._modelPreviewEntry, T("model_preview_receiving"));
     }
@@ -7099,7 +7101,7 @@ export class CapTimelineEditorApp {
         const belongsToModelPreview = this._modelPreviewRunning
             && this._modelPreviewOverrideNodeIds?.has(previewNodeId);
         if (belongsToModelPreview && ["image/jpeg", "image/webp", "video/mp4"].includes(mime)) {
-            if (mime === "video/mp4" || this._modelPreviewEntry?.mime === "video/mp4") return;
+            if (this._modelPreviewEntry?.final) return;
             const promptId = this._modelPreviewPromptId;
             const step = Number(d.step) || 0;
             const sequence = (this._modelPreviewImageSequence || 0) + 1;
@@ -7112,12 +7114,12 @@ export class CapTimelineEditorApp {
                 });
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
             } catch (error) {
-                if (this._modelPreviewPromptId === promptId && this._modelPreviewEntry?.mime !== "video/mp4") {
+                if (this._modelPreviewPromptId === promptId && !this._modelPreviewEntry?.final) {
                     if (this.aiPreviewStatus) this.aiPreviewStatus.textContent = T("model_preview_failed", { msg: error.message });
                 }
                 return;
             }
-            if (this._destroyed || this._modelPreviewPromptId !== promptId || this._modelPreviewEntry?.mime === "video/mp4") {
+            if (this._destroyed || this._modelPreviewPromptId !== promptId || this._modelPreviewEntry?.final) {
                 if (this._modelPreviewPromptId !== promptId) void api.fetchApi(`/audio_keyframe_timeline/preview_image/${encodeURIComponent(promptId)}`, { method: "DELETE" }).catch(() => {});
                 return;
             }
@@ -7348,7 +7350,7 @@ export class CapTimelineEditorApp {
         if (this._destroyed || !this._isNodeOnLiveGraph()) return;
         const promptId = this._promptIdFromEvent(e);
         if (promptId && promptId === this._modelPreviewPromptId) {
-            if (this._modelPreviewEntry?.mime !== "video/mp4") {
+            if (!this._modelPreviewEntry?.final) {
                 try {
                     // execution_success can arrive just before the queue stores its history.
                     let history;
@@ -7375,7 +7377,7 @@ export class CapTimelineEditorApp {
                 }
             }
             this._finishModelPreview(
-                this._modelPreviewEntry?.mime === "video/mp4" ? T("model_preview_complete") : T("model_preview_not_received"),
+                this._modelPreviewEntry?.final ? T("model_preview_complete") : T("model_preview_not_received"),
             );
             return;
         }

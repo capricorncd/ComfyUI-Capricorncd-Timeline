@@ -223,7 +223,7 @@ def _register_routes():
             prompt_id = str(uuid.UUID(request.match_info["prompt_id"]))
         except ValueError:
             raise web.HTTPBadRequest(text="Invalid preview id.")
-        if request.content_type not in ("image/jpeg", "image/webp"):
+        if request.content_type not in ("image/jpeg", "image/webp", "video/mp4"):
             raise web.HTTPUnsupportedMediaType()
         try:
             sequence = int(request.query.get("frame", "0"))
@@ -232,8 +232,8 @@ def _register_routes():
         data = bytearray()
         async for chunk in request.content.iter_chunked(65536):
             data.extend(chunk)
-            if len(data) > 1024 * 1024:
-                raise web.HTTPRequestEntityTooLarge(max_size=1024 * 1024, actual_size=len(data))
+            if len(data) > 8 * 1024 * 1024:
+                raise web.HTTPRequestEntityTooLarge(max_size=8 * 1024 * 1024, actual_size=len(data))
         if not data:
             raise web.HTTPBadRequest(text="Empty preview image.")
         now = time.monotonic()

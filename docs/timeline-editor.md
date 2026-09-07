@@ -32,6 +32,7 @@ Open the editor from the node launcher (fullscreen shell). Edits sync back into 
 - Per-track: lock, visibility, mute (audio)
 - Drag / resize clips; multi-select with `Ctrl+Click`
 - Audio-track clips: drag the small corner handles to set linear **fade-in / fade-out** (diagonal overlay); stored as `fade_in_ms` / `fade_out_ms` and applied in playback, `clips_audio` mix, and Compose Video
+- Select any non-subtitle Clip to set **Clip volume** from 0–200%; stored as `volume` (`1.0` = 100%) and applied to editor playback, Agent audio mixes, `clips_audio`, and Compose Video
 - Package clips and material insert at the playhead
 - **Gen Preview / Asset Preview** toolbar toggle (next to Insert Clip): one-click switch all clips that have generated videos between generated-video preview and asset preview
 - Undo / Redo toolbar buttons (editor-local history)
@@ -262,6 +263,7 @@ Times are milliseconds snapped to the project `fps` frame grid: `start_ms` / `du
 | `generated_videos` | Optional bound MP4s: `{ id, file, enabled, muted, note }` (`file` relative to `output/`) |
 | `preview_mode` | Optional; `"generated"` for generated-video preview |
 | `has_audio` / `muted` | Optional for video sources with audio |
+| `volume` | Clip audio gain from `0.0` to `2.0`; default `1.0` |
 
 #### Audio clip (`type: "audio"`)
 
@@ -270,6 +272,7 @@ Times are milliseconds snapped to the project `fps` frame grid: `start_ms` / `du
 | `media_ids` | Usually one audio media id |
 | `source` | `in_ms` / `out_ms` / `duration_ms` |
 | `muted` | Mute |
+| `volume` | Clip audio gain from `0.0` to `2.0`; default `1.0` |
 | `fade_in_ms` / `fade_out_ms` | Optional; written when greater than 0 |
 
 #### Subtitle clip (`type: "subtitle"`)

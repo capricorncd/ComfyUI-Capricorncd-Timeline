@@ -36,6 +36,13 @@ def _ms(value: Any, default: int = 0) -> int:
         return default
 
 
+def _clip_volume(value: Any) -> float:
+    try:
+        return max(0.0, min(2.0, float(value)))
+    except (TypeError, ValueError):
+        return 1.0
+
+
 def _resolve_output_video(rel: str) -> str:
     from .cap_timeline_project_io import _norm_generated_file
 
@@ -179,6 +186,7 @@ def _collect_plan(
                         "end_sec": segment_start + media_duration,
                         "source_in_sec": source_in,
                         "muted": kind != "video" or bool(track.get("muted")) or bool(clip.get("muted")),
+                        "volume": _clip_volume(clip.get("volume", 1.0)),
                     })
                     end_ms = max(end_ms, round((segment_start + media_duration) * 1000))
             continue
@@ -223,6 +231,7 @@ def _collect_plan(
                         "end_sec": start_sec + offset + duration,
                         "source_in_sec": source_in,
                         "muted": bool(gen.get("muted")) or bool(track.get("muted")) or bool(clip.get("muted")),
+                        "volume": _clip_volume(clip.get("volume", 1.0)),
                     })
                 if not ignore_audio_tracks and not track.get("muted") and not clip.get("muted"):
                     for audio in _as_list(clip.get("gen_edit_audios")):
@@ -243,6 +252,7 @@ def _collect_plan(
                             "source_in_sec": max(0.0, float(audio.get("source_offset") or 0)),
                             "fade_in_sec": 0.0,
                             "fade_out_sec": 0.0,
+                            "volume": _clip_volume(clip.get("volume", 1.0)),
                         })
             continue
 
@@ -283,6 +293,7 @@ def _collect_plan(
                 "source_in_sec": source_in / 1000.0,
                 "fade_in_sec": fade_in_sec,
                 "fade_out_sec": fade_out_sec,
+                "volume": _clip_volume(clip.get("volume", 1.0)),
             })
 
     if not video_segs:
@@ -679,7 +690,7 @@ def compose_timeline_project(
         label = f"ga{i}"
         filters.append(
             f"[{idx}:a]atrim=start={seg['source_in_sec']:.6f}:duration={seg['duration_sec']:.6f},asetpts=PTS-STARTPTS,"
-            f"adelay={delay_ms}|{delay_ms}[{label}]"
+            f"volume={seg['volume']:.6f},adelay={delay_ms}|{delay_ms}[{label}]"
         )
         amix_labels.append(label)
 
@@ -698,7 +709,7 @@ def compose_timeline_project(
         if fade_out > 0:
             out_st = max(0.0, float(seg["duration_sec"]) - fade_out)
             chain += f",afade=t=out:st={out_st:.6f}:d={fade_out:.6f}"
-        chain += f",adelay={delay_ms}|{delay_ms}[{label}]"
+        chain += f",volume={seg['volume']:.6f},adelay={delay_ms}|{delay_ms}[{label}]"
         filters.append(chain)
         amix_labels.append(label)
 

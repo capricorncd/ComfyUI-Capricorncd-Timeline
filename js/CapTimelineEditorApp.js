@@ -433,6 +433,7 @@ function defaultImageMeta(trackIndex = 0) {
         disabled: false,
         visible: true,
         muted: false,
+        volume: 1,
         headExtendSec: 0,
         tailExtendSec: 0,
         generatePreviewVideo: false,
@@ -499,6 +500,7 @@ function defaultAudioMeta(trackIndex = 2) {
     return {
         clipType: "audio",
         muted: false,
+        volume: 1,
         visible: true,
         sourceDuration: 0,
         trimIn: 0,
@@ -512,6 +514,7 @@ function defaultVoiceoverMeta(trackIndex = 2) {
     return {
         clipType: "voiceover",
         muted: false,
+        volume: 1,
         visible: true,
         disabled: false,
         prompt: "",
@@ -519,6 +522,11 @@ function defaultVoiceoverMeta(trackIndex = 2) {
         generatedAudios: [],
         trackIndex,
     };
+}
+
+function normalizeClipVolume(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, Math.min(2, n)) : 1;
 }
 
 function defaultSubtitleMeta(trackIndex = 0) {
@@ -3236,6 +3244,13 @@ export class CapTimelineEditorApp {
                   </div>
                 </div>
               </div>
+              <div class="cat-te-clip-volume-panel" hidden>
+                <label class="cat-te-clip-setting-row">
+                  <span>${T("clip_volume_label")}</span>
+                  <input class="cat-te-clip-volume" type="range" min="0" max="200" step="1" value="100" />
+                  <span class="cat-te-clip-volume-value">100%</span>
+                </label>
+              </div>
               <div class="cat-te-visual-clip-body">
               <div class="cat-te-clip-settings">
                 <label class="cat-te-clip-setting-row">
@@ -4090,6 +4105,9 @@ export class CapTimelineEditorApp {
         this.sidebarTitle = el.querySelector(".cat-te-sidebar-title");
         this.projectPanel = el.querySelector(".cat-te-project-panel");
         this.clipPanel = el.querySelector(".cat-te-clip-panel");
+        this.clipVolumePanel = el.querySelector(".cat-te-clip-volume-panel");
+        this.clipVolumeInput = el.querySelector(".cat-te-clip-volume");
+        this.clipVolumeValue = el.querySelector(".cat-te-clip-volume-value");
         this.visualClipBody = el.querySelector(".cat-te-visual-clip-body");
         this.subtitlePanel = el.querySelector(".cat-te-subtitle-panel");
         this.voiceoverPanel = el.querySelector(".cat-te-voiceover-panel");
@@ -4567,6 +4585,15 @@ export class CapTimelineEditorApp {
         this.clipRoleCustomInput?.addEventListener("change", () => this._onClipRoleCustomChange());
         this.clipAgentSelect?.addEventListener("change", () => this._onClipAgentChange());
         this.clipAgentCustomInput?.addEventListener("change", () => this._onClipAgentCustomChange());
+        this.clipVolumeInput?.addEventListener("pointerdown", () => this._armClipVolumeUndo());
+        this.clipVolumeInput?.addEventListener("keydown", (e) => {
+            if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(e.key)) {
+                this._armClipVolumeUndo();
+            }
+        });
+        this.clipVolumeInput?.addEventListener("input", () => this._onClipVolumeInput(false));
+        this.clipVolumeInput?.addEventListener("change", () => this._onClipVolumeInput(true));
+        this.clipVolumeInput?.addEventListener("blur", () => { this._clipVolumeUndoArmed = false; });
         this._bindSubtitlePanelEvents();
         this.clipSwiperPrev?.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -8723,7 +8750,11 @@ export class CapTimelineEditorApp {
             const gain = ctx.createGain();
             src.connect(gain);
             gain.connect(ctx.destination);
-            gain.gain.setValueAtTime(1, startCtxTime);
+            const parentClip = this._findClipById(st.clipId);
+            gain.gain.setValueAtTime(
+                normalizeClipVolume(parentClip ? this._ensureClipMeta(parentClip)?.volume : 1),
+                startCtxTime,
+            );
 
             let when;
             let offset;
@@ -11733,7 +11764,7 @@ export class CapTimelineEditorApp {
                     const absStart = clip.startTime + editStart;
                     const absEnd = Math.min(clip.endTime, absStart + eff);
                     if (absEnd <= t0 + 1e-6) continue;
-                    picked = { file: gen.file, location: "output", tin, absStart, absEnd };
+                    picked = { file: gen.file, location: "output", tin, absStart, absEnd, volume: normalizeClipVolume(m.volume) };
                     break;
                 }
                 if (picked) jobs.push(picked);
@@ -11749,6 +11780,7 @@ export class CapTimelineEditorApp {
                         tin: Math.max(0, Number(row.source_offset) || 0),
                         absStart,
                         absEnd,
+                        volume: normalizeClipVolume(m.volume),
                     });
                 }
             }
@@ -11770,7 +11802,7 @@ export class CapTimelineEditorApp {
             const gain = ctx.createGain();
             src.connect(gain);
             gain.connect(ctx.destination);
-            gain.gain.setValueAtTime(1, startCtxTime);
+            gain.gain.setValueAtTime(normalizeClipVolume(job.volume), startCtxTime);
 
             let when;
             let offset;
@@ -11795,7 +11827,7 @@ export class CapTimelineEditorApp {
     }
 
     /** Linear fade envelope for Web Audio playback of an audio-track clip. */
-    _scheduleAudioFadeGain(gainNode, when, localStart, playDur, fadeIn, fadeOut, clipDur) {
+    _scheduleAudioFadeGain(gainNode, when, localStart, playDur, fadeIn, fadeOut, clipDur, volume = 1) {
         const clamp01 = (v) => Math.max(0, Math.min(1, v));
         const gAt = (t) => {
             let g = 1;
@@ -11803,7 +11835,7 @@ export class CapTimelineEditorApp {
             if (fadeOut > 0 && t > clipDur - fadeOut) {
                 g = Math.min(g, Math.max(0, (clipDur - t) / fadeOut));
             }
-            return clamp01(g);
+            return clamp01(g) * normalizeClipVolume(volume);
         };
         const localEnd = localStart + playDur;
         const pts = [localStart, localEnd];
@@ -11860,10 +11892,11 @@ export class CapTimelineEditorApp {
             }
             const fadeIn = clip.track?.type === "audio" ? Math.max(0, clip.fadeIn || 0) : 0;
             const fadeOut = clip.track?.type === "audio" ? Math.max(0, clip.fadeOut || 0) : 0;
+            const volume = normalizeClipVolume(this._meta.get(clip.id)?.volume);
             if (fadeIn > 0 || fadeOut > 0) {
-                this._scheduleAudioFadeGain(gain, when, localStart, dur, fadeIn, fadeOut, clip.duration);
+                this._scheduleAudioFadeGain(gain, when, localStart, dur, fadeIn, fadeOut, clip.duration, volume);
             } else {
-                gain.gain.setValueAtTime(1, when);
+                gain.gain.setValueAtTime(volume, when);
             }
             try {
                 src.start(when, Math.max(0, offset), Math.max(0.001, dur));
@@ -12294,6 +12327,7 @@ export class CapTimelineEditorApp {
             this._meta.set(clip.id, {
                 ...defaultAudioMeta(trackIdx),
                 muted: !!c.muted,
+                volume: normalizeClipVolume(c.volume),
                 visible: c.visible !== false,
                 sourceDuration: sourceDur,
                 trimIn,
@@ -12322,6 +12356,7 @@ export class CapTimelineEditorApp {
             this._meta.set(clip.id, {
                 ...defaultVoiceoverMeta(trackIdx),
                 muted: !!c.muted,
+                volume: normalizeClipVolume(c.volume),
                 visible: c.visible !== false,
                 disabled: !!c.disabled || c.enabled === false,
                 prompt: String(c.prompt ?? ""),
@@ -12401,6 +12436,7 @@ export class CapTimelineEditorApp {
                 useAppendPrompt: c.use_append_prompt !== false,
                 disabled: !!c.disabled,
                 visible: c.visible !== false,
+                volume: normalizeClipVolume(c.volume),
                 items,
                 mediaIds: items.map((item) => item.id).filter(Boolean),
                 clipRole: c.clip_role || (items.length ? "multi_ref" : "t2v"),
@@ -12488,6 +12524,7 @@ export class CapTimelineEditorApp {
                 visible: c.visible !== false,
                 sourceDuration: sourceDur,
                 muted: !!c.muted,
+                volume: normalizeClipVolume(c.volume),
                 headExtendSec: Math.max(0, Math.round(Number(c.head_extend_sec) || 0)),
                 tailExtendSec: Math.max(0, Math.round(Number(c.tail_extend_sec) || 0)),
                 generatePreviewVideo: !!c.generate_preview_video,
@@ -12547,6 +12584,7 @@ export class CapTimelineEditorApp {
             useAppendPrompt: c.use_append_prompt !== false,
             disabled: !!c.disabled,
             visible: c.visible !== false,
+            volume: normalizeClipVolume(c.volume),
             headExtendSec: Math.max(0, Math.round(Number(c.head_extend_sec) || 0)),
             tailExtendSec: Math.max(0, Math.round(Number(c.tail_extend_sec) || 0)),
             generatePreviewVideo: !!c.generate_preview_video,
@@ -15867,6 +15905,7 @@ export class CapTimelineEditorApp {
             else m = defaultImageMeta(ti);
             this._meta.set(clip.id, m);
         }
+        m.volume = normalizeClipVolume(m.volume);
         if (
             clip.track?.type !== "audio"
             && !isVoiceoverClipMeta(m, clip.track)
@@ -15875,6 +15914,41 @@ export class CapTimelineEditorApp {
             this._normalizeVisualMeta(clip, m);
         }
         return m;
+    }
+
+    _armClipVolumeUndo() {
+        if (this._clipVolumeFilling || this._clipVolumeUndoArmed || !this._selClip) return;
+        this._recordUndo();
+        this._clipVolumeUndoArmed = true;
+    }
+
+    _onClipVolumeInput(commit) {
+        if (this._clipVolumeFilling || !this._selClip || !this.clipVolumeInput) return;
+        this._armClipVolumeUndo();
+        const m = this._ensureClipMeta(this._selClip);
+        const percent = Math.round(normalizeClipVolume(Number(this.clipVolumeInput.value) / 100) * 100);
+        m.volume = percent / 100;
+        this.clipVolumeInput.value = String(percent);
+        if (this.clipVolumeValue) this.clipVolumeValue.textContent = `${percent}%`;
+        if (!commit) return;
+        this._clipVolumeUndoArmed = false;
+        this._saveToWidgets();
+        if (this._timeline?._playing) this._startAudioPlayback();
+    }
+
+    _fillClipVolumeControl(clip, isSubtitle) {
+        const visible = !!clip && !isSubtitle;
+        if (this.clipVolumePanel) this.clipVolumePanel.hidden = !visible;
+        if (!this.clipVolumeInput) return;
+        this._clipVolumeFilling = true;
+        const percent = visible
+            ? Math.round(normalizeClipVolume(this._ensureClipMeta(clip)?.volume) * 100)
+            : 100;
+        this.clipVolumeInput.disabled = !visible;
+        this.clipVolumeInput.value = String(percent);
+        if (this.clipVolumeValue) this.clipVolumeValue.textContent = `${percent}%`;
+        this._clipVolumeFilling = false;
+        this._clipVolumeUndoArmed = false;
     }
 
     /** Re-resolve right-panel setting controls if refs are stale/missing. */
@@ -16028,6 +16102,7 @@ export class CapTimelineEditorApp {
         if (this.visualClipBody) this.visualClipBody.hidden = !isVisual;
         if (this.subtitlePanel) this.subtitlePanel.hidden = !clip || !isSubtitle;
         if (this.voiceoverPanel) this.voiceoverPanel.hidden = !clip || !isVoiceover;
+        this._fillClipVolumeControl(clip, isSubtitle);
         if (!clip || isAudio || isSubtitle) {
             this._disableVisualPromptControls();
         } else if (isVoiceover) {
@@ -16574,6 +16649,7 @@ export class CapTimelineEditorApp {
                     fade_out_ms: Math.max(0, Math.round((Number(audioClip.fadeOut) || 0) * 1000)),
                     host_duration_ms: Math.max(1, Math.round((audioEnd - audioStart) * 1000)),
                     host_local_start_ms: Math.max(0, Math.round((overlapStart - audioStart) * 1000)),
+                    volume: normalizeClipVolume(audioMeta.volume),
                 });
             }
         }
@@ -17281,6 +17357,7 @@ export class CapTimelineEditorApp {
                         enabled: !m.disabled,
                         visible: m.visible !== false,
                         muted: !!m.muted,
+                        volume: normalizeClipVolume(m.volume),
                         start_ms: startMs,
                         duration_ms: durationMs,
                         name: clip.name || T("voiceover_clip_default_name"),
@@ -17352,6 +17429,7 @@ export class CapTimelineEditorApp {
                     start_ms: startMs,
                     duration_ms: durationMs,
                     media_ids: mediaIds,
+                    volume: normalizeClipVolume(m.volume),
                 };
                 if (Object.keys(source).length) row.source = source;
                 if (track.type === "audio") {

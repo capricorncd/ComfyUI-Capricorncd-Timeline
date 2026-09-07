@@ -65,6 +65,13 @@ def _clip_seed(clip: dict) -> int:
         return -1
 
 
+def _clip_volume(value) -> float:
+    try:
+        return max(0.0, min(2.0, float(value)))
+    except (TypeError, ValueError):
+        return 1.0
+
+
 def _is_subtitle_track(track_type) -> bool:
     t = str(track_type or "").lower()
     return t in ("text", "subtitle")
@@ -450,6 +457,9 @@ class CAP_TimelineEditor(CAP_AudioTimeline):
                 int(row.get("host_duration_ms", 0) or 0),
                 int(row.get("host_local_start_ms", 0) or 0),
             )
+            volume = _clip_volume(row.get("volume", 1.0))
+            if volume != 1.0:
+                seg = seg * volume
             pos = max(0, int(round(timeline_ms / 1000 * sample_rate)))
             seg_len = min(seg.shape[-1], n - pos)
             if seg_len <= 0:
@@ -622,6 +632,7 @@ class CAP_TimelineEditor(CAP_AudioTimeline):
                 "fade_out_ms": fade_out_ms,
                 "host_duration_ms": host_duration_ms,
                 "host_local_start_ms": overlap_start - audio_start,
+                "volume": _clip_volume(audio.get("volume", 1.0)),
             })
         return result
 

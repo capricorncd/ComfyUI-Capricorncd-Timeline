@@ -2227,6 +2227,28 @@ body.cat-te-media-dnd-over-tl {
     opacity: 0.4;
 }
 
+.cat-te-clip-volume-panel {
+    flex-shrink: 0;
+    padding: 10px 12px;
+    border-bottom: 1px solid #1c1c30;
+}
+
+.cat-te-clip-volume-panel[hidden] {
+    display: none !important;
+}
+
+.cat-te-clip-volume {
+    flex: 1;
+    min-width: 72px;
+}
+
+.cat-te-clip-volume-value {
+    width: 38px;
+    color: #cbd5e0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
 .cat-te-seed-row .cat-te-clip-seed {
     width: 92px;
     margin-left: auto;

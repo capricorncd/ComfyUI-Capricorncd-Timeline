@@ -30,6 +30,7 @@ Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的
 - 单轨：锁定、可见性、静音（音频）
 - 拖动 / 缩放片段；`Ctrl+点击` 多选
 - 音频轨片段：拖动首尾小手柄设置线性**渐入 / 渐出**（斜线区域）；写入 `fade_in_ms` / `fade_out_ms`，预览播放、`clips_audio` 混音与「合成视频」均会应用
+- 选中任意非字幕 Clip，可将 **Clip 音量**设为 0–200%；工程保存为 `volume`（`1.0` = 100%），编辑器播放、发给 Agent 的音频混合、`clips_audio` 与「合成视频」都会应用
 - 可在播放头插入 Package / 素材
 - 工具栏 **生成预览 / 素材预览**（在「插入 Clip」旁）：一键切换所有已绑定生成视频的 Clip 为生成视频预览或素材预览
 - 工具栏 **还原 / 重做**（编辑器内历史）
@@ -261,6 +262,7 @@ Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的
 | `generated_videos` | 可选；绑定的生成 MP4：`{ id, file, enabled, muted, note }`（`file` 相对 `output/`） |
 | `preview_mode` | 可选；`"generated"` 表示默认看生成视频预览 |
 | `has_audio` / `muted` | 视频素材带音时可选 |
+| `volume` | Clip 音频增益，范围 `0.0`–`2.0`；默认 `1.0` |
 
 #### 音频 clip（`type: "audio"`）
 
@@ -269,6 +271,7 @@ Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的
 | `media_ids` | 通常一个音频素材 ID |
 | `source` | `in_ms` / `out_ms` / `duration_ms` |
 | `muted` | 是否静音 |
+| `volume` | Clip 音频增益，范围 `0.0`–`2.0`；默认 `1.0` |
 | `fade_in_ms` / `fade_out_ms` | 可选；大于 0 时写出 |
 
 #### 字幕 clip（`type: "subtitle"`）

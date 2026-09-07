@@ -10111,7 +10111,7 @@ export class CapTimelineEditorApp {
      * Does not change timeline currentTime / playhead.
      * @param {string|null} [urlOverride] blob/object URL (e.g. live sampling preview)
      */
-    _startResourceGenProgramPreview(clip, file, urlOverride = null) {
+    _startResourceGenProgramPreview(clip, file, urlOverride = null, { loop = false } = {}) {
         if (!clip) return;
         const url = urlOverride || (file ? this._outputVideoUrl(file) : "");
         if (!url) return;
@@ -10128,6 +10128,7 @@ export class CapTimelineEditorApp {
             && this._resourceGenPreview?.video;
         const video = this._ensureResourceGenProgramVideo();
         if (!video) return;
+        video.loop = loop;
 
         if (same && !video.paused && this._resourceGenPreview?.file === fileKey
             && video.getAttribute("src") === url) {
@@ -13007,12 +13008,13 @@ export class CapTimelineEditorApp {
                             clip,
                             this._runPreviewKey(clip.id),
                             live.url,
+                            { loop: true },
                         );
                         return;
                     }
                     const meta = this._meta.get(clip.id) ?? defaultImageMeta();
                     const gen = this._firstEnabledGeneratedVideo(meta);
-                    if (gen?.file) this._startResourceGenProgramPreview(clip, gen.file);
+                    if (gen?.file) this._startResourceGenProgramPreview(clip, gen.file, null, { loop: true });
                 });
                 previewBadge.addEventListener("mouseleave", () => {
                     this._scheduleResourceGenProgramPreviewStop();

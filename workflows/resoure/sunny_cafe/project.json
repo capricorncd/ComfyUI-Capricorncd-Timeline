@@ -6,7 +6,7 @@
     {
       "id": "md_cafe_girl",
       "kind": "image",
-      "file": "media/images/girl_3.png",
+      "file": "media/images/girl_3_2.png",
       "location": "input",
       "name": "女孩人物设定",
       "prompt": "",
@@ -21,7 +21,7 @@
     {
       "id": "md_cafe_scene",
       "kind": "image",
-      "file": "media/images/cafe_anime_1.png",
+      "file": "media/images/cafe_anime_1_2.png",
       "location": "input",
       "name": "晴日咖啡厅·动漫风场景",
       "prompt": "",
@@ -37,7 +37,7 @@
     {
       "id": "md_cafe_glasses",
       "kind": "image",
-      "file": "media/images/glasses_1.png",
+      "file": "media/images/glasses_1_2.png",
       "location": "input",
       "name": "香槟金细框眼镜",
       "prompt": "",
@@ -52,9 +52,21 @@
     {
       "id": "md_mhe3p94il",
       "kind": "audio",
-      "file": "media/audios/The Station I Know, The You I Don’t.MP3",
+      "file": "media/audios/The Station I Know, The You I Don’t_2.MP3",
       "location": "input",
       "name": "The Station I Know, The You I Don’t.MP3",
+      "prompt": "",
+      "generation_prompt": "",
+      "setting_description": "",
+      "media_type": "",
+      "tags": []
+    },
+    {
+      "id": "md_le7bz5zxh",
+      "kind": "image",
+      "file": "media/images/Capricorncd-white-red.png",
+      "location": "input",
+      "name": "Capricorncd-white-red.png",
       "prompt": "",
       "generation_prompt": "",
       "setting_description": "",
@@ -64,19 +76,19 @@
   ],
   "settings": {
     "fps": 24,
-    "width": 864,
-    "height": 480,
+    "width": 1344,
+    "height": 768,
     "prepend_prompt": "阳光明媚的日系动漫电影风短片，细腻手绘背景与有立体体积的角色渲染相融合。以人物设定保留身份、五官比例、长卷发、蝴蝶结、服装和饰物，轻度动漫化但不换脸、不换装。女孩的气质清新、自然、俏皮，肢体表演克制。左侧窗户始终为主要光源，窗外树影缓慢摇动，明亮温暖但不泛黄过曝。三个镜头是连续15秒，同一个座位、同一张桌子和同一副眼镜。镜头代表画外被她认出的熟人，不在画面中呈现第二个人。",
-    "append_prompt": "overall_soundscape:\n安静咖啡厅的轻微室内底噪，窗外很轻的鸟鸣与树叶声。动作发生时才出现轻微啜饮声、咖啡杯放回杯碟的轻碰声，以及拿起和戴上眼镜时的细小衣料与铰链声。保持三段音量与空间连续，无人声、无广播。\n\nnon_diegetic_music:\nN/A，不生成背景音乐。\n\n负面约束：无对白、无口型台词、无字幕、无水印、无新增Logo或文字。唯一明确保留的文字是场景后墙招牌上的 ComfyUI Capricorncd Tools，大小写与拼写不变，不额外复制招牌。无第二个人或人体倒影，无人物复制、额外肢体、畸形手指，无换装、无眼镜重影或重复道具，无镜片不透明反光，无戴眼镜动作瞬移、穿脸或提前完成。咖啡杯放稳后才拿眼镜。人物眼睛不变形、不发光。背景几何与道具位置不跳变。",
-    "timeline_zoom": 0.8525999999999999,
-    "current_time": 10.3696000000015,
+    "append_prompt": "overall_soundscape:\n安静咖啡厅的轻微室内底噪，窗外很轻的鸟鸣与树叶声。动作发生时才出现轻微啜饮声、咖啡杯放回杯碟的轻碰声，无人声、无广播。\n\nnon_diegetic_music: N/A。\n\nnegative：无对白、无口型台词、无字幕、无水印、无新增Logo或文字。唯一明确保留的文字是场景后墙招牌上的 ComfyUI Capricorncd Tools，大小写与拼写不变，不额外复制招牌。无第二个人或人体倒影，无人物复制、额外肢体、畸形手指，无换装、无眼镜重影或重复道具，无镜片不透明反光，无戴眼镜动作瞬移、穿脸或提前完成。\n#咖啡杯放稳后才拿眼镜。人物眼睛不变形、不发光。背景几何与道具位置不跳变。",
+    "timeline_zoom": 1.0373999999999999,
+    "current_time": 5.291666666666667,
     "timeline_scroll_left": 0,
     "timeline_scroll_top": 0,
     "watermark": {
       "text": {
         "content": "",
-        "fontFamily": "",
-        "fontPath": "",
+        "fontFamily": "A-OTF Pretty Momo Std",
+        "fontPath": "C:/Users/capri/AppData/Local/Microsoft/Windows/Fonts/A-OTF-PreMomoStd-Bold.otf",
         "fontSize": 32,
         "letterSpacing": 0,
         "color": "#ffffff"
@@ -87,7 +99,7 @@
       },
       "opacity": 80,
       "scale": 100,
-      "position": "bottom-right",
+      "position": "top-left",
       "margin": {
         "top": 24,
         "right": 24,
@@ -112,26 +124,27 @@
       "locked": false,
       "color": "#ff9e4a",
       "subtitle_style": {
-        "font_family": "Microsoft JhengHei",
-        "font_path": "C:/WINDOWS/Fonts/msjh.ttc",
+        "font_family": "LeviReBrushed",
+        "font_path": "C:/Users/capri/AppData/Local/Microsoft/Windows/Fonts/LeviReBrushed.ttf",
         "font_size": 37,
-        "letter_spacing": 0,
+        "subtitle_scale": 100,
+        "letter_spacing": 3,
         "color": "#ffffff",
         "bold": false,
         "italic": false,
-        "opacity": 1,
+        "opacity": 0.87,
         "stroke_enabled": true,
         "stroke_color": "#000000",
-        "stroke_width": 3,
+        "stroke_width": 1.5,
         "shadow_enabled": true,
         "shadow_color": "#000000",
         "shadow_blur": 4,
         "shadow_offset_x": 2,
         "shadow_offset_y": 2,
         "align": "center",
-        "v_align": "bottom",
-        "offset_x": 0,
-        "offset_y": -2
+        "v_align": "middle",
+        "offset_x": -0.9,
+        "offset_y": 43
       },
       "clips": [
         {
@@ -155,14 +168,67 @@
       ]
     },
     {
-      "id": "track_cafe_main",
-      "type": "director",
-      "role": "main",
-      "name": "原来是你",
+      "id": "track_1_mtrbitej",
+      "type": "media",
+      "role": "media",
+      "name": "媒体轨道",
       "order": 1,
       "enabled": true,
       "visible": true,
       "muted": false,
+      "locked": false,
+      "color": "#4a9eff",
+      "clips": [
+        {
+          "id": "clip_2_mtrbiteq",
+          "type": "clip",
+          "enabled": true,
+          "visible": true,
+          "start_ms": 0,
+          "duration_ms": 15000,
+          "media_ids": [
+            "md_le7bz5zxh"
+          ],
+          "volume": 1,
+          "opacity": 0.8,
+          "media_scale": 17,
+          "media_offset_x": -40,
+          "media_offset_y": -44,
+          "name": "Capricorncd-white-red.png",
+          "prompt": "",
+          "prompt_includes": [
+            "clip"
+          ],
+          "use_prepend_prompt": true,
+          "use_append_prompt": true,
+          "media_enabled": [
+            true
+          ],
+          "head_extend_sec": 0,
+          "tail_extend_sec": 0,
+          "generate_preview_video": false,
+          "second_sample": false,
+          "h3_motion_context_length": 0,
+          "save_latent": false,
+          "seed": -1,
+          "clip_role": "multi_ref",
+          "clip_role_custom": "",
+          "agent": "MiniMaxH3",
+          "agent_custom": "",
+          "resource_duration_sec": 15,
+          "resource_start_sec": 0
+        }
+      ]
+    },
+    {
+      "id": "track_cafe_main",
+      "type": "director",
+      "role": "main",
+      "name": "原来是你",
+      "order": 2,
+      "enabled": true,
+      "visible": true,
+      "muted": true,
       "locked": false,
       "color": "#d2a86c",
       "clips": [
@@ -180,7 +246,7 @@
           ],
           "volume": 1,
           "name": "窗边小憩·望窗饮咖啡",
-          "prompt": "subject_definitions:\n<Subject 1> 是来自 <Picture 1> 的女孩，年轻女性，浅肤色、棕色眼睛、柔和椭圆脸、自然纤眉、挺直鼻梁、粉色嘴唇。深棕色长卷发半扎，额前细碎刘海，脑后米白色蝴蝶结与垂带。白色翻领衬衫袖口卷至前臂，深蓝白色斜条纹领带，深灰蓝格纹百褶短裙，白色中筒褶袜配细黑袜口、黑色乐福鞋，银色蝴蝶结垂坠耳饰与小吊坠项链。保持五官、发型发色、衣服、鞋袜和饰物一致。图中多个视角是同一人物，不代表多人；视频不呈现白底或四视图布局。\n<Subject 2> 是来自 <Picture 2> 的晴日窗边咖啡厅：左侧黑框大窗与窗外绿树，前景木桌及桌后木椅，米色墙、挂画、盆栽、书架和黑色吊灯；右后墙木框招牌分两行写有 ComfyUI 和 Capricorncd Tools。阳光从左侧入射，树影落在桌面。人物坐在前景桌后的空椅上，不照搬场景参考的无人状态。\n<Subject 3> 是来自 <Picture 3> 的一副香槟金细框眼镜，圆角方形全框、单弧形鼻梁、两枚透明鼻托、细金属镜腿与浅蜂蜜色耳套，镜片透明无色；多视图仅用于规定同一副眼镜的结构。\n<Subject 4> 是来自 <Picture 2> 的深色陶瓷拉花咖啡杯与配套杯碟，始终仅一杯一碟；桌上花瓶、笔记本、笔和相机保持参考造型与位置。\n\nsummary:\n[reference generation] 窗边安静小憩，望着树影端起咖啡轻抿。\n\nretention_analysis:\n<Subject 1>: fully_preserved，保留身份与穿着，只改变动作表情，眼镜是否佩戴由本镜头时序规定。\n<Subject 2>: 空间结构、家具、阳光方向与招牌保留，新增坐在主桌后椅子上的唯一女孩；不新增旁观者或倒影人物。\n<Subject 3>: fully_preserved，同一副眼镜在桌上、手中和脸上顺序转移，绝不复制。\n<Subject 4>: fully_preserved，保持一杯一碟，咖啡杯的手持及放下状态按时序变化。\n\ndetailed_description:\n[Shot 1] 0.0s–5.0s，35mm斜前中景，单一连续镜头，摄影机位于桌前、略偏女孩右前方，缓慢前推。<Subject 1>坐在<Subject 2>前景木桌后的椅子上，最初完全不戴眼镜。<Subject 3>镜腿已展开，放在笔记本靠女孩的一侧，远离杯碟。0.0s–1.2s，她放松坐着，头转向画面左侧窗外，眼神轻柔；左侧阳光照亮脸颊与发丝。1.2s–2.7s，右手握住<Subject 4>咖啡杯把，左手轻托杯身下部，端起一只杯子，杯碟留在桌面原位。2.7s–4.2s，她望着窗外轻抿一口，动作自然缓慢，不洒出咖啡。4.2s–5.0s，把杯子从唇边降至胸前，双手仍托着杯子，尚未放回碟上，也尚未转向镜头。保持桌上眼镜静止，不提前佩戴；该镜头不出现其他人。",
+          "prompt": "subject_definitions:\n<Subject 1> 是来自 <Picture 1> 的女孩，年轻女性，浅肤色、棕色眼睛、柔和椭圆脸、自然纤眉、挺直鼻梁、粉色嘴唇。深棕色长卷发半扎，额前细碎刘海，脑后米白色蝴蝶结与垂带。白色翻领衬衫袖口卷至前臂，深蓝白色斜条纹领带，深灰蓝格纹百褶短裙，白色中筒褶袜配细黑袜口、黑色乐福鞋，银色蝴蝶结垂坠耳饰与小吊坠项链。保持五官、发型发色、衣服、鞋袜和饰物一致。图中多个视角是同一人物，不代表多人；视频不呈现白底或四视图布局。\n<Subject 2> 是来自 <Picture 2> 的晴日窗边咖啡厅：左侧黑框大窗与窗外绿树，前景木桌及桌后木椅，米色墙、挂画、盆栽、书架和黑色吊灯；右后墙木框招牌分两行写有 ComfyUI 和 Capricorncd Tools。阳光从左侧入射，树影落在桌面。人物坐在前景桌后的空椅上，不照搬场景参考的无人状态。\n<Subject 3> 是来自 <Picture 3> 的一副香槟金细框眼镜，圆角方形全框、单弧形鼻梁、两枚透明鼻托、细金属镜腿与浅蜂蜜色耳套，镜片透明无色；多视图仅用于规定同一副眼镜的结构。\n<Subject 4> 是来自 <Picture 2> 的深色陶瓷拉花咖啡杯与配套杯碟，始终仅一杯一碟；桌上花瓶、笔记本、笔和相机保持参考造型与位置。\n\nsummary:\n[reference generation] 窗边安静小憩，望着树影端起咖啡轻抿。\n\nretention_analysis:\n<Subject 1>: fully_preserved，保留身份与穿着，只改变动作表情。\n<Subject 2>: 空间结构、家具、阳光方向与招牌保留，新增坐在主桌后椅子上的唯一女孩；不新增旁观者或倒影人物。\n<Subject 3>: fully_preserved，同一副眼镜在桌上、手中和脸上顺序转移，绝不复制。\n<Subject 4>: fully_preserved，保持一杯一碟，咖啡杯的手持及放下状态按时序变化。\n\ndetailed_description:\n[Shot 1] 0.0s–5.0s，35mm斜前中景，单一连续镜头，摄影机位于桌前、略偏女孩右前方，缓慢前推。<Subject 1>坐在<Subject 2>前景木桌后的椅子上，最初完全不戴眼镜。<Subject 3>镜腿已展开，放在笔记本靠女孩的一侧，远离杯碟。0.0s–1.2s，她放松坐着，头转向画面左侧窗外，眼神轻柔；左侧阳光照亮脸颊与发丝。1.2s–2.7s，右手握住<Subject 4>咖啡杯把，左手轻托杯身下部，端起一只杯子，杯碟留在桌面原位。2.7s–4.2s，她望着窗外轻抿一口，动作自然缓慢，不洒出咖啡。4.2s–5.0s，把杯子从唇边降至胸前，双手仍托着杯子。保持桌上眼镜静止。",
           "prompt_includes": [
             "clip"
           ],
@@ -204,11 +270,13 @@
           "agent_custom": "",
           "generated_videos": [
             {
-              "id": "gv_gy1xxf3yb",
-              "file": "media/generated/CapTimelineEditor/晴日咖啡厅·原来是你/20260907-211251_clip_cafe_01.mp4",
+              "id": "gv_mb2rbkbeo",
+              "file": "media/generated/CapTimelineEditor/晴日咖啡厅·原来是你/20260907-222841_clip_cafe_01.mp4",
               "enabled": true,
               "muted": false,
-              "note": ""
+              "note": "",
+              "duration_sec": 5.167,
+              "trim_out_sec": 5.167
             }
           ],
           "resource_duration_sec": 5,
@@ -229,7 +297,7 @@
           ],
           "volume": 1,
           "name": "察觉目光·为了看清你",
-          "prompt": "subject_definitions:\n<Subject 1> 是来自 <Picture 1> 的女孩，年轻女性，浅肤色、棕色眼睛、柔和椭圆脸、自然纤眉、挺直鼻梁、粉色嘴唇。深棕色长卷发半扎，额前细碎刘海，脑后米白色蝴蝶结与垂带。白色翻领衬衫袖口卷至前臂，深蓝白色斜条纹领带，深灰蓝格纹百褶短裙，白色中筒褶袜配细黑袜口、黑色乐福鞋，银色蝴蝶结垂坠耳饰与小吊坠项链。保持五官、发型发色、衣服、鞋袜和饰物一致。图中多个视角是同一人物，不代表多人；视频不呈现白底或四视图布局。\n<Subject 2> 是来自 <Picture 2> 的晴日窗边咖啡厅：左侧黑框大窗与窗外绿树，前景木桌及桌后木椅，米色墙、挂画、盆栽、书架和黑色吊灯；右后墙木框招牌分两行写有 ComfyUI 和 Capricorncd Tools。阳光从左侧入射，树影落在桌面。人物坐在前景桌后的空椅上，不照搬场景参考的无人状态。\n<Subject 3> 是来自 <Picture 3> 的一副香槟金细框眼镜，圆角方形全框、单弧形鼻梁、两枚透明鼻托、细金属镜腿与浅蜂蜜色耳套，镜片透明无色；多视图仅用于规定同一副眼镜的结构。\n<Subject 4> 是来自 <Picture 2> 的深色陶瓷拉花咖啡杯与配套杯碟，始终仅一杯一碟；桌上花瓶、笔记本、笔和相机保持参考造型与位置。\n\nsummary:\n[reference generation] 察觉镜头方向有人注视，略微眯眼辨认，放下杯子并拿起眼镜。\n\nretention_analysis:\n<Subject 1>: fully_preserved，保留身份与穿着，只改变动作表情，眼镜是否佩戴由本镜头时序规定。\n<Subject 2>: 空间结构、家具、阳光方向与招牌保留，新增坐在主桌后椅子上的唯一女孩；不新增旁观者或倒影人物。\n<Subject 3>: fully_preserved，同一副眼镜在桌上、手中和脸上顺序转移，绝不复制。\n<Subject 4>: fully_preserved，保持一杯一碟，咖啡杯的手持及放下状态按时序变化。\n\ndetailed_description:\n[Shot 1] 0.0s–5.0s，50mm正面偏右中近景，与前一镜头保持同一视线轴和坐姿，画面包含脸、双手、杯碟与笔记本旁的眼镜。起始状态：<Subject 1>未戴眼镜，双手把<Subject 4>咖啡杯托在胸前，杯碟留在桌上；<Subject 3>已展开镜腿并静置在笔记本靠她的一侧。0.0s–1.3s，她察觉镜头方向有人注视，从左侧窗外转头看向镜头，轻微眯眼试着辨认，眉梢略抬，带一点好奇；不是生气，也不是已经认出来。1.3s–2.5s，她低头将杯子平稳放回原来的杯碟，随后双手完全松开咖啡杯。2.5s–3.3s，她再短暂望向镜头方向，仍轻微眯眼，随后目光落向眼镜，明确为了看清对方而选择戴眼镜。3.3s–5.0s，双手分别拿住同一副眼镜两侧靠近铰链的位置，将已展开的眼镜抬至上胸部、脸部下方。末帧眼镜在手中，尚未接触脸，桌面不再有眼镜；咖啡杯稳定留在杯碟上。不要展示被注视的人，也不要添加台词。",
+          "prompt": "subject_definitions:\n<Subject 1> 是来自 <Picture 1> 的女孩，年轻女性，浅肤色、棕色眼睛、柔和椭圆脸、自然纤眉、挺直鼻梁、粉色嘴唇。深棕色长卷发半扎，额前细碎刘海，脑后米白色蝴蝶结与垂带。白色翻领衬衫袖口卷至前臂，深蓝白色斜条纹领带，深灰蓝格纹百褶短裙，白色中筒褶袜配细黑袜口、黑色乐福鞋，银色蝴蝶结垂坠耳饰与小吊坠项链。保持五官、发型发色、衣服、鞋袜和饰物一致。图中多个视角是同一人物，不代表多人；视频不呈现白底或四视图布局。\n<Subject 2> 是来自 <Picture 2> 的晴日窗边咖啡厅：左侧黑框大窗与窗外绿树，前景木桌及桌后木椅，米色墙、挂画、盆栽、书架和黑色吊灯；右后墙木框招牌分两行写有 ComfyUI 和 Capricorncd Tools。阳光从左侧入射，树影落在桌面。人物坐在前景桌后的空椅上，不照搬场景参考的无人状态。\n<Subject 3> 是来自 <Picture 3> 的一副香槟金细框眼镜，圆角方形全框、单弧形鼻梁、两枚透明鼻托、细金属镜腿与浅蜂蜜色耳套，镜片透明无色；多视图仅用于规定同一副眼镜的结构。\n<Subject 4> 是来自 <Picture 2> 的深色陶瓷拉花咖啡杯与配套杯碟，始终仅一杯一碟；桌上花瓶、笔记本、笔和相机保持参考造型与位置。\n\nsummary:\n[reference generation] 女孩品尝了两口咖啡，察觉镜头方向有人注视，略微眯眼辨认，慢慢放下杯子，最后伸手准备拿眼镜。\n\nretention_analysis:\n<Subject 1>: fully_preserved，保留身份与穿着，只改变动作表情，眼镜是否佩戴由本镜头时序规定。\n<Subject 2>: 空间结构、家具、阳光方向与招牌保留，新增坐在主桌后椅子上的唯一女孩；不新增旁观者或倒影人物。\n<Subject 3>: fully_preserved，同一副眼镜在桌上、手中和脸上顺序转移，绝不复制。\n<Subject 4>: fully_preserved，保持一杯一碟，咖啡杯的手持及放下状态按时序变化。\n\ndetailed_description:\n[Shot 1] 0.0s–5.0s，50mm 正面偏右中近景，画面包含脸、双手、杯碟与笔记本旁的眼镜。起始状态：<Subject 1>双手把<Subject 4>咖啡杯托在胸前，杯碟留在桌上；<Subject 3>已展开镜腿并静置在笔记本靠她的一侧。她品尝了两口咖啡后，察觉镜头方向有人注视，从左侧窗外转头看向镜头，轻微眯眼试着辨认，眉梢略抬，带一点好奇；不是生气，也不是已经认出来。她低头将杯子平稳放回原来的杯碟，随后双手完全松开咖啡杯，伸手准备拿眼镜。",
           "prompt_includes": [
             "clip"
           ],
@@ -253,13 +321,12 @@
           "agent_custom": "",
           "generated_videos": [
             {
-              "id": "gv_ohjl926yb",
-              "file": "media/generated/CapTimelineEditor/晴日咖啡厅·原来是你/20260907-211251_clip_cafe_02.mp4",
+              "id": "gv_qtsar8hmd",
+              "file": "media/generated/CapTimelineEditor/晴日咖啡厅·原来是你/20260907-225819_clip_cafe_02.mp4",
               "enabled": true,
               "muted": false,
               "note": "",
               "duration_sec": 5.167,
-              "trim_in_sec": 0.16666666666666669,
               "trim_out_sec": 5.167
             }
           ],
@@ -281,7 +348,7 @@
           ],
           "volume": 1,
           "name": "戴上眼镜·原来是你",
-          "prompt": "subject_definitions:\n<Subject 1> 是来自 <Picture 1> 的女孩，年轻女性，浅肤色、棕色眼睛、柔和椭圆脸、自然纤眉、挺直鼻梁、粉色嘴唇。深棕色长卷发半扎，额前细碎刘海，脑后米白色蝴蝶结与垂带。白色翻领衬衫袖口卷至前臂，深蓝白色斜条纹领带，深灰蓝格纹百褶短裙，白色中筒褶袜配细黑袜口、黑色乐福鞋，银色蝴蝶结垂坠耳饰与小吊坠项链。保持五官、发型发色、衣服、鞋袜和饰物一致。图中多个视角是同一人物，不代表多人；视频不呈现白底或四视图布局。\n<Subject 2> 是来自 <Picture 2> 的晴日窗边咖啡厅：左侧黑框大窗与窗外绿树，前景木桌及桌后木椅，米色墙、挂画、盆栽、书架和黑色吊灯；右后墙木框招牌分两行写有 ComfyUI 和 Capricorncd Tools。阳光从左侧入射，树影落在桌面。人物坐在前景桌后的空椅上，不照搬场景参考的无人状态。\n<Subject 3> 是来自 <Picture 3> 的一副香槟金细框眼镜，圆角方形全框、单弧形鼻梁、两枚透明鼻托、细金属镜腿与浅蜂蜜色耳套，镜片透明无色；多视图仅用于规定同一副眼镜的结构。\n<Subject 4> 是来自 <Picture 2> 的深色陶瓷拉花咖啡杯与配套杯碟，始终仅一杯一碟；桌上花瓶、笔记本、笔和相机保持参考造型与位置。\n\nsummary:\n[reference generation] 为了看清对方完整戴上眼镜，认出来后望向镜头俏皮微笑。\n\nretention_analysis:\n<Subject 1>: fully_preserved，保留身份与穿着，只改变动作表情，眼镜是否佩戴由本镜头时序规定。\n<Subject 2>: 空间结构、家具、阳光方向与招牌保留，新增坐在主桌后椅子上的唯一女孩；不新增旁观者或倒影人物。\n<Subject 3>: fully_preserved，同一副眼镜在桌上、手中和脸上顺序转移，绝不复制。\n<Subject 4>: fully_preserved，保持一杯一碟，咖啡杯的手持及放下状态按时序变化。\n\ndetailed_description:\n[Shot 1] 0.0s–5.0s，65mm正面肩部以上近景，延续上一镜头坐姿与镜头方向，缓慢推近。起始状态：<Subject 1>没有戴眼镜，双手各持<Subject 3>一侧展开镜腿靠近铰链处，眼镜位于上胸部、脸部下方；咖啡已放回桌上。0.0s–2.3s，她为了看清镜头方向的人，把眼镜平稳抬到眼前，再向面部靠近，让鼻托自然落在鼻梁两侧、两条镜腿沿太阳穴正常架到耳朵上；全过程连续可见，不用剪辑或瞬移代替戴眼镜动作，不让眼镜穿过脸部。2.3s–2.8s，双手轻轻松开镜腿并放下，眼镜稳定戴好。2.8s–3.6s，她清晰对上镜头，原先辨认时的轻微眯眼放松，眼睛柔和明亮，神情从疑惑变成认出熟人的欣喜。3.6s–4.2s，轻轻歪头一点，嘴角上扬，露出阳光又略带俏皮的微笑。4.2s–5.0s保持眼神交流与微笑，用无声表情传达“原来是你”，不说出这句话、不张嘴做口型。透明镜片不遮挡眼睛，无夸张眨单眼、无额外手势，不摘眼镜。",
+          "prompt": "subject_definitions:\n<Subject 1> 是来自 <Picture 1> 的女孩，年轻女性，浅肤色、棕色眼睛、柔和椭圆脸、自然纤眉、挺直鼻梁、粉色嘴唇。深棕色长卷发半扎，额前细碎刘海，脑后米白色蝴蝶结与垂带。白色翻领衬衫袖口卷至前臂，深蓝白色斜条纹领带，深灰蓝格纹百褶短裙，白色中筒褶袜配细黑袜口、黑色乐福鞋，银色蝴蝶结垂坠耳饰与小吊坠项链。保持五官、发型发色、衣服、鞋袜和饰物一致。图中多个视角是同一人物，不代表多人；视频不呈现白底或四视图布局。\n<Subject 2> 是来自 <Picture 2> 的晴日窗边咖啡厅：左侧黑框大窗与窗外绿树，前景木桌及桌后木椅，米色墙、挂画、盆栽、书架和黑色吊灯；右后墙木框招牌分两行写有 ComfyUI 和 Capricorncd Tools。阳光从左侧入射，树影落在桌面。人物坐在前景桌后的空椅上，不照搬场景参考的无人状态。\n<Subject 3> 是来自 <Picture 3> 的一副香槟金细框眼镜，圆角方形全框、单弧形鼻梁、两枚透明鼻托、细金属镜腿与浅蜂蜜色耳套，镜片透明无色；多视图仅用于规定同一副眼镜的结构。\n<Subject 4> 是来自 <Picture 2> 的深色陶瓷拉花咖啡杯与配套杯碟，始终仅一杯一碟；桌上花瓶、笔记本、笔和相机保持参考造型与位置。\n\nsummary:\n[reference generation] 为了看清对方将拿在手上的眼镜戴上，认出来后望向镜头俏皮微笑。\n\nretention_analysis:\n<Subject 1>: fully_preserved，保留身份与穿着，只改变动作表情，眼镜是否佩戴由本镜头时序规定。\n<Subject 2>: 空间结构、家具、阳光方向与招牌保留，新增坐在主桌后椅子上的唯一女孩；不新增旁观者或倒影人物。\n<Subject 3>: fully_preserved，同一副眼镜在桌上、手中和脸上顺序转移，绝不复制。\n<Subject 4>: fully_preserved，保持一杯一碟，咖啡杯的手持及放下状态按时序变化。\n\ndetailed_description:\n[Shot 1] 0.0s–5.0s，65mm 腼腆的表情，正面肩部以上近景，延续上一镜头坐姿与镜头方向，缓慢推近。起始状态：<Subject 1>没有戴眼镜，双手各持<Subject 3>一侧展开镜腿靠近铰链处，眼镜位于上胸部、脸部下方；咖啡已放回桌上。0.0s–2.3s，她为了看清镜头方向的人，把眼镜平稳抬到眼前，再向面部靠近，让鼻托自然落在鼻梁两侧、两条镜腿沿太阳穴正常架到耳朵上；全过程连续可见，不用剪辑或瞬移代替戴眼镜动作，不让眼镜穿过脸部。2.3s–2.8s，双手轻轻松开镜腿并放下，眼镜稳定戴好。2.8s–3.6s，她清晰对上镜头，原先辨认时的轻微眯眼放松，眼睛柔和明亮，神情从疑惑变成认出熟人的欣喜。3.6s–4.2s，轻轻歪头一点，嘴角上扬，露出阳光又略带俏皮的微笑。4.2s–5.0s保持眼神交流与微笑，用无声表情传达“原来是你”，不说出这句话、不张嘴做口型。透明镜片不遮挡眼睛，无夸张眨单眼、无额外手势，不摘眼镜。",
           "prompt_includes": [
             "clip"
           ],
@@ -305,11 +372,13 @@
           "agent_custom": "",
           "generated_videos": [
             {
-              "id": "gv_6qgdgkbxc",
-              "file": "media/generated/CapTimelineEditor/晴日咖啡厅·原来是你/20260907-211251_clip_cafe_03.mp4",
+              "id": "gv_41zhx6icp",
+              "file": "media/generated/CapTimelineEditor/晴日咖啡厅·原来是你/20260907-230153_clip_cafe_03.mp4",
               "enabled": true,
               "muted": false,
-              "note": ""
+              "note": "",
+              "duration_sec": 5.167,
+              "trim_out_sec": 5.167
             }
           ],
           "resource_duration_sec": 5,
@@ -323,7 +392,7 @@
       "type": "audio",
       "role": "audio",
       "name": "音频",
-      "order": 2,
+      "order": 3,
       "enabled": true,
       "visible": true,
       "muted": false,

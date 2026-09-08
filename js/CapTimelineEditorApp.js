@@ -1809,8 +1809,7 @@ export class CapTimelineEditorApp {
         return out;
     }
 
-    async _runSelectedTrackSide(side) {
-        const anchor = this.getSelectedClip();
+    async _runSelectedTrackSide(side, anchor = this.getSelectedClip()) {
         if (!anchor || !this._allImageTracks().includes(anchor.track)) {
             alert(T("select_visual_clip_for_side_run"));
             return;
@@ -1820,7 +1819,7 @@ export class CapTimelineEditorApp {
             anchor,
             side,
         });
-        if (!clips.some((clip) => clip.id === anchor.id)) {
+        if (!clips.length) {
             alert(T("no_active_clips_to_run"));
             return;
         }
@@ -14346,6 +14345,7 @@ export class CapTimelineEditorApp {
             );
         } else if (isMedia) {
             items.push(
+                { label: T("convert_to_director_clip"), fn: () => this._convertMediaClipToDirector(clip) },
                 ...(clip.hasAudio ? [{
                     label: m.muted ? T("unmute_label") : T("mute_label"),
                     fn: () => {
@@ -14370,6 +14370,8 @@ export class CapTimelineEditorApp {
             }
             items.push(
                 { label: T("menu_ai_optimize_prompt"), fn: () => void this._openAiOptimizeModal(clip) },
+                { label: T("run_track_right_menu"), fn: () => void this._runSelectedTrackSide("right", clip) },
+                { label: T("run_track_left_menu"), fn: () => void this._runSelectedTrackSide("left", clip) },
                 { label: m.disabled ? T("menu_enable_shortcut") : T("menu_disable_shortcut"), strike: !!m.disabled, fn: () => this._toggleDisableClip(clip) },
                 { label: T("menu_disable_others_assets_shortcut"), fn: () => this._disableOthers(clip) },
                 { label: T("menu_set_title"), fn: () => this._renameClip(clip) },
@@ -14400,6 +14402,30 @@ export class CapTimelineEditorApp {
             { label: T("delete_btn"), fn: () => this._deleteClip(clip), danger: true },
         );
         this._buildCtxMenu(items, e.clientX, e.clientY);
+    }
+
+    _convertMediaClipToDirector(clip) {
+        const timeline = this._timeline;
+        const from = clip?.track;
+        if (!timeline || !isMediaTrackType(from?.type) || from.locked) return;
+        this._recordUndo();
+        const to = timeline.tracks.find(track => isDirectorTrackType(track.type)
+            && this._trackHasRoom(track, clip.startTime, clip.duration)) || this._createInsertTrack("image");
+        const meta = this._ensureClipMeta(clip);
+        meta.clipType = "image";
+        meta.mediaKind = "clip";
+        meta.trackIndex = this._trackIndex(to);
+        from.clips = from.clips.filter(item => item !== clip);
+        to.clips.push(clip);
+        clip.track = to;
+        to.el.appendChild(clip.el);
+        timeline.emit("clip:trackchange", { clip, from, to });
+        clip._applyPosition();
+        this._decorateClip(clip);
+        timeline.selectClip(clip);
+        this._refreshTimelineDuration();
+        this._saveToWidgets();
+        this._scheduleProgramPreview();
     }
 
     _cloneClipMeta(meta) {

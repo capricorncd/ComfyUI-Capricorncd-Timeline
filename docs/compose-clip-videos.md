@@ -1,45 +1,16 @@
 # Compose Clip Videos
 
-**Category:** `Capricorncd`
-
-Concatenates per-clip MP4s (produced under `output/{run_prefix}`) into one timeline video via **ffmpeg**. Optionally trims head/tail extend so the final cut matches preview duration.
-
-> **Requires ffmpeg** on the system `PATH`.
-
----
-
-## Clip matching
-
-Clips come from `data_json`. Each clip is matched to a video file in `clips_dir`:
-
-| `name_mode` | Filename stem |
-|-------------|----------------|
-| `from_start` | `FROM_…` tag (same as Seq To Video prefix from Data Json Clip Parser) |
-| `index` | four-digit index (`0000`, `0001`, …) |
-
-`clips_dir` empty uses `output/{run_prefix}` from `data_json`. A relative path is under ComfyUI `output`. An absolute path is used as-is.
-
----
+Concatenate runtime `data_json.clips` in list order using each clip's `output_video`, relative to ComfyUI output. Disabled clips are skipped. Missing files fail instead of substituting another generation. Requires FFmpeg and FFprobe.
 
 ## Inputs
 
-| Name | Type | Default | Description |
-|------|------|---------|-------------|
-| `data_json` | STRING | `""` | Timeline Editor clip list |
-| `clips_dir` | STRING | `""` | Directory of per-clip videos; empty = `output/{run_prefix}` |
-| `name_mode` | ENUM | `from_start` | How to match clip video filenames |
-| `filename_prefix` | STRING | `composed` | Output prefix; may include subfolders under `output` |
-| `trim_extends` | BOOLEAN | true | Trim head/tail extend before concat when the file is the extended-length render |
-| `save_sidecar` | BOOLEAN | true | Write a same-name JSON next to the composed MP4 |
+- `data_json`: Timeline Editor output with fps, timing and output_video.
+- `filename_prefix`: defaults to `capricorncd-timeline/compose`.
+- `trim_extends`: remove overlap and explicit extends, preserving H3 continuation tail frames. Total duration may exceed the timeline duration. Disable to keep complete files.
+- `save_sidecar`: save source paths, prompts and workflow information beside the MP4.
 
-## Outputs
+H3 continuation trimming requires the previous included clip's Save Latent to be true and the current clip's Motion Context to be enabled. The first clip has no preceding context. Save Latent on the current clip prepares the next clip; it does not itself require a context head trim. Frame counts distinguish complete and already head-trimmed renders. Ambiguous lengths or H3 FPS mismatches fail rather than silently cutting the wrong range. Use files and data_json from the same generation run.
 
-| Name | Type | Description |
-|------|------|-------------|
-| `filename` | STRING | Output path relative to the ComfyUI output directory |
+Directory and filename-matching widgets are removed. Legacy data without output_video still supports the run_timestamp/run_prefix directory and FROM naming fallback. Old custom-directory workflows should supply output_video. Existing workflows retain their output prefix and trim/save selections.
 
----
-
-## Sidecar JSON
-
-When `save_sidecar` is on, `{name}.mp4` gets `{name}.json` beside it. The file records graph prompts / models / sampler settings, plus per-clip prompts from `data_json`.
+The filename output is relative to ComfyUI output. This node concatenates clips; layered media, subtitles and timeline audio require timeline export.

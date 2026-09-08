@@ -193,29 +193,15 @@ def _safe_under(base: str, candidate: str) -> str:
 
 
 class CAP_ComposeClipVideos:
-    """Compose per-clip MP4s (under output/run_timestamp) into one timeline video."""
+    """Compose the clip output_video files listed in runtime data_json."""
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "data_json": ("STRING", {"default": "", "multiline": True}),
-                "clips_dir": ("STRING", {
-                    "default": "",
-                    "tooltip": (
-                        "Clip video directory. Leave blank for ComfyUI output/{run_timestamp}; "
-                        "a relative path is relative to output; you can also just enter run_timestamp."
-                    ),
-                }),
-                "name_mode": (
-                    ["from_start", "index"],
-                    {
-                        "default": "from_start",
-                        "tooltip": "Match clip video filenames by the from_start label or a 4-digit index",
-                    },
-                ),
                 "filename_prefix": ("STRING", {
-                    "default": "composed",
+                    "default": "capricorncd-timeline/compose",
                     "tooltip": "Filename prefix for the composed video (may include subfolders, relative to output)",
                 }),
                 "trim_extends": ("BOOLEAN", {
@@ -246,8 +232,8 @@ class CAP_ComposeClipVideos:
     FUNCTION = "execute"
     CATEGORY = "Capricorncd"
     DESCRIPTION = (
-        "Compose multi-clip videos produced under output/run_timestamp into one MP4. "
-        "Optionally trims head/tail extend so the final cut matches preview duration. "
+        "Compose data_json clip output_video files in list order into one MP4. "
+        "Trim repeated motion context and explicit extends, preserving continuation tails. "
         "When save_sidecar is true, write a same-name JSON next to the video."
     )
 
@@ -324,10 +310,54 @@ class CAP_ComposeClipVideos:
         pool.sort(key=lambda p: os.path.getmtime(p), reverse=True)
         return pool[0]
 
-    def _trim_plan(self, clip: dict, video_path: str, trim_extends: bool) -> tuple[float | None, float | None]:
+    def _trim_plan(self, clip: dict, video_path: str, trim_extends: bool, fps: float = 24.0, previous_clip: dict | None = None) -> tuple[float | None, float | None]:
         """Return (ss, duration) in seconds, or (None, None) if no trim."""
         if not trim_extends:
             return None, None
+        start = float(clip.get("start_ms", 0))
+        end = float(clip.get("end_ms", start))
+        frames = round((end - start) * fps / 1000)
+        if frames <= 0:
+            raise ValueError("Compose Clip Videos: clip duration must be positive.")
+        context = max(0, int(clip.get("h3_motion_context_length", 0) or 0))
+        context = (context - 5) // 17 * 17 + 5 if context >= 5 else 0
+        if not previous_clip or not previous_clip.get("save_latent", False):
+            context = 0
+        if context or clip.get("save_latent", False):
+            probe = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "v:0",
+                 "-show_entries", "stream=nb_frames,duration,r_frame_rate", "-of", "json", _ffmpeg_path(video_path)],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+                **({"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}),
+            )
+            if probe.returncode:
+                raise ValueError(f"Compose Clip Videos: cannot probe video: {video_path}")
+            stream = json.loads(probe.stdout)["streams"][0]
+            numerator, denominator = stream["r_frame_rate"].split("/")
+            source_fps = float(numerator) / float(denominator)
+            if abs(source_fps - fps) > 0.01:
+                raise ValueError(f"Compose Clip Videos: video fps {source_fps:g} differs from data_json fps {fps:g}: {video_path}")
+            actual = int(stream["nb_frames"]) if stream.get("nb_frames", "N/A") != "N/A" else round(float(stream["duration"]) * fps)
+            aligned = frames + (5 - frames) % 17
+            extended = aligned + context + (5 - aligned - context) % 17
+            head = max(0.0, float(clip.get("preview_start_ms", start + float(clip.get("head_extend_sec", 0) or 0) * 1000)) - start)
+            tail_end = float(clip.get("preview_end_ms", end - float(clip.get("tail_extend_sec", 0) or 0) * 1000))
+            keep = round((tail_end - start - head) * fps / 1000)
+            if keep <= 0:
+                raise ValueError("Compose Clip Videos: trim removes the entire clip.")
+            if abs(actual - keep) <= 1:
+                return None, keep / fps
+            offset = 0
+            if context and abs(actual - extended) <= 1:
+                offset = context
+            elif not any(abs(actual - count) <= 1 for count in (frames, aligned, extended - context)):
+                raise ValueError(f"Compose Clip Videos: ambiguous context trim for {video_path} ({actual} frames); expected {frames}, {aligned}, {extended - context} or {extended} frames.")
+            # Alignment frames contain motion used by the next continuation.
+            tail_frames = max(0, round((end - tail_end) * fps / 1000))
+            keep = actual - offset - round(head * fps / 1000) - tail_frames
+            if keep <= 0:
+                raise ValueError("Compose Clip Videos: trim removes the entire clip.")
+            return offset / fps + head / 1000, keep / fps
         try:
             head = max(0, int(clip.get("head_extend_sec", 0) or 0))
         except (TypeError, ValueError):
@@ -394,7 +424,7 @@ class CAP_ComposeClipVideos:
     def _build_output_path(self, filename_prefix: str) -> tuple[str, str, str]:
         output_dir = os.path.abspath(folder_paths.get_output_directory())
         stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        prefix = str(filename_prefix).strip().replace("\\", "/") or "composed"
+        prefix = str(filename_prefix).strip().replace("\\", "/") or "capricorncd-timeline/compose"
         subfolder = os.path.dirname(prefix)
         base = os.path.basename(prefix) or "composed"
         base = re.sub(r'[<>:"|?*\x00-\x1f]', "_", base).strip(" .") or "composed"
@@ -411,7 +441,7 @@ class CAP_ComposeClipVideos:
         data_json: str,
         clips_dir: str = "",
         name_mode: str = "from_start",
-        filename_prefix: str = "composed",
+        filename_prefix: str = "capricorncd-timeline/compose",
         trim_extends: bool = True,
         save_sidecar: bool = True,
         prompt=None,
@@ -427,15 +457,25 @@ class CAP_ComposeClipVideos:
 
         fps = max(1.0, float(data.get("fps", 24.0) or 24.0))
         run_timestamp = str(data.get("run_timestamp") or data.get("run_prefix") or "").strip()
-        resolved_dir = self._resolve_clips_dir(clips_dir, run_timestamp)
+        resolved_dir = None
         parser = CAP_DataJsonClipParser()
 
         sources: list[tuple[dict, int, str]] = []
         for index, clip in enumerate(clips):
             if not isinstance(clip, dict):
                 continue
-            stem = self._clip_stem(clip, index, fps, name_mode, parser)
-            path = self._find_clip_video(resolved_dir, stem)
+            if clip.get("enabled", True) is False:
+                continue
+            filename = str(clip.get("output_video") or "").strip().replace("\\", "/")
+            if filename:
+                path = _safe_under(folder_paths.get_output_directory(), os.path.join(folder_paths.get_output_directory(), filename))
+                if os.path.splitext(path)[1].lower() not in _VIDEO_EXTS or not os.path.isfile(path):
+                    raise ValueError(f"Compose Clip Videos: output_video not found: {filename}")
+            else:
+                if resolved_dir is None:
+                    resolved_dir = self._resolve_clips_dir(clips_dir, run_timestamp)
+                stem = self._clip_stem(clip, index, fps, name_mode, parser)
+                path = self._find_clip_video(resolved_dir, stem)
             if not path:
                 raise ValueError(_t("clip_video_not_found", get_last_known_lang(), index=index, stem=repr(stem), dir=resolved_dir))
             sources.append((clip, index, path))
@@ -452,7 +492,8 @@ class CAP_ComposeClipVideos:
 
         try:
             for order, (clip, index, src) in enumerate(sources):
-                ss, dur = self._trim_plan(clip, src, bool(trim_extends))
+                previous_clip = sources[order - 1][0] if order else None
+                ss, dur = self._trim_plan(clip, src, bool(trim_extends), fps, previous_clip)
                 dst = os.path.join(tmp_dir, f"seg_{order:04d}.mp4")
                 self._normalize_segment(src, dst, ss, dur, keep_audio)
                 segment_paths.append(dst)
@@ -480,7 +521,7 @@ class CAP_ComposeClipVideos:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
         if save_sidecar:
-            extra = {"clips": len(sources), "clips_dir": resolved_dir}
+            extra = {"clips": len(sources), "sources": [path for _, _, path in sources]}
             clip_rows = clip_prompts_from_data_json(data_json)
             if clip_rows:
                 extra["clip_prompts"] = clip_rows

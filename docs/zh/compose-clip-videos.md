@@ -1,45 +1,16 @@
 # Compose Clip Videos（多段视频合成）
 
-**分类：** `Capricorncd`
+按运行数据 `data_json.clips` 的列表顺序合成，读取每段的 `output_video`（相对 ComfyUI output）。跳过禁用片段，文件缺失时报错，不替换为其他生成版本。需要 FFmpeg 和 FFprobe。
 
-用 **ffmpeg** 将 `output/{run_prefix}` 下各片段 MP4 合成为一条时间轴视频。可按预览时长裁掉首/尾扩展。
+## 输入
 
-> **需要** 系统 `PATH` 中有 ffmpeg。
+- `data_json`：Timeline Editor 输出，包含 fps、片段时间和 output_video。
+- `filename_prefix`：默认 `capricorncd-timeline/compose`。
+- `trim_extends`：去除重复上下文和显式首尾延长；保留 H3 对齐产生的有效尾帧用于连续衔接，因此总时长可能略长于时间轴；关闭则保留完整文件。
+- `save_sidecar`：在 MP4 旁保存来源路径、提示词及工作流信息。
 
----
+只有上一段参与合成的 Clip 的 Save Latent 为 true，且当前段启用了 Motion Context，才对当前段使用 H3 续接裁剪规则。第一段没有前段上下文。当前段的 Save Latent 用于准备下一段，不代表当前段需要裁上下文头帧。通过实际帧数区分完整视频和已经裁过头的视频，防止重复裁剪。长度无法确定或 H3 视频帧率与工程不符时会报错，避免误裁。请使用同一轮生成的视频与 data_json。
 
-## 片段匹配
+已移除片段目录和文件名匹配选项。旧数据没有 output_video 时仍支持 run_timestamp/run_prefix 目录及 FROM 文件名回退；旧工作流使用自定义目录时，请在 data_json 中提供 output_video。旧工作流保留已有输出前缀和裁剪、保存选项。
 
-片段列表来自 `data_json`。每个片段在 `clips_dir` 中按文件名匹配：
-
-| `name_mode` | 文件名主干 |
-|-------------|------------|
-| `from_start` | `FROM_…` 标签（与 Data Json Clip Parser 给 Seq To Video 的前缀一致） |
-| `index` | 四位索引（`0000`、`0001`、…） |
-
-`clips_dir` 为空时使用 `data_json` 中的 `output/{run_prefix}`。相对路径相对 ComfyUI `output`；绝对路径按原样使用。
-
----
-
-## 输入参数
-
-| 名称 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `data_json` | STRING | `""` | Timeline Editor 的片段列表 |
-| `clips_dir` | STRING | `""` | 片段视频目录；留空 = `output/{run_prefix}` |
-| `name_mode` | ENUM | `from_start` | 如何匹配片段视频文件名 |
-| `filename_prefix` | STRING | `composed` | 输出前缀；可含子目录（相对 `output`） |
-| `trim_extends` | BOOLEAN | true | 文件为扩展时长渲染时，合成前裁掉首/尾扩展 |
-| `save_sidecar` | BOOLEAN | true | 在合成 MP4 旁写入同名 JSON |
-
-## 输出参数
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `filename` | STRING | 相对于 ComfyUI output 目录的输出路径 |
-
----
-
-## 同名 JSON
-
-开启 `save_sidecar` 时，`{name}.mp4` 旁会写入 `{name}.json`，记录工作流中的提示词 / 模型 / 采样参数，以及 `data_json` 里各片段的提示词。
+输出 filename 是相对 ComfyUI output 的路径。本节点顺序拼接片段；叠加媒体、字幕和时间轴音频请使用时间轴导出合成。

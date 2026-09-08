@@ -3092,6 +3092,7 @@ export class CapTimelineEditorApp {
 
     destroy() {
         if (this._destroyed) return;
+        this._stopModelPreviewAudio();
         // Save BEFORE marking destroyed — `_saveToWidgets` bails on `_destroyed`,
         // and tab-switch teardown (beforeConfigureGraph) used to skip the flush.
         try { this._closeInternal(true); } catch { /* continue teardown */ }
@@ -3969,6 +3970,7 @@ export class CapTimelineEditorApp {
                     <label class="cat-te-modal-row">
                       <span>${T("clip_seed_label")}</span>
                       <input class="cat-te-model-preview-seed" type="number" min="-1" step="1" value="-1" />
+                      <button type="button" class="cat-te-btn cat-te-model-preview-seed-random" title="${T("randomize_seed_title")}" aria-label="${T("randomize_seed_title")}">${iconHtml("refresh", 12)}</button>
                     </label>
                     <label class="cat-te-modal-row">
                       <span>${T("preview_megapixels_label")}</span>
@@ -3988,6 +3990,10 @@ export class CapTimelineEditorApp {
                       <video class="cat-te-ai-preview-video" controls autoplay loop muted playsinline hidden></video>
                       <div class="cat-te-ai-preview-empty"></div>
                     </div>
+                    <label class="cat-te-modal-row">
+                      <input class="cat-te-preview-timeline-audio" type="checkbox" />
+                      <span>${T("preview_timeline_audio_label")}</span>
+                    </label>
                   </div>
                   </div>
                   <div class="cat-te-ai-optimize-actions">
@@ -4384,6 +4390,18 @@ export class CapTimelineEditorApp {
         this.aiPreviewStatus = el.querySelector(".cat-te-ai-preview-status");
         this.aiPreviewImage = el.querySelector(".cat-te-ai-preview-image");
         this.aiPreviewVideo = el.querySelector(".cat-te-ai-preview-video");
+        this.aiPreviewTimelineAudio = el.querySelector(".cat-te-preview-timeline-audio");
+        this.aiPreviewTimelineAudio.addEventListener("change", () => {
+            if (this.aiPreviewTimelineAudio.checked) this._ensurePlaybackContext();
+            this._syncModelPreviewAudio(true);
+        });
+        for (const event of ["playing", "seeked", "ratechange"]) {
+            this.aiPreviewVideo.addEventListener(event, () => this._syncModelPreviewAudio(true));
+        }
+        for (const event of ["pause", "waiting", "seeking", "emptied", "ended"]) {
+            this.aiPreviewVideo.addEventListener(event, () => this._stopModelPreviewAudio());
+        }
+        this.aiPreviewVideo.addEventListener("timeupdate", () => this._syncModelPreviewAudio());
         this.aiPreviewEmpty = el.querySelector(".cat-te-ai-preview-empty");
         this.aiSrcText = el.querySelector(".cat-te-ai-src-text");
         this.aiSourceTabs = el.querySelectorAll(".cat-te-ai-source-tab");
@@ -4522,6 +4540,12 @@ export class CapTimelineEditorApp {
         el.querySelector(".cat-te-model-preview-import")?.addEventListener("click", () => this.modelPreviewFileInput?.click());
         el.querySelector(".cat-te-model-preview-clear")?.addEventListener("click", () => this._clearModelPreviewWorkflow());
         this.modelPreviewFileInput?.addEventListener("change", (e) => void this._importModelPreviewWorkflow(e));
+        el.querySelector(".cat-te-model-preview-seed-random")?.addEventListener("click", (e) => {
+            e.preventDefault();
+            if (!this._findClipById(this._aiOptimizeClipId)) return;
+            this.modelPreviewSeedInput.value = String(this._randomClipSeed());
+            this.modelPreviewSeedInput.dispatchEvent(new Event("change", { bubbles: true }));
+        });
         this.modelPreviewSeedInput?.addEventListener("change", () => {
             const clip = this._findClipById(this._aiOptimizeClipId);
             if (!clip) return;
@@ -6861,6 +6885,60 @@ export class CapTimelineEditorApp {
         }
     }
 
+    _stopModelPreviewAudio() {
+        for (const { source, gain } of this._modelPreviewAudioSources || []) {
+            try { source.stop(); } catch { /* Already stopped. */ }
+            source.disconnect();
+            gain.disconnect();
+        }
+        this._modelPreviewAudioSources = [];
+        this._modelPreviewAudioClock = null;
+    }
+
+    _syncModelPreviewAudio(force = false) {
+        const video = this.aiPreviewVideo;
+        const clip = this._findClipById(this._aiOptimizeClipId);
+        if (!this.aiPreviewTimelineAudio?.checked || !clip || this.aiOptimizeModal?.hidden
+            || video?.paused || video?.seeking || video?.readyState < 2 || !video?.getAttribute("src")) {
+            this._stopModelPreviewAudio();
+            return;
+        }
+        video.muted = true;
+        const ctx = this._ensurePlaybackContext();
+        const rate = video.playbackRate;
+        const clock = this._modelPreviewAudioClock;
+        if (!force && clock && Math.abs(video.currentTime - (clock.media + (ctx.currentTime - clock.time) * rate)) < 0.15) return;
+        this._stopModelPreviewAudio();
+        const from = clip.startTime + video.currentTime;
+        const end = clip.startTime + clip.duration;
+        this._modelPreviewAudioClock = { media: video.currentTime, time: ctx.currentTime };
+        for (const track of this._timeline?.tracks || []) {
+            if (track.type !== "audio" || track.muted || this._trackInfo.get(track.id)?.enabled === false) continue;
+            for (const audioClip of track.clips) {
+                const meta = this._meta.get(audioClip.id) || {};
+                if (meta.muted || meta.disabled || !audioClip._audioBuffer) continue;
+                const start = Math.max(from, audioClip.startTime);
+                const local = start - audioClip.startTime;
+                const offset = Math.max(0, Number(audioClip.sourceOffset) || 0) + local;
+                const duration = Math.min(end, audioClip.endTime) - start;
+                const available = Math.min(duration, audioClip._audioBuffer.duration - offset);
+                if (available <= 0) continue;
+                const source = ctx.createBufferSource();
+                source.buffer = audioClip._audioBuffer;
+                source.playbackRate.value = rate;
+                const gain = ctx.createGain();
+                source.connect(gain);
+                gain.connect(ctx.destination);
+                const when = ctx.currentTime + (start - from) / rate;
+                this._scheduleAudioFadeGain(gain, when, local / rate, available / rate,
+                    Math.max(0, audioClip.fadeIn || 0) / rate, Math.max(0, audioClip.fadeOut || 0) / rate,
+                    audioClip.duration / rate, normalizeClipVolume(meta.volume));
+                source.start(when, offset, available);
+                this._modelPreviewAudioSources.push({ source, gain });
+            }
+        }
+    }
+
     _syncModelPreviewButton() {
         if (!this.aiPreviewBtn) return;
         const active = !!this._modelPreviewPromptId;
@@ -7031,6 +7109,8 @@ export class CapTimelineEditorApp {
     }
 
     async _stopModelPreview() {
+        this.aiPreviewVideo?.pause();
+        this._stopModelPreviewAudio();
         const promptId = this._modelPreviewPromptId;
         if (!promptId) return;
         let status = T("model_preview_stopped");
@@ -10019,6 +10099,7 @@ export class CapTimelineEditorApp {
         const video = document.createElement("video");
         video.className = "cat-te-output-video-hover-video";
         video.controls = true;
+        video.loop = true;
         video.playsInline = true;
         video.preload = "metadata";
         video.muted = false;
@@ -16974,7 +17055,11 @@ export class CapTimelineEditorApp {
         this.aiRightPanes?.forEach((pane) => {
             pane.hidden = pane.dataset.rightPane !== next;
         });
-        if (next !== "preview") return;
+        if (next !== "preview") {
+            this.aiPreviewVideo?.pause();
+            this._stopModelPreviewAudio();
+            return;
+        }
         const clipId = String(this._aiOptimizeClipId || "");
         const matches = clipId && (
             clipId === String(this._modelPreviewClipId || "")
@@ -17081,6 +17166,7 @@ export class CapTimelineEditorApp {
     }
 
     _closeAiOptimizeModal() {
+        this._stopModelPreviewAudio();
         this._cancelAiOptimize();
         if (!this.aiOptimizeModal) return;
         this.aiOptimizeModal.hidden = true;
@@ -17108,6 +17194,7 @@ export class CapTimelineEditorApp {
     }
 
     async _bindAiOptimizeToClip(clip, { reloadModels = false } = {}) {
+        this._stopModelPreviewAudio();
         if (!clip || !this.aiOptimizeModal) return;
         this._cancelAiOptimize();
         const meta = this._ensureClipMeta(clip);

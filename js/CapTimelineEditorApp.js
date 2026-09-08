@@ -3439,17 +3439,17 @@ export class CapTimelineEditorApp {
                 </label>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("scale_label")} %</span>
-                  <input class="cat-te-sub-scale" type="range" min="10" max="300" step="1" value="100" />
+                  <input class="cat-te-sub-scale" type="number" min="10" max="300" step="1" value="100" />
                   <span class="cat-te-sub-scale-value">100%</span>
                 </label>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("subtitle_offset_x_label")}</span>
-                  <input class="cat-te-sub-offset-x" type="range" min="-100" max="100" step="0.1" value="0" />
+                  <input class="cat-te-sub-offset-x" type="number" min="-100" max="100" step="0.1" value="0" />
                   <span class="cat-te-sub-offset-x-value">0%</span>
                 </label>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("subtitle_offset_y_label")}</span>
-                  <input class="cat-te-sub-offset-y" type="range" min="-100" max="100" step="0.1" value="0" />
+                  <input class="cat-te-sub-offset-y" type="number" min="-100" max="100" step="0.1" value="0" />
                   <span class="cat-te-sub-offset-y-value">0%</span>
                 </label>
                 <div class="cat-te-sub-apply-row">
@@ -16614,6 +16614,7 @@ export class CapTimelineEditorApp {
         );
         meta.fontSize = Math.max(8, Math.round(Number(this.subSizeInput?.value) || meta.fontSize || 48));
         meta.subtitleScale = Math.max(10, Math.min(300, Number(this.subScaleInput.value)));
+        this.subScaleInput.value = String(meta.subtitleScale);
         this.subScaleValue.textContent = `${meta.subtitleScale}%`;
         meta.letterSpacing = Math.max(-50, Math.min(200, Math.round(Number(this.subLetterSpacingInput?.value) || 0)));
         meta.color = String(this.subColorInput?.value || meta.color || "#ffffff");
@@ -16645,7 +16646,7 @@ export class CapTimelineEditorApp {
             : m.vAlign === "middle" ? Number(m.offsetY) || 0
             : 50 - edge - (Number(m.offsetY) || 0);
         for (const [input, value] of [[this.subOffsetXInput, x], [this.subOffsetYInput, y]]) {
-            input.value = String(Math.max(-100, Math.min(100, value)));
+            input.value = String(Math.round(Math.max(-100, Math.min(100, value)) * 10) / 10);
             input.nextElementSibling.textContent = `${Math.round(value * 10) / 10}%`;
         }
     }
@@ -16666,8 +16667,8 @@ export class CapTimelineEditorApp {
         const m = this._ensureClipMeta(clip);
         this._readSubtitlePanelInto(m);
         if (changes.offsetX || changes.offsetY) {
-            m.offsetX = Number(this.subOffsetXInput.value) - (m.align === "left" ? -46 : m.align === "right" ? 46 : 0);
-            m.offsetY = Number(this.subOffsetYInput.value);
+            m.offsetX = Math.max(-100, Math.min(100, Number(this.subOffsetXInput.value))) - (m.align === "left" ? -46 : m.align === "right" ? 46 : 0);
+            m.offsetY = Math.max(-100, Math.min(100, Number(this.subOffsetYInput.value)));
             m.vAlign = "middle";
             this.subVAlignSelect.value = "middle";
         }

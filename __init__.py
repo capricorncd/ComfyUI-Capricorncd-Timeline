@@ -18,10 +18,6 @@ from .cap_load_image_metadata import (
     register_metadata_routes,
 )
 from .prompt_input_rich import CAP_RichPromptInput
-from .cap_audio_timeline import (
-    NODE_CLASS_MAPPINGS as _CAT_CLASS,
-    NODE_DISPLAY_NAME_MAPPINGS as _CAT_NAMES,
-)
 from .cap_data_json_parser import (
     NODE_CLASS_MAPPINGS as _CDP_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _CDP_NAMES,
@@ -105,7 +101,6 @@ WEB_DIRECTORY = "./js"
 NODE_CLASS_MAPPINGS = {
     **_CLM_CLASS,
     "CAP_RichPromptInput": CAP_RichPromptInput,
-    **_CAT_CLASS,
     **_CDP_CLASS,
     **_STV_CLASS,
     **_CCV_CLASS,
@@ -129,7 +124,6 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     **_CLM_NAMES,
     "CAP_RichPromptInput": "Rich Prompt Input",
-    **_CAT_NAMES,
     **_CDP_NAMES,
     **_STV_NAMES,
     **_CCV_NAMES,

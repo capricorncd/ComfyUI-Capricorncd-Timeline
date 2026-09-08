@@ -13,8 +13,72 @@ from .prompt_text import strip_comment_lines
 from .timecode import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS, resolve_media_path
 
 
+_PROMPT_PART_KEYS = ("global", "style", "clip", "detailed_description", "media", "non_diegetic_music", "negative")
+_PROMPT_PART_KEY_SET = set(_PROMPT_PART_KEYS)
+_DEFAULT_PROMPT_CONCAT_ORDER = list(_PROMPT_PART_KEYS)
+_DEFAULT_PROMPT_INCLUDES = ["global", "clip", "detailed_description"]
+
+
+def _normalize_prompt_concat_order(raw) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    if isinstance(raw, list):
+        for value in raw:
+            key = str(value or "").strip()
+            if key not in _PROMPT_PART_KEY_SET or key in seen:
+                continue
+            seen.add(key)
+            out.append(key)
+    for key in _DEFAULT_PROMPT_CONCAT_ORDER:
+        if key not in seen:
+            out.append(key)
+    return out
+
+
+def _clip_prompt_includes(clip: dict) -> list[str]:
+    """Normalize clip.prompt_includes; migrate legacy use_global_prompt / use_ai_prompt."""
+    if not isinstance(clip, dict):
+        return list(_DEFAULT_PROMPT_INCLUDES)
+    raw = clip.get("prompt_includes")
+    migrate = ("use_ai_prompt" in clip) or ("use_global_prompt" in clip)
+    if isinstance(raw, list):
+        seen: set[str] = set()
+        for value in raw:
+            key = str(value or "").strip()
+            if key == "ai":
+                key = "detailed_description"
+            if key not in _PROMPT_PART_KEY_SET or key in seen:
+                continue
+            seen.add(key)
+        if migrate:
+            has_new = ("clip" in seen) or ("detailed_description" in seen)
+            if not has_new:
+                seen.add("clip")
+                if clip.get("use_ai_prompt", True) is not False:
+                    seen.add("detailed_description")
+            else:
+                if "use_ai_prompt" in clip:
+                    if clip.get("use_ai_prompt") is False:
+                        seen.discard("detailed_description")
+                    else:
+                        seen.add("detailed_description")
+            if "use_global_prompt" in clip:
+                if clip.get("use_global_prompt"):
+                    seen.add("global")
+                else:
+                    seen.discard("global")
+        return [k for k in _PROMPT_PART_KEYS if k in seen]
+    out: list[str] = []
+    if clip.get("use_global_prompt", True) is not False:
+        out.append("global")
+    out.append("clip")
+    if clip.get("use_ai_prompt", True) is not False:
+        out.append("detailed_description")
+    return out
+
+
 class CAP_DataJsonClipParser:
-    """Parse data_json from CAP_AudioTimeline or CAP_TimelineEditor and extract a clip by index."""
+    """Parse Timeline Editor data_json and extract a clip by index."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -60,7 +124,7 @@ class CAP_DataJsonClipParser:
     FUNCTION = "execute"
     CATEGORY = "Capricorncd"
     DESCRIPTION = (
-        "Parse data_json from Audio Timeline or Timeline Editor and extract a clip by index. "
+        "Parse data_json from Timeline Editor and extract a clip by index. "
         "Outputs the clip audio segment, frame count, first/last keyframe images, prompt, "
         "run_timestamp, generate_preview_video, FROM_ tags, seq_filename_prefix "
         "(run_timestamp/from_start or run_timestamp/index) for Seq To Video, "
@@ -158,14 +222,12 @@ class CAP_DataJsonClipParser:
         return torch.cat(aligned, dim=0)
 
     def _clip_prompt_includes(self, clip: dict) -> list[str]:
-        from .cap_audio_timeline import _clip_prompt_includes
         return _clip_prompt_includes(clip)
 
     def _strip_comment_lines(self, text: str) -> str:
         return strip_comment_lines(text)
 
     def _normalize_prompt_concat_order(self, raw) -> list[str]:
-        from .cap_audio_timeline import _normalize_prompt_concat_order
         return _normalize_prompt_concat_order(raw)
 
     def _prompt_section(self, prompt: str, section: str) -> str:
@@ -519,7 +581,7 @@ class CAP_DataJsonClipParser:
             else:
                 images.append(entry)
 
-        # Audio Timeline clips use start_image / end_image absolute paths.
+        # Legacy clips use start_image / end_image absolute paths.
         if not images and not videos:
             for key in ("start_image", "end_image"):
                 path = str(out.get(key) or "").strip()

@@ -1,5 +1,5 @@
 /**
- * Shared i18n runtime for ComfyUI-Capricorncd-Tools.
+ * Shared i18n runtime for ComfyUI-Capricorncd-Timeline.
  *
  * Language follows ComfyUI's own "Comfy.Locale" setting by default. Any
  * locale ComfyUI doesn't map us to (or any string we haven't translated

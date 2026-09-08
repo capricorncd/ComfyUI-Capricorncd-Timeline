@@ -1,4 +1,4 @@
-/** Shared SVG icons for Capricorncd Tools (no external assets). */
+/** Shared SVG icons for Capricorncd Timeline (no external assets). */
 
 export const SVG_ATTRS =
     'viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';

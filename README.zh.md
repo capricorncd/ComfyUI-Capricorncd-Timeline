@@ -1,7 +1,7 @@
-# ComfyUI-Capricorncd-Tools
+# ComfyUI-Capricorncd-Timeline
 
 <p style="width:100%;text-align:center;">
-   <img src="./docs/ComfyUI-Capricorncd-Tools.png" width="200" alt="ComfyUI-Capricorncd-Tools" />
+   <img src="./docs/ComfyUI-Capricorncd-Timeline.png" width="200" alt="ComfyUI-Capricorncd-Timeline" />
 </p>
 
 面向 [ComfyUI](https://github.com/comfyanonymous/ComfyUI) 的可视化多轨**时间轴编辑器**，支持**一键出片、局部修改、独立项目管理与项目资源导入导出**。在时间轴上编排镜头，通过工作流生成完整视频；需要调整时，只修改并重新生成指定片段，无需整片重做。
@@ -85,7 +85,7 @@ Timeline Editor
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Tools
+git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline
 ```
 
 重启 ComfyUI。除标准 ComfyUI 安装外，无需额外 Python 依赖。

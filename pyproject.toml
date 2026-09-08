@@ -1,21 +1,21 @@
 [project]
-name = "ComfyUI-Capricorncd-Tools"
+name = "ComfyUI-Capricorncd-Timeline"
 description = "A visual multi-track timeline editor for ComfyUI with one-click video creation, targeted clip editing, separate project management, and project and asset import/export."
 version = "0.15.0"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 
 [project.urls]
-Repository = "https://github.com/capricorncd/ComfyUI-Capricorncd-Tools"
+Repository = "https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline"
 
 [tool.comfy]
 PublisherId = "capricorncd"
-DisplayName = "ComfyUI-Capricorncd-Tools"
+DisplayName = "ComfyUI-Capricorncd-Timeline"
 Icon = ""
 Includes = []
 
 [tool.comfy.node]
-Category = "Capricorncd Tools"
+Category = "Capricorncd Timeline"
 
 [tool.capricorncd]
 schema_version = 4

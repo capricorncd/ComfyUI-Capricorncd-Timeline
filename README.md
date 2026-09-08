@@ -1,7 +1,7 @@
-# ComfyUI-Capricorncd-Tools
+# ComfyUI-Capricorncd-Timeline
 
 <p style="width:100%;text-align:center;">
-   <img src="./docs/ComfyUI-Capricorncd-Tools.png" width="200" alt="ComfyUI-Capricorncd-Tools" />
+   <img src="./docs/ComfyUI-Capricorncd-Timeline.png" width="200" alt="ComfyUI-Capricorncd-Timeline" />
 </p>
 
 A visual multi-track timeline editor for [ComfyUI](https://github.com/comfyanonymous/ComfyUI) with **one-click video creation**, **targeted clip editing**, **separate project management**, and **project and asset import/export**. Arrange your shots, generate a complete video through your workflow, and refine individual clips without regenerating the entire sequence.
@@ -92,7 +92,7 @@ The **Disable / Enable** feature in Timeline Editor lets you re-generate a singl
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Tools
+git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline
 ```
 
 Restart ComfyUI. No additional Python packages are required beyond a standard ComfyUI installation.

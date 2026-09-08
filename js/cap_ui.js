@@ -1,6 +1,6 @@
 /** Shared UI helpers: stylesheet loading, buttons. */
 
-export const EXT_PREFIX = "ComfyUI-Capricorncd-Tools";
+export const EXT_PREFIX = "ComfyUI-Capricorncd-Timeline";
 
 const _loaded = new Set();
 

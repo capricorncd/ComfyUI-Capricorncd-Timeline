@@ -80,8 +80,6 @@ def _write_concat_list(files: list[str], fps: float) -> str:
     for file_path in files:
         lines.append(_concat_file_line(file_path))
         lines.append(f"duration {duration:.9f}")
-    if files:
-        lines.append(_concat_file_line(files[-1]))
     with open(path, "w", encoding="utf-8", newline="\n") as wf:
         wf.write("\n".join(lines) + "\n")
     return path
@@ -339,6 +337,7 @@ class CAP_SeqToVideo:
                 "ffmpeg", "-y",
                 "-f", "concat",
                 "-safe", "0",
+                "-r", str(fps),
                 "-i", _ffmpeg_path(concat_tmp),
             ]
             log.info("[CAP_SeqToVideo] mode=%s frames=%d", mode, frame_count)
@@ -362,6 +361,7 @@ class CAP_SeqToVideo:
             log.info("[CAP_SeqToVideo] mode=dir frames=%d dir=%s", frame_count, frames_dir)
 
         cmd = self._append_encode_args(cmd, audio_tmp, video_duration)
+        cmd += ["-r", str(fps), "-fps_mode", "cfr", "-frames:v", str(frame_count)]
         cmd.append(_ffmpeg_path(output_path))
         log.info(
             "[CAP_SeqToVideo] frames=%d duration=%.3fs",

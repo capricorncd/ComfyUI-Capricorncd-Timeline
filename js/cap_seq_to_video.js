@@ -4,7 +4,7 @@ import { bindCanvasWheelPassthrough } from "./cap_canvas_wheel.js";
 import { loadExtensionCss } from "./cap_ui.js";
 import { t } from "./i18n/seq_to_video.js";
 
-const NODE_CLASS     = "CAP_SeqToVideo";
+const PLAYER_NODES   = new Set(["CAP_SeqToVideo", "CAP_ComposeClipVideos"]);
 const PLAYER_H       = 200;  // placeholder / initial height in px
 const MIN_NODE_WIDTH = 300;  // px
 
@@ -45,7 +45,7 @@ app.registerExtension({
     name: "Capricorncd.SeqToVideo",
 
     async beforeRegisterNodeDef(nodeType, nodeData) {
-        if (nodeData.name !== NODE_CLASS) return;
+        if (!PLAYER_NODES.has(nodeData.name)) return;
         loadCss();
 
         // ── prevent automatic layout from narrowing the node ────────────────
@@ -112,6 +112,7 @@ app.registerExtension({
             this._stvLastVideoInfo = null;
             this._stvPlayerH       = PLAYER_H;
             this._stvResizeObs     = null;
+            this._stvControls      = nodeData.name === "CAP_ComposeClipVideos";
             _buildPlayer(this);
         };
 
@@ -224,7 +225,12 @@ function _loadVideo(node, url) {
     const root = node._stvRoot;
     if (!root) return;
 
-    node._stvVideo?.remove();
+    if (node._stvVideo) {
+        node._stvVideo.pause();
+        node._stvVideo.removeAttribute("src");
+        node._stvVideo.load();
+        node._stvVideo.remove();
+    }
     node._stvHolder?.remove();
     node._stvHolder = null;
 
@@ -235,6 +241,7 @@ function _loadVideo(node, url) {
     video.muted       = true;   // start muted per browser autoplay policy
     video.autoplay    = false;
     video.playsInline = true;
+    video.controls    = node._stvControls;
 
     // Hover unmute — attach directly to <video> (same pattern as VideoHelperSuite)
     video.onmouseenter = () => { video.muted = false; video.volume = 1; };

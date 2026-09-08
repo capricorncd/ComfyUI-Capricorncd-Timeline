@@ -7,13 +7,12 @@ import json
 import logging
 import os
 import re
+import shutil
 
 import torch
+import folder_paths
 
-from .cap_audio_timeline import (
-    CAP_AudioTimeline,
-    _strip_comment_lines,
-)
+from .prompt_text import strip_comment_lines as _strip_comment_lines
 from .cap_clip_prompt_vl import clear_clip_prompt_vl
 from .cap_timeline_project_io import SCHEMA_VERSION, _media_id_for, migrate_project, resolve_clip_media
 from .timecode import resolve_media_path
@@ -211,8 +210,31 @@ def _read_project_version() -> str:
 PROJECT_VERSION = _read_project_version()
 
 
-class CAP_TimelineEditor(CAP_AudioTimeline):
+class CAP_TimelineEditor:
     """Edit a project document and derive a compact downstream runtime document."""
+
+    def _pack(self, waveform, sample_rate):
+        if waveform.dim() == 2:
+            waveform = waveform.unsqueeze(0)
+        elif waveform.dim() == 3 and waveform.shape[0] != 1:
+            waveform = waveform[:1]
+        return {"waveform": waveform, "sample_rate": int(sample_rate)}
+
+    def _trim(self, waveform, sample_rate, start_ms, end_ms):
+        n = waveform.shape[-1]
+        s = max(0, min(int(round(start_ms / 1000 * sample_rate)), max(0, n - 1)))
+        e = max(s + 1, min(int(round(end_ms / 1000 * sample_rate)), n))
+        return self._pack(waveform[..., s:e], sample_rate)
+
+    def _prepare_frame_seq_dir(self) -> str:
+        seq_dir = os.path.join(folder_paths.get_output_directory(), "temp", "capricorncd-frame-sequences")
+        if os.path.exists(seq_dir):
+            for name in os.listdir(seq_dir):
+                item = os.path.join(seq_dir, name)
+                shutil.rmtree(item) if os.path.isdir(item) else os.remove(item)
+        else:
+            os.makedirs(seq_dir)
+        return seq_dir
 
     DESCRIPTION = (
         "Fullscreen timeline editor. The editor stores one track-nested project_json; "

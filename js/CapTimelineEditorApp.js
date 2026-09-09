@@ -897,7 +897,7 @@ export class CapTimelineEditorApp {
         const root = document.createElement("div");
         root.className = "cat-te-launcher";
         root.innerHTML = `
-          <button type="button" class="cat-te-open-btn">${T("launcher_open_btn")}</button>
+          <button type="button" class="cat-te-open-btn">${iconHtml("timelineBrand", 20)}<span>${T("launcher_open_btn")}</span></button>
           <div class="cat-te-launcher-hint">${T("launcher_hint")}</div>
         `;
         const btn = root.querySelector(".cat-te-open-btn");
@@ -3149,7 +3149,7 @@ export class CapTimelineEditorApp {
         el.innerHTML = `
           <header class="cat-te-header">
             <div class="cat-te-brand">
-              ${iconHtml("rabbit", 22)}
+              ${iconHtml("timelineBrand", 22)}
               <span class="cat-te-brand-name">${T("header_brand_name")}</span>
               <span class="cat-te-brand-sep"> | </span>
               <button type="button" class="cat-te-brand-project" title="${T("edit_project_name_title")}">${T("untitled_project")}</button>

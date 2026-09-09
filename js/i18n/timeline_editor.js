@@ -47,7 +47,7 @@ export const DICT = {
         asset_type_prop: "Prop",
         asset_type_other: "Other",
         // launcher
-        launcher_open_btn: "⛶ Edit Timeline",
+        launcher_open_btn: "Edit Timeline",
         launcher_hint: "Fullscreen edit · drag in media · Ctrl+B/G · Alt+wheel pan",
 
         // settings / agents
@@ -629,7 +629,7 @@ export const DICT = {
         asset_type_scene: "场景",
         asset_type_prop: "道具",
         asset_type_other: "其他",
-        launcher_open_btn: "⛶ 编辑时间轴",
+        launcher_open_btn: "编辑时间轴",
         launcher_hint: "全屏编辑 · 拖入素材 · Ctrl+B/G · Alt+滚轮平移",
 
         project_json_root_invalid: "工程 JSON 根节点无效",
@@ -1209,7 +1209,7 @@ export const DICT = {
         asset_type_scene: "シーン",
         asset_type_prop: "小道具",
         asset_type_other: "その他",
-        launcher_open_btn: "⛶ タイムラインを編集",
+        launcher_open_btn: "タイムラインを編集",
         launcher_hint: "フルスクリーン編集・素材をドラッグ・Ctrl+B/G・Alt+ホイールでパン",
 
         project_json_root_invalid: "プロジェクト JSON のルートノードが無効です",

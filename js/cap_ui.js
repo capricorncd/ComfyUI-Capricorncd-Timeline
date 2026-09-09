@@ -10,7 +10,7 @@ const _loaded = new Set();
  */
 export function loadExtensionCss(filename, id) {
     const linkId = id || `cap-css-${filename.replace(/\W/g, "-")}`;
-    const href = `/extensions/${EXT_PREFIX}/${filename}?v=20260906-confirm-dialog`;
+    const href = `/extensions/${EXT_PREFIX}/${filename}?v=20260910-jade-theme`;
     const existing = document.getElementById(linkId);
     if (existing) {
         if (existing.getAttribute("href") !== href) existing.setAttribute("href", href);

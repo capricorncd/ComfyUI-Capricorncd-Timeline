@@ -3514,9 +3514,11 @@ body.cat-te-media-dnd-over-tl {
 }
 
 .cat-te-compose-dialog {
-    width: min(920px, 94vw);
-    height: min(84vh, 780px);
-    max-height: 92vh;
+    width: 80vw;
+    height: 80vh;
+    max-width: 80vw;
+    max-height: 80vh;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
 }

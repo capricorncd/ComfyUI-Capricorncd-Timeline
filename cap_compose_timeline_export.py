@@ -13,8 +13,9 @@ import folder_paths
 from PIL import ImageFilter
 
 from .audio_envelope import normalize_volume_points, volume_points_filter
+from .compose_stream_copy import stream_copy_plan, copy_segments
 from .cap_i18n import get_last_known_lang, t as _t
-from .cap_compose_clip_videos import _probe_has_audio, _probe_video_size, _run_ffmpeg
+from .cap_compose_clip_videos import _probe_has_audio, _run_ffmpeg
 from .cap_seq_to_video import _ffmpeg_path
 from .cap_timeline_project_io import _safe_name
 from .cap_watermark import resolve_font_path
@@ -86,33 +87,19 @@ def _even_dim(value: int) -> int:
     return value if value % 2 == 0 else value - 1
 
 
-def _size_from_video_segments(video_segs: list[dict], fallback_w: int, fallback_h: int) -> tuple[int, int]:
-    """Use the largest director video frame size (keeps 2nd-sample upscales)."""
-    best_w = 0
-    best_h = 0
-    best_area = 0
-    for seg in video_segs:
-        if seg.get("layer") != "director" or seg.get("kind") != "video":
-            continue
-        path = str(seg.get("path") or "")
-        if not path:
-            continue
-        size = _probe_video_size(path)
-        if not size:
-            continue
-        width, height = size
-        area = width * height
-        if area > best_area:
-            best_w, best_h, best_area = width, height, area
-    if best_w >= 16 and best_h >= 16:
-        return _even_dim(best_w), _even_dim(best_h)
-    return _even_dim(fallback_w), _even_dim(fallback_h)
+def _compose_size(width: int, height: int, resolution: str) -> tuple[int, int]:
+    short_sides = {"720p": 720, "1080p": 1080, "2k": 1440}
+    if resolution == "project":
+        return _even_dim(width), _even_dim(height)
+    if resolution not in short_sides:
+        raise ValueError(f"Unsupported output resolution: {resolution}")
+    scale = short_sides[resolution] / min(width, height)
+    return _even_dim(round(width * scale)), _even_dim(round(height * scale))
 
 
 def _collect_plan(
     project: dict,
-    ignore_audio_tracks: bool = False,
-    use_generated_video_size: bool = False,
+    output_resolution: str = "project",
 ) -> dict:
     settings = _as_dict(project.get("settings"))
     width = max(16, int(settings.get("width") or 1344))
@@ -241,7 +228,7 @@ def _collect_plan(
                         "muted": bool(gen.get("muted")) or bool(track.get("muted")) or bool(clip.get("muted")),
                         "volume": _clip_volume(clip.get("volume", 1.0)),
                     })
-                if not ignore_audio_tracks and not track.get("muted") and not clip.get("muted"):
+                if not track.get("muted") and not clip.get("muted"):
                     for audio in _as_list(clip.get("gen_edit_audios")):
                         if not isinstance(audio, dict) or audio.get("muted"):
                             continue
@@ -264,7 +251,7 @@ def _collect_plan(
                         })
             continue
 
-        if ignore_audio_tracks or track_type != "audio":
+        if track_type != "audio":
             continue
         if track.get("muted"):
             continue
@@ -308,10 +295,7 @@ def _collect_plan(
     if not video_segs:
         raise ValueError(_t("no_generated_videos_to_compose", get_last_known_lang()))
 
-    if use_generated_video_size:
-        width, height = _size_from_video_segments(video_segs, width, height)
-    else:
-        width, height = _even_dim(width), _even_dim(height)
+    width, height = _compose_size(width, height, output_resolution)
 
     return {
         "width": width,
@@ -516,6 +500,8 @@ def _random_schedule(total_sec: float, rng) -> list[tuple[float, float, str]]:
 
 
 def _resolve_watermark_mode(watermark: dict) -> str:
+    if watermark.get("enabled") is False:
+        return "none"
     image = _as_dict(watermark.get("image"))
     if str(image.get("file") or "").strip() and image.get("disabled") is not True:
         return "image"
@@ -530,6 +516,7 @@ def _build_watermark_filters(
     height: int,
     total_sec: float,
     image_input_index: int,
+    render_scale: float = 1.0,
 ) -> tuple[list[str], list[str], str, str | None]:
     """Return (extra -i args, extra filter_complex fragments, final video
     label, temp-file-to-delete-afterward-or-None).
@@ -555,7 +542,12 @@ def _build_watermark_filters(
         scale_pct = max(10.0, min(300.0, float(watermark.get("scale", 100)))) / 100.0
     except (TypeError, ValueError):
         scale_pct = 1.0
-    margin = _clamp_margin(watermark.get("margin"), width, height)
+    scale_pct *= render_scale
+    margin = _clamp_margin({
+        key: float(value) * render_scale
+        for key, value in _as_dict(watermark.get("margin")).items()
+        if key in ("top", "right", "bottom", "left")
+    }, width, height)
     position = str(watermark.get("position") or "bottom-right")
 
     if position == "random-fixed":
@@ -597,22 +589,25 @@ def _build_watermark_filters(
 def compose_timeline_project(
     project: dict,
     output_path: str,
-    ignore_audio_tracks: bool = False,
     watermark: dict | None = None,
-    use_generated_video_size: bool = False,
+    output_resolution: str = "project",
+    export_quality: str = "maximum",
 ) -> dict:
     if not shutil.which("ffmpeg"):
         raise RuntimeError(_t("ffmpeg_not_found", get_last_known_lang()))
     if not isinstance(project, dict):
         raise ValueError(_t("invalid_project", get_last_known_lang()))
+    quality_crf = {"auto": 18, "high": 18, "maximum": 16, "standard": 23}
+    if export_quality not in quality_crf:
+        raise ValueError(f"Unsupported export quality: {export_quality}")
 
     plan = _collect_plan(
         project,
-        ignore_audio_tracks=bool(ignore_audio_tracks),
-        use_generated_video_size=bool(use_generated_video_size),
+        output_resolution=output_resolution,
     )
     width = plan["width"]
     height = plan["height"]
+    render_scale = height / max(16, int(_as_dict(project.get("settings")).get("height") or 768))
     fps = plan["fps"]
     total = plan["total_sec"]
     # The plan is already ordered bottom to top for both parent and subtracks.
@@ -621,6 +616,17 @@ def compose_timeline_project(
     subtitle_segs = plan["subtitle_segs"]
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)) or ".", exist_ok=True)
+
+    fallback_reason = ""
+    if export_quality == "auto":
+        segments, fallback_reason = stream_copy_plan(plan, _resolve_watermark_mode(_as_dict(watermark)) != "none")
+        if segments:
+            copy_segments(segments, output_path, _run_ffmpeg)
+            return {
+                "width": width, "height": height, "fps": fps, "duration_sec": total,
+                "video_count": len(video_segs), "audio_count": sum(not s["muted"] for s in video_segs),
+                "subtitle_count": 0, "output_path": output_path, "encoding_mode": "copy",
+            }
 
     cmd: list[str] = [
         "ffmpeg", "-y", "-hide_banner",
@@ -638,7 +644,7 @@ def compose_timeline_project(
 
     watermark_input_index = audio_input_offset + len(audio_segs)
     wm_input_args, wm_filters, video_out_label, wm_cleanup_path = _build_watermark_filters(
-        watermark, width, height, total, watermark_input_index,
+        watermark, width, height, total, watermark_input_index, render_scale,
     )
     cmd += wm_input_args
     subtitle_input_index = watermark_input_index + (1 if wm_input_args else 0)
@@ -697,7 +703,10 @@ def compose_timeline_project(
         y = f"({y_base}){y_sign}main_h*{offset_y:.6f}"
         out = f"vsub{i}"
         filters.append(
-            f"[{video_out_label}][{subtitle_input_index + i}:v]overlay=x={x}:y={y}:eof_action=pass:"
+            f"[{subtitle_input_index + i}:v]scale=iw*{render_scale:.9f}:ih*{render_scale:.9f}[subscaled{i}]"
+        )
+        filters.append(
+            f"[{video_out_label}][subscaled{i}]overlay=x={x}:y={y}:eof_action=pass:"
             f"enable='{_escape_enable(seg['start_sec'], seg['end_sec'])}'[{out}]"
         )
         video_out_label = out
@@ -759,6 +768,7 @@ def compose_timeline_project(
         "-filter_complex_script", _ffmpeg_path(filter_path),
         *map_args,
         "-c:v", "libx264",
+        "-crf", str(quality_crf[export_quality]), "-preset", "medium",
         "-pix_fmt", "yuv420p",
         "-r", str(fps),
         "-t", f"{total:.6f}",
@@ -791,6 +801,9 @@ def compose_timeline_project(
         "audio_count": len(audio_segs) + sum(1 for s in video_segs if not s["muted"]),
         "subtitle_count": len(subtitle_segs),
         "output_path": output_path,
+        "encoding_mode": "encode",
+        "export_quality": export_quality,
+        "fallback_reason": fallback_reason,
     }
 
 
@@ -846,9 +859,9 @@ def compose_to_output(
     project: dict,
     filename_prefix: str | None = None,
     filename: str | None = None,
-    ignore_audio_tracks: bool = False,
     watermark: dict | None = None,
-    use_generated_video_size: bool = False,
+    output_resolution: str = "project",
+    export_quality: str = "maximum",
 ) -> dict:
     project_name = _as_dict(project).get("name") or "Untitled Project"
     leaf, subfolder, output_path = resolve_compose_output_path(
@@ -860,9 +873,9 @@ def compose_to_output(
     meta = compose_timeline_project(
         project,
         output_path,
-        ignore_audio_tracks=bool(ignore_audio_tracks),
         watermark=watermark,
-        use_generated_video_size=bool(use_generated_video_size),
+        output_resolution=output_resolution,
+        export_quality=export_quality,
     )
     meta["filename"] = leaf
     meta["subfolder"] = subfolder

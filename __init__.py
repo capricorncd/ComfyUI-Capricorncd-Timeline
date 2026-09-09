@@ -580,21 +580,15 @@ def _register_routes():
             filename = str(payload.get("filename") or "").strip()
             if not filename:
                 filename = build_compose_filename(project.get("name") or t("untitled_project", lang))
-            ignore_audio_tracks = bool(payload.get("ignore_audio_tracks"))
-            # Default true: keep 2nd-sample / upscaled generated frame size.
-            use_generated_video_size = payload.get("use_generated_video_size")
-            if use_generated_video_size is None:
-                use_generated_video_size = True
-            else:
-                use_generated_video_size = bool(use_generated_video_size)
+            output_resolution = str(payload.get("output_resolution") or "project")
             watermark = payload.get("watermark")
             meta = compose_to_output(
                 project,
                 filename_prefix=filename_prefix,
                 filename=filename,
-                ignore_audio_tracks=ignore_audio_tracks,
                 watermark=watermark if isinstance(watermark, dict) else None,
-                use_generated_video_size=use_generated_video_size,
+                output_resolution=output_resolution,
+                export_quality=str(payload.get("export_quality") or "maximum"),
             )
             return web.json_response({
                 "ok": True,
@@ -606,6 +600,8 @@ def _register_routes():
                 "width": meta.get("width"),
                 "height": meta.get("height"),
                 "fps": meta.get("fps"),
+                "encoding_mode": meta.get("encoding_mode"),
+                "fallback_reason": meta.get("fallback_reason"),
             })
         except ValueError as exc:
             return web.json_response({"error": str(exc)}, status=400)

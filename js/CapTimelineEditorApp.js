@@ -2284,8 +2284,8 @@ export class CapTimelineEditorApp {
             this.composePrefixInput.value = "cap_timeline_compose/";
         }
         if (this.composeFilenameInput) this.composeFilenameInput.value = this._composeDefaultFilename();
-        if (this.composeIgnoreAudioCb) this.composeIgnoreAudioCb.checked = false;
-        if (this.composeUseGenSizeCb) this.composeUseGenSizeCb.checked = true;
+        if (this.composeResolutionSelect) this.composeResolutionSelect.value = "project";
+        if (this.composeQualitySelect) this.composeQualitySelect.value = "maximum";
         if (this.composeStatus) {
             this.composeStatus.hidden = true;
             this.composeStatus.textContent = "";
@@ -2346,10 +2346,8 @@ export class CapTimelineEditorApp {
                     project,
                     filename_prefix: filenamePrefix,
                     filename,
-                    ignore_audio_tracks: !!this.composeIgnoreAudioCb?.checked,
-                    use_generated_video_size: this.composeUseGenSizeCb
-                        ? !!this.composeUseGenSizeCb.checked
-                        : true,
+                    output_resolution: this.composeResolutionSelect?.value || "project",
+                    export_quality: this.composeQualitySelect?.value || "maximum",
                     watermark: this._watermark,
                 }),
             });
@@ -2362,7 +2360,9 @@ export class CapTimelineEditorApp {
             this._lastComposeOutput = { filename: outName, subfolder: sub };
             this._composeDone = true;
             if (this.composeRunBtn) this.composeRunBtn.textContent = T("open_folder_btn");
-            this._setComposeStatus(T("saved_to_output", { rel }), { ok: true });
+            const encoding = data.encoding_mode === "copy" ? T("compose_used_copy")
+                : data.fallback_reason ? T("compose_used_fallback") : T("compose_used_encode");
+            this._setComposeStatus(T("saved_to_output", { rel }) + "\n" + encoding, { ok: true });
         } catch (error) {
             if (error?.name === "AbortError") {
                 this._setComposeStatus("");
@@ -2394,6 +2394,7 @@ export class CapTimelineEditorApp {
 
     _defaultWatermark() {
         return {
+            enabled: true,
             mode: "none",
             text: { content: "", fontFamily: "", fontPath: "", fontSize: 32, letterSpacing: 0, color: "#ffffff" },
             image: { file: "", disabled: false },
@@ -2415,6 +2416,7 @@ export class CapTimelineEditorApp {
             return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : def;
         };
         const out = {
+            enabled: r.enabled !== false,
             text: {
                 content: String(text.content ?? d.text.content),
                 fontFamily: String(text.fontFamily ?? d.text.fontFamily),
@@ -2438,7 +2440,7 @@ export class CapTimelineEditorApp {
                 locked: margin.locked !== false,
             },
         };
-        out.mode = (out.image.file && !out.image.disabled) ? "image" : (out.text.content.trim() ? "text" : "none");
+        out.mode = !out.enabled ? "none" : (out.image.file && !out.image.disabled) ? "image" : (out.text.content.trim() ? "text" : "none");
         return out;
     }
 
@@ -2456,7 +2458,7 @@ export class CapTimelineEditorApp {
     _deriveWatermarkMode() {
         const wm = this._watermark;
         const useImage = wm.image.file && !wm.image.disabled;
-        wm.mode = useImage ? "image" : (String(wm.text.content || "").trim() ? "text" : "none");
+        wm.mode = wm.enabled === false ? "none" : useImage ? "image" : (String(wm.text.content || "").trim() ? "text" : "none");
     }
 
     async _ensureFontList() {
@@ -2732,10 +2734,11 @@ export class CapTimelineEditorApp {
         this.wmImageUploadBtn?.addEventListener("click", () => this.wmImageFileInput?.click());
         this.wmImageFileInput?.addEventListener("change", (e) => void this._onWatermarkImagePicked(e));
         this.wmImageDeleteBtn?.addEventListener("click", () => this._removeWatermarkImage());
-        this.wmImageDisabledCb?.addEventListener("change", () => {
-            this._watermark.image.disabled = !!this.wmImageDisabledCb.checked;
+        this.wmEnabledCb?.addEventListener("change", () => {
+            this._watermark.enabled = !!this.wmEnabledCb.checked;
             this._deriveWatermarkMode();
             this._scheduleComposePreview();
+            this._saveToWidgets();
         });
         this.wmOpacity?.addEventListener("input", () => {
             this._watermark.opacity = Number(this.wmOpacity.value) || 0;
@@ -2836,8 +2839,7 @@ export class CapTimelineEditorApp {
             }
         }
         if (this.wmImageDeleteBtn) this.wmImageDeleteBtn.hidden = !wm.image.file;
-        if (this.wmImageDisabledRow) this.wmImageDisabledRow.hidden = !wm.image.file;
-        if (this.wmImageDisabledCb) this.wmImageDisabledCb.checked = !!wm.image.disabled;
+        if (this.wmEnabledCb) this.wmEnabledCb.checked = wm.enabled !== false;
         const tab = this._wmActiveTab || (wm.image.file ? "image" : "text");
         this.wmTabs?.forEach((btn) => btn.classList.toggle("is-active", btn.dataset.mode === tab));
         if (this.wmPanelText) this.wmPanelText.hidden = tab !== "text";
@@ -2930,7 +2932,7 @@ export class CapTimelineEditorApp {
 
     _drawWatermarkOnCanvas(ctx, cw, ch) {
         const wm = this._watermark;
-        if (!wm || wm.mode === "none") return;
+        if (!wm || wm.enabled === false || wm.mode === "none") return;
         const previewPos = (wm.position === "random-interval" || wm.position === "random-fixed")
             ? "bottom-right" : wm.position;
         const { w: baseW } = this.getPreviewSize();
@@ -3699,33 +3701,36 @@ export class CapTimelineEditorApp {
                     <span>${T("filename_label")}</span>
                     <input class="cat-te-compose-filename" type="text" />
                   </label>
-                  <div class="cat-te-compose-check-row">
-                    <label class="cat-te-compose-check">
-                      <input class="cat-te-compose-use-gen-size" type="checkbox" checked />
-                      <span>${T("use_generated_video_size_label")}</span>
-                    </label>
-                    <span class="cat-te-info-tip" tabindex="0" aria-label="${T("use_generated_video_size_info_aria")}">
-                      ${iconHtml("info", 12)}
-                      <span class="cat-te-info-tip-pop">
-                        ${T("use_generated_video_size_info_text")}
+                  <label class="cat-te-compose-field">
+                    <span>${T("compose_resolution_label")}</span>
+                    <select class="cat-te-compose-resolution">
+                      <option value="project">${T("compose_resolution_project")}</option>
+                      <option value="720p">720P</option>
+                      <option value="1080p">1080P</option>
+                      <option value="2k">2K (1440P)</option>
+                    </select>
+                  </label>
+                  <label class="cat-te-compose-field">
+                    <span class="cat-te-ai-field-label">
+                      ${T("compose_quality_label")}
+                      <span class="cat-te-info-tip" tabindex="0" aria-label="${T("compose_quality_help")}">
+                        ${iconHtml("info", 12)}
+                        <span class="cat-te-info-tip-pop">${T("compose_quality_help")}</span>
                       </span>
                     </span>
-                  </div>
-                  <div class="cat-te-compose-check-row">
-                    <label class="cat-te-compose-check">
-                      <input class="cat-te-compose-ignore-audio" type="checkbox" />
-                      <span>${T("ignore_audio_track_label")}</span>
-                    </label>
-                    <span class="cat-te-info-tip" tabindex="0" aria-label="${T("ignore_audio_track_info_aria")}">
-                      ${iconHtml("info", 12)}
-                      <span class="cat-te-info-tip-pop">
-                        ${T("ignore_audio_track_info_text")}
-                      </span>
-                    </span>
-                  </div>
+                    <select class="cat-te-compose-quality">
+                      <option value="maximum">${T("compose_quality_maximum")}</option>
+                      <option value="high">${T("compose_quality_high")}</option>
+                      <option value="standard">${T("compose_quality_standard")}</option>
+                      <option value="auto">${T("compose_quality_auto")}</option>
+                    </select>
+                  </label>
 
                   <div class="cat-te-wm-section">
-                    <div class="cat-te-wm-heading">${T("watermark_heading")}</div>
+                    <label class="cat-te-wm-heading cat-te-compose-check">
+                      <input class="cat-te-wm-enabled" type="checkbox" checked />
+                      <span>${T("watermark_heading")}</span>
+                    </label>
                     <div class="cat-te-wm-tabs">
                       <button type="button" class="cat-te-wm-tab cat-te-wm-tab-text" data-mode="text">${iconHtml("text", 12)}<span>${T("text_watermark_label")}</span></button>
                       <button type="button" class="cat-te-wm-tab cat-te-wm-tab-image" data-mode="image">${iconHtml("image", 12)}<span>${T("image_watermark_label")}</span></button>
@@ -3765,10 +3770,6 @@ export class CapTimelineEditorApp {
                           <input class="cat-te-wm-image-file" type="file" accept="image/*" hidden />
                         </div>
                       </div>
-                      <label class="cat-te-compose-check cat-te-wm-image-disable-row" hidden>
-                        <input class="cat-te-wm-image-disabled" type="checkbox" />
-                        <span>${T("not_used_label")}</span>
-                      </label>
                     </div>
 
                     <div class="cat-te-wm-row">
@@ -4320,8 +4321,8 @@ export class CapTimelineEditorApp {
         this.composeModal = el.querySelector(".cat-te-compose-modal");
         this.composePrefixInput = el.querySelector(".cat-te-compose-prefix");
         this.composeFilenameInput = el.querySelector(".cat-te-compose-filename");
-        this.composeIgnoreAudioCb = el.querySelector(".cat-te-compose-ignore-audio");
-        this.composeUseGenSizeCb = el.querySelector(".cat-te-compose-use-gen-size");
+        this.composeResolutionSelect = el.querySelector(".cat-te-compose-resolution");
+        this.composeQualitySelect = el.querySelector(".cat-te-compose-quality");
         this.composeStatus = el.querySelector(".cat-te-compose-status");
         this.composeRunBtn = el.querySelector(".cat-te-compose-run");
         this.composePreviewCanvas = el.querySelector(".cat-te-compose-preview-canvas");
@@ -4338,8 +4339,7 @@ export class CapTimelineEditorApp {
         this.wmImageUploadBtn = el.querySelector(".cat-te-wm-image-upload");
         this.wmImageDeleteBtn = el.querySelector(".cat-te-wm-image-delete");
         this.wmImageFileInput = el.querySelector(".cat-te-wm-image-file");
-        this.wmImageDisabledRow = el.querySelector(".cat-te-wm-image-disable-row");
-        this.wmImageDisabledCb = el.querySelector(".cat-te-wm-image-disabled");
+        this.wmEnabledCb = el.querySelector(".cat-te-wm-enabled");
         this.wmOpacity = el.querySelector(".cat-te-wm-opacity");
         this.wmOpacityReadout = el.querySelector(".cat-te-wm-opacity-readout");
         this.wmScale = el.querySelector(".cat-te-wm-scale");

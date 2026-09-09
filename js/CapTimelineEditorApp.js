@@ -2518,8 +2518,7 @@ export class CapTimelineEditorApp {
                 family: o.value,
                 label: o.textContent || o.value,
                 path: o.dataset?.path || "",
-            }))
-            .filter((f) => f.family);
+            }));
         if (!fonts.length) return;
 
         const prevFamily = String(select.value || "");
@@ -2617,20 +2616,16 @@ export class CapTimelineEditorApp {
     }
 
     /** Fill a <select> with system fonts; keep `preferred` if present (or as custom option). */
-    _fillSystemFontSelect(select, preferred, { autoPickFirst = false } = {}) {
+    _fillSystemFontSelect(select, preferred) {
         if (!select) return;
         const fonts = this._systemFonts || [];
         const prev = String(preferred || "").trim();
         select.innerHTML = "";
-        if (!fonts.length) {
-            const opt = document.createElement("option");
-            opt.value = prev;
-            opt.textContent = this._systemFonts ? T("font_not_found") : T("font_loading");
-            select.appendChild(opt);
-            this._syncFontSelectPreview(select);
-            this._bindFontSelectPreview(select);
-            return;
-        }
+        const system = document.createElement("option");
+        system.value = "";
+        system.dataset.path = "";
+        system.textContent = T("system_font");
+        select.appendChild(system);
         for (const f of fonts) {
             const opt = document.createElement("option");
             opt.value = f.family;
@@ -2648,39 +2643,27 @@ export class CapTimelineEditorApp {
             opt.style.fontFamily = this._cssFontFamily(prev);
             select.appendChild(opt);
             select.value = prev;
-        } else if (autoPickFirst) {
-            select.value = fonts[0].family;
         } else {
-            select.value = fonts[0].family;
+            select.value = "";
         }
         this._syncFontSelectPreview(select);
         this._bindFontSelectPreview(select);
     }
 
     _populateFontSelect() {
-        const fonts = this._systemFonts || [];
         const wmSelect = this.wmFontFamily;
         if (wmSelect) {
             const current = this._watermark.text.fontFamily;
-            this._fillSystemFontSelect(wmSelect, current, { autoPickFirst: true });
-            if (fonts.length) {
-                if (current && fonts.some((f) => f.family === current)) {
-                    wmSelect.value = current;
-                } else {
-                    wmSelect.value = fonts[0].family;
-                    this._watermark.text.fontFamily = fonts[0].family;
-                    this._watermark.text.fontPath = fonts[0].path;
-                }
-            }
+            this._fillSystemFontSelect(wmSelect, current);
         }
         const subSelect = this.subFontSelect;
         if (subSelect) {
             let preferred = subSelect.value;
             const clip = this._selClip;
             if (clip && isSubtitleTrackType(clip.track?.type)) {
-                preferred = this._meta.get(clip.id)?.fontFamily || preferred;
+                preferred = this._meta.get(clip.id)?.fontFamily ?? preferred;
             }
-            this._fillSystemFontSelect(subSelect, preferred, { autoPickFirst: !preferred });
+            this._fillSystemFontSelect(subSelect, preferred);
         }
     }
 
@@ -16617,13 +16600,8 @@ export class CapTimelineEditorApp {
         try {
             if (this.subTextInput) this.subTextInput.value = m.text ?? "";
             if (this.subFontSelect) {
-                let font = String(m.fontFamily || "").trim();
-                if (!font && this._systemFonts?.length) {
-                    font = this._systemFonts[0].family;
-                    m.fontFamily = font;
-                    m.fontPath = this._systemFonts[0].path || "";
-                }
-                this._fillSystemFontSelect(this.subFontSelect, font || "sans-serif", { autoPickFirst: true });
+                const font = String(m.fontFamily || "").trim();
+                this._fillSystemFontSelect(this.subFontSelect, font);
                 if (!m.fontPath) {
                     m.fontPath = this.subFontSelect.selectedOptions?.[0]?.dataset?.path || "";
                 }
@@ -16665,12 +16643,10 @@ export class CapTimelineEditorApp {
     _readSubtitlePanelInto(meta) {
         if (!meta) return meta;
         meta.text = String(this.subTextInput?.value ?? meta.text ?? "");
-        meta.fontFamily = String(this.subFontSelect?.value || meta.fontFamily || "sans-serif");
-        meta.fontPath = String(
-            this.subFontSelect?.selectedOptions?.[0]?.dataset?.path
-            || meta.fontPath
-            || "",
-        );
+        meta.fontFamily = String(this.subFontSelect ? this.subFontSelect.value : meta.fontFamily || "");
+        meta.fontPath = String(this.subFontSelect
+            ? this.subFontSelect.selectedOptions?.[0]?.dataset?.path || ""
+            : meta.fontPath || "");
         meta.fontSize = Math.max(8, Math.round(Number(this.subSizeInput?.value) || meta.fontSize || 48));
         meta.subtitleScale = Math.max(10, Math.min(300, Number(this.subScaleInput.value)));
         this.subScaleInput.value = String(meta.subtitleScale);

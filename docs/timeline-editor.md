@@ -51,7 +51,7 @@ Open the editor from the node launcher (fullscreen shell). Edits sync back into 
 - Each video is organized as a separate timeline project with its own name, clips, and media references
 - Editable project name
 - **Import** / **Export**:
-  - Directory package or ZIP (all media + linked generated videos under `media/generated/` + `project.json`)
+  - Directory package or ZIP (all media + linked generated videos under `media/generated/` + `project.json` + the current `workflow.json` snapshot). The snapshot contains nodes, connections and settings, not models or plugins. On another machine, load the workflow first, then import the project package in the editor to relocate its media.
   - **Compose Video**: modal with `filename_prefix` (default `cap_timeline_compose/`) and leaf name `projectName_yyyyMMdd_hhmmss.mp4`. Audio inclusion follows timeline mute and enabled states, without a separate export-time audio exclusion switch. ffmpeg writes under ComfyUI `output/`. Requires **ffmpeg** on `PATH`.
 - Header shows `时间轴编辑器 | 项目名称`; click the project name to focus the right-panel name field (clears clip selection). Node width × height and fps are shown on the right (header + project panel).
 - Project-level Prepend and Append prompts can be edited in the editor's right panel or the Prompt Management modal tabs.

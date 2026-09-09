@@ -867,7 +867,7 @@ def build_export_entries(project: dict) -> tuple[dict, list[dict], list[str]]:
     return exported, entries, missing
 
 
-def build_export_zip_bytes(project: dict) -> tuple[bytes, str, list[str]]:
+def build_export_zip_bytes(project: dict, workflow: dict | None = None) -> tuple[bytes, str, list[str]]:
     """Return (zip_bytes, filename, missing_files)."""
     exported, entries, missing = build_export_entries(project)
     name = _safe_name(exported.get("name"), "timeline-project")
@@ -877,6 +877,8 @@ def build_export_zip_bytes(project: dict) -> tuple[bytes, str, list[str]]:
             PACKAGE_PROJECT_NAME,
             json.dumps(exported, ensure_ascii=False, indent=2),
         )
+        if workflow is not None:
+            zf.writestr("workflow.json", json.dumps(workflow, ensure_ascii=False, indent=2))
         for entry in entries:
             zf.write(entry["src_path"], arcname=entry["arcname"])
     return buf.getvalue(), f"{name}.zip", missing

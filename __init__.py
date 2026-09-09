@@ -547,10 +547,16 @@ def _register_routes():
         from .cap_timeline_project_io import build_export_zip_bytes
         lang = resolve_lang(request)
         try:
-            project = await request.json()
+            payload = await request.json()
+            if not isinstance(payload, dict):
+                return web.json_response({"error": t("invalid_project", lang)}, status=400)
+            project = payload.get("project", payload)
+            workflow = payload.get("workflow") if "project" in payload else None
             if not isinstance(project, dict):
                 return web.json_response({"error": t("invalid_project", lang)}, status=400)
-            data, filename, missing = build_export_zip_bytes(project)
+            if workflow is not None and not isinstance(workflow, dict):
+                return web.json_response({"error": "Invalid workflow"}, status=400)
+            data, filename, missing = build_export_zip_bytes(project, workflow=workflow)
             headers = {
                 "Content-Disposition": 'attachment; filename="timeline-project.zip"',
                 "X-Export-Missing": ",".join(missing) if missing else "",

@@ -2227,9 +2227,17 @@ export class CapTimelineEditorApp {
         return data;
     }
 
+    _exportWorkflowSnapshot() {
+        if (!this._isNodeOnLiveGraph()) throw new Error(T("export_workflow_unavailable"));
+        this._saveToWidgets();
+        const graph = CapTimelineEditorApp._graphRoot(this.node.graph);
+        return JSON.parse(JSON.stringify(graph.serialize()));
+    }
+
     async _exportToDirectory() {
         try {
             const dir = await this._pickDirectory("readwrite");
+            const workflow = this._exportWorkflowSnapshot();
             const response = await fetch(api.apiURL("/audio_keyframe_timeline/export_prepare"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -2242,6 +2250,11 @@ export class CapTimelineEditorApp {
                 dir,
                 "project.json",
                 new Blob([JSON.stringify(data.project, null, 2)], { type: "application/json;charset=utf-8" }),
+            );
+            await this._writeRelativeFile(
+                dir,
+                "workflow.json",
+                new Blob([JSON.stringify(workflow, null, 2)], { type: "application/json;charset=utf-8" }),
             );
             for (const entry of data.files || []) {
                 const location = entry.location === "output" ? "output" : "input";
@@ -2991,10 +3004,11 @@ export class CapTimelineEditorApp {
 
     async _exportAsZip() {
         try {
+            const workflow = this._exportWorkflowSnapshot();
             const response = await fetch(api.apiURL("/audio_keyframe_timeline/export_zip"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(this._buildProject()),
+                body: JSON.stringify({ project: this._buildProject(), workflow }),
             });
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));

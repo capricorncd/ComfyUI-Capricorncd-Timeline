@@ -3208,6 +3208,7 @@ export class CapTimelineEditorApp {
                   </div>
                 </div>
               </div>
+              <div class="cat-te-multi-selection-panel" hidden></div>
               <div class="cat-te-clip-panel" hidden>
               <div class="cat-te-clip-info">
                 <div class="cat-te-clip-info-body">
@@ -4147,6 +4148,7 @@ export class CapTimelineEditorApp {
         this.sidebarTitle = el.querySelector(".cat-te-sidebar-title");
         this.projectPanel = el.querySelector(".cat-te-project-panel");
         this.clipPanel = el.querySelector(".cat-te-clip-panel");
+        this.multiSelectionPanel = el.querySelector(".cat-te-multi-selection-panel");
         this.clipVolumePanel = el.querySelector(".cat-te-clip-volume-panel");
         this.clipOpacityPanel = el.querySelector(".cat-te-clip-opacity-panel");
         this.mediaTransformInputs = [
@@ -15977,16 +15979,19 @@ export class CapTimelineEditorApp {
         // as a whole should become one undo step, and only if it actually
         // changed anything.
         tl.on("clip:movestart", () => this._beginPendingUndo());
-        tl.on("clip:moveend", ({ clip, moved }) => {
-            if (moved && clip?.track?.type === "image") this._rememberResourceTiming(clip);
-            else if (moved && clip && (
-                clip.track?.type === "audio"
-                || isVoiceoverTrackType(clip.track?.type)
-                || isSubtitleTrackType(clip.track?.type)
-            )) {
-                const m = this._ensureClipMeta(clip);
-                m.resourceStartSec = Math.max(0, Number(clip.startTime) || 0);
-                this._meta.set(clip.id, m);
+        tl.on("clip:moveend", ({ clip, clips, moved }) => {
+            const movedClips = clips || (clip ? [clip] : []);
+            for (const clip of movedClips) {
+                if (moved && clip?.track?.type === "image") this._rememberResourceTiming(clip);
+                else if (moved && clip && (
+                    clip.track?.type === "audio"
+                    || isVoiceoverTrackType(clip.track?.type)
+                    || isSubtitleTrackType(clip.track?.type)
+                )) {
+                    const m = this._ensureClipMeta(clip);
+                    m.resourceStartSec = Math.max(0, Number(clip.startTime) || 0);
+                    this._meta.set(clip.id, m);
+                }
             }
             this._commitPendingUndo(moved);
             this._refreshTimelineDuration();
@@ -16801,9 +16806,18 @@ export class CapTimelineEditorApp {
     }
 
     _syncSidebarMode(hasClip) {
+        const count = this._timeline?.getSelectedClips().length || 0;
+        const multiple = hasClip && count > 1;
+        if (this.multiSelectionPanel) {
+            this.multiSelectionPanel.hidden = !multiple;
+            this.multiSelectionPanel.textContent = multiple ? T("multi_selection_hint", { n: count }) : "";
+        }
         if (this.sidebarTitle) this.sidebarTitle.textContent = hasClip ? T("clip_settings_title") : T("project_settings_title");
         if (this.projectPanel) this.projectPanel.hidden = !!hasClip;
-        if (this.clipPanel) this.clipPanel.hidden = !hasClip;
+        if (this.clipPanel) {
+            this.clipPanel.hidden = !hasClip || multiple;
+            this.clipPanel.inert = multiple;
+        }
         if (hasClip) {
             if (document.activeElement === this.projectNameInput) this.projectNameInput.blur();
         } else {

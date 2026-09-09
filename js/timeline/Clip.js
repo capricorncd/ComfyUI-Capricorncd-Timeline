@@ -439,11 +439,16 @@ export class Clip extends EventEmitter {
       e.stopPropagation();
       // Keep select errors from blocking the drag session (panel sync can throw).
       try {
-        this.track.timeline.selectClip(this, { additive: e.ctrlKey || e.metaKey });
+        const tl = this.track.timeline;
+        if (!tl._selectedIds.has(this.id)) tl.selectClip(this, { additive: e.ctrlKey || e.metaKey });
       } catch (err) {
         console.error('[CapTE] selectClip failed', err);
       }
       if (!canEdit()) return;
+      if (this.track.timeline.getSelectedClips().filter(c => !c.track.locked).length > 1) {
+        this.track.timeline._dragSelectedClips(e, this);
+        return;
+      }
       this._dragMove(e);
     });
 

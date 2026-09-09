@@ -1,5 +1,5 @@
 import { EventEmitter } from './EventEmitter.js';
-import { clamp, formatTime as _formatTime, TRACK_TYPES, trackTypeLabel } from './utils.js';
+import { bindDragSession, clamp, formatTime as _formatTime, TRACK_TYPES, trackTypeLabel } from './utils.js';
 import { iconHtml } from '../cap_icons.js';
 import { Track } from './Track.js';
 import { TimeRuler } from './TimeRuler.js';
@@ -344,6 +344,13 @@ export class Timeline extends EventEmitter {
   // ─── events ───────────────────────────────────────────────────────────────
 
   _bindEvents() {
+    this.scrollEl.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || !(e.ctrlKey || e.metaKey)) return;
+      if (e.target.closest('button, input, select, textarea')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this._boxSelect(e);
+    }, true);
     // Ruler redraws when timeline scrolls
     this.scrollEl.addEventListener('scroll', () => {
       this._ruler.render();
@@ -729,6 +736,84 @@ export class Timeline extends EventEmitter {
     clip._applyPosition();
     this.emit('clip:update', { clip, track: clip.track });
     return true;
+  }
+
+  _boxSelect(e) {
+    const rect = this.scrollEl.getBoundingClientRect();
+    const point = ev => ({ x: ev.clientX - rect.left + this.scrollEl.scrollLeft,
+      y: ev.clientY - rect.top + this.scrollEl.scrollTop });
+    const start = point(e);
+    const candidates = this.tracks.filter(t => !t.locked).flatMap(t => t.clips);
+    const initial = new Set(this.getSelectedClips().filter(c => !c.track.locked).map(c => c.id));
+    const box = document.createElement('div');
+    box.className = 'tl-selection-box';
+    let active = false;
+    const update = ev => {
+      const end = point(ev);
+      if (!active && Math.hypot(end.x - start.x, end.y - start.y) < 4) return;
+      if (!active) { active = true; this._contentEl.appendChild(box); }
+      const left = Math.min(start.x, end.x), top = Math.min(start.y, end.y);
+      const right = Math.max(start.x, end.x), bottom = Math.max(start.y, end.y);
+      Object.assign(box.style, { left: `${left}px`, top: `${top}px`, width: `${right-left}px`, height: `${bottom-top}px` });
+      const ids = new Set(initial);
+      for (const c of candidates) {
+        if (c.track.locked) continue;
+        const r = c.el.getBoundingClientRect();
+        const x = r.left - rect.left + this.scrollEl.scrollLeft;
+        const y = r.top - rect.top + this.scrollEl.scrollTop;
+        if (x < right && x + r.width > left && y < bottom && y + r.height > top) ids.add(c.id);
+      }
+      this._selectedIds = ids;
+      for (const t of this.tracks) for (const c of t.clips) c.setSelected(ids.has(c.id));
+      this._selected = candidates.find(c => ids.has(c.id)) || null;
+    };
+    bindDragSession(e, { onMove: update, onEnd: () => {
+      box.remove();
+      if (!active) {
+        const target = e.target.closest('.tl-clip');
+        const clip = candidates.find(c => c.id === target?.dataset.clipId);
+        if (clip && !clip.track.locked) this.selectClip(clip, { additive: true });
+        return;
+      }
+      this.emit('clip:select', { clip: this._selected, track: this._selected?.track, selected: this.getSelectedClips() });
+    } });
+  }
+
+  _dragSelectedClips(e, anchor) {
+    const clips = this.getSelectedClips().filter(c => !c.track.locked);
+    const ids = new Set(clips.map(c => c.id));
+    const starts = clips.map(c => c.startTime);
+    let min = -Math.min(...starts), max = Infinity;
+    for (const c of clips) {
+      max = Math.min(max, Math.max(0, this.duration - c.endTime));
+      for (const other of c.track.clips) {
+        if (ids.has(other.id)) continue;
+        if (other.endTime <= c.startTime) min = Math.max(min, other.endTime - c.startTime);
+        else if (other.startTime >= c.endTime) max = Math.min(max, other.startTime - c.endTime);
+        else { min = Math.max(min, 0); max = Math.min(max, 0); }
+      }
+    }
+    const fps = Math.max(1, this.fps || 24);
+    const lower = Math.ceil(min * fps - 1e-7), upper = Math.floor(max * fps + 1e-7);
+    let dragging = false;
+    bindDragSession(e, { onMove: ev => {
+      if (clips.some(c => c.track.locked)) return;
+      if (!dragging && Math.abs(ev.clientX - e.clientX) < 4) return;
+      if (!dragging) {
+        dragging = true;
+        this.emit('clip:movestart', { clip: anchor, track: anchor.track });
+        clips.forEach(c => c.el.classList.add('dragging', 'no-transition'));
+      }
+      const frames = Math.round((ev.clientX - e.clientX) / this.pixelsPerSecond * fps);
+      const delta = lower <= upper ? clamp(frames, lower, upper) / fps : 0;
+      clips.forEach((c, i) => { c.startTime = starts[i] + delta; c._applyPosition(); });
+      this.emit('clip:move', { clip: anchor, track: anchor.track, clips });
+    }, onEnd: () => {
+      if (!dragging) { this.selectClip(anchor); return; }
+      clips.forEach(c => { c.el.classList.remove('dragging', 'no-transition'); c._applyPosition(); });
+      this.emit('clip:moveend', { clip: anchor, track: anchor.track, clips,
+        moved: clips.some((c, i) => c.startTime !== starts[i]) });
+    } });
   }
 
   selectClip(clip, opts = {}) {

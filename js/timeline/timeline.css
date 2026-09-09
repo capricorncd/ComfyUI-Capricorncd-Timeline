@@ -661,6 +661,15 @@
 
 .tl-clip-row { position: relative; min-width: 0; }
 
+.tl-selection-box {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  border: 1px solid #8bb8ff;
+  background: rgba(100, 160, 255, 0.18);
+  box-sizing: border-box;
+}
+
 .tl-clip-audio-wave {
   flex: 1;
   min-height: 0;

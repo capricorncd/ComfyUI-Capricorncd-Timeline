@@ -1079,6 +1079,16 @@ export class CapTimelineEditorApp {
             return true;
         }
         if (inField) return false;
+        if (key === "x") {
+            if (this._blockingModal || this._timeline?._keyboardSuspended) return false;
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation?.();
+            const selected = this._timeline?.getSelectedClips() || [];
+            const clip = selected.length === 1 ? selected[0] : null;
+            if (clip && !clip.track.locked) this._splitClip(clip);
+            return true;
+        }
         if (key !== "b" && key !== "g") return false;
         const clip = this.getSelectedClip();
         if (!clip) return false;
@@ -15036,6 +15046,7 @@ export class CapTimelineEditorApp {
     }
 
     _splitClip(clip) {
+        if (!clip || clip.track.locked) return;
         const tl = this._timeline;
         const t = tl.currentTime;
         if (t <= clip.startTime || t >= clip.endTime) return;

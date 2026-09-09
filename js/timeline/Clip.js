@@ -474,6 +474,19 @@ export class Clip extends EventEmitter {
     const startY = e.clientY;
     const startTime = this.startTime;
     const origTrack = this.track;
+    const ordered = [...origTrack.clips].sort((a, b) => a.startTime - b.startTime);
+    const index = ordered.indexOf(this);
+    const swapTargets = [ordered[index - 1], ordered[index + 1]].filter(Boolean).map(clip => {
+      const left = clip.startTime < startTime ? clip : this;
+      const right = left === this ? clip : this;
+      const gap = right.startTime - left.endTime;
+      const begin = left.startTime, end = right.endTime;
+      const blocked = ordered.some(c => c !== this && c !== clip && c.startTime < end && c.endTime > begin);
+      if (gap < 0 || blocked) return null;
+      return { clip, start: left === this ? begin + clip.duration + gap : begin,
+        targetStart: left === this ? begin : begin + this.duration + gap };
+    }).filter(Boolean);
+    let swap = null;
     let liveTrack = this.track;
     let lastEvent = e;
     let raf = 0;
@@ -497,6 +510,24 @@ export class Clip extends EventEmitter {
         liveTrack = hovered;
         if (liveTrack !== origTrack) liveTrack._setDropTarget(true);
         liveTrack.el.appendChild(this.el);
+      }
+      const target = liveTrack === origTrack && !origTrack.locked ? swapTargets.find(({ clip }) => {
+        if (!origTrack.clips.includes(clip)) return false;
+        const r = clip.el.getBoundingClientRect();
+        return e.clientY >= r.top && e.clientY <= r.bottom
+          && e.clientX >= r.left + r.width * 0.25 && e.clientX <= r.right - r.width * 0.25;
+      }) : null;
+      if (swap !== target) {
+        swap?.clip.el.classList.remove('tl-clip-swap-target');
+        swap = target;
+        swap?.clip.el.classList.add('tl-clip-swap-target');
+      }
+      this.el.classList.toggle('tl-clip-swap-source', !!swap);
+      if (swap) {
+        this.startTime = startTime;
+        this._applyPosition();
+        tl._hideSnapGuide();
+        return;
       }
       const snapped = tl._snapMoveToClipEdges(this, desiredStart);
       desiredStart = snapped.start;
@@ -531,6 +562,17 @@ export class Clip extends EventEmitter {
       tl._hideSnapGuide();
       this.el.classList.remove('dragging', 'no-transition');
       liveTrack._setDropTarget(false);
+
+      swap?.clip.el.classList.remove('tl-clip-swap-target');
+      this.el.classList.remove('tl-clip-swap-source');
+      if (swap && !origTrack.locked) {
+        this.startTime = swap.start;
+        swap.clip.startTime = swap.targetStart;
+        this._applyPosition();
+        swap.clip._applyPosition();
+        tl.emit('clip:moveend', { clip: this, track: origTrack, clips: [this, swap.clip], moved: true });
+        return;
+      }
 
       if (liveTrack !== origTrack) {
         origTrack.clips = origTrack.clips.filter(c => c.id !== this.id);

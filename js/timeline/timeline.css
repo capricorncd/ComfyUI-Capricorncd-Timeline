@@ -670,6 +670,14 @@
   box-sizing: border-box;
 }
 
+.tl-clip.tl-clip-swap-target {
+  outline: 2px solid #ffd166;
+  outline-offset: -2px;
+  filter: brightness(1.3);
+  cursor: alias;
+}
+.tl-clip.tl-clip-swap-source { opacity: 0.55; }
+
 .tl-clip-audio-wave {
   flex: 1;
   min-height: 0;

@@ -3,7 +3,7 @@
 [简体中文](README.zh.md) · [Editor guide](docs/timeline-editor.md) · [Example workflows](workflows/) · [Release notes](CHANGELOG.md)
 
 <p align="center">
-  <img src="./docs/ComfyUI-Capricorncd-Timeline.png" width="160" alt="Capricorncd Timeline" />
+  <img src="./docs/branding/timeline-mark.svg" width="160" alt="Capricorncd Timeline" />
 </p>
 
 A visual timeline editor for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Arrange shots, write prompts, generate clips with your connected workflow, then edit and compose the results without leaving ComfyUI.

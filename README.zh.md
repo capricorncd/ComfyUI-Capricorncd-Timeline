@@ -3,7 +3,7 @@
 [English](README.md) · [编辑器完整指南](docs/zh/timeline-editor.md) · [示例工作流](workflows/) · [更新记录](CHANGELOG.md)
 
 <p align="center">
-  <img src="./docs/ComfyUI-Capricorncd-Timeline.png" width="160" alt="Capricorncd Timeline" />
+  <img src="./docs/branding/timeline-mark.svg" width="160" alt="Capricorncd Timeline" />
 </p>
 
 面向 [ComfyUI](https://github.com/comfyanonymous/ComfyUI) 的可视化时间轴编辑器。在同一个界面编排镜头、管理提示词、通过已连接的工作流生成片段，再剪辑并合成视频。

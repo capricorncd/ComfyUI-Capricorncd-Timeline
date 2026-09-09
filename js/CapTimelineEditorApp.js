@@ -83,7 +83,7 @@ const OUTPUT_VIDEOS_TIME_RANGES = [
     { id: "1h", get label() { return T("time_range_1h"); }, hours: 1 },
     { id: "4h", get label() { return T("time_range_4h"); }, hours: 4 },
     { id: "1d", get label() { return T("time_range_1d"); }, hours: 24 },
-    { id: "all", get label() { return T("time_range_all"); }, hours: null },
+    { id: "older", get label() { return T("time_range_older"); }, hours: 24 },
 ];
 const MEDIA_LIBRARY_TABS = [
     { id: "image", get label() { return T("media_kind_image"); } },
@@ -10356,9 +10356,11 @@ export class CapTimelineEditorApp {
         );
         const q = String(this.outputVideosFilter?.value || "").trim().toLowerCase();
         const range = OUTPUT_VIDEOS_TIME_RANGES.find((r) => r.id === this._outputVideosTimeRange) || OUTPUT_VIDEOS_TIME_RANGES[0];
-        const cutoff = range.hours != null ? (Date.now() / 1000 - range.hours * 3600) : null;
+        const cutoff = Date.now() / 1000 - range.hours * 3600;
         const rows = this._outputVideosCache.filter((row) => {
-            if (cutoff != null && Number(row?.mtime) < cutoff) return false;
+            const mtime = Number(row?.mtime);
+            if (!Number.isFinite(mtime)) return false;
+            if (range.id === "older" ? mtime >= cutoff : mtime < cutoff) return false;
             return !q || String(row?.file || "").toLowerCase().includes(q);
         });
         this.outputVideosBody.replaceChildren();

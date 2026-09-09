@@ -11,6 +11,7 @@ import shutil
 
 import torch
 import folder_paths
+from .audio_envelope import apply_volume_points, normalize_volume_points
 
 from .prompt_text import strip_comment_lines as _strip_comment_lines
 from .cap_clip_prompt_vl import clear_clip_prompt_vl
@@ -480,6 +481,7 @@ class CAP_TimelineEditor:
                 int(row.get("host_local_start_ms", 0) or 0),
             )
             volume = _clip_volume(row.get("volume", 1.0))
+            seg = apply_volume_points(seg, sample_rate, src_start, row.get("volume_points"))
             if volume != 1.0:
                 seg = seg * volume
             pos = max(0, int(round(timeline_ms / 1000 * sample_rate)))
@@ -655,6 +657,7 @@ class CAP_TimelineEditor:
                 "host_duration_ms": host_duration_ms,
                 "host_local_start_ms": overlap_start - audio_start,
                 "volume": _clip_volume(audio.get("volume", 1.0)),
+                "volume_points": normalize_volume_points(audio.get("volume_points")),
             })
         return result
 

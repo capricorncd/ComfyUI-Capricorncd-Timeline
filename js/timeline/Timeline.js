@@ -27,6 +27,7 @@ export class Timeline extends EventEmitter {
     if (!this._container) throw new Error('Timeline: container not found');
 
     this.duration    = options.duration   ?? 120;
+    this.audioEnvelopeEnabled = options.audioEnvelopeEnabled ?? false;
     this.fps         = options.fps        ?? 24;
     this.timeFormat  = options.timeFormat ?? 'frames'; // 'frames' | 'ms'
     this._zoom      = options.zoom      ?? 1;
@@ -398,6 +399,7 @@ export class Timeline extends EventEmitter {
           consume(e); this.togglePlay(); break;
         case 'Delete':
         case 'Backspace':
+          if (this.getSelectedClips().some(c => c.audioEnvelope?.deleteSelected())) { consume(e); break; }
           if (this._selectedIds.size > 0 || this._selected) {
             consume(e);
             this.emit('clip:delete', {

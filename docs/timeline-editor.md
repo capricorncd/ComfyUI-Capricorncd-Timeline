@@ -31,7 +31,7 @@ Open the editor from the node launcher (fullscreen shell). Edits sync back into 
 - Multiple tracks (visual and audio); add tracks from the toolbar menu
 - Per-track: lock, visibility, mute (audio)
 - Drag / resize clips; multi-select with `Ctrl+Click`
-- Audio-track clips: drag the small corner handles to set linear **fade-in / fade-out** (diagonal overlay); stored as `fade_in_ms` / `fade_out_ms` and applied in playback, `clips_audio` mix, and Compose Video
+- Audio-track clips: double-click the volume line to add a point, drag to adjust gain (center 100%, range 0–200%), and select a point then press Delete to remove it. A horizontal guide snaps to other point levels in the clip. Linear interpolation replaces the old fade handles; legacy fades become points on import. The curve multiplies clip volume for playback, Agent audio, mixing and export. Edits support undo; trimming and splitting preserve source-relative point positions.
 - Select any non-subtitle Clip to set **Clip volume** from 0–200%; stored as `volume` (`1.0` = 100%) and applied to editor playback, Agent audio mixes, `clips_audio`, and Compose Video
 - Package clips and material insert at the playhead
 - **Gen Preview / Asset Preview** toolbar toggle (next to Insert Clip): one-click switch all clips that have generated videos between generated-video preview and asset preview
@@ -273,7 +273,7 @@ Times are milliseconds snapped to the project `fps` frame grid: `start_ms` / `du
 | `source` | `in_ms` / `out_ms` / `duration_ms` |
 | `muted` | Mute |
 | `volume` | Clip audio gain from `0.0` to `2.0`; default `1.0` |
-| `fade_in_ms` / `fade_out_ms` | Optional; written when greater than 0 |
+| `volume_points` | Array of `{source_ms, gain}`: source-audio time in milliseconds, gain 0–2. Empty means 100%; outside the points, hold the nearest gain. Legacy `fade_in_ms` / `fade_out_ms` migrate on import |
 
 #### Subtitle clip (`type: "subtitle"`)
 

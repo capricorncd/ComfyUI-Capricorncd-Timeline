@@ -12,6 +12,7 @@ from typing import Any
 import folder_paths
 from PIL import ImageFilter
 
+from .audio_envelope import normalize_volume_points, volume_points_filter
 from .cap_i18n import get_last_known_lang, t as _t
 from .cap_compose_clip_videos import _probe_has_audio, _probe_video_size, _run_ffmpeg
 from .cap_seq_to_video import _ffmpeg_path
@@ -301,6 +302,7 @@ def _collect_plan(
                 "fade_in_sec": fade_in_sec,
                 "fade_out_sec": fade_out_sec,
                 "volume": _clip_volume(clip.get("volume", 1.0)),
+                "volume_points": normalize_volume_points(clip.get("volume_points")),
             })
 
     if not video_segs:
@@ -724,6 +726,7 @@ def compose_timeline_project(
             f"asetpts=PTS-STARTPTS"
         )
         fade_in = float(seg.get("fade_in_sec") or 0.0)
+        chain += volume_points_filter(seg.get("volume_points"), seg["source_in_sec"])
         fade_out = float(seg.get("fade_out_sec") or 0.0)
         if fade_in > 0:
             chain += f",afade=t=in:st=0:d={fade_in:.6f}"

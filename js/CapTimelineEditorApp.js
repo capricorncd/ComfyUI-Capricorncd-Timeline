@@ -1,6 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { Timeline, ICONS } from "./timeline/index.js";
+import { normalizeVolumePoints, migrateAudioFades, volumeAt } from "./timeline/AudioEnvelope.js";
 import { parseTimecode, formatTimecode, frameIndexFromSecs, encodeClipTimingMs, decodeClipTimingSecs } from "./timecode.js";
 import { attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror } from "./rich_prompt.js";
 import { loadExtensionCss } from "./cap_ui.js";
@@ -5470,6 +5471,10 @@ export class CapTimelineEditorApp {
         if (!this._overlay?.classList.contains("open")) return false;
         if (e.target?.closest?.("input, textarea, select")) return false;
         if (e.key !== "Delete" && e.key !== "Backspace") return false;
+        if (this._timeline?.getSelectedClips().some(c => c.audioEnvelope?.deleteSelected())) {
+            e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.();
+            return true;
+        }
         const clips = this._timeline?.getSelectedClips() ?? [];
         if (!clips.length) return false;
         e.preventDefault();
@@ -6943,7 +6948,7 @@ export class CapTimelineEditorApp {
                 const when = ctx.currentTime + (start - from) / rate;
                 this._scheduleAudioFadeGain(gain, when, local / rate, available / rate,
                     Math.max(0, audioClip.fadeIn || 0) / rate, Math.max(0, audioClip.fadeOut || 0) / rate,
-                    audioClip.duration / rate, normalizeClipVolume(meta.volume));
+                    audioClip.duration / rate, normalizeClipVolume(meta.volume), meta.volumePoints, audioClip.sourceOffset, rate);
                 source.start(when, offset, available);
                 this._modelPreviewAudioSources.push({ source, gain });
             }
@@ -9581,7 +9586,6 @@ export class CapTimelineEditorApp {
                 st.clipMap.set(c.id, gen.id);
                 c.el.dataset.genId = gen.id;
                 c._clampFades?.();
-                c._updateFadeUI?.();
             }
         }
         tl.duration = clipDur;
@@ -9596,7 +9600,6 @@ export class CapTimelineEditorApp {
         });
         tl.on("clip:moveend", () => this._pullVoiceoverEditDraftFromTimeline());
         tl.on("clip:resizeend", () => this._pullVoiceoverEditDraftFromTimeline());
-        tl.on("clip:fadeend", () => this._pullVoiceoverEditDraftFromTimeline());
         if (st.draft[0]) {
             const first = [...st.clipMap.entries()].find(([, gid]) => gid === st.selectedId)
                 || [...st.clipMap.entries()][0];
@@ -12141,7 +12144,8 @@ export class CapTimelineEditorApp {
     }
 
     /** Linear fade envelope for Web Audio playback of an audio-track clip. */
-    _scheduleAudioFadeGain(gainNode, when, localStart, playDur, fadeIn, fadeOut, clipDur, volume = 1) {
+    _scheduleAudioFadeGain(gainNode, when, localStart, playDur, fadeIn, fadeOut, clipDur, volume = 1, volumePoints = [], sourceOffset = 0, rate = 1) {
+        const envelope = normalizeVolumePoints(volumePoints);
         const clamp01 = (v) => Math.max(0, Math.min(1, v));
         const gAt = (t) => {
             let g = 1;
@@ -12149,10 +12153,19 @@ export class CapTimelineEditorApp {
             if (fadeOut > 0 && t > clipDur - fadeOut) {
                 g = Math.min(g, Math.max(0, (clipDur - t) / fadeOut));
             }
-            return clamp01(g) * normalizeClipVolume(volume);
+            return clamp01(g) * normalizeClipVolume(volume) * volumeAt(envelope, (sourceOffset + t * rate) * 1000);
         };
         const localEnd = localStart + playDur;
         const pts = [localStart, localEnd];
+        if (envelope.length) {
+            if (fadeIn > 0 || fadeOut > 0) {
+                for (let t = localStart + 0.01; t < localEnd; t += 0.01) pts.push(t);
+            }
+            for (const p of envelope) {
+                const t = (p.source_ms / 1000 - sourceOffset) / rate;
+                if (t > localStart && t < localEnd) pts.push(t);
+            }
+        }
         if (fadeIn > 0 && fadeIn > localStart && fadeIn < localEnd) pts.push(fadeIn);
         const fadeOutStart = clipDur - fadeOut;
         if (fadeOut > 0 && fadeOutStart > localStart && fadeOutStart < localEnd) {
@@ -12207,8 +12220,9 @@ export class CapTimelineEditorApp {
             const fadeIn = clip.track?.type === "audio" ? Math.max(0, clip.fadeIn || 0) : 0;
             const fadeOut = clip.track?.type === "audio" ? Math.max(0, clip.fadeOut || 0) : 0;
             const volume = normalizeClipVolume(this._meta.get(clip.id)?.volume);
-            if (fadeIn > 0 || fadeOut > 0) {
-                this._scheduleAudioFadeGain(gain, when, localStart, dur, fadeIn, fadeOut, clip.duration, volume);
+            const points = this._meta.get(clip.id)?.volumePoints;
+            if (fadeIn > 0 || fadeOut > 0 || points?.length) {
+                this._scheduleAudioFadeGain(gain, when, localStart, dur, fadeIn, fadeOut, clip.duration, volume, points, clip.sourceOffset);
             } else {
                 gain.gain.setValueAtTime(volume, when);
             }
@@ -12306,6 +12320,7 @@ export class CapTimelineEditorApp {
 
         const fps = this.getFps();
         this._timeline = new Timeline(this.tlHost, {
+            audioEnvelopeEnabled: true,
             duration: 60,
             fps,
             timeFormat: "frames",
@@ -12634,19 +12649,14 @@ export class CapTimelineEditorApp {
             clip._audioBuffer = buffer;
             const fadeInMs = Math.max(0, Number(c.fade_in_ms) || 0);
             const fadeOutMs = Math.max(0, Number(c.fade_out_ms) || 0);
-            clip.fadeIn = fadeInMs / 1000;
-            clip.fadeOut = fadeOutMs / 1000;
-            clip._clampFades?.();
-            clip._updateFadeUI?.();
             this._meta.set(clip.id, {
                 ...defaultAudioMeta(trackIdx),
+                volumePoints: migrateAudioFades(c.volume_points, trimIn, dur, fadeInMs / 1000, fadeOutMs / 1000),
                 muted: !!c.muted,
                 volume: normalizeClipVolume(c.volume),
                 visible: c.visible !== false,
                 sourceDuration: sourceDur,
                 trimIn,
-                fadeInMs,
-                fadeOutMs,
                 mediaId: audioMedia?.id || "",
                 resourceStartSec: Math.max(0, Number(c.resource_start_sec) || startTime),
                 resourceDurationSec: Math.max(0.05, Number(c.resource_duration_sec) || dur),
@@ -12999,6 +13009,11 @@ export class CapTimelineEditorApp {
     _decorateClip(clip) {
         if (!clip?.el) return;
         const m = this._ensureClipMeta(clip);
+        if (clip.audioEnvelope) {
+            clip.audioEnvelope.points = normalizeVolumePoints(m.volumePoints);
+            clip.audioEnvelope.selected = null;
+            clip.audioEnvelope.render();
+        }
         const track = clip.track;
         const trackHidden = (isDirectorTrackType(track.type) || isMediaTrackType(track.type) || isSubtitleTrackType(track.type)) && track.visible === false;
         const trackMuted = (track.type === "audio" || isVoiceoverTrackType(track.type)) && track.muted;
@@ -16035,14 +16050,14 @@ export class CapTimelineEditorApp {
             this._refreshTimelineDuration();
             this._scheduleProgramPreview();
         });
-        tl.on("clip:fadestart", () => this._beginPendingUndo());
-        tl.on("clip:fadeend", ({ clip, moved }) => {
-            this._syncAudioFadeMeta(clip);
-            this._commitPendingUndo(moved);
-        });
-        tl.on("clip:fade", ({ clip }) => {
-            if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
-            if (this._timeline?._playing) this._startAudioPlayback();
+        tl.on("clip:volumestart", () => this._beginPendingUndo());
+        tl.on("clip:volumeend", ({ clip }) => {
+            const m = this._ensureClipMeta(clip);
+            m.volumePoints = normalizeVolumePoints(clip.audioEnvelope.points);
+            this._meta.set(clip.id, m);
+            this._commitPendingUndo(true);
+            this._saveToWidgets();
+            if (tl._playing) this._startAudioPlayback();
         });
         tl.on("track:add", ({ track }) => {
             if (!this._trackInfo.has(track.id)) {
@@ -17062,6 +17077,7 @@ export class CapTimelineEditorApp {
                     host_duration_ms: Math.max(1, Math.round((audioEnd - audioStart) * 1000)),
                     host_local_start_ms: Math.max(0, Math.round((overlapStart - audioStart) * 1000)),
                     volume: normalizeClipVolume(audioMeta.volume),
+                    volume_points: normalizeVolumePoints(audioMeta.volumePoints),
                 });
             }
         }
@@ -17857,6 +17873,7 @@ export class CapTimelineEditorApp {
                 }
                 if (track.type === "audio") {
                     row.muted = !!m.muted;
+                    row.volume_points = normalizeVolumePoints(m.volumePoints);
                     const fadeInMs = Math.max(0, Math.round((clip.fadeIn || 0) * 1000));
                     const fadeOutMs = Math.max(0, Math.round((clip.fadeOut || 0) * 1000));
                     if (fadeInMs > 0) row.fade_in_ms = fadeInMs;

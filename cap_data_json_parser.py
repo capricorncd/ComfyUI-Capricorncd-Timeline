@@ -7,6 +7,7 @@ import re
 import numpy as np
 import torch
 from PIL import Image
+from .audio_envelope import apply_volume_points
 
 from .cap_te_notify import EVENT_CLIP_RUNNING, notify_timeline
 from .prompt_text import strip_comment_lines
@@ -392,6 +393,7 @@ class CAP_DataJsonClipParser:
                 waveform = self._resample_waveform(waveform, sr, sample_rate)
             seg = self._trim(waveform, sample_rate, src_start, src_end)["waveform"]
             seg = self._ensure_stereo_batch(seg)
+            seg = apply_volume_points(seg, sample_rate, src_start, row.get("volume_points"))
             if seg.shape[1] != mixed.shape[1]:
                 seg = seg.repeat(1, mixed.shape[1], 1) if seg.shape[1] == 1 else seg[:, :mixed.shape[1]]
 

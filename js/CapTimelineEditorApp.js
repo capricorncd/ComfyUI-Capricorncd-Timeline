@@ -1,3 +1,7 @@
+import { AgentSettings } from "./editor/AgentSettings.js";
+import { FontCatalog } from "./editor/FontCatalog.js";
+import { TimelineHistory } from "./editor/TimelineHistory.js";
+import { FontPicker } from "./editor/FontPicker.js";
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { Timeline, ICONS } from "./timeline/index.js";
@@ -46,7 +50,6 @@ const STORAGE_MODEL_PREVIEW_WORKFLOW = "cat-te-model-preview-workflow";
 const STORAGE_MODEL_PREVIEW_WORKFLOW_NAME = "cat-te-model-preview-workflow-name";
 const STORAGE_PREVIEW_MEGAPIXELS = "cat-te-preview-megapixels";
 const AI_PROMPT_LANGUAGES = ["简体中文", "繁體中文", "English", "日本語"];
-const AGENT_DEFAULT_MODELS = { openai: "gpt-5.4", gemini: "gemini-3.7-flash" };
 const DEFAULT_AUTOSAVE_INTERVAL_SEC = 5;
 const MIN_AUTOSAVE_INTERVAL_SEC = 1;
 const MAX_AUTOSAVE_INTERVAL_SEC = 300;
@@ -788,10 +791,12 @@ export class CapTimelineEditorApp {
         this._audioTrack = null;
         this._selClip = null;
         this._selClips = [];
-        this._undoStack = [];
-        this._redoStack = [];
+        this._history = new TimelineHistory({
+            capture: () => this._captureSnapshot(),
+            restore: (snapshot) => this._restoreSnapshot(snapshot),
+            onChange: () => this._updateHistoryButtons(),
+        });
         this._historyReady = false;
-        this._restoringHistory = false;
         this._playbackCtx = null;
         this._activeAudioSources = [];
         this._autoSaveTimer = null;
@@ -864,8 +869,19 @@ export class CapTimelineEditorApp {
         this._legacyTimelineEditMode = null;
         /** Temporary stamp written into project settings for one queuePrompt. */
         this._genVideoStamp = null;
-        this._systemFonts = null;
-        this._systemFontsPromise = null;
+        this._fontPicker = new FontPicker(() => {
+            this._removeCtxMenu();
+            this._ignoreCtxCloseOnce = true;
+        });
+        this._fontCatalog = new FontCatalog(
+            () => fetch(api.apiURL("/audio_keyframe_timeline/system_fonts"))
+                .then(response => response.json())
+                .then(data => Array.isArray(data?.fonts) ? data.fonts : []),
+            (loaded) => {
+                this._populateFontSelect();
+                if (loaded) this._scheduleComposePreview();
+            },
+        );
         /** When set, next queued project_json asks Python to emit only these clip ids. */
         this._runtimeOnlyClipIds = null;
         this._composePreviewRaf = 0;
@@ -947,7 +963,7 @@ export class CapTimelineEditorApp {
         document.body.classList.add("cat-te-noscroll");
         CapTimelineEditorApp._open = this;
         this._overlay.focus();
-        void this._ensureFontList();
+        void this._fontCatalog.load();
         const gen = ++this._openGen;
         void this._openEditor(gen);
     }
@@ -1177,8 +1193,7 @@ export class CapTimelineEditorApp {
             // Scroll needs laid-out viewport; restore again after paint.
             this._applyTimelineViewFromSettings(viewSettings, { applyZoom: false });
         });
-        this._undoStack = [];
-        this._redoStack = [];
+        this._history.clear();
         this._historyReady = true;
         this._openedProjectJson = JSON.stringify(this._buildProject());
         this._updateHistoryButtons();
@@ -1312,7 +1327,7 @@ export class CapTimelineEditorApp {
             this.useClipVideoFilenameCb.checked = this._useClipSpecifiedVideoFilename !== false;
         }
         this.settingsModal.hidden = false;
-        void this._loadAgentConfigs();
+        void this._agentSettings.load();
     }
 
     _updateModelPreviewConfigName() {
@@ -1367,113 +1382,7 @@ export class CapTimelineEditorApp {
 
     _closeSettings() {
         if (this.settingsModal) this.settingsModal.hidden = true;
-        this._cancelAgentEdit();
-    }
-
-    async _loadAgentConfigs() {
-        if (!this.agentList) return;
-        this.agentList.textContent = T("loading_ellipsis");
-        try {
-            const response = await fetch(api.apiURL("/audio_keyframe_timeline/agents"));
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-            this._agentConfigs = Array.isArray(data.agents) ? data.agents : [];
-            this._renderAgentConfigs();
-        } catch (error) {
-            this.agentList.textContent = T("load_failed", { msg: error instanceof Error ? error.message : String(error) });
-        }
-    }
-
-    _renderAgentConfigs() {
-        if (!this.agentList) return;
-        this.agentList.replaceChildren();
-        if (!this._agentConfigs?.length) {
-            const empty = document.createElement("div");
-            empty.className = "cat-te-agent-empty";
-            empty.textContent = T("no_agents_yet");
-            this.agentList.appendChild(empty);
-            return;
-        }
-        for (const config of this._agentConfigs) {
-            const row = document.createElement("div");
-            row.className = "cat-te-agent-row";
-            const text = document.createElement("div");
-            text.className = "cat-te-agent-row-text";
-            const title = document.createElement("strong");
-            title.textContent = config.label || T("unnamed");
-            const detail = document.createElement("span");
-            detail.textContent = `${config.provider === "gemini" ? "Gemini" : "OpenAI"} · ${config.model}${config.enabled ? "" : T("agent_disabled_suffix")}`;
-            text.append(title, detail);
-            const edit = document.createElement("button");
-            edit.type = "button";
-            edit.className = "cat-te-btn";
-            edit.textContent = T("edit_btn");
-            edit.addEventListener("click", () => this._editAgentConfig(config));
-            row.append(text, edit);
-            this.agentList.appendChild(row);
-        }
-    }
-
-    _editAgentConfig(config = null) {
-        if (!this.agentForm) return;
-        this._editingAgentId = config?.id || "";
-        this.agentLabelInput.value = config?.label || "";
-        this.agentProviderSelect.value = config?.provider || "openai";
-        this.agentModelInput.value = config?.model || AGENT_DEFAULT_MODELS[this.agentProviderSelect.value] || "";
-        this.agentKeyInput.value = "";
-        this.agentKeyInput.placeholder = config?.has_key ? T("leave_blank_keep_key") : T("enter_api_key");
-        this.agentEnabledCb.checked = config?.enabled !== false;
-        this.agentDeleteBtn.hidden = !config;
-        this.agentForm.hidden = false;
-        this.agentLabelInput.focus();
-    }
-
-    _cancelAgentEdit() {
-        this._editingAgentId = "";
-        if (this.agentForm) this.agentForm.hidden = true;
-        if (this.agentKeyInput) this.agentKeyInput.value = "";
-    }
-
-    async _saveAgentConfig() {
-        const payload = {
-            id: this._editingAgentId || undefined,
-            label: this.agentLabelInput?.value.trim() || "",
-            provider: this.agentProviderSelect?.value || "openai",
-            model: this.agentModelInput?.value.trim() || "",
-            api_key: this.agentKeyInput?.value.trim() || "",
-            enabled: !!this.agentEnabledCb?.checked,
-        };
-        try {
-            const response = await fetch(api.apiURL("/audio_keyframe_timeline/agents"), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-            this._cancelAgentEdit();
-            await this._loadAgentConfigs();
-        } catch (error) {
-            alert(T("save_agent_failed", { msg: error instanceof Error ? error.message : String(error) }));
-        }
-    }
-
-    async _deleteAgentConfig() {
-        const agentId = this._editingAgentId;
-        if (!agentId) return;
-        this._openDeleteConfirm(T("confirm_delete_agent"), () => this._performDeleteAgentConfig(agentId));
-    }
-
-    async _performDeleteAgentConfig(agentId) {
-        try {
-            const response = await fetch(api.apiURL(`/audio_keyframe_timeline/agents/${encodeURIComponent(agentId)}`), { method: "DELETE" });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-            if (this._editingAgentId === agentId) this._cancelAgentEdit();
-            await this._loadAgentConfigs();
-        } catch (error) {
-            alert(T("delete_agent_failed", { msg: error instanceof Error ? error.message : String(error) }));
-        }
+        this._agentSettings?.cancel();
     }
 
     _confirmOverwriteImport() {
@@ -2144,8 +2053,7 @@ export class CapTimelineEditorApp {
         this._timeline = null;
         await this._initTimelineFromWidgets(project, { applySettingsFromProject: true });
         await this._reloadMediaLibrary();
-        this._undoStack = [];
-        this._redoStack = [];
+        this._history.clear();
         this._historyReady = true;
         this._updateHistoryButtons();
         requestAnimationFrame(() => this._timeline?._refresh());
@@ -2313,7 +2221,7 @@ export class CapTimelineEditorApp {
         this._clampWatermarkMargin();
         this._wmActiveTab = this._watermark.image.file ? "image" : "text";
         this._syncWatermarkUiFromState();
-        void this._ensureFontList();
+        void this._fontCatalog.load();
         this.composeModal.hidden = false;
         this._scheduleComposePreview();
     }
@@ -2474,202 +2382,11 @@ export class CapTimelineEditorApp {
         wm.mode = wm.enabled === false ? "none" : useImage ? "image" : (String(wm.text.content || "").trim() ? "text" : "none");
     }
 
-    async _ensureFontList() {
-        if (this._systemFonts) return this._systemFonts;
-        if (this._systemFontsPromise) return this._systemFontsPromise;
-        this._systemFontsPromise = fetch(api.apiURL("/audio_keyframe_timeline/system_fonts"))
-            .then((r) => r.json())
-            .then((data) => {
-                this._systemFonts = Array.isArray(data?.fonts) ? data.fonts : [];
-                this._populateFontSelect();
-                this._scheduleComposePreview();
-                return this._systemFonts;
-            })
-            .catch(() => {
-                this._systemFonts = [];
-                this._populateFontSelect();
-                return this._systemFonts;
-            });
-        return this._systemFontsPromise;
-    }
-
-    /** CSS font-family value safe for inline style. */
-    _cssFontFamily(family) {
-        const fam = String(family || "").trim().replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-        return fam ? `"${fam}", sans-serif` : "sans-serif";
-    }
-
-    _syncFontSelectPreview(select) {
-        if (!select) return;
-        select.style.fontFamily = this._cssFontFamily(select.value);
-    }
-
-    /** Custom dropdown so each row renders in that font (native <option> cannot). */
-    _bindFontSelectPreview(select) {
-        if (!select || select.dataset.fontPreviewBound) return;
-        select.dataset.fontPreviewBound = "1";
-        select.classList.add("cat-te-font-select");
-        select.addEventListener("mousedown", (e) => {
-            if (select.disabled) return;
-            e.preventDefault();
-            e.stopPropagation();
-            this._openFontPicker(select);
-        });
-        select.addEventListener("keydown", (e) => {
-            if (select.disabled) return;
-            if (document.querySelector(".cat-te-font-picker")) return;
-            if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown" || e.key === "ArrowUp") {
-                e.preventDefault();
-                this._openFontPicker(select, { startDelta: e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0 });
-            }
-        });
-    }
-
-    _openFontPicker(select, { startDelta = 0 } = {}) {
-        if (!select) return;
-        this._removeCtxMenu();
-        const fonts = [...select.options]
-            .map((o) => ({
-                family: o.value,
-                label: o.textContent || o.value,
-                path: o.dataset?.path || "",
-            }));
-        if (!fonts.length) return;
-
-        const prevFamily = String(select.value || "");
-        const prevPath = String(select.selectedOptions?.[0]?.dataset?.path || "");
-        let activeIndex = Math.max(0, fonts.findIndex((f) => f.family === prevFamily));
-        if (startDelta) {
-            activeIndex = Math.max(0, Math.min(fonts.length - 1, activeIndex + startDelta));
-        }
-
-        const menu = document.createElement("div");
-        menu.className = "cat-te-font-picker";
-        menu.tabIndex = -1;
-        const r = select.getBoundingClientRect();
-        menu.style.left = `${r.left}px`;
-        menu.style.top = `${r.bottom + 2}px`;
-        menu.style.minWidth = `${Math.max(r.width, 200)}px`;
-
-        const items = [];
-        const applyFontAt = (index, { commit = false } = {}) => {
-            activeIndex = Math.max(0, Math.min(fonts.length - 1, index));
-            items.forEach((row, i) => row.classList.toggle("is-active", i === activeIndex));
-            const row = items[activeIndex];
-            row?.scrollIntoView({ block: "nearest" });
-            const f = fonts[activeIndex];
-            if (!f) return;
-            select.value = f.family;
-            this._syncFontSelectPreview(select);
-            // Subtitle panel listens to `input`; watermark listens to `change`.
-            select.dispatchEvent(new Event("input", { bubbles: true }));
-            select.dispatchEvent(new Event("change", { bubbles: true }));
-            if (commit) this._removeCtxMenu();
-        };
-
-        fonts.forEach((f, index) => {
-            const row = document.createElement("button");
-            row.type = "button";
-            row.className = "cat-te-font-picker-item";
-            if (index === activeIndex) row.classList.add("is-active");
-            row.style.fontFamily = this._cssFontFamily(f.family);
-            row.textContent = f.label;
-            row.title = f.family;
-            row.addEventListener("mouseenter", () => applyFontAt(index));
-            row.addEventListener("click", (e) => {
-                e.stopPropagation();
-                applyFontAt(index, { commit: true });
-            });
-            menu.appendChild(row);
-            items.push(row);
-        });
-
-        const onKey = (e) => {
-            if (!menu.isConnected) return;
-            if (e.key === "ArrowDown") {
-                e.preventDefault();
-                e.stopPropagation();
-                applyFontAt(activeIndex + 1);
-            } else if (e.key === "ArrowUp") {
-                e.preventDefault();
-                e.stopPropagation();
-                applyFontAt(activeIndex - 1);
-            } else if (e.key === "Enter") {
-                e.preventDefault();
-                e.stopPropagation();
-                applyFontAt(activeIndex, { commit: true });
-            } else if (e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                select.value = prevFamily;
-                this._syncFontSelectPreview(select);
-                select.dispatchEvent(new Event("input", { bubbles: true }));
-                select.dispatchEvent(new Event("change", { bubbles: true }));
-                this._removeCtxMenu();
-            } else if (e.key === "Home") {
-                e.preventDefault();
-                applyFontAt(0);
-            } else if (e.key === "End") {
-                e.preventDefault();
-                applyFontAt(fonts.length - 1);
-            }
-        };
-        menu._capFontKeyHandler = onKey;
-        window.addEventListener("keydown", onKey, true);
-
-        (this._overlay || document.body).appendChild(menu);
-        this._ignoreCtxCloseOnce = true;
-        const mr = menu.getBoundingClientRect();
-        if (mr.right > window.innerWidth) {
-            menu.style.left = `${Math.max(8, window.innerWidth - mr.width - 8)}px`;
-        }
-        if (mr.bottom > window.innerHeight) {
-            menu.style.top = `${Math.max(8, r.top - mr.height - 2)}px`;
-        }
-        applyFontAt(activeIndex);
-        try { menu.focus({ preventScroll: true }); } catch { /* ignore */ }
-    }
-
-    /** Fill a <select> with system fonts; keep `preferred` if present (or as custom option). */
-    _fillSystemFontSelect(select, preferred) {
-        if (!select) return;
-        const fonts = this._systemFonts || [];
-        const prev = String(preferred || "").trim();
-        select.innerHTML = "";
-        const system = document.createElement("option");
-        system.value = "";
-        system.dataset.path = "";
-        system.textContent = T("system_font");
-        select.appendChild(system);
-        for (const f of fonts) {
-            const opt = document.createElement("option");
-            opt.value = f.family;
-            opt.dataset.path = f.path || "";
-            opt.textContent = f.family;
-            opt.style.fontFamily = this._cssFontFamily(f.family);
-            select.appendChild(opt);
-        }
-        if (prev && fonts.some((f) => f.family === prev)) {
-            select.value = prev;
-        } else if (prev) {
-            const opt = document.createElement("option");
-            opt.value = prev;
-            opt.textContent = prev;
-            opt.style.fontFamily = this._cssFontFamily(prev);
-            select.appendChild(opt);
-            select.value = prev;
-        } else {
-            select.value = "";
-        }
-        this._syncFontSelectPreview(select);
-        this._bindFontSelectPreview(select);
-    }
-
     _populateFontSelect() {
         const wmSelect = this.wmFontFamily;
         if (wmSelect) {
             const current = this._watermark.text.fontFamily;
-            this._fillSystemFontSelect(wmSelect, current);
+            this._fontPicker.fill(wmSelect, this._fontCatalog.fonts, current);
         }
         const subSelect = this.subFontSelect;
         if (subSelect) {
@@ -2678,7 +2395,7 @@ export class CapTimelineEditorApp {
             if (clip && isSubtitleTrackType(clip.track?.type)) {
                 preferred = this._meta.get(clip.id)?.fontFamily ?? preferred;
             }
-            this._fillSystemFontSelect(subSelect, preferred);
+            this._fontPicker.fill(subSelect, this._fontCatalog.fonts, preferred);
         }
     }
 
@@ -2729,7 +2446,7 @@ export class CapTimelineEditorApp {
             const opt = this.wmFontFamily.selectedOptions?.[0];
             this._watermark.text.fontFamily = this.wmFontFamily.value;
             this._watermark.text.fontPath = opt?.dataset.path || "";
-            this._syncFontSelectPreview(this.wmFontFamily);
+            this._fontPicker.sync(this.wmFontFamily);
             this._scheduleComposePreview();
         });
         this.wmFontSize?.addEventListener("input", () => {
@@ -3105,6 +2822,7 @@ export class CapTimelineEditorApp {
         // Save BEFORE marking destroyed — `_saveToWidgets` bails on `_destroyed`,
         // and tab-switch teardown (beforeConfigureGraph) used to skip the flush.
         try { this._closeInternal(true); } catch { /* continue teardown */ }
+        this._fontPicker.close();
         this._destroyed = true;
         if (this._onDocClick) {
             document.removeEventListener("click", this._onDocClick);
@@ -4426,14 +4144,7 @@ export class CapTimelineEditorApp {
         this.modelPreviewMegapixelsInput = el.querySelector(".cat-te-model-preview-megapixels");
         this.modelPreviewFileInput = el.querySelector(".cat-te-model-preview-file");
         this.modelPreviewConfigName = el.querySelector(".cat-te-model-preview-config-name");
-        this.agentList = el.querySelector(".cat-te-agent-list");
-        this.agentForm = el.querySelector(".cat-te-agent-form");
-        this.agentLabelInput = el.querySelector(".cat-te-agent-label");
-        this.agentProviderSelect = el.querySelector(".cat-te-agent-provider");
-        this.agentModelInput = el.querySelector(".cat-te-agent-model");
-        this.agentKeyInput = el.querySelector(".cat-te-agent-key");
-        this.agentEnabledCb = el.querySelector(".cat-te-agent-enabled input");
-        this.agentDeleteBtn = el.querySelector(".cat-te-agent-delete");
+        this._agentSettings = new AgentSettings(this.settingsModal, (message, action) => this._openDeleteConfirm(message, action));
         this.importZipInput = el.querySelector(".cat-te-import-zip");
         el.querySelector(".cat-te-import").addEventListener("click", (e) => this._showImportMenu(e));
         el.querySelector(".cat-te-export").addEventListener("click", (e) => this._showExportMenu(e));
@@ -4604,15 +4315,7 @@ export class CapTimelineEditorApp {
         this.trackConvertModal?.addEventListener("click", (e) => {
             if (e.target === this.trackConvertModal) this._closeTrackConvertModal();
         });
-        el.querySelector(".cat-te-agent-add")?.addEventListener("click", () => this._editAgentConfig());
-        el.querySelector(".cat-te-agent-cancel")?.addEventListener("click", () => this._cancelAgentEdit());
-        el.querySelector(".cat-te-agent-save")?.addEventListener("click", () => void this._saveAgentConfig());
-        this.agentDeleteBtn?.addEventListener("click", () => void this._deleteAgentConfig());
-        this.agentProviderSelect?.addEventListener("change", () => {
-            if (Object.values(AGENT_DEFAULT_MODELS).includes(this.agentModelInput.value) || !this.agentModelInput.value.trim()) {
-                this.agentModelInput.value = AGENT_DEFAULT_MODELS[this.agentProviderSelect.value] || "";
-            }
-        });
+
         this.autosaveIntervalInput.addEventListener("change", () => {
             const n = parseInt(this.autosaveIntervalInput.value, 10);
             if (!Number.isFinite(n)) {
@@ -14303,15 +14006,7 @@ export class CapTimelineEditorApp {
         let removed = false;
         const m = document.querySelector(".cat-te-ctx-menu");
         if (m) { m.remove(); removed = true; }
-        const fp = document.querySelector(".cat-te-font-picker");
-        if (fp) {
-            if (typeof fp._capFontKeyHandler === "function") {
-                window.removeEventListener("keydown", fp._capFontKeyHandler, true);
-                fp._capFontKeyHandler = null;
-            }
-            fp.remove();
-            removed = true;
-        }
+        if (this._fontPicker.close()) removed = true;
         return removed;
     }
 
@@ -16615,11 +16310,11 @@ export class CapTimelineEditorApp {
             if (this.subTextInput) this.subTextInput.value = m.text ?? "";
             if (this.subFontSelect) {
                 const font = String(m.fontFamily || "").trim();
-                this._fillSystemFontSelect(this.subFontSelect, font);
+                this._fontPicker.fill(this.subFontSelect, this._fontCatalog.fonts, font);
                 if (!m.fontPath) {
                     m.fontPath = this.subFontSelect.selectedOptions?.[0]?.dataset?.path || "";
                 }
-                void this._ensureFontList();
+                void this._fontCatalog.load();
             }
             if (this.subSizeInput) this.subSizeInput.value = String(Math.max(8, Math.round(Number(m.fontSize) || 48)));
             this.subScaleInput.value = String(Math.max(10, Math.min(300, Number(m.subtitleScale ?? 100))));
@@ -16734,7 +16429,7 @@ export class CapTimelineEditorApp {
                 this._decorateClip(other);
             }
         }
-        this._syncFontSelectPreview(this.subFontSelect);
+        this._fontPicker.sync(this.subFontSelect);
         const label = (m.text || T("subtitle_default_text")).trim() || T("subtitle_default_text");
         clip.name = label.slice(0, 40);
         const labelEl = clip.el?.querySelector?.(".tl-clip-label");
@@ -18173,131 +17868,108 @@ export class CapTimelineEditorApp {
 
     /** Reflect stack state on the toolbar's 还原/重做 buttons. */
     _updateHistoryButtons() {
-        if (this.undoBtn) this.undoBtn.disabled = this._undoStack.length === 0;
-        if (this.redoBtn) this.redoBtn.disabled = this._redoStack.length === 0;
+        if (this.undoBtn) this.undoBtn.disabled = !this._history.canUndo;
+        if (this.redoBtn) this.redoBtn.disabled = !this._history.canRedo;
     }
 
     /** Call right before a discrete, user-initiated mutation (add/remove/
      * toggle/etc.) so it becomes exactly one undo step. */
     _recordUndo() {
-        if (!this._historyReady || this._restoringHistory || !this._timeline) return;
-        this._undoStack.push(this._captureSnapshot());
-        if (this._undoStack.length > 100) this._undoStack.shift();
-        this._redoStack = [];
-        this._updateHistoryButtons();
+        if (!this._historyReady || !this._timeline) return;
+        this._history.record();
     }
 
-    /** Drag gestures (move/trim) span many frames — stash the pre-drag
-     * snapshot at the start and only commit it once, at the end, and only
-     * if the gesture actually changed something. */
     _beginPendingUndo() {
-        if (!this._historyReady || this._restoringHistory || !this._timeline) return;
-        this._pendingUndoSnapshot = this._captureSnapshot();
+        if (!this._historyReady || !this._timeline) return;
+        this._history.begin();
     }
 
     _commitPendingUndo(moved) {
-        const snapshot = this._pendingUndoSnapshot;
-        this._pendingUndoSnapshot = null;
-        if (!snapshot || !moved || !this._historyReady || this._restoringHistory) return;
-        this._undoStack.push(snapshot);
-        if (this._undoStack.length > 100) this._undoStack.shift();
-        this._redoStack = [];
-        this._updateHistoryButtons();
+        if (!this._historyReady) {
+            this._history.cancel();
+            return;
+        }
+        this._history.commit(moved);
     }
 
     async _restoreSnapshot(snapshot) {
         if (!snapshot || !this._timeline) return;
-        this._restoringHistory = true;
+        this._timeline.selectClip(null);
+        this._selClip = null;
+        this._selClips = [];
+        this._meta.clear();
+        this._trackInfo.clear();
+        this._mainTrack = null;
+        this._overlayTrack = null;
+        this._audioTrack = null;
+
+        const project = this._migrateProjectDocument(snapshot.project || {});
+        this._applyMediaCatalogFromProject(project);
+        this.projectNameInput.value = String(project.name || T("untitled_project")).trim() || T("untitled_project");
+        this._syncBrandProjectName();
+        const snapSettings = project.settings ?? {};
+        let wroteAnySettingPrompt = false;
+        this._settingPromptSyncing = true;
         try {
-            this._timeline.selectClip(null);
-            this._selClip = null;
-            this._selClips = [];
-            this._meta.clear();
-            this._trackInfo.clear();
-            this._mainTrack = null;
-            this._overlayTrack = null;
-            this._audioTrack = null;
-
-            const project = this._migrateProjectDocument(snapshot.project || {});
-            this._applyMediaCatalogFromProject(project);
-            this.projectNameInput.value = String(project.name || T("untitled_project")).trim() || T("untitled_project");
-            this._syncBrandProjectName();
-            const snapSettings = project.settings ?? {};
-            let wroteAnySettingPrompt = false;
-            this._settingPromptSyncing = true;
-            try {
-                for (const key of SETTING_PROMPT_KEYS) {
-                    const input = this._settingPromptInputs?.[key];
-                    if (!input) continue;
-                    if (snapSettings[key] != null) {
-                        setRichPromptValue(input, String(snapSettings[key]), true);
-                        wroteAnySettingPrompt = true;
-                    }
+            for (const key of SETTING_PROMPT_KEYS) {
+                const input = this._settingPromptInputs?.[key];
+                if (!input) continue;
+                if (snapSettings[key] != null) {
+                    setRichPromptValue(input, String(snapSettings[key]), true);
+                    wroteAnySettingPrompt = true;
                 }
-            } finally {
-                this._settingPromptSyncing = false;
             }
-            if (wroteAnySettingPrompt) this._syncScalarsToProjectJson();
-            else this._syncSettingPromptInputs();
-            this._syncProjectScalarDisplay();
-            const projectTracks = Array.isArray(project.tracks) ? project.tracks : [];
-            const tracks = projectTracks.map((track, order) => {
-                const rawType = String(track.type || "visual").toLowerCase();
-                const type = rawType === "audio"
-                    ? "audio"
-                    : rawType === "voiceover"
-                        ? "voiceover"
-                    : (rawType === "subtitle" || rawType === "text")
-                        ? "text"
-                        : (rawType === "media" || rawType === "video")
-                            ? "video"
-                            : "image";
-                return {
-                    ...track,
-                    type,
-                    trackIndex: order,
-                    isMain: track.role === "main",
-                };
-            });
-            this._timeline.clearTracks();
-            if (tracks.length) {
-                this._loadTracksFromJson(tracks);
-            } else {
-                this._createDefaultTracks();
-            }
-            const clips = this._clipsFromProjectTracks(project, this.getFps());
-            await Promise.all(clips.map(c => this._addClipFromJson(c)));
-            this._applyTrackTypeOrder();
-
-            this._decorateAllClips();
-            this._refreshTimelineDuration();
-            this._applyTimelineZoomFromSettings(snapSettings, { autoFitIfMissing: false });
-            this._applyTimelineViewFromSettings(
-                { ...snapSettings, current_time: snapshot.currentTime || 0 },
-                { applyZoom: false },
-            );
-            this._updatePromptPanel();
-            this._renderMediaGrid();
         } finally {
-            this._restoringHistory = false;
+            this._settingPromptSyncing = false;
         }
+        if (wroteAnySettingPrompt) this._syncScalarsToProjectJson();
+        else this._syncSettingPromptInputs();
+        this._syncProjectScalarDisplay();
+        const projectTracks = Array.isArray(project.tracks) ? project.tracks : [];
+        const tracks = projectTracks.map((track, order) => {
+            const rawType = String(track.type || "visual").toLowerCase();
+            const type = rawType === "audio"
+                ? "audio"
+                : rawType === "voiceover"
+                    ? "voiceover"
+                : (rawType === "subtitle" || rawType === "text")
+                    ? "text"
+                    : (rawType === "media" || rawType === "video")
+                        ? "video"
+                        : "image";
+            return {
+                ...track,
+                type,
+                trackIndex: order,
+                isMain: track.role === "main",
+            };
+        });
+        this._timeline.clearTracks();
+        if (tracks.length) {
+            this._loadTracksFromJson(tracks);
+        } else {
+            this._createDefaultTracks();
+        }
+        const clips = this._clipsFromProjectTracks(project, this.getFps());
+        await Promise.all(clips.map(c => this._addClipFromJson(c)));
+        this._applyTrackTypeOrder();
+
+        this._decorateAllClips();
+        this._refreshTimelineDuration();
+        this._applyTimelineZoomFromSettings(snapSettings, { autoFitIfMissing: false });
+        this._applyTimelineViewFromSettings(
+            { ...snapSettings, current_time: snapshot.currentTime || 0 },
+            { applyZoom: false },
+        );
+        this._updatePromptPanel();
+        this._renderMediaGrid();
     }
 
     async undo() {
-        if (!this._undoStack.length || this._restoringHistory) return;
-        const current = this._captureSnapshot();
-        const prev = this._undoStack.pop();
-        this._redoStack.push(current);
-        await this._restoreSnapshot(prev);
-        this._updateHistoryButtons();
+        await this._history.undo();
     }
 
     async redo() {
-        if (!this._redoStack.length || this._restoringHistory) return;
-        const current = this._captureSnapshot();
-        const next = this._redoStack.pop();
-        this._undoStack.push(current);
-        await this._restoreSnapshot(next);
-        this._updateHistoryButtons();
+        await this._history.redo();
     }
 }

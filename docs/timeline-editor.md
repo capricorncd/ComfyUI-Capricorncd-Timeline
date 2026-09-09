@@ -33,6 +33,7 @@ Open the editor from the node launcher (fullscreen shell). Edits sync back into 
 - Drag / resize clips; multi-select with `Ctrl+Click`
 - Audio-track clips: double-click the volume line to add a point, drag to adjust gain (center 100%, range 0–200%), and select a point then press Delete to remove it. A horizontal guide snaps to other point levels in the clip. Linear interpolation replaces the old fade handles; legacy fades become points on import. The curve multiplies clip volume for playback, Agent audio, mixing and export. Edits support undo; trimming and splitting preserve source-relative point positions.
 - Select any non-subtitle Clip to set **Clip volume** from 0–200%; stored as `volume` (`1.0` = 100%) and applied to editor playback, Agent audio mixes, `clips_audio`, and Compose Video
+- When a director Clip uses generated-video preview, all enabled, unmuted generated-video audio mixes with detached audio, regardless of visual stacking order. The generated-video editor uses the same rule. Mute or disable other entries to hear only one.
 - Package clips and material insert at the playhead
 - **Gen Preview / Asset Preview** toolbar toggle (next to Insert Clip): one-click switch all clips that have generated videos between generated-video preview and asset preview
 - Undo / Redo toolbar buttons (editor-local history)

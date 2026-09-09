@@ -8334,6 +8334,31 @@ export class CapTimelineEditorApp {
         const actions = track.actionsEl;
         if (!actions) return;
         actions.replaceChildren();
+        const remove = () => {
+            if (track.locked) return;
+            const clip = track.clips.find((c) => this._genEditState?.clipMap.get(c.id) === genId);
+            if (clip) this._deleteGenEditClip(clip);
+        };
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "cat-te-track-btn";
+        deleteBtn.innerHTML = iconHtml("trash", 12);
+        deleteBtn.title = T("remove_from_clip_title");
+        deleteBtn.disabled = track.locked;
+        deleteBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            remove();
+        });
+        track.headerEl.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (track.locked) return;
+            this._buildCtxMenu([{
+                label: T("remove_from_clip_title"),
+                danger: true,
+                fn: remove,
+            }], e.clientX, e.clientY);
+        });
 
         const makeBtn = (kind) => {
             const btn = document.createElement("button");
@@ -8344,6 +8369,7 @@ export class CapTimelineEditorApp {
                     btn.innerHTML = track.locked ? ICONS.lock : ICONS.lockOpen;
                     btn.classList.toggle("active", track.locked);
                     btn.title = track.locked ? T("unlock_track_title") : T("lock_track_title");
+                    deleteBtn.disabled = track.locked;
                 };
                 btn.addEventListener("click", (e) => {
                     e.stopPropagation();
@@ -8398,7 +8424,7 @@ export class CapTimelineEditorApp {
         };
 
         // Same column order as the main timeline: lock / visibility / mute.
-        actions.append(makeBtn("lock"), makeBtn("visible"), makeBtn("mute"));
+        actions.append(makeBtn("lock"), makeBtn("visible"), makeBtn("mute"), deleteBtn);
     }
 
     /** Audio track in gen-edit: lock + mute (visibility slot is a placeholder). */
@@ -8549,15 +8575,15 @@ export class CapTimelineEditorApp {
 
     _deleteGenEditClip(clip) {
         const st = this._genEditState;
-        if (!st || !clip) return;
+        if (!st || !clip || clip.track?.locked) return;
         const gid = st.clipMap.get(clip.id);
         if (!gid) return;
-        this._openDeleteConfirm(T("confirm_delete_named_clip", { name: clip.name }), () => this._removeGenEditClip(clip, gid));
+        this._openDeleteConfirm(T("confirm_remove_from_clip", { name: clip.name }), () => this._removeGenEditClip(clip, gid));
     }
 
     _removeGenEditClip(clip, gid) {
         const st = this._genEditState;
-        if (!st || !clip || st.clipMap.get(clip.id) !== gid) return;
+        if (!st || !clip || clip.track?.locked || st.clipMap.get(clip.id) !== gid) return;
         st.draft = st.draft.filter((g) => g.id !== gid);
         st.audioDraft = (st.audioDraft || []).filter((a) => a.from_gen_id !== gid);
         this._applyGenEditChanges();
@@ -9000,7 +9026,7 @@ export class CapTimelineEditorApp {
 
     /**
      * Gen-edit audio via Web Audio. Canvas <video> decoders stay muted.
-     * Prefer detached audioDraft clips in the modal; else unmuted video audio.
+     * Mix detached audioDraft clips and all enabled, unmuted video audio.
      */
     async _startGenEditAudioPlayback() {
         this._stopGenEditAudioPlayback();
@@ -9012,6 +9038,7 @@ export class CapTimelineEditorApp {
         const startPlayhead = tl.currentTime;
         const clipDur = this._genEditParentDuration();
         const sources = [];
+        this._genEditAudioSources = sources;
         const token = (st._audioPlayToken = (st._audioPlayToken || 0) + 1);
 
         const jobs = [];
@@ -9029,37 +9056,35 @@ export class CapTimelineEditorApp {
                 end,
             });
         }
-        if (!jobs.length) {
-            // Fallback: embedded audio from unmuted generated videos.
-            for (const gen of st.draft) {
-                if (gen.enabled === false || gen.muted === true || !gen.file) continue;
-                const start = Math.max(0, Number(gen.edit_start_sec) || 0);
-                let eff = this._genEffectiveDurationSec(gen);
-                if (!(eff > 0)) {
-                    const tin0 = Math.max(0, Number(gen.trim_in_sec) || 0);
-                    const full = Number(gen.duration_sec);
-                    eff = Number.isFinite(full) && full > tin0
-                        ? Math.min(full - tin0, Math.max(0.05, clipDur - start))
-                        : Math.max(0.05, clipDur - start);
-                }
-                const end = Math.min(clipDur, start + eff);
-                if (end <= startPlayhead + 1e-6) continue;
-                if (startPlayhead >= start - 1e-6 && startPlayhead < end - 1e-9) {
-                    jobs.push({
-                        file: gen.file,
-                        location: "output",
-                        tin: Math.max(0, Number(gen.trim_in_sec) || 0),
-                        start,
-                        end,
-                    });
-                    break;
-                }
+        for (const gen of st.draft) {
+            if (gen.enabled === false || gen.muted === true || !gen.file) continue;
+            const start = Math.max(0, Number(gen.edit_start_sec) || 0);
+            let eff = this._genEffectiveDurationSec(gen);
+            if (!(eff > 0)) {
+                const tin0 = Math.max(0, Number(gen.trim_in_sec) || 0);
+                const full = Number(gen.duration_sec);
+                eff = Number.isFinite(full) && full > tin0
+                    ? Math.min(full - tin0, Math.max(0.05, clipDur - start))
+                    : Math.max(0.05, clipDur - start);
             }
+            const end = Math.min(clipDur, start + eff);
+            if (end <= start || end <= startPlayhead + 1e-6) continue;
+            jobs.push({
+                file: gen.file,
+                location: "output",
+                tin: Math.max(0, Number(gen.trim_in_sec) || 0),
+                start,
+                end,
+            });
         }
 
         for (const job of jobs) {
             const buffer = await this._ensureGenVideoAudioBuffer(job.file, job.location);
-            if (!buffer || st._audioPlayToken !== token || !tl._playing) return;
+            if (st._audioPlayToken !== token || !tl._playing) return;
+            if (!buffer) continue;
+            const now = Math.max(startCtxTime, ctx.currentTime);
+            const playhead = startPlayhead + (now - startCtxTime);
+            if (job.end <= playhead) continue;
             const src = ctx.createBufferSource();
             src.buffer = buffer;
             const gain = ctx.createGain();
@@ -9074,10 +9099,10 @@ export class CapTimelineEditorApp {
             let when;
             let offset;
             let dur;
-            if (job.start <= startPlayhead) {
-                when = startCtxTime;
-                offset = job.tin + (startPlayhead - job.start);
-                dur = job.end - startPlayhead;
+            if (job.start <= playhead) {
+                when = now;
+                offset = job.tin + (playhead - job.start);
+                dur = job.end - playhead;
             } else {
                 when = startCtxTime + (job.start - startPlayhead);
                 offset = job.tin;
@@ -9110,6 +9135,7 @@ export class CapTimelineEditorApp {
         m.generatedVideos = videos;
         m.genEditAudios = audios;
         if (this._firstEnabledGeneratedVideo(m)) m.previewMode = "generated";
+        else if (m.previewMode === "generated") m.previewMode = "media";
         this._meta.set(clip.id, m);
         this._decorateClip(clip);
         this._syncClipPrimaryAppearance(clip, { refreshVideo: true });
@@ -12062,11 +12088,9 @@ export class CapTimelineEditorApp {
             if (info.enabled === false) continue;
             for (const clip of track.clips) {
                 const m = this._meta.get(clip.id) ?? defaultImageMeta();
-                if (m.disabled || m.visible === false) continue;
+                if (m.disabled || m.visible === false || m.muted) continue;
                 if (!this._clipUsesGeneratedPreview(m)) continue;
                 const gens = this._clipGeneratedVideos(m).filter((g) => g.enabled !== false);
-                // Newest-first: one unmuted gen per clip (topmost).
-                let picked = null;
                 for (const gen of gens) {
                     if (gen.muted === true || !gen.file) continue;
                     const editStart = Math.max(0, Number(gen.edit_start_sec) || 0);
@@ -12080,17 +12104,15 @@ export class CapTimelineEditorApp {
                     }
                     const absStart = clip.startTime + editStart;
                     const absEnd = Math.min(clip.endTime, absStart + eff);
-                    if (absEnd <= t0 + 1e-6) continue;
-                    picked = { file: gen.file, location: "output", tin, absStart, absEnd, volume: normalizeClipVolume(m.volume) };
-                    break;
+                    if (absEnd <= absStart || absEnd <= t0 + 1e-6) continue;
+                    jobs.push({ file: gen.file, location: "output", tin, absStart, absEnd, volume: normalizeClipVolume(m.volume) });
                 }
-                if (picked) jobs.push(picked);
                 // Detached audios from gen-edit modal (saved on the clip).
                 for (const row of this._normalizeGenEditAudioDraft(m.genEditAudios)) {
                     if (row.muted === true || !row.file) continue;
                     const absStart = clip.startTime + Math.max(0, Number(row.edit_start_sec) || 0);
-                    const absEnd = absStart + Math.max(0.05, Number(row.duration) || 0.05);
-                    if (absEnd <= t0 + 1e-6) continue;
+                    const absEnd = Math.min(clip.endTime, absStart + Math.max(0.05, Number(row.duration) || 0.05));
+                    if (absEnd <= absStart || absEnd <= t0 + 1e-6) continue;
                     jobs.push({
                         file: row.file,
                         location: "input",
@@ -12113,7 +12135,11 @@ export class CapTimelineEditorApp {
         const jobs = this._collectGeneratedVideoAudioJobs(startPlayhead);
         for (const job of jobs) {
             const buffer = await this._ensureGenVideoAudioBuffer(job.file, job.location || "output");
-            if (!buffer || this._genMainAudioToken !== token || !tl._playing) return;
+            if (this._genMainAudioToken !== token || !tl._playing) return;
+            if (!buffer) continue;
+            const now = Math.max(startCtxTime, ctx.currentTime);
+            const playhead = startPlayhead + (now - startCtxTime);
+            if (job.absEnd <= playhead) continue;
             const src = ctx.createBufferSource();
             src.buffer = buffer;
             const gain = ctx.createGain();
@@ -12124,10 +12150,10 @@ export class CapTimelineEditorApp {
             let when;
             let offset;
             let dur;
-            if (job.absStart <= startPlayhead) {
-                when = startCtxTime;
-                offset = job.tin + (startPlayhead - job.absStart);
-                dur = job.absEnd - startPlayhead;
+            if (job.absStart <= playhead) {
+                when = now;
+                offset = job.tin + (playhead - job.absStart);
+                dur = job.absEnd - playhead;
             } else {
                 when = startCtxTime + (job.absStart - startPlayhead);
                 offset = job.tin;

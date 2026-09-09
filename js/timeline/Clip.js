@@ -70,7 +70,7 @@ export class Clip extends EventEmitter {
     const body = document.createElement('div');
     body.className = 'tl-clip-body';
 
-    if (this.track.type === 'image' || this.track.type === 'video') {
+    if (this.track.type === 'image' || this.track.type === 'video' || this.track.type === 'audio') {
       this._buildRows(body);
     } else {
       if (this.thumbnail) {
@@ -84,10 +84,6 @@ export class Clip extends EventEmitter {
       label.textContent = this.name;
       body.appendChild(label);
 
-      // Waveform for audio tracks
-      if (this.track.type === 'audio') {
-        body.appendChild(this._buildWaveform());
-      }
     }
 
     el.appendChild(lh);
@@ -268,6 +264,15 @@ export class Clip extends EventEmitter {
     this._durEl.textContent = this.track.timeline.formatTime(this.duration);
     infoRow.appendChild(this._durEl);
 
+    if (this.track.type === 'audio') {
+      const waveRow = document.createElement('div');
+      waveRow.className = 'tl-clip-row tl-clip-audio-wave';
+      waveRow.appendChild(this._buildWaveform());
+      body.appendChild(infoRow);
+      body.appendChild(waveRow);
+      return;
+    }
+
     this._thumbRow = document.createElement('div');
     this._thumbRow.className = 'tl-clip-row tl-clip-row-thumb';
     this._applyThumbnail();
@@ -413,7 +418,7 @@ export class Clip extends EventEmitter {
       if (this._waveSvg?.isConnected) {
         this._paintWaveform(this._waveSvg);
       } else {
-        const body = this.el?.querySelector('.tl-clip-body');
+        const body = this.el?.querySelector('.tl-clip-audio-wave');
         const old = body?.querySelector('.tl-clip-waveform');
         if (body) {
           const next = this._buildWaveform();

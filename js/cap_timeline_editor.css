@@ -1896,6 +1896,13 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-mute-badge:hover { background: rgba(60, 60, 80, 0.85); }
 
+.tl-clip-audio .tl-clip-row-info { padding-right: 28px; }
+.tl-clip-audio .cat-te-mute-badge {
+    top: 0;
+    height: 17px;
+    box-sizing: border-box;
+}
+
 .cat-te-track-btn {
     width: 22px;
     height: 22px;

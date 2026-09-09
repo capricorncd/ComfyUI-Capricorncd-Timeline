@@ -661,6 +661,11 @@
 
 .tl-clip-row { position: relative; min-width: 0; }
 
+.tl-clip-audio-wave {
+  flex: 1;
+  min-height: 0;
+}
+
 .tl-clip-row-info {
   flex: 0 0 auto;
   display: flex;

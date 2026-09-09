@@ -91,7 +91,18 @@ Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的
 | clip 上预览徽章 | 在素材预览与生成视频预览间切换 |
 | 删除 | 确认后仅解除 clip 绑定（不删磁盘文件） |
 
-合成视频取每个 clip 第一个**启用**的生成视频，按 clip 的 `start_ms`～`end_ms` 落位（取文件前 `duration` 秒）。
+合成视频按已保存的子轨顺序叠加所有启用的生成视频，使用各视频的时间偏移和裁剪区间，并限制在父 Clip 范围内。所有启用且未静音的视频音轨（包括画面被覆盖的层）与独立音频一起混音。
+
+在“修剪视频”中，可通过视频轨道的删除按钮或标题右键菜单解除关联；锁定轨道不能删除。确认框明确提示不会删除磁盘文件，移除最后一条视频后关闭修剪弹窗。
+
+## 合成导出设置
+
+- 弹窗最大为 80vw × 80vh，设置内容可滚动。
+- 分辨率默认“项目设置尺寸”；720P、1080P、2K（1440P）分别以 720、1080、1440 像素为短边，按项目宽高比等比缩放，编码尺寸取偶数。字幕和水印随画布缩放。
+- 画质默认“最高画质（H.264 CRF 16）”，仍为有损编码；可选高画质（18）、标准（23）及优先直接拼接。标题旁的 ⓘ 悬停显示说明。
+- 直接拼接要求编码兼容、片段连续且切点可安全复制；混音、叠加、缩放或不兼容切点会改用 CRF 18。完成提示显示实际使用了直接拼接还是重新编码。
+- 所有音频是否参与合成，均在时间轴上通过静音、启用状态控制。
+- “水印”前的复选框默认勾选；关闭后预览和导出均不添加文字/图片水印，保留原设置。字体列表首项为“系统字体”，已有的明确字体选择保持不变。
 
 ---
 
@@ -205,14 +216,15 @@ Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的
 
 | 字段 | 说明 |
 |------|------|
-| `mode` | 派生值：`none` / `text` / `image`（有未禁用图片时优先 image） |
+| `enabled` | 默认 `true`；`false` 时预览和导出均不添加水印 |
+| `mode` | 派生值：`none` / `text` / `image`；水印关闭时为 `none`，否则有未禁用图片时优先 image |
 | `text.content` | 水印文字 |
 | `text.fontFamily` / `text.fontPath` | 字体名 / 本机字体路径 |
 | `text.fontSize` | 字号（约 6–400） |
 | `text.letterSpacing` | 字间距（约 -50–200，默认 0） |
 | `text.color` | `#RRGGBB` |
 | `image.file` | 水印图片路径；空表示无 |
-| `image.disabled` | `true` 时忽略图片，回退到文字 |
+| `image.disabled` | 旧工程兼容字段：`true` 时忽略图片，回退到文字；界面不再单独提供此开关 |
 | `opacity` | 0–100 |
 | `scale` | 10–300（百分比） |
 | `position` | `top-left` / `top-center` / `top-right` / `bottom-left` / `bottom-center` / `bottom-right` / `center` / `random-interval` / `random-fixed` |
@@ -517,4 +529,4 @@ Timeline Editor
   └── frame_seq_dir  ──► Save Images 的序列帧输出目录
 ```
 
-完整生成 → Seq To Video 流程见 [中文 README](../README.zh.md#典型工作流)。
+序列帧与音频合成见 [Seq To Video](seq-to-video.md)，可运行示例见[工作流目录](../../workflows/)。

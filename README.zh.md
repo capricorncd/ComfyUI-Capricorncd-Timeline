@@ -1,85 +1,46 @@
 # ComfyUI-Capricorncd-Timeline
 
-<p style="width:100%;text-align:center;">
-   <img src="./docs/ComfyUI-Capricorncd-Timeline.png" width="200" alt="ComfyUI-Capricorncd-Timeline" />
+[English](README.md) · [编辑器完整指南](docs/zh/timeline-editor.md) · [示例工作流](workflows/) · [更新记录](CHANGELOG.md)
+
+<p align="center">
+  <img src="./docs/ComfyUI-Capricorncd-Timeline.png" width="160" alt="Capricorncd Timeline" />
 </p>
 
-面向 [ComfyUI](https://github.com/comfyanonymous/ComfyUI) 的可视化多轨**时间轴编辑器**，支持**一键出片、局部修改、独立项目管理与项目资源导入导出**。在时间轴上编排镜头，通过工作流生成完整视频；需要调整时，只修改并重新生成指定片段，无需整片重做。
+面向 [ComfyUI](https://github.com/comfyanonymous/ComfyUI) 的可视化时间轴编辑器。在同一个界面编排镜头、管理提示词、通过已连接的工作流生成片段，再剪辑并合成视频。
 
-以 **Timeline Editor（时间轴编辑器）** 为中心组织视频工作流：编排图像、视频和音频，为每个片段设置提示词，通过 ComfyUI 逐段生成，再预览并合成成片。项目还提供提示词编辑、图像批处理和文件管理等配套节点。
+![时间轴编辑器](docs/timeline-editor.jpg)
 
-![Timeline Editor — ComfyUI 多轨视频工作流](./docs/timeline-editor.jpg)
+## 从镜头编排到视频交付
 
----
+- **编排镜头：** 使用导演、媒体、音频和字幕轨道，为 Clip 配置参考图片、首尾帧及视频。
+- **只重做需要修改的片段：** 运行单个 Clip，或运行同轨左侧/右侧未禁用的 Clip；保留历次生成结果，按需选择。
+- **管理提示词：** 编辑 Clip 提示词和全局前置、后置提示词，选择提供给模型的参考内容，使用已配置 Agent 或本地 VL 模型优化当前 Clip 提示词。
+- **先预览再生成：** 接入预览工作流，调整种子，并可播放当前 Clip 区间的时间轴音频。
+- **剪辑与排版：** 裁剪、分割、框选整体移动、相邻 Clip 交换及撤销/重做；媒体支持透明度、缩放与位置，字幕支持字体、描边、投影和位置设置。
+- **调整声音：** 在波形上编辑音量控制点。未禁用、未静音的生成视频原声与独立音频，在预览和导出时一起混合播放。
+- **交付与复用：** 合成 MP4，或将工程、素材和当前工作流一起导出为目录或 ZIP。
 
-## ✨ Timeline Editor（时间轴编辑器）
+## 快速开始
 
-从镜头编排到完整成片，在 ComfyUI 的全屏时间轴中完成；需要修改时，精确调整到单个片段。
+1. 安装插件，打开[示例工作流](workflows/)。
+2. 打开 **时间轴编辑器**，导入素材，设置项目尺寸与帧率，编排各个 Clip。
+3. 为 Clip 添加参考素材与提示词，连接相应模型的生成工作流，运行需要生成的片段。
+4. 查看关联的生成视频，修剪片段、静音不需要的声音，并添加媒体叠层或字幕。
+5. 通过 **导出 → 合成视频** 输出成片，或导出工程包继续编辑。
 
-- **一键出片** —— 通过已连接的 ComfyUI 工作流，按时间轴生成各片段并合成完整视频
-- **局部修改** —— 调整指定片段的图像、时长或提示词，仅重新生成该片段，保留其他生成结果
-- **素材库** —— 拖拽导入图片/视频/音频素材，支持星级评分与筛选、批量选择、缺失文件重新关联
-- **多轨画布** —— 每条轨道可锁定/显隐/禁音，拖拽/缩放/分割片段，撤销/重做，缩放与平移
-- **逐片段提示词** —— 全局与逐片段提示词输入，以及 **AI 优化** 弹窗（可选 Agent 或本地 VL 模型、输出语言、支持从 GitHub 同步的 Prompt Skill 库）
-- **生成视频** —— 为片段绑定 ComfyUI `output/` 下的 MP4，支持启用/禁音/预览，再通过 **导出 → 合成视频** 将其与未禁音的音频轨混合为一条 MP4（可选水印、文件名前缀、忽略音频轨道等）
-- **独立项目管理** —— 每个视频以独立的时间轴项目组织，分别管理项目名称、片段与素材
-- **项目与资源导入导出** —— 支持导入媒体素材，并以目录或 ZIP 打包导入导出完整项目及其资源，方便迁移与复用
-- **界面全面本地化** —— 所有面板、弹窗、菜单均自动跟随 ComfyUI 的 **Settings → Comfy → Locale** 语言设置（English / 简体中文 / 日本語），未覆盖的语言回退到英文；详见下方[国际化](#国际化i18n)
+生成视频需要安装所选工作流使用的模型和节点；编辑器负责组织流程，不附带模型权重。
 
-[查看完整文档 →](docs/zh/timeline-editor.md) · [English](docs/timeline-editor.md)
+## 合成与导出
 
----
+合成窗口默认使用 **项目设置尺寸** 和 **最高画质（H.264 CRF 16）**。CRF 16 是高画质有损编码，并非无损。
 
-## 节点一览
+- 可选 720P、1080P、2K（1440P），以短边为目标，按项目宽高比等比缩放。
+- 还可选择高画质（CRF 18）、标准（CRF 23）和优先直接拼接。只有连续片段的尺寸、编码及切点兼容时才免重编码；不满足条件时改用 CRF 18 精确合成，并在结果中提示。
+- 是否合成声音统一由时间轴上的静音、启用状态决定，导出窗口不再另设音频排除开关。
+- “水印”标题前的复选框控制文字/图片水印是否使用，关闭后保留设置；字体列表首项为“系统字体”。
+- 工程包包含 `project.json`、`workflow.json` 和 `media/`，不包含模型及插件。换机器后先加载工作流，再从编辑器导入工程包，以重新定位素材。
 
-| 节点 | 说明 | 文档 |
-|------|------|------|
-| **Timeline Editor** | 全屏多轨编辑器；生成视频预览/禁音；导出 → 合成视频；`swap_wh`；输出 `data_json` 与 `frame_seq_dir` | [→](docs/zh/timeline-editor.md) |
-| **Rich Prompt Input** | 带实时语法高亮、`#` 注释与历史/预设的提示词编辑器 | [→](docs/zh/prompt-input.md) |
-| **Prompt Group** | 全局 / 场景 / 负面提示词输入；统计场景提示词有效条数 | [→](docs/zh/prompt-group.md) |
-| **Prompt From Batch** | 按索引/长度截取场景提示词；可选合并全局提示词 | [→](docs/zh/prompt-from-batch.md) |
-| **Data Json Clip Parser** | 从 Timeline Editor 的 `data_json` 中提取单个片段 | [→](docs/zh/data-json-clip-parser.md) |
-| **MiniMaxH3** | 时间轴 `data_json` 片段 → MiniMax H3 Reference to Video（参考 + 提示词 + latent） | [→](docs/zh/minimax-h3.md) |
-| **Save Images** | 将一批图像保存到指定目录；可选写入 `{prefix}.json` 记录提示词与模型 | [→](docs/zh/save-images.md) |
-| **Load Images From Dir** | 从目录加载图像为 `IMAGE` 批次 | [→](docs/zh/load-images-from-dir.md) |
-| **Image Batch Count** | 返回批次中的图像数量 | [→](docs/zh/image-batch.md) |
-| **Image From Batch Index** | 按索引从批次中提取单张图像 | [→](docs/zh/image-batch.md) |
-| **Seq To Video** | 通过 ffmpeg 将图像序列和音频合成为 MP4；默认写入同名 JSON 记录提示词与模型 | [→](docs/zh/seq-to-video.md) |
-| **Compose Clip Videos** | 将各片段 MP4 合成为一条时间轴视频；可选同名 JSON | [→](docs/zh/compose-clip-videos.md) |
-| **Join Strings** | 拼接可变数量的字符串/数值；换行、逗号、`_`、`-`、`/`、空拼接或自定义分隔符 | [→](docs/zh/join-strings.md) |
-| **Clear Directory** | 删除目录中选定类型的媒体文件；Windows 支持回收站 | [→](docs/zh/clear-directory.md) |
-| **Size Settings** | 尺寸预设 / 倍数 / 锁定比例 / 方向 → `width`、`height`、`count`、`fps` | [→](docs/zh/size-settings.md) |
-| **Format JSON** | 在画布上格式化显示 JSON 字符串 | [→](docs/zh/format-json.md) |
-| **Show Anything** | 展示任意值；刷新后保留；可选格式化 JSON | [→](docs/zh/show-anything.md) |
-
----
-
-## 典型工作流
-
-1. 在 **Timeline Editor** 中编排视觉片段与音频，设置图像关键帧和分片段提示词。
-2. 将片段数据接入 ComfyUI 生成工作流；需要重做某一段时，禁用其他片段后重新运行。
-3. 将生成的 MP4 绑定到对应片段，预览后通过 **导出 → 合成视频** 合并画面与音频。
-
-Timeline Editor 可接入下方的片段处理节点。
-
-```
-Timeline Editor
-  ├── trimmed_audio / clips_audio ──► （音频处理）
-  ├── frame_seq_dir               ──► Save Images（序列帧输出目录）
-  ├── data_json                   ──► Data Json Clip Parser（循环逐片段处理）
-  │                                     ├── audio、frame_count、first_frame、last_frame、prompt
-  │                                     └── ──► 生成节点 ──► Save Images
-  │                                               ├── image_paths ──► Seq To Video
-  │                                               └── image_dir   ──► Clear Directory（清理）
-  │                           或 ──► MiniMaxH3（按 index 循环）──► H3 采样 / 解码
-  └── clips_length                ──► 循环上限
-```
-
-**禁用 / 启用** 可只重跑某一段而不改动其余时间轴。详见 [Timeline Editor](docs/zh/timeline-editor.md#片段禁用--启用)。
-
-**Timeline Editor** 还可为每个视觉片段绑定 ComfyUI `output/` 下的 **生成视频**（启用 / 禁音 / 预览），并通过 **导出 → 合成视频** 将启用的生成视频与未禁音的音频轨混成一条 MP4，写入 `output/`（默认前缀 `cap_timeline_compose/`）。详见 [Timeline Editor](docs/zh/timeline-editor.md#生成视频)。
-
----
+完整操作、快捷键、提示词和工程字段说明见[编辑器指南](docs/zh/timeline-editor.md)。
 
 ## 安装
 
@@ -88,51 +49,14 @@ cd ComfyUI/custom_nodes
 git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline
 ```
 
-重启 ComfyUI。除标准 ComfyUI 安装外，无需额外 Python 依赖。
+重启 ComfyUI 并刷新浏览器。合成视频需要系统 `PATH` 中有 **ffmpeg 与 ffprobe**；模型工作流和可选 Agent/VL 功能可能需要额外模型、节点或配置。
 
-> **Seq To Video**、**Compose Clip Videos** 以及 Timeline Editor 的 **合成视频** 均需安装 [ffmpeg](https://ffmpeg.org/download.html) 并加入系统 `PATH`。
+界面跟随 ComfyUI 的语言设置，支持 **English / 简体中文 / 日本語**。
 
----
+## 其他节点
 
-## 文档
-
-教程与 UI 说明写在 `docs/zh/`。带 `<!-- AUTO:API -->` 标记的输入/输出表可由节点元数据重新生成：
-
-```bash
-python scripts/gen_node_docs.py
-```
-
-节点接口字段定义在代码中（`DESCRIPTION`、输入 `tooltip`、`OUTPUT_TOOLTIPS`），便于画布提示与文档保持一致。
-
----
-
-## 国际化（i18n）
-
-不只是节点图元数据，整个插件都会自动跟随 ComfyUI 的 **Settings → Comfy → Locale** 语言设置，未覆盖的语言回退到英文：
-
-- **节点图元数据**（标题、输入/输出名称、提示语、布尔开关的开/关文案）通过 ComfyUI 内置 i18n 系统本地化，另外为两个使用新版 Schema、ComfyUI 自身语言加载器暂时还覆盖不到的节点做了补丁
-- **每个自定义 UI 面板** —— Timeline Editor（素材库、片段设置、AI 优化弹窗、Prompt Skill 选择器、导入导出、合成视频等）、Prompt Library（历史记录/预设）—— 所有弹窗、按钮、菜单及状态/错误提示
-- **后端返回给前端的错误与状态文案**
-
-语言文件位于 `locales/`：
-
-```
-locales/
-├── en/nodeDefs.json
-├── zh/nodeDefs.json, commands.json
-└── ja/nodeDefs.json, commands.json
-```
-
-| 语言 | 代码 |
-|------|------|
-| English | `en` |
-| 简体中文 | `zh` |
-| 日本語 | `ja` |
-
-切换语言后，新注册的节点定义会立即生效；已打开的面板需要刷新页面后才会应用新语言，与 ComfyUI 自身的本地化行为一致。
-
----
+提示词、图像、音视频及文件工具统一保留在[节点文档索引](docs/zh/nodes.md)，主页不再逐项展开。
 
 ## 许可证
 
-MIT
+[MIT](LICENSE)

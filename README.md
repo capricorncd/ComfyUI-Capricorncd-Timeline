@@ -1,92 +1,46 @@
 # ComfyUI-Capricorncd-Timeline
 
-<p style="width:100%;text-align:center;">
-   <img src="./docs/ComfyUI-Capricorncd-Timeline.png" width="200" alt="ComfyUI-Capricorncd-Timeline" />
+[简体中文](README.zh.md) · [Editor guide](docs/timeline-editor.md) · [Example workflows](workflows/) · [Release notes](CHANGELOG.md)
+
+<p align="center">
+  <img src="./docs/ComfyUI-Capricorncd-Timeline.png" width="160" alt="Capricorncd Timeline" />
 </p>
 
-A visual multi-track timeline editor for [ComfyUI](https://github.com/comfyanonymous/ComfyUI) with **one-click video creation**, **targeted clip editing**, **separate project management**, and **project and asset import/export**. Arrange your shots, generate a complete video through your workflow, and refine individual clips without regenerating the entire sequence.
+A visual timeline editor for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Arrange shots, write prompts, generate clips with your connected workflow, then edit and compose the results without leaving ComfyUI.
 
-Build your video workflow around **Timeline Editor**: arrange images, videos, and audio, define prompts for each clip, generate individual segments through ComfyUI, then preview and compose the results. Supporting nodes are included for prompt editing, image batches, and file management.
+![Timeline Editor](docs/timeline-editor.jpg)
 
-![Timeline Editor — multi-track video workflow in ComfyUI](./docs/timeline-editor.jpg)
+## Create and refine a video in one place
 
----
+- **Plan your shots:** organize director, media, audio and subtitle tracks; attach reference images, first/last frames and videos to each Clip.
+- **Generate only what needs changing:** run individual clips or enabled clips to the left/right; retain previous generated takes and choose which to use.
+- **Manage prompts:** edit Clip prompts and global prepend/append prompts, choose reference inputs, and use a configured Agent or local VL model to optimize the current Clip prompt.
+- **Preview before committing:** use a connected preview workflow, adjust the seed, and optionally listen to the timeline audio for the Clip interval.
+- **Edit the timeline:** trim, split, box-select and move clips together, swap adjacent clips, and undo/redo. Media clips support opacity, scale and position; subtitles support font, outline, shadow and placement.
+- **Shape the sound:** edit volume control points on the waveform. Enabled, unmuted generated-video audio and detached audio mix together in preview and export.
+- **Deliver and reuse:** compose an MP4, or export the project, assets and current workflow together as a directory or ZIP.
 
-## ✨ Timeline Editor
+## Quick start
 
-Create a complete video from a fullscreen timeline, then refine only the clips that need changes.
+1. Install the extension and open an [example workflow](workflows/).
+2. Open **Timeline Editor**, import media, set the project size and frame rate, then arrange your clips.
+3. Add references and Clip prompts. Connect the model-specific generation workflow and run the required clips.
+4. Review linked generated videos. Trim takes, mute unwanted audio, and add media overlays or subtitles.
+5. Choose **Export → Compose Video**, or export a project package for later editing.
 
-- **One-click video creation** — use your connected ComfyUI workflow to generate timeline clips and compose them into a complete video
-- **Targeted clip editing** — adjust a clip’s images, timing, or prompt and regenerate that segment while keeping the other results
-- **Media library** — drag-and-drop image/video/audio assets, star ratings and filters, batch select, relink missing files
-- **Multi-track canvas** — per-track lock/visibility/mute, drag/resize/split clips, undo/redo, zoom and pan
-- **Per-clip prompts** — global + per-clip prompt fields, and an **AI Optimize** modal (Agent or local VL model, output-language selection, Prompt Skill library with GitHub sync)
-- **Generated videos** — attach ComfyUI `output/` MP4s to a clip, enable/mute/preview, then **Export → Compose Video** mixes them with unmuted audio tracks into one MP4 (watermark, filename prefix, ignore-audio-tracks options)
-- **Separate project management** — organize each video as its own named timeline project
-- **Project and asset import/export** — import media into the project and transfer the complete project with its assets as a directory or ZIP
-- **Fully localized UI** — every panel, dialog, and menu follows ComfyUI's own **Settings → Comfy → Locale** setting (English / 简体中文 / 日本語), with English as the fallback; see [Internationalization](#internationalization-i18n) below
+Generation requires the models and nodes used by your chosen workflow. The editor organizes the process; it does not include model weights.
 
-[Read the full guide →](docs/timeline-editor.md) · [中文文档](docs/zh/timeline-editor.md)
+## Export controls
 
----
+The compose dialog defaults to **project dimensions** and **Maximum quality (H.264 CRF 16)**. CRF 16 is high-quality lossy encoding, not lossless.
 
-## Nodes
+- Optional 720P, 1080P and 2K (1440P) presets scale the project proportionally, using the short side as the target.
+- High (CRF 18), Standard (CRF 23) and Direct join preferred are also available. Direct joining avoids recompression only for compatible, contiguous video segments and safe cut points; otherwise it falls back to CRF 18 and reports this in the result.
+- Audio inclusion is controlled on the timeline through mute/enable settings, not a second export switch.
+- A checkbox beside **Watermark** enables or disables text/image watermarks without discarding their settings. **System font** is the first font option.
+- A project package contains `project.json`, `workflow.json` and `media/`. Models and plugins are not bundled. On another machine, load the workflow, then import the project package in the editor to relocate media.
 
-| Node | Description | Doc |
-|------|-------------|-----|
-| **Timeline Editor** | Fullscreen multi-track editor; generated-video preview/mute; Export → Compose Video; `swap_wh`; outputs `data_json` and `frame_seq_dir` | [→](docs/timeline-editor.md) · [中文](docs/zh/timeline-editor.md) |
-| **Rich Prompt Input** | Prompt editor with live syntax highlighting, `#` comments, and history/presets | [→](docs/prompt-input.md) · [中文](docs/zh/prompt-input.md) |
-| **Prompt Group** | Global / scene / negative prompts; counts non-empty scene prompt lines | [→](docs/prompt-group.md) · [中文](docs/zh/prompt-group.md) |
-| **Prompt From Batch** | Slice scene prompts by index/length; optionally merge global prompt | [→](docs/prompt-from-batch.md) · [中文](docs/zh/prompt-from-batch.md) |
-| **Generate Timeline Preview** | Current project + Clip ID → complete in-memory MiniMax H3 preview; sampling and AV decode are built in | [→](docs/timeline-editor.md#ai-optimize-prompt) · [中文](docs/zh/timeline-editor.md#ai-优化提示词) |
-| **Data Json Clip Parser** | Extracts a single clip from Timeline Editor `data_json` output | [→](docs/data-json-clip-parser.md) · [中文](docs/zh/data-json-clip-parser.md) |
-| **MiniMaxH3** | Timeline `data_json` clip → MiniMax H3 Reference to Video (refs + prompt + latent) | [→](docs/minimax-h3.md) · [中文](docs/zh/minimax-h3.md) |
-| **Save Images** | Saves an `IMAGE` batch to disk; optional `{prefix}.json` sidecar with prompts and models | [→](docs/save-images.md) · [中文](docs/zh/save-images.md) |
-| **Load Images From Dir** | Loads images from a directory into an `IMAGE` batch | [→](docs/load-images-from-dir.md) · [中文](docs/zh/load-images-from-dir.md) |
-| **Image Batch Count** | Returns the number of images in a batch | [→](docs/image-batch.md) · [中文](docs/zh/image-batch.md) |
-| **Image From Batch Index** | Extracts one image from a batch by index | [→](docs/image-batch.md) · [中文](docs/zh/image-batch.md) |
-| **Seq To Video** | Composes frames + optional audio into MP4 via ffmpeg; writes a same-name JSON with prompts and models | [→](docs/seq-to-video.md) · [中文](docs/zh/seq-to-video.md) |
-| **Compose Clip Videos** | Concatenates per-clip MP4s into one timeline video; optional same-name JSON sidecar | [→](docs/compose-clip-videos.md) · [中文](docs/zh/compose-clip-videos.md) |
-| **Join Strings** | Joins a variable number of string/int/float inputs; newline, comma, `_`, `-`, `/`, none, or custom separator | [→](docs/join-strings.md) · [中文](docs/zh/join-strings.md) |
-| **Clear Directory** | Deletes selected media files in a directory; supports Recycle Bin on Windows | [→](docs/clear-directory.md) · [中文](docs/zh/clear-directory.md) |
-| **Size Settings** | Size preset / scale / lock aspect / orientation → `width`, `height`, `count`, `fps` | [→](docs/size-settings.md) · [中文](docs/zh/size-settings.md) |
-| **Format JSON** | Pretty-print a JSON string in the graph UI | [→](docs/format-json.md) · [中文](docs/zh/format-json.md) |
-| **Show Anything** | Show any value on the node; persists across refresh; optional Format JSON | [→](docs/show-anything.md) · [中文](docs/zh/show-anything.md) |
-
----
-
-## Typical pipeline
-
-1. Arrange visual clips and audio in **Timeline Editor**, then set image keyframes and per-clip prompts.
-2. Send clip data to your ComfyUI generation workflow; disable other clips when regenerating a specific segment.
-3. Attach generated MP4s to their clips, preview them, and use **Export → Compose Video** to assemble the final video with audio.
-
-Timeline Editor connects to the clip-processing nodes below.
-
-```
-Timeline Editor
-  ├── trimmed_audio / clips_audio ──► (audio processing)
-  ├── frame_seq_dir               ──► Save Images (frame output directory)
-  ├── data_json                   ──► Data Json Clip Parser (looped per clip)
-  │                                     ├── audio, frame_count, first_frame, last_frame, prompt
-  │                                     └── ──► generation nodes ──► Save Images
-  │                                               ├── image_paths ──► Seq To Video
-  │                                               └── image_dir   ──► Clear Directory (cleanup)
-  │                           or ──► MiniMaxH3 (index loop) ──► H3 sample / decode
-  └── clips_length                ──► loop limit
-```
-
-**Seq To Video** accepts frames from three sources (only one is used per run):
-
-1. `images` — direct `IMAGE` batch input
-2. `image_paths` — comma-separated paths from **Save Images**
-3. `frames_dir` — numbered sequence scan from a directory
-
-The **Disable / Enable** feature in Timeline Editor lets you re-generate a single segment without touching the rest of the timeline. See [Timeline Editor](docs/timeline-editor.md#clip-disable--enable).
-
-**Timeline Editor** can also attach ComfyUI `output/` MP4s as **generated videos** per clip (enable / mute / preview), and **Export → Compose Video** mixes enabled generated videos with unmuted audio tracks into one MP4 under `output/` (default prefix `cap_timeline_compose/`). See [Timeline Editor](docs/timeline-editor.md#generated-videos).
-
----
+See the [full editor guide](docs/timeline-editor.md) for controls, shortcuts, prompt rules and project fields.
 
 ## Installation
 
@@ -95,73 +49,14 @@ cd ComfyUI/custom_nodes
 git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline
 ```
 
-Restart ComfyUI. No additional Python packages are required beyond a standard ComfyUI installation.
+Restart ComfyUI and refresh the browser. Video composition requires **ffmpeg and ffprobe** on the system `PATH`. Model-specific workflows and optional Agent/VL features may require additional models, nodes or configuration.
 
-> **Seq To Video**, **Compose Clip Videos**, and Timeline Editor **Compose Video** require [ffmpeg](https://ffmpeg.org/download.html) on the system `PATH`.
+The interface follows ComfyUI's locale setting: **English / 简体中文 / 日本語**.
 
----
+## Other nodes
 
-## Documentation
-
-Hand-written guides live under `docs/`. Input/output tables marked with `<!-- AUTO:API -->` can be regenerated from node metadata:
-
-```bash
-python scripts/gen_node_docs.py
-```
-
-```
-docs/
-├── prompt-input.md
-├── prompt-group.md
-├── prompt-from-batch.md
-├── timeline-editor.md
-├── data-json-clip-parser.md
-├── minimax-h3.md
-├── save-images.md
-├── load-images-from-dir.md
-├── image-batch.md
-├── seq-to-video.md
-├── compose-clip-videos.md
-├── join-strings.md
-├── clear-directory.md
-├── size-settings.md
-├── format-json.md
-├── show-anything.md
-└── zh/                  # 简体中文文档
-    └── (same set)
-```
-
-Node API fields are defined in code (`DESCRIPTION`, input `tooltip`, `OUTPUT_TOOLTIPS`) so the graph UI and docs stay aligned.
-
----
-
-## Internationalization (i18n)
-
-The whole extension — not just node graph metadata — follows ComfyUI's own **Settings → Comfy → Locale** setting automatically, falling back to English wherever a language isn't available:
-
-- **Node graph metadata** (titles, widget names, tooltips, boolean on/off labels) via ComfyUI's built-in i18n system, plus a small patch for the two newer-schema nodes ComfyUI's own locale loader doesn't reach yet
-- **Every custom UI panel** — Timeline Editor (media library, clip settings, AI Optimize modal, Prompt Skill picker, import/export, compose video, etc.), and the Prompt Library (history/presets) — all dialogs, buttons, menus, and status/error messages
-- **Backend error and status text** returned to the frontend
-
-Locale files live in `locales/`:
-
-```
-locales/
-├── en/nodeDefs.json
-├── zh/nodeDefs.json, commands.json
-└── ja/nodeDefs.json, commands.json
-```
-
-| Language | Code |
-|----------|------|
-| English  | `en` |
-| 简体中文  | `zh` |
-| 日本語   | `ja` |
-
-A language change takes effect for newly-registered node defs and for panels opened after the change; an already-open panel picks it up on the next page refresh.
-
----
+Supporting prompt, image, audio/video and file utilities are listed in the [node documentation index](docs/nodes.md). They remain available without filling the editor homepage with individual node descriptions.
 
 ## License
 
-MIT
+[MIT](LICENSE)

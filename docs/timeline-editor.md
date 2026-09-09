@@ -42,7 +42,7 @@ Open the editor from the node launcher (fullscreen shell). Edits sync back into 
 ### Inspector (right)
 
 - Selected clip thumbnails (start / end frame where applicable)
-- Per-clip prompt-part selection for Summary, Detailed description, and Asset prompts
+- Per-clip prompt selection for Clip prompt and asset descriptions, with optional global prepend/append prompts
 - **Generated videos** list (when the clip has any): enable checkbox, mute (same icons as track mute), open preview, delete with confirm
 - Shortcut reminders
 
@@ -90,7 +90,18 @@ Attach ComfyUI `output/` MP4s to a visual clip (context menu **Add generated vid
 | Preview mode badge on clip | Toggle media vs generated preview |
 | Delete | Confirm; removes the clip binding only (does not delete the file on disk) |
 
-Compose Video uses each clip’s first **enabled** generated video, placed from the clip’s `start_ms` through `end_ms` (first `duration` seconds of the file).
+Compose Video layers enabled generated videos in their saved subtrack order, using each video's edit offset and trim range within its parent Clip. All unmuted enabled video audio is mixed, including visually covered layers, along with detached audio.
+
+In **Trim Video**, remove a video association with the track's trash button or its header context menu. Locked tracks cannot be removed. Confirmation explicitly states that the disk file is kept; removing the last video closes the trim dialog.
+
+## Compose export settings
+
+- The dialog occupies at most 80vw × 80vh, with scrolling settings.
+- Resolution defaults to **Project settings size**. 720P, 1080P and 2K (1440P) preserve the project aspect ratio with a short side of 720, 1080 or 1440 pixels; encoder dimensions are even. Subtitles and watermarks scale with the canvas.
+- Quality defaults to **Maximum (H.264 CRF 16)**, which is still lossy. High (18), Standard (23) and Direct join preferred are available; the ⓘ beside Export quality shows the explanation on hover.
+- Direct joining requires compatible streams, contiguous clips and safe cut points. Audio mixing, overlays, scaling or incompatible cuts fall back to CRF 18; the completion message reports whether copying or re-encoding was used.
+- Control all audio inclusion on the timeline through mute/enable settings.
+- The checkbox before **Watermark** is enabled by default. Turning it off skips text and image watermarks in preview/export without deleting their settings. Font lists begin with **System font**; explicitly selected fonts remain unchanged.
 
 ---
 
@@ -204,14 +215,15 @@ When an imported image contains supported `ImageAssetMetadata`, the editor copie
 
 | Field | Description |
 |-------|-------------|
-| `mode` | Derived: `none` / `text` / `image` (image wins when file present and not disabled) |
+| `enabled` | Defaults to `true`; `false` disables all watermarks in preview and export |
+| `mode` | Derived: `none` / `text` / `image`; disabled watermark resolves to `none`, otherwise image wins when present and not disabled |
 | `text.content` | Watermark text |
 | `text.fontFamily` / `text.fontPath` | Font family / local font path |
 | `text.fontSize` | Font size (~6–400) |
 | `text.letterSpacing` | Letter spacing (~-50–200, default 0) |
 | `text.color` | `#RRGGBB` |
 | `image.file` | Watermark image path; empty = none |
-| `image.disabled` | When `true`, ignore image and fall back to text |
+| `image.disabled` | Legacy field: when `true`, ignore image and fall back to text; no separate UI switch |
 | `opacity` | 0–100 |
 | `scale` | 10–300 (percent) |
 | `position` | `top-left` / `top-center` / `top-right` / `bottom-left` / `bottom-center` / `bottom-right` / `center` / `random-interval` / `random-fixed` |
@@ -514,4 +526,4 @@ Timeline Editor
   └── frame_seq_dir  ──► Save Images output directory for generated frames
 ```
 
-See the [root README](../README.md#typical-pipeline) for the full generation → Seq To Video flow.
+See [Seq To Video](seq-to-video.md) for frame/audio composition and the [workflow directory](../workflows/) for examples.

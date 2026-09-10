@@ -8049,11 +8049,10 @@ export class CapTimelineEditorApp {
         return n ? { ...n } : null;
     }
 
-    _genEditParentDuration() {
-        const clip = this._findClipById(this._genEditState?.clipId);
+    _genEditParentDuration(clip = this._findClipById(this._genEditState?.clipId)) {
         if (!clip) return 1;
-        const m = this._ensureClipMeta(clip);
-        return Math.max(0.05, this._ensureResourceDuration(clip, m));
+        // Match generation/export timing, not the duration cached before a resize.
+        return Math.max(0.05, Number(clip.duration) || 0.05);
     }
 
 
@@ -8117,7 +8116,7 @@ export class CapTimelineEditorApp {
         this._closeGenVideoModal();
         const draft = rows.map((r) => this._cloneGenVideoDraft(r)).filter(Boolean);
         await Promise.all(draft.map((g) => this._ensureGenVideoDuration(g)));
-        const clipDur = Math.max(0.05, this._ensureResourceDuration(clip, m));
+        const clipDur = this._genEditParentDuration(clip);
         for (const g of draft) {
             const tin = Math.max(0, Number(g.trim_in_sec) || 0);
             let eff = this._genEffectiveDurationSec(g);

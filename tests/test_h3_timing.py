@@ -16,7 +16,7 @@ def clips():
 
 class H3TimingTests(unittest.TestCase):
     def test_padding_carry_keeps_every_frame_through_final_clip(self):
-        for lengths in ([120, 120, 120], [124, 136, 131], [100, 131, 75], [41, 52, 63]):
+        for lengths in ([120, 120, 120], [124, 136, 131], [124, 136, 111], [100, 131, 75], [41, 52, 63]):
             rows = clips()
             frame = 0
             for row, length in zip(rows, lengths):

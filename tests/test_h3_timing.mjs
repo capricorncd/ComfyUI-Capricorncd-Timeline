@@ -64,6 +64,19 @@ function method(name, dependencies = {}) {
     return new Function(...Object.keys(dependencies), `return ({${source.slice(start,end)}}).${name}`)(...Object.values(dependencies));
 }
 const meta = { generatedVideos: [{ id:'gen1', file, enabled:true }] };
+const parentDuration = method('_genEditParentDuration');
+const lastClip = { id:'clip_cafe_03', startTime:10833/1000, duration:111/24 };
+const trimApp = {
+    _genEditState:{clipId:lastClip.id},
+    _findClipById:id=>id === lastClip.id ? lastClip : null,
+    _ensureClipMeta:()=>({resourceDurationSec:131/24}),
+};
+assert.equal(parentDuration.call(trimApp), 111/24);
+assert.equal(parentDuration.call(trimApp, lastClip), 111/24);
+lastClip.duration = 131/24;
+assert.equal(parentDuration.call(trimApp), 131/24);
+assert.equal(parentDuration.call(trimApp, null), 1);
+assert(source.includes('const clipDur = this._genEditParentDuration(clip);'));
 const app = {
     _ensureClipMeta:()=>meta,
     _clipGeneratedVideos:m=>m.generatedVideos.map(row=>({...row})),

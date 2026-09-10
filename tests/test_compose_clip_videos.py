@@ -8,7 +8,7 @@ from unittest.mock import Mock
 
 
 # Load the trim planner without importing ComfyUI's model/runtime dependencies.
-source = Path(__file__).resolve().parents[1] / "cap_compose_clip_videos.py"
+source = (Path(__file__).resolve().parents[1] / "backend") / "cap_compose_clip_videos.py"
 tree = ast.parse(source.read_text(encoding="utf-8-sig"))
 node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "CAP_ComposeClipVideos")
 method = next(n for n in node.body if isinstance(n, ast.FunctionDef) and n.name == "_trim_plan")

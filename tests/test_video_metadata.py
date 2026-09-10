@@ -7,7 +7,7 @@ import tempfile
 import types
 import unittest
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = (Path(__file__).resolve().parents[1] / "backend")
 package = types.ModuleType("cap_metadata_test")
 package.__path__ = [str(ROOT)]
 sys.modules[package.__name__] = package

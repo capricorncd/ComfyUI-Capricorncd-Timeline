@@ -1,5 +1,7 @@
 # ComfyUI-Capricorncd-Timeline
 
+源码目录：`backend/` 存放 Python 节点及 API，`js/` 存放编辑器前端；根目录 `__init__.py` 保留为 ComfyUI 加载入口。测试、文档脚本和内置资源分别保留在 `tests/`、`scripts/` 和 `vendor/` 中。
+
 [English](README.md) · [编辑器完整指南](docs/zh/timeline-editor.md) · [示例工作流](workflows/) · [更新记录](CHANGELOG.md)
 
 <p align="center">

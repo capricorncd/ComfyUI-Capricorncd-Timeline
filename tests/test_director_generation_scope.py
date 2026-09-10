@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import unittest
 
 
-source = Path(__file__).resolve().parents[1] / "cap_timeline_editor.py"
+source = (Path(__file__).resolve().parents[1] / "backend") / "cap_timeline_editor.py"
 tree = ast.parse(source.read_text(encoding="utf-8"))
 execute = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "execute")
 start = next(i for i, n in enumerate(execute.body) if isinstance(n, ast.AnnAssign) and n.target.id == "visual_clips")

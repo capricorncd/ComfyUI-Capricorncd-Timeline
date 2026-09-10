@@ -303,7 +303,7 @@ def main() -> int:
 
     by_slug: dict[str, list[dict]] = defaultdict(list)
     for rel in SOURCE_FILES:
-        path = ROOT / rel
+        path = ROOT / "backend" / rel
         if not path.exists():
             print(f"skip missing {rel}", file=sys.stderr)
             continue

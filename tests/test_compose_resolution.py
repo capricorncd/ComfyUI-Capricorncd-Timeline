@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 
-source = Path(__file__).resolve().parents[1] / "cap_compose_timeline_export.py"
+source = (Path(__file__).resolve().parents[1] / "backend") / "cap_compose_timeline_export.py"
 tree = ast.parse(source.read_text(encoding="utf-8-sig"))
 scope = {}
 exec(compile(ast.Module(body=[

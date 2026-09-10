@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 spec = importlib.util.spec_from_file_location(
-    "compose_stream_copy", Path(__file__).resolve().parents[1] / "compose_stream_copy.py")
+    "compose_stream_copy", (Path(__file__).resolve().parents[1] / "backend") / "compose_stream_copy.py")
 copy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(copy)
 

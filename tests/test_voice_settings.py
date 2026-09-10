@@ -9,7 +9,7 @@ import types
 import unittest
 from unittest.mock import patch
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = (Path(__file__).resolve().parents[1] / "backend")
 spec = importlib.util.spec_from_file_location("voice_settings_test", ROOT / "cap_voice_settings.py")
 voice = importlib.util.module_from_spec(spec)
 with patch.dict(sys.modules, {"folder_paths": types.SimpleNamespace()}):

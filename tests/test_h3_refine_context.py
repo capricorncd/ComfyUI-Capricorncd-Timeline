@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 
-SOURCE = Path(__file__).resolve().parents[1] / "cap_minimax_h3.py"
+SOURCE = (Path(__file__).resolve().parents[1] / "backend") / "cap_minimax_h3.py"
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
 subset = ast.Module(body=[n for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef))
                          and n.name in ("CAP_H3MotionContextRefine", "_snap_h3_grid")], type_ignores=[])

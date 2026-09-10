@@ -1,5 +1,7 @@
 # ComfyUI-Capricorncd-Timeline
 
+Source layout: `backend/` contains Python nodes and API handlers; `js/` contains the editor frontend. The root `__init__.py` remains the ComfyUI entry point. Tests, documentation scripts, and bundled assets remain in `tests/`, `scripts/`, and `vendor/` respectively.
+
 [简体中文](README.zh.md) · [Editor guide](docs/timeline-editor.md) · [Example workflows](workflows/) · [Release notes](CHANGELOG.md)
 
 <p align="center">

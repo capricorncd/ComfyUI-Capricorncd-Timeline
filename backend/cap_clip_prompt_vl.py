@@ -804,7 +804,7 @@ def _generate_from_payload_isolated(payload: dict) -> str:
     creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
     process = subprocess.Popen(
         [sys.executable, "-s", "-c", _WORKER_CODE],
-        cwd=str(Path(__file__).resolve().parents[2]),
+        cwd=str(Path(__file__).resolve().parents[3]),
         env=env,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,

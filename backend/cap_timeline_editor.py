@@ -187,7 +187,7 @@ def _add_material(materials: list, seen: set, row: dict, resolve_media) -> str:
 
 def _read_project_version() -> str:
     """Read the package version without requiring Python 3.11's tomllib."""
-    path = os.path.join(os.path.dirname(__file__), "pyproject.toml")
+    path = os.path.join(os.path.dirname(__file__), "..", "pyproject.toml")
     try:
         with open(path, "rb") as stream:
             try:

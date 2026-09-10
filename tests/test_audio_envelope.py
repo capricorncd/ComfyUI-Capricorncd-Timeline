@@ -9,7 +9,7 @@ import unittest
 import torch
 
 
-spec = importlib.util.spec_from_file_location("audio_envelope", Path(__file__).resolve().parents[1] / "audio_envelope.py")
+spec = importlib.util.spec_from_file_location("audio_envelope", (Path(__file__).resolve().parents[1] / "backend") / "audio_envelope.py")
 envelope = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(envelope)
 

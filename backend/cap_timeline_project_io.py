@@ -19,7 +19,7 @@ KIND_SUBDIR = {"image": "images", "video": "videos", "audio": "audios"}
 
 
 def _read_schema_version() -> int:
-    path = os.path.join(os.path.dirname(__file__), "pyproject.toml")
+    path = os.path.join(os.path.dirname(__file__), "..", "pyproject.toml")
     try:
         with open(path, "r", encoding="utf-8") as stream:
             text = stream.read()

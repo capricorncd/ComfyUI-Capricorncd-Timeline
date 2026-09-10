@@ -33,7 +33,7 @@ _SYNC_LOCK = threading.Lock()
 
 def skill_repo_root(source: str = "community") -> Path:
     config = SKILL_REPOS.get(source) or SKILL_REPOS["community"]
-    return Path(__file__).resolve().parent / "vendor" / str(config["folder"])
+    return Path(__file__).resolve().parents[1] / "vendor" / str(config["folder"])
 
 
 def _skills_dir(source: str = "community") -> Path:
@@ -218,7 +218,7 @@ def sync_skill_repo() -> dict:
         raise RuntimeError(t("skill_sync_in_progress", get_last_known_lang()))
     try:
         for config in SKILL_REPOS.values():
-            root = Path(__file__).resolve().parent / "vendor" / str(config["folder"])
+            root = Path(__file__).resolve().parents[1] / "vendor" / str(config["folder"])
             root.parent.mkdir(parents=True, exist_ok=True)
             repo_url = str(config["url"])
             clone_url = repo_url if repo_url.endswith(".git") else f"{repo_url}.git"

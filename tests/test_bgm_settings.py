@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 
-spec = importlib.util.spec_from_file_location("bgm_settings_test", Path(__file__).resolve().parents[1] / "cap_bgm_settings.py")
+spec = importlib.util.spec_from_file_location("bgm_settings_test", (Path(__file__).resolve().parents[1] / "backend") / "cap_bgm_settings.py")
 bgm = importlib.util.module_from_spec(spec)
 with patch.dict(sys.modules, {"folder_paths": types.SimpleNamespace()}):
     spec.loader.exec_module(bgm)

@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 import wave
 
-spec = importlib.util.spec_from_file_location("subtitle_speech_test", Path(__file__).resolve().parents[1] / "cap_subtitle_speech.py")
+spec = importlib.util.spec_from_file_location("subtitle_speech_test", (Path(__file__).resolve().parents[1] / "backend") / "cap_subtitle_speech.py")
 speech = importlib.util.module_from_spec(spec)
 with patch.dict(sys.modules, {"folder_paths": types.SimpleNamespace()}):
     spec.loader.exec_module(speech)

@@ -2,7 +2,7 @@ import importlib.util
 from pathlib import Path
 import unittest
 
-spec = importlib.util.spec_from_file_location("h3_timing", Path(__file__).resolve().parents[1] / "h3_timing.py")
+spec = importlib.util.spec_from_file_location("h3_timing", (Path(__file__).resolve().parents[1] / "backend") / "h3_timing.py")
 h3 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(h3)
 

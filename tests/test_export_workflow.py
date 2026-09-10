@@ -7,7 +7,7 @@ import unittest
 import zipfile
 
 
-source = Path(__file__).resolve().parents[1] / "cap_timeline_project_io.py"
+source = (Path(__file__).resolve().parents[1] / "backend") / "cap_timeline_project_io.py"
 tree = ast.parse(source.read_text(encoding="utf-8-sig"))
 function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "build_export_zip_bytes")
 

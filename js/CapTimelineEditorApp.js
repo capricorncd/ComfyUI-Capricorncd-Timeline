@@ -6,6 +6,7 @@ import { stripH3Timing, h3TimingFromFilename, applyH3VideoTrim, restoreH3ClipTim
 import { planClipRunLayout, clipLayoutList, relatedH3ClipIds } from "./editor/ClipRunValidation.js";
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { BgmSettings } from "./editor/BgmSettings.js";
 import { Timeline, ICONS } from "./timeline/index.js";
 import { normalizeVolumePoints, migrateAudioFades, volumeAt } from "./timeline/AudioEnvelope.js";
 import { parseTimecode, formatTimecode, frameIndexFromSecs, encodeClipTimingMs, decodeClipTimingSecs } from "./timecode.js";
@@ -1335,6 +1336,7 @@ export class CapTimelineEditorApp {
         }
         this.settingsModal.hidden = false;
         void this._agentSettings.load();
+        void this._bgmSettings.load();
     }
 
     _setSettingsCategory(category) {
@@ -1401,6 +1403,7 @@ export class CapTimelineEditorApp {
     _closeSettings() {
         if (this.settingsModal) this.settingsModal.hidden = true;
         this._agentSettings?.cancel();
+        if (this._bgmSettings) this._bgmSettings.field("api_key").value = "";
     }
 
     _confirmOverwriteImport() {
@@ -3954,6 +3957,7 @@ export class CapTimelineEditorApp {
                 <nav class="cat-te-settings-nav" aria-label="${T("settings_title")}">
                   <button type="button" class="cat-te-btn is-active" data-settings-category="general" aria-pressed="true">${T("settings_general")}</button>
                   <button type="button" class="cat-te-btn" data-settings-category="agents" aria-pressed="false">AI Agent</button>
+                  <button type="button" class="cat-te-btn" data-settings-category="bgm" aria-pressed="false">BGM</button>
                 </nav>
                 <div class="cat-te-settings-content">
                 <div class="cat-te-settings-panel" data-settings-panel="general">
@@ -3995,6 +3999,7 @@ export class CapTimelineEditorApp {
                   </div>
                   <div class="cat-te-agent-note">${T("agent_note")}</div>
                 </div>
+                <div class="cat-te-settings-panel" data-settings-panel="bgm" hidden></div>
                 </div>
               </div>
             </div>
@@ -4293,6 +4298,7 @@ export class CapTimelineEditorApp {
         this.modelPreviewFileInput = el.querySelector(".cat-te-model-preview-file");
         this.modelPreviewConfigName = el.querySelector(".cat-te-model-preview-config-name");
         this._agentSettings = new AgentSettings(this.settingsModal, (message, action) => this._openDeleteConfirm(message, action));
+        this._bgmSettings = new BgmSettings(this.settingsModal.querySelector('[data-settings-panel="bgm"]'));
         this.importZipInput = el.querySelector(".cat-te-import-zip");
         el.querySelector(".cat-te-import").addEventListener("click", (e) => this._showImportMenu(e));
         el.querySelector(".cat-te-export").addEventListener("click", () => this._openExportDialog());

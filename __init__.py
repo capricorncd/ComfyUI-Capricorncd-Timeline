@@ -785,6 +785,19 @@ def _register_routes():
             "skill_url": SKILL_URL,
         })
 
+    @routes.get("/audio_keyframe_timeline/bgm_settings")
+    async def api_bgm_settings(_request: web.Request) -> web.Response:
+        from .cap_bgm_settings import public_bgm_settings
+        return web.json_response({"config": public_bgm_settings()})
+
+    @routes.post("/audio_keyframe_timeline/bgm_settings")
+    async def api_save_bgm_settings(request: web.Request) -> web.Response:
+        from .cap_bgm_settings import save_bgm_settings
+        try:
+            return web.json_response({"config": save_bgm_settings(await request.json())})
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+
     @routes.get("/audio_keyframe_timeline/agents")
     async def api_timeline_agents(_request: web.Request) -> web.Response:
         from .cap_clip_prompt_vl import public_agent_configs

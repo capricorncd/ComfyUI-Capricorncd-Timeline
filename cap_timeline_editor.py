@@ -12,6 +12,7 @@ import shutil
 import torch
 import folder_paths
 from .audio_envelope import apply_volume_points, normalize_volume_points
+from .h3_timing import plan_h3_clips, source_clip_timing
 
 from .prompt_text import strip_comment_lines as _strip_comment_lines
 from .cap_clip_prompt_vl import clear_clip_prompt_vl
@@ -728,8 +729,7 @@ class CAP_TimelineEditor:
                 else:
                     if clip.get("visible", True) is False:
                         continue
-                    if only_ids is not None and str(clip.get("id") or "") not in only_ids:
-                        continue
+                    clip = source_clip_timing(clip)
                     visual_clips.append((track, clip, z_index))
                     media_rows = resolve_clip_media(project, clip)
                     has_video_item = any(str(row.get("kind") or "").lower() == "video" for row in media_rows)
@@ -817,6 +817,9 @@ class CAP_TimelineEditor:
                 )
             runtime_clips.append(runtime_row)
 
+        plan_h3_clips(runtime_clips, fps)
+        if only_ids is not None:
+            runtime_clips = [clip for clip in runtime_clips if clip["source_clip_id"] in only_ids]
         total_frame_count = max(1, sum(
             int(round((clip["end_ms"] - clip["start_ms"]) * fps / 1000))
             for clip in runtime_clips

@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const css = readFileSync(new URL('../js/timeline/timeline.css', import.meta.url), 'utf8');
+const base = css.match(/\.tl-clip-handle\s*\{([^}]+)\}/)[1];
+const audio = css.match(/\.tl-clip-audio \.tl-clip-handle\s*\{([^}]+)\}/)[1];
+assert.match(base, /top:\s*0;/);
+assert.match(base, /bottom:\s*0;/);
+assert(!/height:|bottom:/.test(audio), 'Audio handles must inherit full-height edges');
+const envelope = css.match(/\.tl-volume-envelope\s*\{([^}]+)\}/)[1];
+assert(Number(audio.match(/z-index:\s*(\d+)/)[1]) < Number(envelope.match(/z-index:\s*(\d+)/)[1]));
+assert.match(envelope, /pointer-events:\s*none/);
+
+const element = () => ({ handlers:{}, addEventListener(name, fn) { this.handlers[name] = fn; } });
+const left = element(), right = element(), body = element();
+const trims = [];
+const clip = { track:{locked:false}, _dragTrim:(_event, side)=>trims.push(side) };
+const source = readFileSync(new URL('../js/timeline/Clip.js', import.meta.url), 'utf8');
+const start = source.indexOf('  _setupDrag(');
+const end = source.indexOf('\n  }', start) + 4;
+assert(start >= 0);
+const setupDrag = new Function(`return ({${source.slice(start, end)}})._setupDrag`)();
+setupDrag.call(clip, element(), body, left, right);
+const event = {button:0, clientY:60, stopPropagation(){}};
+left.handlers.mousedown(event);
+right.handlers.mousedown(event);
+assert.deepEqual(trims, ['left','right']);
+clip.track.locked = true;
+left.handlers.mousedown(event);
+right.handlers.mousedown(event);
+assert.equal(trims.length, 2);
+console.log('Audio trim handles: full-height edges, volume-point layering and locked-track guards passed');

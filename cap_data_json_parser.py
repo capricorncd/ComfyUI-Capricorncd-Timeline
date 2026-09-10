@@ -690,7 +690,7 @@ class CAP_DataJsonClipParser:
             h3_ctx_len = int(round(float(clip.get("h3_motion_context_length", 0) or 0)))
         except (TypeError, ValueError):
             h3_ctx_len = 0
-        load_context = h3_ctx_len > 0
+        load_context = int(clip["h3_timing"]["context_frames"]) > 0 if clip.get("h3_timing") else h3_ctx_len > 0
         try:
             seed = max(-1, int(clip.get("seed", -1)))
         except (TypeError, ValueError):
@@ -707,6 +707,9 @@ class CAP_DataJsonClipParser:
         except (TypeError, ValueError):
             preview_end_ms = clip_end_ms
         preview_frame_count = self._frame_count(preview_start_ms, preview_end_ms, fps)
+        if clip.get("h3_timing"):
+            frame_count = int(clip["h3_timing"]["raw_frames"])
+            preview_frame_count = int(clip["h3_timing"]["play_frames"])
 
         from_start = self._from_tag(clip_start_ms, frame_count, fps)
         from_preview_start = self._from_tag(preview_start_ms, preview_frame_count, fps)

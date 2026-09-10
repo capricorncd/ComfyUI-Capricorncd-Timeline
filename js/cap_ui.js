@@ -66,7 +66,7 @@ export function mkUiIconBtn(icon, { variant = "", title = "", onClick, needTarge
     return b;
 }
 
-export function showCapConfirm(message, { title = "Confirm", confirmLabel = "OK", cancelLabel = "Cancel" } = {}) {
+export function showCapConfirm(message, { title = "Confirm", confirmLabel = "OK", cancelLabel = "Cancel", alternateLabel = null } = {}) {
     ensureCapUiCss();
     return new Promise((resolve) => {
         const overlay = document.createElement("div");
@@ -112,6 +112,14 @@ export function showCapConfirm(message, { title = "Confirm", confirmLabel = "OK"
         overlay.querySelector(".cap-ui-confirm-close").addEventListener("click", () => finish(false));
         cancel.addEventListener("click", () => finish(false));
         ok.addEventListener("click", () => finish(true));
+        if (alternateLabel) {
+            const alternate = document.createElement("button");
+            alternate.type = "button";
+            alternate.className = "cap-ui-btn cap-ui-confirm-alternate";
+            alternate.textContent = alternateLabel;
+            alternate.addEventListener("click", () => finish("alternate"));
+            ok.before(alternate);
+        }
         header.addEventListener("pointerdown", (event) => {
             if (event.button !== 0 || event.target.closest("button")) return;
             const rect = dialog.getBoundingClientRect();

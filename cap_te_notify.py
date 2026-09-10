@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+from .h3_timing import H3_SUFFIX
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ def clip_id_from_output_video(path: str) -> str:
     s = str(path or "").strip().replace("\\", "/")
     if not s:
         return ""
-    m = _SPECIFIED_VIDEO_RE.search(s)
+    m = _SPECIFIED_VIDEO_RE.search(H3_SUFFIX.sub("", s))
     return str(m.group(2)).strip() if m else ""
 
 

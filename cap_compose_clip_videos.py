@@ -16,6 +16,7 @@ from .cap_i18n import get_last_known_lang, t as _t
 from .cap_data_json_parser import CAP_DataJsonClipParser
 from .cap_save_sidecar import build_sidecar_payload, clip_prompts_from_data_json, sidecar_path, write_sidecar
 from .cap_seq_to_video import _ffmpeg_path
+from .h3_timing import timing_from_filename, trim_h3_video
 
 log = logging.getLogger(__name__)
 
@@ -323,7 +324,8 @@ class CAP_ComposeClipVideos:
         context = (context - 5) // 17 * 17 + 5 if context >= 5 else 0
         if not previous_clip or not previous_clip.get("save_latent", False):
             context = 0
-        if context or clip.get("save_latent", False):
+        timing = timing_from_filename(video_path) or clip.get("h3_timing")
+        if timing or context or clip.get("save_latent", False):
             probe = subprocess.run(
                 ["ffprobe", "-v", "error", "-select_streams", "v:0",
                  "-show_entries", "stream=nb_frames,duration,r_frame_rate", "-of", "json", _ffmpeg_path(video_path)],
@@ -338,6 +340,8 @@ class CAP_ComposeClipVideos:
             if abs(source_fps - fps) > 0.01:
                 raise ValueError(f"Compose Clip Videos: video fps {source_fps:g} differs from data_json fps {fps:g}: {video_path}")
             actual = int(stream["nb_frames"]) if stream.get("nb_frames", "N/A") != "N/A" else round(float(stream["duration"]) * fps)
+            if timing:
+                return trim_h3_video(timing, actual, source_fps)
             aligned = frames + (5 - frames) % 17
             extended = aligned + context + (5 - aligned - context) % 17
             head = max(0.0, float(clip.get("preview_start_ms", start + float(clip.get("head_extend_sec", 0) or 0) * 1000)) - start)

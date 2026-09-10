@@ -40,4 +40,4 @@ def volume_points_filter(points, source_in_sec):
         ramp = f"{a['gain']:.9f}+({b['gain']-a['gain']:.9f})*({time}-{start:.9f})/{end-start:.9f}"
         expr = f"if(lt({time},{end:.9f}),{ramp},{expr})"
     expr = f"if(lte({time},{points[0]['source_ms']/1000:.9f}),{points[0]['gain']:.9f},{expr})"
-    return f",aeval=exprs='val(ch)*({expr})'"
+    return f",aeval=exprs='val(ch)*({expr})':channel_layout=same"

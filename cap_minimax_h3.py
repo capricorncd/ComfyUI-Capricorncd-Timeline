@@ -409,6 +409,11 @@ class CAP_MiniMaxH3ReferenceToVideo:
         except (TypeError, ValueError):
             req_ctx = 0
         pin = _snap_h3_grid(req_ctx)
+        timing = clip_row.get("h3_timing")
+        if timing:
+            if abs(float(timing["fps"]) - fps) > 0.01:
+                raise ValueError("Cap MiniMaxH3: fps changed after the generation timing was planned. Run Timeline Editor again.")
+            pin = int(timing["context_frames"])
 
         use_context = False
         context_frames = None
@@ -431,6 +436,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
                             "previous output_video %s (pin=%d).",
                             prev_path, pin,
                         )
+                if not use_context and timing:
+                    raise ValueError("Cap MiniMaxH3: planned continuation is missing its previous latent/video. Run the preceding Save Latent clip first.")
                 if not use_context:
                     _LOG.info(
                         "Cap MiniMaxH3: h3_motion_context_length=%d (pin=%d) but no usable "
@@ -441,6 +448,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
                     mc_cls = None
 
         length = align_frame_count(clip_frames + pin) if use_context else clip_frames
+        if timing:
+            length = int(timing["raw_frames"])
         extra_end_ms = max(0, int(round(length * 1000 / fps)) - clip_duration_ms)
 
         ref_images = {}
@@ -536,7 +545,11 @@ class CAP_MiniMaxH3ReferenceToVideo:
                     positive, vae, latent, pin, **apply_kw,
                 )
                 trim_frames = int(trim_frames or 0)
+                if timing and trim_frames != pin:
+                    raise ValueError(f"Motion Context returned {trim_frames} trim frames; this run planned {pin}. Check the previous latent length and context plugin settings.")
             except Exception as exc:
+                if timing:
+                    raise ValueError("Cap MiniMaxH3: planned motion context failed; refusing an unlinked video with misleading timing metadata.") from exc
                 _LOG.warning(
                     "Cap MiniMaxH3: motion context failed (%s); regenerating without context.",
                     exc,
@@ -565,6 +578,55 @@ class CAP_MiniMaxH3ReferenceToVideo:
 
 
 _EMPTY_CONTEXT_LATENT = {"samples": None}
+
+
+class CAP_H3MotionContextRefine:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "conditioning": ("CONDITIONING",),
+                "vae": ("VAE",),
+                "latent": ("LATENT",),
+                "context_length": ("INT", {"default": 0, "min": 0}),
+            },
+            "optional": {"context_latent": ("LATENT",)},
+        }
+
+    RETURN_TYPES = ("CONDITIONING",)
+    RETURN_NAMES = ("conditioning",)
+    FUNCTION = "apply"
+    CATEGORY = "conditioning/minimax"
+    DESCRIPTION = "Replace first-pass motion context with the previous clip's high-resolution AV latent. Wire the current upscaled AV latent and MiniMaxH3 trim_frames. Zero context bypasses; no frames are added or trimmed."
+
+    def apply(self, conditioning, vae, latent, context_length, context_latent=None):
+        if context_length == 0:
+            return (conditioning,)
+        if context_length < 5 or _snap_h3_grid(context_length) != context_length:
+            raise ValueError("H3 refine context: use the effective trim_frames from MiniMaxH3 (17k+5).")
+        if not isinstance(context_latent, dict) or context_latent.get("samples") is None:
+            raise ValueError("H3 refine context: missing previous high-resolution AV latent. Run the preceding clip with high-resolution Save Latent enabled.")
+        # H3 Motion Context marks pinned video anchors and timeline audio refs.
+        # Keep user refs and end anchors; never mutate first-pass conditioning.
+        clean = []
+        for embedding, extra in conditioning:
+            data = extra.copy()
+            data["minimax_keyframes"] = [
+                k for k in extra.get("minimax_keyframes", [])
+                if not ("motion_context_index" in k and k["motion_context_index"] < context_length)
+            ]
+            data["minimax_refs"] = [
+                ref for ref in extra.get("minimax_refs", [])
+                if "motion_context_audio_end_frame" not in ref
+            ]
+            clean.append([embedding, data])
+        result, trim = _motion_context_cls()().apply(
+            clean, vae, latent, context_length, audio_context_length=0,
+            context_latent=context_latent,
+        )
+        if trim != context_length:
+            raise ValueError("H3 refine context: plugin trim differs from first-pass timing; refusing a shifted continuation.")
+        return (result,)
 
 
 class CAP_H3MotionContextLoadLatentOptional:
@@ -717,11 +779,13 @@ class CAP_H3MotionContextSaveLatentOptional:
 
 
 NODE_CLASS_MAPPINGS = {
+    "CAP_H3MotionContextRefine": CAP_H3MotionContextRefine,
     "CAP_MiniMaxH3ReferenceToVideo": CAP_MiniMaxH3ReferenceToVideo,
     "CAP_H3MotionContextLoadLatentOptional": CAP_H3MotionContextLoadLatentOptional,
     "CAP_H3MotionContextSaveLatentOptional": CAP_H3MotionContextSaveLatentOptional,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "CAP_H3MotionContextRefine": "H3 Motion Context (Refine)",
     "CAP_MiniMaxH3ReferenceToVideo": "MiniMaxH3",
     "CAP_H3MotionContextLoadLatentOptional": "H3 Motion Context Load Latent (Optional)",
     "CAP_H3MotionContextSaveLatentOptional": "H3 Motion Context Save Latent (Optional)",

@@ -75,6 +75,7 @@ def _clip_plan(data: dict, clip: dict, fps: float, first: bool) -> tuple[str, in
     target_frames = align_frame_count(max(5, frame_count + requested_context))
 
     row = dict(clip)
+    row.pop("h3_timing", None)
     row.update({
         "start_ms": 0,
         "end_ms": max(1, int(round(target_frames * 1000 / fps))),

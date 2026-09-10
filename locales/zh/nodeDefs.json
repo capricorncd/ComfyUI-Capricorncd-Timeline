@@ -246,6 +246,9 @@
       },
       "index": {
         "name": "索引"
+      },
+      "length": {
+        "name": "张数"
       }
     },
     "outputs": {

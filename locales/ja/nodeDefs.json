@@ -246,6 +246,9 @@
       },
       "index": {
         "name": "インデックス"
+      },
+      "length": {
+        "name": "枚数"
       }
     },
     "outputs": {

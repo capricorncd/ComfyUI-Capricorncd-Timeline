@@ -38,12 +38,12 @@ class CAP_ImageBatchCount:
 
 
 class CAP_ImageFromBatchIndex:
-    """Extract one image from an IMAGE batch by index."""
+    """Extract consecutive images from an IMAGE batch by index."""
 
     DOC_SLUG = "image-batch"
     DOC_SECTION = "Image From Batch Index"
     OUTPUT_TOOLTIPS = {
-        "image": "Single-image batch (shape[0] == 1)",
+        "image": "Selected image batch, limited to the remaining images",
         "index": "Resolved index after negative normalization and clamping",
         "filename": "Default filename img_{index:05d}.png for the resolved index",
     }
@@ -61,6 +61,12 @@ class CAP_ImageFromBatchIndex:
                     "max": 4096,
                     "tooltip": "Batch index; negative values count from the end (-1 = last)",
                 }),
+                "length": ("INT", {
+                    "default": 1,
+                    "min": 1,
+                    "max": 4096,
+                    "tooltip": "Number of images to take from index, limited to the remaining images",
+                }),
             },
         }
 
@@ -69,14 +75,14 @@ class CAP_ImageFromBatchIndex:
     FUNCTION = "execute"
     CATEGORY = "Capricorncd"
     DESCRIPTION = (
-        "Return a single image from an IMAGE batch by index, "
-        "along with the resolved index and default filename img_{index:05d}.png."
+        "Return consecutive images from an IMAGE batch starting at index, "
+        "along with the resolved starting index and default filename img_{index:05d}.png."
     )
 
-    def execute(self, images, index):
+    def execute(self, images, index, length=1):
         batch_index = _resolve_batch_index(images.shape[0], index)
         filename = f"img_{batch_index:05d}.png"
-        return (images[batch_index:batch_index + 1].clone(), batch_index, filename)
+        return (images[batch_index:batch_index + max(1, int(length))].clone(), batch_index, filename)
 
 
 NODE_CLASS_MAPPINGS = {

@@ -25,7 +25,7 @@ Return the number of images in an IMAGE batch.
 
 ### Image From Batch Index
 
-Return a single image from an IMAGE batch by index, along with the resolved index and default filename img_{index:05d}.png.
+Return consecutive images from an IMAGE batch starting at index, along with the resolved starting index and default filename img_{index:05d}.png.
 
 #### Inputs
 
@@ -33,12 +33,13 @@ Return a single image from an IMAGE batch by index, along with the resolved inde
 |------|------|---------|-------------|
 | `images` | IMAGE | — | Input IMAGE batch |
 | `index` | INT | `0` | Batch index; negative values count from the end (-1 = last) |
+| `length` | INT | `1` | Number of images to take from index, limited to the remaining images |
 
 #### Outputs
 
 | Name | Type | Description |
 |------|------|-------------|
-| `image` | IMAGE | Single-image batch (shape[0] == 1) |
+| `image` | IMAGE | Selected image batch, limited to the remaining images |
 | `index` | INT | Resolved index after negative normalization and clamping |
 | `filename` | STRING | Default filename img_{index:05d}.png for the resolved index |
 <!-- AUTO:API:end -->

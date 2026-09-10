@@ -248,6 +248,7 @@ def _collect_plan(
                             "fade_in_sec": 0.0,
                             "fade_out_sec": 0.0,
                             "volume": _clip_volume(clip.get("volume", 1.0)),
+                            "volume_points": normalize_volume_points(audio.get("volume_points")),
                         })
             continue
 

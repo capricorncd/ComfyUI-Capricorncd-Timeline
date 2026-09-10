@@ -45,6 +45,10 @@ track.muted=false;
 assert.deepEqual(app._collectGeneratedVideoAudioJobs(16).map(j=>j.file), ['second.mp4','voice.wav']);
 
 const played=[];
+const scheduled=[];
+app._scheduleAudioFadeGain=(...args)=>scheduled.push(args);
+const points=[{source_ms:1000,gain:0.2},{source_ms:4000,gain:1.5}];
+meta.genEditAudios[0].volume_points=points;
 const ctx = {
   currentTime:0, destination:{},
   createBufferSource() { return {
@@ -63,13 +67,16 @@ assert.deepEqual(played.map(p=>p.file),['first.mp4','second.mp4','voice.wav']);
 assert.equal(played[0].when,0.5);
 assert(Math.abs(played[0].offset-1.47)<1e-8);
 assert.equal(played[1].when,2.03);
+assert.equal(scheduled.length,1);
+assert.equal(scheduled[0][8],points);
+assert(scheduled[0][9]>0, 'seek/decoding delay must offset the envelope in source time');
 
 played.length=0;
 ctx.currentTime=0;
 app._genEditState={
   clipId:'clip',timeline:{_playing:true,currentTime:0,tracks:[]},
   draft:meta.generatedVideos,
-  audioDraft:[{file:'voice.wav',duration:10}],
+  audioDraft:[{file:'voice.wav',duration:10,source_offset:1,volume_points:points}],
 };
 app._stopGenEditAudioPlayback=()=>{};
 app._genEditParentDuration=()=>10;
@@ -79,4 +86,7 @@ await method('_startGenEditAudioPlayback').call(app);
 assert.deepEqual(played.map(p=>p.file),['voice.wav','first.mp4','second.mp4']);
 assert.equal(played[2].when,2.03); // Future video is scheduled even with a separate audio track.
 assert.equal(app._genEditAudioSources.length,3);
+assert.equal(scheduled.length,2);
+assert.equal(scheduled[1][8],points);
+assert(scheduled[1][9]>=1, 'trimmed audio must use its source offset');
 console.log('Generated preview audio: mixing, mute/disable, trims, future clips and decoding delay passed');

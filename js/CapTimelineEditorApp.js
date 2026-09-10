@@ -8161,6 +8161,7 @@ export class CapTimelineEditorApp {
         const tlDur = this._genEditTimelineDuration(clipDur, st.draft);
         const fps = this.getFps();
         const tl = new Timeline(this.genEditTlHost, {
+            audioEnvelopeEnabled: true,
             duration: tlDur,
             playEndTime: clipDur,
             fps,
@@ -8259,6 +8260,8 @@ export class CapTimelineEditorApp {
                     st.audioMap.set(c.id, row.id);
                     c.el.dataset.audioId = row.id;
                     c.hasAudio = true;
+                    c.audioEnvelope.points = normalizeVolumePoints(row.volume_points);
+                    c.audioEnvelope.render();
                     // Waveform optional — load async without blocking.
                     if (url) {
                         void this._fetchPeaks(url).then((r) => {
@@ -8306,6 +8309,11 @@ export class CapTimelineEditorApp {
                 st.selectedId = gid;
                 this._syncGenEditInspector();
             }
+        });
+        tl.on("clip:volumeend", () => {
+            this._pullGenEditDraftFromTimeline();
+            this._applyGenEditChanges();
+            if (tl._playing) void this._startGenEditAudioPlayback();
         });
         tl.on("clip:moveend", () => {
             this._pullGenEditDraftFromTimeline();
@@ -8557,6 +8565,7 @@ export class CapTimelineEditorApp {
                             : (prev?.source_duration ?? null),
                         muted: track.muted === true,
                         from_gen_id: prev?.from_gen_id || null,
+                        volume_points: normalizeVolumePoints(c.audioEnvelope?.points ?? prev?.volume_points),
                     });
                 }
                 continue;
@@ -8746,6 +8755,7 @@ export class CapTimelineEditorApp {
                     : null,
                 muted: row.muted === true,
                 from_gen_id: row.from_gen_id || row.fromGenId || null,
+                volume_points: normalizeVolumePoints(row.volume_points),
             };
         }).filter(Boolean);
     }
@@ -9105,6 +9115,7 @@ export class CapTimelineEditorApp {
                 tin: Math.max(0, Number(row.source_offset) || 0),
                 start,
                 end,
+                volumePoints: row.volume_points,
             });
         }
         for (const gen of st.draft) {
@@ -9163,6 +9174,8 @@ export class CapTimelineEditorApp {
             offset = Math.max(0, Math.min(offset, maxOff));
             dur = Math.max(0.001, Math.min(dur, Math.max(0.001, buffer.duration - offset)));
             try {
+                if (job.volumePoints?.length) this._scheduleAudioFadeGain(gain, when, 0, dur, 0, 0, dur,
+                    normalizeClipVolume(parentClip ? this._ensureClipMeta(parentClip)?.volume : 1), job.volumePoints, offset);
                 src.start(when, offset, dur);
                 sources.push({ src, gain });
             } catch { /* ignore */ }
@@ -12175,6 +12188,7 @@ export class CapTimelineEditorApp {
                         absStart,
                         absEnd,
                         volume: normalizeClipVolume(m.volume),
+                        volumePoints: row.volume_points,
                     });
                 }
             }
@@ -12218,6 +12232,8 @@ export class CapTimelineEditorApp {
             offset = Math.max(0, Math.min(offset, maxOff));
             dur = Math.max(0.001, Math.min(dur, Math.max(0.001, buffer.duration - offset)));
             try {
+                if (job.volumePoints?.length) this._scheduleAudioFadeGain(gain, when, 0, dur, 0, 0, dur,
+                    normalizeClipVolume(job.volume), job.volumePoints, offset);
                 src.start(when, offset, dur);
                 this._activeAudioSources.push({ src, gain });
             } catch { /* skip */ }

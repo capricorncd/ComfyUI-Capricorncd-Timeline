@@ -3394,6 +3394,7 @@ export class CapTimelineEditorApp {
                 <button type="button" class="cat-te-media-preview-nav next cat-te-gen-video-next" title="${T("next_short")}" aria-label="${T("next_short")}">›</button>
               </div>
               <div class="cat-te-media-preview-meta cat-te-gen-video-meta">
+                <div class="cat-te-gen-video-generation"></div>
                 <label class="cat-te-clip-setting-check">
                   <input class="cat-te-gen-video-enabled" type="checkbox" checked />
                   <span>${T("enabled_label")}</span>
@@ -7683,6 +7684,7 @@ export class CapTimelineEditorApp {
         this._genVideoState = { clipId: clip.id, index };
         const row = rows[index];
         const name = row.file.split(/[\\/]/).pop() || T("gen_video_label");
+        void this._showGenVideoGeneration(clip, row);
         if (this.genVideoTitle) this.genVideoTitle.textContent = n > 1 ? `${index + 1} / ${n}  ${name}` : name;
         if (this.genVideoEnabledCb) this.genVideoEnabledCb.checked = row.enabled !== false;
         if (this.genVideoMutedCb) this.genVideoMutedCb.checked = row.muted === true;
@@ -7702,6 +7704,67 @@ export class CapTimelineEditorApp {
         video.preload = "metadata";
         this.genVideoStage.appendChild(video);
         this.genVideoModal.hidden = false;
+    }
+
+    async _showGenVideoGeneration(clip, row) {
+        const host = this.genVideoModal.querySelector(".cat-te-gen-video-generation");
+        const token = Symbol();
+        host._requestToken = token;
+        host.textContent = T("video_generation_loading");
+        try {
+            const response = await api.fetchApi(`/audio_keyframe_timeline/video_generation?file=${encodeURIComponent(row.file)}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const { generation } = await response.json();
+            if (host._requestToken !== token || this.genVideoModal.hidden) return;
+            host.replaceChildren();
+            if (!generation) { host.textContent = T("video_generation_unavailable"); return; }
+            const identity = document.createElement("div");
+            identity.textContent = `Clip ID: ${generation.clip_id || "—"}`;
+            host.appendChild(identity);
+            const seeds = [];
+            if (generation.seed != null) seeds.push({ node_id: "Seed", seed: generation.seed });
+            for (const item of generation.seeds || []) {
+                if (!seeds.some(s => String(s.seed) === String(item.seed))) seeds.push(item);
+            }
+            for (const item of seeds) {
+                const line = document.createElement("div");
+                line.textContent = `${item.node_id}: ${item.seed} `;
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "cat-te-btn";
+                button.textContent = T("video_seed_use_clip");
+                const seed = Number(item.seed);
+                button.disabled = !Number.isSafeInteger(seed) || seed < 0 || !!clip.track?.locked;
+                if (!Number.isSafeInteger(seed)) button.title = T("video_seed_out_of_range");
+                button.addEventListener("click", () => {
+                    if (!Number.isSafeInteger(seed) || seed < 0 || clip.track?.locked || this._findClipById(clip.id) !== clip) return;
+                    this._recordUndo();
+                    const meta = this._ensureClipMeta(clip);
+                    meta.seed = seed;
+                    this._meta.set(clip.id, meta);
+                    this._syncSelectedClip();
+                    this._saveToWidgets();
+                    button.textContent = T("video_seed_applied");
+                });
+                line.appendChild(button);
+                host.appendChild(line);
+            }
+            if (!seeds.length) {
+                const unknown = document.createElement("div");
+                unknown.textContent = T("video_seed_unavailable");
+                host.appendChild(unknown);
+            }
+            const details = document.createElement("details");
+            const summary = document.createElement("summary");
+            summary.textContent = T("video_generation_parameters");
+            const body = document.createElement("pre");
+            body.style.cssText = "white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto";
+            body.textContent = JSON.stringify({ models: generation.models, sampling: generation.sampling, clips: generation.clips }, null, 2);
+            details.append(summary, body);
+            host.appendChild(details);
+        } catch (error) {
+            if (host._requestToken === token) host.textContent = `${T("video_generation_failed")}: ${error.message}`;
+        }
     }
 
     _stepGenVideoPreview(delta) {

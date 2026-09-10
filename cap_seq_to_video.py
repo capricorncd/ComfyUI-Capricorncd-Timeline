@@ -12,6 +12,8 @@ import wave
 
 import folder_paths
 
+from .cap_video_metadata import execution_graph, generation_record, embed_video_generation
+
 from .cap_i18n import get_last_known_lang, t as _t
 from .cap_save_sidecar import build_sidecar_payload, sidecar_path, write_sidecar
 from .cap_te_notify import (
@@ -203,10 +205,15 @@ class CAP_SeqToVideo:
                     "label_off": "Skip",
                     "tooltip": "Write a same-named JSON next to the video recording prompt, model, sampler settings, etc.",
                 }),
+                "seed": ("INT", {"default": -1, "min": -1, "max": 0xffffffffffffffff,
+                                 "tooltip": "Connect the actual sampling seed (e.g. MiniMaxH3 seed output). -1 means unknown; never generates a seed."}),
+                "clip_id": ("STRING", {"default": "", "tooltip": "Optional Clip ID; otherwise inferred from the timeline filename."}),
             },
             "hidden": {
                 "prompt": "PROMPT",
                 "extra_pnginfo": "EXTRA_PNGINFO",
+                "unique_id": "UNIQUE_ID",
+                "dynprompt": "DYNPROMPT",
             },
         }
 
@@ -303,6 +310,10 @@ class CAP_SeqToVideo:
         save_sidecar=True,
         prompt=None,
         extra_pnginfo=None,
+        seed=-1,
+        clip_id="",
+        unique_id=None,
+        dynprompt=None,
     ):
         output_filename, subfolder, output_path = self._build_output_path(filename_prefix)
         fps = float(fps)
@@ -380,23 +391,27 @@ class CAP_SeqToVideo:
                 shutil.rmtree(frames_tmp_dir, ignore_errors=True)
 
         log.info("[CAP_SeqToVideo] 输出: %s", output_path)
+        clip_id = str(clip_id or "").strip() or clip_id_from_output_video(output_path)
+        graph = execution_graph(prompt, dynprompt, unique_id)
+        generation = generation_record(graph, clip_id, seed)
+        embed_video_generation(output_path, generation)
         if save_sidecar:
             write_sidecar(
                 sidecar_path(output_path),
                 build_sidecar_payload(
                     output_filename,
                     note=metadata,
-                    prompt=prompt,
+                    prompt=graph,
                     extra={
                         "fps": fps,
                         "frames": frame_count,
                         "duration": round(video_duration, 6),
+                        "generation": generation,
                     },
                 ),
             )
         rel_name = f"{subfolder}/{output_filename}" if subfolder else output_filename
         rel_name = str(rel_name).replace("\\", "/")
-        clip_id = clip_id_from_output_video(rel_name)
         notify_timeline(
             EVENT_VIDEO_SAVED,
             clip_id=clip_id or None,

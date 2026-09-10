@@ -4339,3 +4339,11 @@ body.cat-te-media-dnd-over-tl {
     text-align: center;
 }
 
+.cat-te-gen-video-generation {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 240px;
+    overflow: auto;
+    overflow-wrap: anywhere;
+}

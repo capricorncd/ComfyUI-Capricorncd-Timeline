@@ -17,6 +17,7 @@ from .cap_data_json_parser import CAP_DataJsonClipParser
 from .cap_save_sidecar import build_sidecar_payload, clip_prompts_from_data_json, sidecar_path, write_sidecar
 from .cap_seq_to_video import _ffmpeg_path
 from .h3_timing import timing_from_filename, trim_h3_video
+from .cap_video_metadata import embed_video_generation, read_video_generation
 
 log = logging.getLogger(__name__)
 
@@ -524,8 +525,19 @@ class CAP_ComposeClipVideos:
                 os.unlink(concat_list)
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
+        generation = {"schema": "capricorncd.video.generation.v1", "kind": "composition", "clips": []}
+        for clip, index, path in sources:
+            original = read_video_generation(path)
+            generation["clips"].append({
+                "index": index, "file": os.path.basename(path),
+                "timeline_clip_id": str(clip.get("source_clip_id") or clip.get("id") or ""),
+                "generation": original,
+                "metadata_status": "recorded" if original else "unavailable",
+            })
+        embed_video_generation(output_path, generation)
         if save_sidecar:
             extra = {"clips": len(sources), "sources": [path for _, _, path in sources]}
+            extra["generation"] = generation
             clip_rows = clip_prompts_from_data_json(data_json)
             if clip_rows:
                 extra["clip_prompts"] = clip_rows

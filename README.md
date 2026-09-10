@@ -22,6 +22,8 @@ A visual timeline editor for [ComfyUI](https://github.com/comfyanonymous/ComfyUI
 
 ## Quick start
 
+Linked videos: click a generated video's filename to inspect its recorded Clip ID, seed, models and sampling parameters. **Set as Clip seed** reuses the value without starting generation. `Seq To Video` records identifiable sampler settings; connect dynamically supplied sampling seeds to its `seed` input as well, e.g. `MiniMaxH3.seed → Seq To Video.seed`. `Compose Clip Videos` preserves each source clip's generation record. Records are embedded in MP4 and included in the optional JSON sidecar. Missing historical records are not inferred from current settings.
+
 1. Install the extension and open an [example workflow](workflows/).
 2. Open **Timeline Editor**, import media, set the project size and frame rate, then arrange your clips.
 3. Add references and Clip prompts. Connect the model-specific generation workflow and run the required clips.

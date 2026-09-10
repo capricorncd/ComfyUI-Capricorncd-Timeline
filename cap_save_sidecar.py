@@ -26,6 +26,8 @@ _MODEL_KEYS = (
     "lora_name",
     "control_net_name",
     "model_name",
+    "base_model",
+    "overlay_model",
 )
 
 _PROMPT_KEYS = (

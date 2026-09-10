@@ -11,6 +11,7 @@ import uuid
 from aiohttp import web
 
 from .cap_i18n import resolve_lang, t
+from .cap_video_metadata import read_video_generation
 from .cap_load_image_metadata import (
     NODE_CLASS_MAPPINGS as _CLM_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _CLM_NAMES,
@@ -751,6 +752,19 @@ def _register_routes():
     async def api_list_output_videos(_request: web.Request) -> web.Response:
         files = _list_output_media(VIDEO_EXTENSIONS)
         return web.json_response({"files": files, "count": len(files)})
+
+    @routes.get("/audio_keyframe_timeline/video_generation")
+    async def api_video_generation(request: web.Request) -> web.Response:
+        import folder_paths
+        path = _safe_join(folder_paths.get_output_directory(), request.query.get("file", ""))
+        if not path or not os.path.isfile(path) or os.path.splitext(path)[1].lower() not in VIDEO_EXTENSIONS:
+            return web.json_response({"error": "Video not found"}, status=404)
+        try:
+            record = await asyncio.to_thread(read_video_generation, path)
+        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
+            logging.warning("Video generation metadata read failed: %s", exc)
+            return web.json_response({"error": "Cannot read video generation metadata"}, status=500)
+        return web.json_response({"generation": record})
 
     @routes.get("/audio_keyframe_timeline/output_audios")
     async def api_list_output_audios(_request: web.Request) -> web.Response:

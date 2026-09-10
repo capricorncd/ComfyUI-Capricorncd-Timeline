@@ -293,6 +293,15 @@ def _collect_plan(
                 "volume_points": normalize_volume_points(clip.get("volume_points")),
             })
 
+    # Project milliseconds and source trim seconds must share the output frame grid.
+    for seg in video_segs:
+        start_frame = round(seg["start_sec"] * fps)
+        end_frame = round(seg["end_sec"] * fps)
+        seg["start_sec"] = start_frame / fps
+        seg["end_sec"] = end_frame / fps
+        seg["duration_sec"] = (end_frame - start_frame) / fps
+        seg["source_in_sec"] = round(seg["source_in_sec"] * fps) / fps
+    video_segs = [seg for seg in video_segs if seg["duration_sec"] > 0]
     if not video_segs:
         raise ValueError(_t("no_generated_videos_to_compose", get_last_known_lang()))
 
@@ -660,28 +669,37 @@ def compose_timeline_project(
         idx = i + 1
         start = float(seg["start_sec"])
         dur = float(seg["duration_sec"])
+        start_frame = round(start * fps)
+        count = round(dur * fps)
+        source_frame = round(seg["source_in_sec"] * fps)
+        timing_filter = (
+            f"fps={fps},trim=start_frame={source_frame}:end_frame={source_frame + count},"
+            f"settb=expr=1/{fps},setpts=N+{start_frame},"
+        )
         if seg.get("layer") == "media" or seg.get("kind") == "image":
             scaled_width = max(1, round(width * seg.get("scale", 1)))
             scaled_height = max(1, round(height * seg.get("scale", 1)))
             filters.append(
-                f"[{idx}:v]trim=start={seg['source_in_sec']:.6f}:duration={dur:.6f},setpts=PTS-STARTPTS+{start:.6f}/TB,"
+                f"[{idx}:v]{timing_filter}"
                 f"format=rgba,scale={scaled_width}:{scaled_height}:force_original_aspect_ratio=decrease,"
-                f"setsar=1,fps={fps},"
+                f"setsar=1,"
                 f"format=rgba,colorchannelmixer=aa={seg.get('opacity', 1.0):.6f}[v{i}]"
             )
         else:
             filters.append(
-                f"[{idx}:v]trim=start={seg['source_in_sec']:.6f}:duration={dur:.6f},setpts=PTS-STARTPTS+{start:.6f}/TB,"
+                f"[{idx}:v]{timing_filter}"
                 f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
                 f"format=yuv420p[v{i}]"
             )
 
     prev = "0:v"
     for i, seg in enumerate(video_segs):
         out = f"ov{i}"
-        # Only show this clip between its timeline start and end.
-        enable = _escape_enable(seg["start_sec"], seg["end_sec"])
+        # Test between frame centers so overlay's time-base rounding cannot leave a gap.
+        start_frame = round(seg["start_sec"] * fps)
+        end_frame = round(seg["end_sec"] * fps)
+        enable = f"gte(t\\,{(start_frame - 0.5) / fps:.9f})*lt(t\\,{(end_frame - 0.5) / fps:.9f})"
         x = f"(W-w)/2+W*{seg.get('offset_x', 0):.6f}"
         y = f"(H-h)/2+H*{seg.get('offset_y', 0):.6f}"
         filters.append(

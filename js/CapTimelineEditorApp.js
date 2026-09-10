@@ -2968,6 +2968,10 @@ export class CapTimelineEditorApp {
             document.removeEventListener("click", this._onDocClick);
             this._onDocClick = null;
         }
+        if (this._onContextPointerDown) {
+            document.removeEventListener("pointerdown", this._onContextPointerDown, true);
+            this._onContextPointerDown = null;
+        }
         if (this._onWinResize) {
             window.removeEventListener("resize", this._onWinResize);
             this._onWinResize = null;
@@ -4871,6 +4875,7 @@ export class CapTimelineEditorApp {
             }
         });
 
+        document.addEventListener("pointerdown", this._onContextPointerDown = (e) => this._dismissContextMenuOutside(e), true);
         document.addEventListener("click", this._onDocClick = (e) => {
             if (this._ignoreCtxCloseOnce) {
                 this._ignoreCtxCloseOnce = false;
@@ -14385,6 +14390,14 @@ export class CapTimelineEditorApp {
             alert(entries.length === 1
                 ? T("asset_removed_disk_delete_failed", { msg: failed[0].message })
                 : T("removed_with_n_disk_delete_failures", { n: failed.length }));
+        }
+    }
+
+    _dismissContextMenuOutside(e) {
+        const menu = this._overlay?.querySelector(".cat-te-ctx-menu");
+        if (menu && !menu.contains(e.target)) {
+            menu.remove();
+            this._ignoreCtxCloseOnce = false;
         }
     }
 

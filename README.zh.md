@@ -1,7 +1,5 @@
 # ComfyUI-Capricorncd-Timeline
 
-源码目录：`backend/` 存放 Python 节点及 API，`js/` 存放编辑器前端；根目录 `__init__.py` 保留为 ComfyUI 加载入口。测试、文档脚本和内置资源分别保留在 `tests/`、`scripts/` 和 `vendor/` 中。
-
 [English](README.md) · [编辑器完整指南](docs/zh/timeline-editor.md) · [示例工作流](workflows/) · [更新记录](CHANGELOG.md)
 
 <p align="center">
@@ -22,15 +20,20 @@
 - **调整声音：** 在波形上编辑音量控制点。未禁用、未静音的生成视频原声与独立音频，在预览和导出时一起混合播放。
 - **交付与复用：** 合成 MP4，或将工程、素材和当前工作流一起导出为目录或 ZIP。
 
+## 安装
+
+```bash
+cd ComfyUI/custom_nodes
+git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline
+```
+
+重启 ComfyUI 并刷新浏览器。合成视频需要系统 `PATH` 中有 **ffmpeg 与 ffprobe**；模型工作流和可选 Agent/VL 功能可能需要额外模型、节点或配置。
+
+界面跟随 ComfyUI 的语言设置，支持 **English / 简体中文 / 日本語**。
+
 ## 快速开始
 
-角色音色：在素材预览的基本信息中绑定、更换或解绑一条参考音频，并可直接试听。音频轨与「视频修剪」中的片段右键提供「更换音色」，可选择已绑定参考音频的素材，进入 **设置 → 音色转换** 配置服务。目前完成绑定与配置，尚未发送转换请求或替换音频；服务需对接[请求／响应 v1 约定](docs/voice-conversion-api.md)。
-
-字幕配音：单选或多选字幕 Clip，右键「绑定角色」「转换成音频」，逐条确认角色、试听参考音频并编辑配音提示词。在 **设置 → 字幕配音** 配置自行搭建的同步服务；请求携带字幕内容及时间轴起止时刻，返回音频自动对齐字幕起点，不拉伸、不覆盖已有片段。详见[字幕配音接口约定](docs/subtitle-speech-api.md)。
-
-关联视频：点击生成视频文件名，在预览信息中查看已记录的 Clip ID、seed、模型与采样参数；点击 seed 旁的 **设为 Clip 种子** 可复用该值（不会自动运行）。`Seq To Video` 自动记录可确认的采样参数；连线提供的实际种子请同时接入保存节点的 `seed` 输入，例如 `MiniMaxH3.seed → Seq To Video.seed`。`Compose Clip Videos` 保留各源片段的生成记录。记录嵌入 MP4，开启同名 JSON 时同步保存；旧视频缺失的记录不从当前设置推测。
-
-1. 安装插件，打开[示例工作流](workflows/)。
+1. 完成安装后，打开[示例工作流](workflows/)。
 2. 打开 **时间轴编辑器**，导入素材，设置项目尺寸与帧率，编排各个 Clip。
 3. 为 Clip 添加参考素材与提示词，连接相应模型的生成工作流，运行需要生成的片段。
 4. 查看关联的生成视频，修剪片段、静音不需要的声音，并添加媒体叠层或字幕。
@@ -50,20 +53,27 @@
 
 完整操作、快捷键、提示词和工程字段说明见[编辑器指南](docs/zh/timeline-editor.md)。
 
-## 安装
+## 进阶功能与服务配置
 
-```bash
-cd ComfyUI/custom_nodes
-git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline
-```
+### 角色音色（绑定与配置）
 
-重启 ComfyUI 并刷新浏览器。合成视频需要系统 `PATH` 中有 **ffmpeg 与 ffprobe**；模型工作流和可选 Agent/VL 功能可能需要额外模型、节点或配置。
+在素材预览的基本信息中绑定、更换或解绑一条参考音频，并可直接试听。音频轨与「视频修剪」中的片段右键提供「更换音色」，可选择已绑定参考音频的素材，进入 **设置 → 音色转换** 配置服务。目前完成绑定与配置，尚未发送转换请求或替换音频；服务需对接[请求／响应 v1 约定](docs/voice-conversion-api.md)。
 
-界面跟随 ComfyUI 的语言设置，支持 **English / 简体中文 / 日本語**。
+### 字幕配音（需配置服务）
+
+单选或多选字幕 Clip，右键「绑定角色」「转换成音频」，逐条确认角色、试听参考音频并编辑配音提示词。在 **设置 → 字幕配音** 配置自行搭建的同步服务；请求携带字幕内容及时间轴起止时刻，返回音频自动对齐字幕起点，不拉伸、不覆盖已有片段。详见[字幕配音接口约定](docs/subtitle-speech-api.md)。
+
+### 生成视频记录与种子复用
+
+点击生成视频文件名，在预览信息中查看已记录的 Clip ID、seed、模型与采样参数；点击 seed 旁的 **设为 Clip 种子** 可复用该值（不会自动运行）。`Seq To Video` 自动记录可确认的采样参数；连线提供的实际种子请同时接入保存节点的 `seed` 输入，例如 `MiniMaxH3.seed → Seq To Video.seed`。`Compose Clip Videos` 保留各源片段的生成记录。记录嵌入 MP4，开启同名 JSON 时同步保存；旧视频缺失的记录不从当前设置推测。
 
 ## 其他节点
 
-提示词、图像、音视频及文件工具统一保留在[节点文档索引](docs/zh/nodes.md)，主页不再逐项展开。
+提示词、图像、音视频及文件工具见[节点文档索引](docs/zh/nodes.md)。
+
+## 源码结构
+
+`backend/` 存放 Python 节点及 API，`js/` 存放编辑器前端，`js/editor/` 存放已拆分的面板与状态模块。根目录 `__init__.py` 是 ComfyUI 加载入口；`tests/`、`scripts/` 和 `vendor/` 分别存放测试、文档脚本和内置资源。
 
 ## 许可证
 

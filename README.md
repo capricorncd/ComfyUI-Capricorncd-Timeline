@@ -1,7 +1,5 @@
 # ComfyUI-Capricorncd-Timeline
 
-Source layout: `backend/` contains Python nodes and API handlers; `js/` contains the editor frontend. The root `__init__.py` remains the ComfyUI entry point. Tests, documentation scripts, and bundled assets remain in `tests/`, `scripts/`, and `vendor/` respectively.
-
 [简体中文](README.zh.md) · [Editor guide](docs/timeline-editor.md) · [Example workflows](workflows/) · [Release notes](CHANGELOG.md)
 
 <p align="center">
@@ -22,15 +20,20 @@ A visual timeline editor for [ComfyUI](https://github.com/comfyanonymous/ComfyUI
 - **Shape the sound:** edit volume control points on the waveform. Enabled, unmuted generated-video audio and detached audio mix together in preview and export.
 - **Deliver and reuse:** compose an MP4, or export the project, assets and current workflow together as a directory or ZIP.
 
+## Installation
+
+```bash
+cd ComfyUI/custom_nodes
+git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline
+```
+
+Restart ComfyUI and refresh the browser. Video composition requires **ffmpeg and ffprobe** on the system `PATH`. Model-specific workflows and optional Agent/VL features may require additional models, nodes or configuration.
+
+The interface follows ComfyUI's locale setting: **English / 简体中文 / 日本語**.
+
 ## Quick start
 
-Character voices: bind, replace, unbind and audition one reference recording in asset information. Audio-track clips and clips inside video trimming offer **Change voice**, with character selection and a link to **Settings → Voice conversion**. Binding and configuration are available; conversion requests and audio replacement are not implemented yet. Services must implement the [v1 request/response contract](docs/voice-conversion-api.md).
-
-Subtitle speech: select one or more subtitle clips, bind characters, then **Convert to audio** to review references and delivery prompts. Configure your own synchronous service under **Settings → Subtitle speech**. Each request includes subtitle text and timeline start/end times; returned audio is placed at the subtitle start without stretching or overwriting existing clips. See the [subtitle speech API contract](docs/subtitle-speech-api.md).
-
-Linked videos: click a generated video's filename to inspect its recorded Clip ID, seed, models and sampling parameters. **Set as Clip seed** reuses the value without starting generation. `Seq To Video` records identifiable sampler settings; connect dynamically supplied sampling seeds to its `seed` input as well, e.g. `MiniMaxH3.seed → Seq To Video.seed`. `Compose Clip Videos` preserves each source clip's generation record. Records are embedded in MP4 and included in the optional JSON sidecar. Missing historical records are not inferred from current settings.
-
-1. Install the extension and open an [example workflow](workflows/).
+1. After installation, open an [example workflow](workflows/).
 2. Open **Timeline Editor**, import media, set the project size and frame rate, then arrange your clips.
 3. Add references and Clip prompts. Connect the model-specific generation workflow and run the required clips.
 4. Review linked generated videos. Trim takes, mute unwanted audio, and add media overlays or subtitles.
@@ -50,20 +53,27 @@ The compose dialog defaults to **project dimensions** and **Maximum quality (H.2
 
 See the [full editor guide](docs/timeline-editor.md) for controls, shortcuts, prompt rules and project fields.
 
-## Installation
+## Advanced features and services
 
-```bash
-cd ComfyUI/custom_nodes
-git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline
-```
+### Character voices: binding and configuration
 
-Restart ComfyUI and refresh the browser. Video composition requires **ffmpeg and ffprobe** on the system `PATH`. Model-specific workflows and optional Agent/VL features may require additional models, nodes or configuration.
+Bind, replace, unbind and audition one reference recording in asset information. Audio-track clips and clips inside video trimming offer **Change voice**, with character selection and a link to **Settings → Voice conversion**. Binding and configuration are available; conversion requests and audio replacement are not implemented yet. Services must implement the [v1 request/response contract](docs/voice-conversion-api.md).
 
-The interface follows ComfyUI's locale setting: **English / 简体中文 / 日本語**.
+### Subtitle speech: service required
+
+Select one or more subtitle clips, bind characters, then **Convert to audio** to review references and delivery prompts. Configure your own synchronous service under **Settings → Subtitle speech**. Each request includes subtitle text and timeline start/end times; returned audio is placed at the subtitle start without stretching or overwriting existing clips. See the [subtitle speech API contract](docs/subtitle-speech-api.md).
+
+### Generation records and seed reuse
+
+Click a generated video's filename to inspect its recorded Clip ID, seed, models and sampling parameters. **Set as Clip seed** reuses the value without starting generation. `Seq To Video` records identifiable sampler settings; connect dynamically supplied sampling seeds to its `seed` input as well, e.g. `MiniMaxH3.seed → Seq To Video.seed`. `Compose Clip Videos` preserves each source clip's generation record. Records are embedded in MP4 and included in the optional JSON sidecar. Missing historical records are not inferred from current settings.
 
 ## Other nodes
 
-Supporting prompt, image, audio/video and file utilities are listed in the [node documentation index](docs/nodes.md). They remain available without filling the editor homepage with individual node descriptions.
+See the [node documentation index](docs/nodes.md) for supporting prompt, image, audio/video and file utilities.
+
+## Source layout
+
+`backend/` contains Python nodes and API handlers; `js/` contains the editor frontend, with extracted panels and state modules in `js/editor/`. The root `__init__.py` is the ComfyUI entry point. Tests, documentation scripts and bundled assets are in `tests/`, `scripts/` and `vendor/` respectively.
 
 ## License
 

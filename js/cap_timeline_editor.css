@@ -2782,6 +2782,7 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-prompt-include-chip:disabled {
     cursor: default;
 }
+.cat-te-voice-dialog,
 .cat-te-export-dialog,
 .cat-te-shortcuts-dialog {
     width: 460px;
@@ -2795,6 +2796,7 @@ body.cat-te-media-dnd-over-tl {
     font-size: 13px;
     line-height: 2;
 }
+.cat-te-voice-dialog::backdrop,
 .cat-te-export-dialog::backdrop,
 .cat-te-shortcuts-dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 
@@ -4396,4 +4398,30 @@ body.cat-te-media-dnd-over-tl {
     min-width: 5ch;
     text-align: right;
     font-variant-numeric: tabular-nums;
+}
+.cat-te-character-voice:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 0;
+}
+.cat-te-character-voice audio,
+.cat-te-voice-audition { width: 100%; }
+.cat-te-voice-contract {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 260px;
+    overflow: auto;
+    font-size: 11px;
+}
+.cat-te-character-voice select,
+[data-settings-panel="voice"] input[type="url"],
+[data-settings-panel="voice"] input[type="number"] {
+    min-width: 0;
+    max-width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--cat-border);
+    border-radius: 4px;
+    background: var(--cat-surface);
+    color: var(--cat-text);
 }

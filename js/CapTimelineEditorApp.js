@@ -7,6 +7,8 @@ import { planClipRunLayout, clipLayoutList, relatedH3ClipIds } from "./editor/Cl
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { BgmSettings } from "./editor/BgmSettings.js";
+import { VoiceSettings } from "./editor/VoiceSettings.js";
+import { CharacterVoice } from "./editor/CharacterVoice.js";
 import { Timeline, ICONS } from "./timeline/index.js";
 import { normalizeVolumePoints, migrateAudioFades, volumeAt } from "./timeline/AudioEnvelope.js";
 import { parseTimecode, formatTimecode, frameIndexFromSecs, encodeClipTimingMs, decodeClipTimingSecs } from "./timecode.js";
@@ -1048,7 +1050,7 @@ export class CapTimelineEditorApp {
      */
     handleShortcutKey(e) {
         if (!this._overlay?.classList.contains("open")) return false;
-        if (this.shortcutsDialog?.open || this.exportDialog?.open) return false;
+        if (this.shortcutsDialog?.open || this.exportDialog?.open || this.voiceDialog?.open) return false;
         if (e.repeat) return false;
         const mod = e.ctrlKey || e.metaKey;
         if (!mod || e.altKey) return false;
@@ -1267,6 +1269,7 @@ export class CapTimelineEditorApp {
             try { this._closeSettings(); } catch { /* ignore */ }
             this.shortcutsDialog?.close();
             this.exportDialog?.close();
+            this.voiceDialog?.close();
             this._removeCtxMenu();
             try { this._persistPanelLayout(); } catch { /* ignore */ }
             try { this._persistViewToLocalCache(); } catch { /* ignore */ }
@@ -1337,6 +1340,7 @@ export class CapTimelineEditorApp {
         this.settingsModal.hidden = false;
         void this._agentSettings.load();
         void this._bgmSettings.load();
+        void this._voiceSettings.load();
     }
 
     _setSettingsCategory(category) {
@@ -1404,6 +1408,7 @@ export class CapTimelineEditorApp {
         if (this.settingsModal) this.settingsModal.hidden = true;
         this._agentSettings?.cancel();
         if (this._bgmSettings) this._bgmSettings.field("api_key").value = "";
+        if (this._voiceSettings) this._voiceSettings.field("api_key").value = "";
     }
 
     _confirmOverwriteImport() {
@@ -1420,6 +1425,40 @@ export class CapTimelineEditorApp {
 
     _openExportDialog() {
         this.exportDialog.showModal();
+    }
+
+    _openVoiceConversion(clip) {
+        if (!clip || clip.track?.locked) return;
+        this._timeline?.pause();
+        const dialog = this.voiceDialog;
+        dialog.querySelector(".cat-te-voice-source").textContent = clip.name || clip.id;
+        const select = dialog.querySelector("select");
+        select.replaceChildren();
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = T("voice_choose_character");
+        select.append(empty);
+        for (const row of this._projectResources) {
+            if (!["image", "video"].includes(row.kind) || this._findMediaById(row.voice_audio_id)?.kind !== "audio") continue;
+            const option = document.createElement("option");
+            option.value = row.id;
+            option.textContent = row.name || row.file;
+            select.append(option);
+        }
+        this._updateVoiceAudition();
+        dialog.showModal();
+    }
+
+    _updateVoiceAudition() {
+        const dialog = this.voiceDialog;
+        const character = this._findMediaById(dialog.querySelector("select").value);
+        const reference = this._findMediaById(character?.voice_audio_id);
+        const audio = dialog.querySelector("audio");
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+        audio.hidden = reference?.kind !== "audio";
+        if (!audio.hidden) audio.src = this._audioUrl(reference.file);
     }
 
     _showRunMenu(e) {
@@ -3361,6 +3400,7 @@ export class CapTimelineEditorApp {
                       <textarea class="cat-te-media-setting-description" rows="3" placeholder="${T("media_asset_description_placeholder")}"></textarea>
                     </div>
                   </div>
+                  <div class="cat-te-character-voice" hidden></div>
                   <div class="cat-te-media-preview-meta-row cat-te-media-preview-desc-row">
                     <span class="cat-te-media-preview-desc-label">${T("media_generation_prompt")}</span>
                     <div class="cat-te-media-preview-desc-wrap">
@@ -3927,6 +3967,19 @@ export class CapTimelineEditorApp {
               </div>
             </div>
           </div>
+          <dialog class="cat-te-voice-dialog" aria-label="${T("voice_convert")}">
+            <div class="cat-te-modal-header">
+              <span>${T("voice_convert")}</span>
+              <button type="button" class="cat-te-modal-close" aria-label="${T("close_title")}">${iconHtml("close", 16)}</button>
+            </div>
+            <div class="cat-te-modal-body">
+              <div class="cat-te-voice-source"></div>
+              <label class="cat-te-modal-row"><span>${T("voice_character")}</span><select class="cat-te-voice-character"></select></label>
+              <audio class="cat-te-voice-audition" controls preload="none" hidden></audio>
+              <div>${T("voice_setup_required")}</div>
+              <div class="cat-te-confirm-actions"><button type="button" class="cat-te-btn cat-te-voice-configure">${T("voice_configure")}</button></div>
+            </div>
+          </dialog>
           <dialog class="cat-te-export-dialog" aria-label="${T("export_title")}">
             <div class="cat-te-modal-header">
               <span>${T("export_title")}</span>
@@ -3958,6 +4011,7 @@ export class CapTimelineEditorApp {
                   <button type="button" class="cat-te-btn is-active" data-settings-category="general" aria-pressed="true">${T("settings_general")}</button>
                   <button type="button" class="cat-te-btn" data-settings-category="agents" aria-pressed="false">AI Agent</button>
                   <button type="button" class="cat-te-btn" data-settings-category="bgm" aria-pressed="false">BGM</button>
+                  <button type="button" class="cat-te-btn" data-settings-category="voice" aria-pressed="false">${T("voice_service")}</button>
                 </nav>
                 <div class="cat-te-settings-content">
                 <div class="cat-te-settings-panel" data-settings-panel="general">
@@ -4000,6 +4054,7 @@ export class CapTimelineEditorApp {
                   <div class="cat-te-agent-note">${T("agent_note")}</div>
                 </div>
                 <div class="cat-te-settings-panel" data-settings-panel="bgm" hidden></div>
+                <div class="cat-te-settings-panel" data-settings-panel="voice" hidden></div>
                 </div>
               </div>
             </div>
@@ -4274,6 +4329,21 @@ export class CapTimelineEditorApp {
         attachRichPromptHandler(this.aiSrcText, { mode: "widget" });
 
         this.settingsModal = el.querySelector(".cat-te-settings-modal");
+        this.voiceDialog = el.querySelector(".cat-te-voice-dialog");
+        this.voiceDialog.querySelector(".cat-te-modal-close").addEventListener("click", () => this.voiceDialog.close());
+        this.voiceDialog.addEventListener("keydown", e => e.stopPropagation());
+        this.voiceDialog.addEventListener("close", () => {
+            const audio = this.voiceDialog.querySelector("audio");
+            audio.pause();
+            audio.removeAttribute("src");
+            audio.load();
+        });
+        this.voiceDialog.querySelector(".cat-te-voice-configure").addEventListener("click", () => {
+            this.voiceDialog.close();
+            this._openSettings();
+            this._setSettingsCategory("voice");
+        });
+        this.voiceDialog.querySelector("select").addEventListener("change", () => this._updateVoiceAudition());
         this.exportDialog = el.querySelector(".cat-te-export-dialog");
         this.exportDialog.querySelector(".cat-te-modal-close").addEventListener("click", () => this.exportDialog.close());
         this.exportDialog.addEventListener("keydown", (e) => e.stopPropagation());
@@ -4299,6 +4369,8 @@ export class CapTimelineEditorApp {
         this.modelPreviewConfigName = el.querySelector(".cat-te-model-preview-config-name");
         this._agentSettings = new AgentSettings(this.settingsModal, (message, action) => this._openDeleteConfirm(message, action));
         this._bgmSettings = new BgmSettings(this.settingsModal.querySelector('[data-settings-panel="bgm"]'));
+        this._voiceSettings = new VoiceSettings(this.settingsModal.querySelector('[data-settings-panel="voice"]'));
+        this._characterVoice = new CharacterVoice(this, el.querySelector(".cat-te-character-voice"));
         this.importZipInput = el.querySelector(".cat-te-import-zip");
         el.querySelector(".cat-te-import").addEventListener("click", (e) => this._showImportMenu(e));
         el.querySelector(".cat-te-export").addEventListener("click", () => this._openExportDialog());
@@ -5488,6 +5560,7 @@ export class CapTimelineEditorApp {
                 generation_prompt: String(row.generation_prompt || ""),
                 setting_description: String(row.setting_description || ""),
                 media_type: String(row.media_type || "").trim(),
+                ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
                 tags: Array.isArray(row.tags) ? row.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
             };
             const stars = Number(row.stars);
@@ -5627,6 +5700,7 @@ export class CapTimelineEditorApp {
                 generation_prompt: String(row.generation_prompt || row.generationPrompt || local.generationPrompt || ""),
                 setting_description: String(row.setting_description || row.settingDescription || local.settingDescription || ""),
                 media_type: String(row.media_type || row.mediaType || local.mediaType || "").trim(),
+                ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
                 tags: tags.map((t) => String(t || "").trim()).filter(Boolean),
             };
             const stars = Number(row.stars ?? local.stars);
@@ -8289,6 +8363,10 @@ export class CapTimelineEditorApp {
                         fn: () => this._deleteGenEditClip(c),
                     },
                 ];
+            items.unshift({ label: T("voice_convert"), fn: () => {
+                tl.pause();
+                this._openVoiceConversion(c);
+            } });
             this._buildCtxMenu(items, e.clientX, e.clientY);
         });
     }
@@ -13463,6 +13541,7 @@ export class CapTimelineEditorApp {
     }
 
     _closeMediaPreview() {
+        this._characterVoice?.stop();
         if (!this.mediaPreviewModal || !this.mediaPreviewStage) return;
         this._saveMediaPreviewMeta();
         for (const media of this.mediaPreviewStage.querySelectorAll("audio, video")) {
@@ -13561,6 +13640,7 @@ export class CapTimelineEditorApp {
             this.mediaPreviewTypeCustomRow.hidden = this.mediaPreviewType?.value !== "other";
         }
         if (this.mediaPreviewTags) this.mediaPreviewTags.value = (meta.tags || []).join(", ");
+        this._characterVoice?.refresh();
     }
 
     _onMediaPreviewTypeChange() {
@@ -13781,6 +13861,7 @@ export class CapTimelineEditorApp {
             || (this.settingsModal && !this.settingsModal.hidden)
             || this.shortcutsDialog?.open
             || this.exportDialog?.open
+            || this.voiceDialog?.open
             || (this.aiOptimizeModal && !this.aiOptimizeModal.hidden)
             || (this.skillPickerModal && !this.skillPickerModal.hidden),
         );
@@ -14073,6 +14154,9 @@ export class CapTimelineEditorApp {
                     }
                 }
                 this._projectResources = this._projectResources.filter((resource) => resource !== dup);
+                for (const resource of this._projectResources) {
+                    if (resource.voice_audio_id === dup.id) resource.voice_audio_id = row.id;
+                }
             }
         } else {
             this._ensureMedia(kind, newFile, {
@@ -14176,6 +14260,9 @@ export class CapTimelineEditorApp {
         this._projectResources = this._projectResources.filter(
             (resource) => resource.id !== mediaId && !(resource.kind === kind && resource.file === file),
         );
+        for (const resource of this._projectResources) {
+            if (resource.voice_audio_id === mediaId) delete resource.voice_audio_id;
+        }
         if (kind === "video") this._videoThumbCache.delete(file);
         this._mediaBatchSelected.delete(this._mediaBatchKey(kind, file));
         return { needDisk: !missing, removedClipIds };
@@ -14328,6 +14415,7 @@ export class CapTimelineEditorApp {
             ...(canSplit ? [{ label: T("menu_split"), fn: () => this._splitClip(clip) }] : []),
         ];
         if (isAudio) {
+            items.push({ label: T("voice_convert"), fn: () => this._openVoiceConversion(clip) });
             items.push({
                 label: m.muted ? T("unmute_label") : T("mute_label"),
                 fn: () => {

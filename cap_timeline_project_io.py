@@ -499,6 +499,7 @@ def _normalize_media_catalog(project: dict) -> None:
             "generation_prompt": str(row.get("generation_prompt") or row.get("generationPrompt") or ""),
             "setting_description": str(row.get("setting_description") or row.get("settingDescription") or ""),
             "media_type": str(row.get("media_type") or row.get("mediaType") or "").strip(),
+            **({"voice_audio_id": str(row["voice_audio_id"])} if row.get("voice_audio_id") else {}),
             "tags": [str(t).strip() for t in tags if str(t).strip()],
         }
         try:

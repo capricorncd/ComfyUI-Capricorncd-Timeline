@@ -785,6 +785,19 @@ def _register_routes():
             "skill_url": SKILL_URL,
         })
 
+    @routes.get("/audio_keyframe_timeline/voice_settings")
+    async def api_voice_settings(_request: web.Request) -> web.Response:
+        from .cap_voice_settings import public_voice_settings
+        return web.json_response({"config": public_voice_settings()})
+
+    @routes.post("/audio_keyframe_timeline/voice_settings")
+    async def api_save_voice_settings(request: web.Request) -> web.Response:
+        from .cap_voice_settings import save_voice_settings
+        try:
+            return web.json_response({"config": save_voice_settings(await request.json())})
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+
     @routes.get("/audio_keyframe_timeline/bgm_settings")
     async def api_bgm_settings(_request: web.Request) -> web.Response:
         from .cap_bgm_settings import public_bgm_settings

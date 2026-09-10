@@ -52,4 +52,21 @@ assert(app.saved && app.rebuilt);
 app._genEditState.clipMap.set('ui1','gen2');
 app._removeGenEditClip(clip,'gen2');
 assert(app.closed);
+let menuVisible = true;
+const closeApp = {
+  _overlay: { querySelector: () => menuVisible ? { remove() { menuVisible = false; } } : null },
+  _fontPicker: { close: () => false },
+  _removeCtxMenu: method('_removeCtxMenu'),
+  _destroyGenEditTimeline() { assert.equal(menuVisible, false, 'remove stale actions before destroying their timeline'); },
+  _genEditState: {},
+  _timeline: { _keyboardSuspended: true },
+  genEditModal: { hidden: false },
+  _scheduleProgramPreview() {},
+};
+method('_closeGenEditModal').call(closeApp);
+assert.equal(menuVisible, false);
+assert.equal(closeApp.genEditModal.hidden, true);
+assert.equal(closeApp._genEditState, null);
+assert.equal(closeApp._timeline._keyboardSuspended, false);
+method('_closeGenEditModal').call(closeApp); // Closing again without a menu remains safe.
 console.log('Gen-edit track unlink: button, context menu, confirmation, lock and last-row removal passed');

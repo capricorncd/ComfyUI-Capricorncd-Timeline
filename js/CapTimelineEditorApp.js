@@ -9197,6 +9197,7 @@ export class CapTimelineEditorApp {
     }
 
     _closeGenEditModal() {
+        this._removeCtxMenu();
         this._destroyGenEditTimeline();
         this._genEditState = null;
         if (this._timeline) this._timeline._keyboardSuspended = false;

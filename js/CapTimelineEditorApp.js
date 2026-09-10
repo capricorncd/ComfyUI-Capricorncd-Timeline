@@ -9957,9 +9957,9 @@ export class CapTimelineEditorApp {
                 modal.style.zIndex = String(modal === this.outputVideosModal && !modal.classList.contains("is-audio-picker")
                     ? 100009 : 100010 + blocking.indexOf(modal));
             }
-            for (const child of this._overlay.children) child.inert = !!this._blockingModal && child !== this._blockingModal;
+            for (const child of this._overlay.children) child.inert = child.tagName !== "DIALOG" && !!this._blockingModal && child !== this._blockingModal;
             if (this._timeline) this._timeline._keyboardSuspended = !!this._blockingModal;
-            if (previous !== this._blockingModal) {
+            if (previous !== this._blockingModal && !this._overlay.querySelector("dialog[open]")) {
                 if (this._blockingModal) {
                     if (!this._blockingModal.contains(document.activeElement)) this._blockingModal.querySelector(".cat-te-modal-close")?.focus();
                 } else if (previous) this._overlay.focus();
@@ -10004,6 +10004,8 @@ export class CapTimelineEditorApp {
     }
 
     handleModalKey(e) {
+        // Native modal dialogs own focus and Escape; do not dispatch to a modal underneath.
+        if (this._overlay?.querySelector("dialog[open]")) return true;
         const modal = this._blockingModal;
         if (!modal || !this._overlay?.classList.contains("open")) return false;
         if (e.key === "Escape") {

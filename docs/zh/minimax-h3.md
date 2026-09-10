@@ -1,5 +1,15 @@
 # MiniMaxH3
 
+## 一镜到底的 Context 拼接
+
+同轨相邻上一段启用 `save_latent` 时，下一段未设置 Context（0）优先使用 22 帧；正数优先按指定值对齐 H3 网格。以补齐后的原始帧数计算 `替换起点 = 上一段 raw_frames - context_frames`，起点必须位于上一段可见源区间 `[context_frames + head_frames, raw_frames - tail_frames)` 内。首尾延展和补齐尾帧也计入判断；优先值不合适时选择距离最近的合法 `17k+5` 帧数，例如 5 或 39。若无合法值则提示调整时长或延展，不越界裁剪、不移动分镜边界。最终采用值写入 `h3_motion_context_length` 和 `h3_timing.context_frames`，原请求值记录为 `h3_timing.requested_context_frames`。
+
+下一段重新生成的 Context 用于替换上一段末尾，而不是在完整上一段之后重复追加。设上一段目标 X 帧、补齐尾帧 n、Context 为 C，下一段目标 Y 帧：上一段保留原视频前 `X+n-C` 帧，再接下一视频的前 `C-n` 帧；下一段按 `Y+C-n` 补齐生成，并从源偏移 `C-n` 开始保留 Y 帧。下一段新增尾帧 m 继续向后传递，最后一段裁掉 m，总长保持 X+Y。若存在首部延展，还需加上快照中的 `head_frames`。
+
+新快照为 `h3_timing.version=2`，`context_frames` 是模型使用的完整 C，`context_carry_frames` 是上一段尾帧 n，不能把两者混淆。新文件名使用 `__h3v2_..._s0_n4.mp4` 等形式记录 n；旧 `h3v1` 文件仍按原规则读取。请重新输出 data_json 并生成新视频，不要对原始视频预先裁掉完整 C 帧，否则会丢失需要保留的 n 帧。
+
+`data_json.clips[].playback_spans` 按帧保存来源 Clip、`output_video`、`start_frame`（从0开始）和 `frame_count`。Compose Clip Videos 使用这些区间；自动／手动关联原始视频后，前端也保存跨 Clip 尾部引用供播放和工程合成使用。必须保留原始视频的 Context；已裁掉 Context 的文件不能提供替换画面。
+
 **分类：** `Capricorncd`
 
 从 Timeline Editor 的单个片段调用 ComfyUI 内置 **MiniMax H3 Reference to Video**。片段媒体映射为 H3 参考槽；帧数与提示词来自该片段。

@@ -1,5 +1,15 @@
 # MiniMaxH3
 
+## Continuous-shot context replacement
+
+An adjacent preceding clip with `save_latent` prefers 22 context frames when the next setting is zero; positive settings prefer their H3-grid value. After padding, `previous.raw_frames - context_frames` must fall inside the previous visible source interval `[previous.context_frames + previous.head_frames, previous.raw_frames - previous.tail_frames)`. If not, the closest valid `17k+5` value is selected (for example 5 or 39). If none fits, generation reports an error instead of cropping outside the clip or shifting storyboard boundaries. The effective value is written to `h3_motion_context_length` and `h3_timing.context_frames`; `requested_context_frames` retains the requested value.
+
+The next video's regenerated context replaces the preceding video's tail. For previous target X, previous tail padding n, context C and next target Y: keep `X+n-C` previous frames plus the next video's first `C-n` frames. Generate the next video by H3-aligning `Y+C-n`, then play Y frames starting at source offset `C-n`. Carry its new padding m forward; trim m from the final clip. Total playback remains X+Y. Explicit head extensions additionally use the snapshot's `head_frames`.
+
+New snapshots use `h3_timing.version=2`: `context_frames` is the full model context C, while `context_carry_frames` is the preceding padding n. Filenames such as `__h3v2_..._s0_n4.mp4` preserve this distinction for manual linking. Legacy `h3v1` files retain their original interpretation. Rebuild data_json and generate new videos; removing the full C from raw output would lose the n frames that must remain visible.
+
+`data_json.clips[].playback_spans` records source clip/file, zero-based `start_frame`, and `frame_count`. Compose Clip Videos consumes these spans. Linking original videos also creates the cross-clip tail reference for timeline playback and project export. Keep original, untrimmed generated videos: a file with context already removed cannot supply replacement frames.
+
 **Category:** `Capricorncd`
 
 Runs ComfyUI’s **MiniMax H3 Reference to Video** from a single Timeline Editor clip. Clip media become H3 reference slots; frame count and prompt come from that clip.

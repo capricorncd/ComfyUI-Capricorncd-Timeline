@@ -497,6 +497,30 @@ class CAP_ComposeClipVideos:
 
         try:
             for order, (clip, index, src) in enumerate(sources):
+                if trim_extends and clip.get("playback_spans"):
+                    for part, span in enumerate(clip["playback_spans"]):
+                        count = int(span["frame_count"])
+                        if count <= 0:
+                            continue
+                        source = next((path for row, _, path in sources if row.get("source_clip_id") == span["source_clip_id"]), None)
+                        if not source:
+                            raise ValueError("Compose Clip Videos: context replacement requires the next clip video.")
+                        probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                            "stream=nb_frames,r_frame_rate", "-of", "json", _ffmpeg_path(source)], capture_output=True,
+                            text=True, timeout=30, **({"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}))
+                        if probe.returncode:
+                            raise ValueError("Cannot probe context replacement source.")
+                        stream = json.loads(probe.stdout)["streams"][0]
+                        timing = timing_from_filename(source)
+                        if timing and int(stream.get("nb_frames", 0)) != timing["raw_frames"]:
+                            raise ValueError("Context replacement requires the original untrimmed generated video.")
+                        num, den = map(float, stream["r_frame_rate"].split("/"))
+                        if abs(num / den - fps) > 0.01:
+                            raise ValueError("Context replacement source fps differs from the project.")
+                        dst = os.path.join(tmp_dir, f"seg_{order:04d}_{part}.mp4")
+                        self._normalize_segment(source, dst, int(span["start_frame"]) / fps, count / fps, keep_audio)
+                        segment_paths.append(dst)
+                    continue
                 previous_clip = sources[order - 1][0] if order else None
                 ss, dur = self._trim_plan(clip, src, bool(trim_extends), fps, previous_clip)
                 dst = os.path.join(tmp_dir, f"seg_{order:04d}.mp4")

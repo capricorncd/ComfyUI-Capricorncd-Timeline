@@ -16,57 +16,17 @@ const gap = makeProject(); gap.tracks[0].clips[1].start_ms += 100;
 assert.deepEqual(relatedH3ClipIds(gap, '0'), ['0']);
 const unsaved = makeProject(); unsaved.tracks[0].clips[0].save_latent = false;
 assert.deepEqual(relatedH3ClipIds(unsaved, '1'), ['1', '2']);
-const plan = planClipRunLayout(project);
-assert.deepEqual(plan.changes.map(c => [c.start, c.end]), [[0, 5167], [5167, 10125], [10125, 15000]]);
-assert.equal(JSON.stringify(project), before);
-assert.match(clipLayoutList(plan.changes), /10\.125/);
-const apply = (project, changes) => {
-    for (const c of changes) {
-        const clip = project.tracks.flatMap(t => t.clips).find(clip => clip.id === c.id);
-        Object.assign(clip, { start_ms: c.start, duration_ms: c.end - c.start });
-    }
-};
-apply(project, plan.changes);
-assert.deepEqual(planClipRunLayout(project).changes, []); // no repeated expansion
-assert.equal(project.tracks[0].clips.at(-1).start_ms + project.tracks[0].clips.at(-1).duration_ms, 15000);
-assert.equal(planClipRunLayout(makeProject(), ['1']).changes.length, 3);
-assert.equal(planClipRunLayout(makeProject(), ['other']).changes.length, 0);
-for (const field of ['enabled', 'visible']) {
-    const p = makeProject(); p.tracks[0].clips[1][field] = false;
-    assert.equal(planClipRunLayout(p).changes.length, 0);
-}
-for (const type of ['media', 'audio', 'subtitle']) {
-    const p = makeProject(); p.tracks[0].type = type;
-    assert.equal(planClipRunLayout(p).changes.length, 0);
-}
-const locked = makeProject(); locked.tracks[0].locked = true;
-assert.equal(planClipRunLayout(locked).error, 'h3_layout_locked');
-const short = makeProject(); short.tracks[0].clips.forEach((c, i) => { c.start_ms = i * 100; c.duration_ms = 100; });
-assert.equal(planClipRunLayout(short).error, 'h3_layout_too_short');
-// Prefer shortening over a larger extension, while retaining whole H3 blocks.
-const shorten = makeProject();
-shorten.tracks[0].clips[0].duration_ms = 4583;
-shorten.tracks[0].clips[1].start_ms = 4583;
-shorten.tracks[0].clips[1].duration_ms = 5417;
-assert.equal(planClipRunLayout(shorten).changes[0].end, 4458); // 110 -> 107, not 124
-apply(shorten, planClipRunLayout(shorten).changes);
-assert.deepEqual(planClipRunLayout(shorten).changes, []);
-const shortTail = makeProject(); shortTail.tracks[0].clips[2].duration_ms = 100;
-const shortTailPlan = planClipRunLayout(shortTail);
-assert.equal(shortTailPlan.error, undefined);
-assert.equal(shortTailPlan.changes.at(-1).end, 10100);
-assert(shortTailPlan.changes.at(-1).end > shortTailPlan.changes.at(-1).start);
-const extended = makeProject(); extended.tracks[0].clips[0].tail_extend_sec = 1;
-assert.equal(planClipRunLayout(extended).error, 'h3_layout_extensions');
-const fractional = makeProject();
-fractional.tracks[0].clips[1].duration_ms = 5458;
-fractional.tracks[0].clips[2].start_ms = 10458;
-assert.equal(planClipRunLayout(fractional).changes.at(-1).end, 15458);
 for (const fps of [24, 25, 30, 60]) {
     const p = makeProject(); p.settings.fps = fps;
-    apply(p, planClipRunLayout(p).changes);
+    p.tracks[0].clips[0].duration_ms = 4583;
+    const original = JSON.stringify(p);
     assert.deepEqual(planClipRunLayout(p).changes, []);
+    assert.equal(JSON.stringify(p), original);
 }
+const autoContext = makeProject();
+autoContext.tracks[0].clips.forEach(c => c.h3_motion_context_length = 0);
+assert.deepEqual(relatedH3ClipIds(autoContext, '1'), ['0', '1', '2']);
+assert.equal(JSON.stringify(project), before);
 
 const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
 function method(name, deps = {}) {
@@ -88,13 +48,13 @@ const editor = {
     _validateClipRunDurations: method('_validateClipRunDurations', deps),
 };
 await method('_runWorkflow', deps).call(editor);
-assert.equal(queued, 0); assert.equal(undo, 0); assert.equal(dialogs, 1);
+assert.equal(queued, 1); assert.equal(undo, 0); assert.equal(dialogs, 0);
 assert.equal(runtime[0].duration, 5);
 accept = true;
 await method('_runWorkflow', deps).call(editor);
-assert.equal(queued, 1); assert.equal(undo, 1); assert.equal(dialogs, 2);
+assert.equal(queued, 2); assert.equal(undo, 0); assert.equal(dialogs, 0);
 await method('_runWorkflow', deps).call(editor);
-assert.equal(queued, 2); assert.equal(undo, 1); assert.equal(dialogs, 2);
+assert.equal(queued, 3); assert.equal(undo, 0); assert.equal(dialogs, 0);
 
 let removed = false;
 const removeMenu = method('_removeCtxMenu', { document: { querySelector: () => ({ remove() { removed = true; } }) } });

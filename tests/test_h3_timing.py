@@ -15,15 +15,85 @@ def clips():
 
 
 class H3TimingTests(unittest.TestCase):
+    def test_padding_carry_keeps_every_frame_through_final_clip(self):
+        for lengths in ([120, 120, 120], [124, 136, 131], [100, 131, 75], [41, 52, 63]):
+            rows = clips()
+            frame = 0
+            for row, length in zip(rows, lengths):
+                row.update(start_ms=round(frame * 1000 / 24), preview_start_ms=round(frame * 1000 / 24),
+                           end_ms=round((frame + length) * 1000 / 24), preview_end_ms=round((frame + length) * 1000 / 24),
+                           h3_motion_context_length=22)
+                frame += length
+            h3.plan_h3_clips(rows, 24)
+            by_id = {r["source_clip_id"]: r for r in rows}
+            cursor = 0
+            for row, length in zip(rows, lengths):
+                timing = row["h3_timing"]
+                self.assertEqual((timing["raw_frames"] - 5) % 17, 0)
+                self.assertEqual(timing["play_frames"], length)
+                for span in row["playback_spans"]:
+                    source = by_id[span["source_clip_id"]]["h3_timing"]
+                    origin = source["play_start_frame"] - source["context_frames"] + source["context_carry_frames"]
+                    self.assertEqual(origin + span["start_frame"], cursor)
+                    self.assertLessEqual(span["start_frame"] + span["frame_count"], source["raw_frames"])
+                    cursor += span["frame_count"]
+                snapshot = h3.timing_from_filename(row["output_video"])
+                self.assertEqual(snapshot["context_carry_frames"], timing["context_carry_frames"])
+                self.assertEqual(h3.trim_h3_video(snapshot, snapshot["raw_frames"], 24)[1], length / 24)
+            self.assertEqual(cursor, sum(lengths))
+            self.assertEqual(rows[-1]["h3_timing"]["play_end_frame"], sum(lengths))
+
+    def test_context_chooses_grid_value_inside_visible_interval(self):
+        short = dict(raw_frames=22, context_frames=0, head_frames=17, tail_frames=0)
+        self.assertEqual(h3.choose_h3_context(short), 5)
+        extended = dict(raw_frames=90, context_frames=0, head_frames=0, tail_frames=25)
+        self.assertEqual(h3.choose_h3_context(extended), 39)
+        normal = dict(raw_frames=124, context_frames=0, head_frames=0, tail_frames=4)
+        self.assertEqual(h3.choose_h3_context(normal), 22)
+        self.assertEqual(h3.choose_h3_context(normal, 39), 39)
+        self.assertEqual(h3.choose_h3_context(normal, 192), 124)
+        with self.assertRaisesRegex(ValueError, "visible frames"):
+            h3.choose_h3_context(dict(raw_frames=39, context_frames=22, head_frames=0, tail_frames=16))
+
+    def test_adjustment_uses_final_padding_before_planning_next_clip(self):
+        rows = clips()[:2]
+        rows[0].update(end_ms=6000, preview_end_ms=5000)
+        rows[1]["h3_motion_context_length"] = 22
+        h3.plan_h3_clips(rows, 24)
+        previous, next_clip = rows
+        self.assertEqual(next_clip["h3_motion_context_length"], 39)
+        self.assertEqual(next_clip["h3_timing"]["requested_context_frames"], 22)
+        timing = previous["h3_timing"]
+        cut = timing["raw_frames"] - next_clip["h3_timing"]["context_frames"]
+        self.assertGreaterEqual(cut, timing["context_frames"] + timing["head_frames"])
+        self.assertLess(cut, timing["raw_frames"] - timing["tail_frames"])
+        self.assertEqual(sum(span["frame_count"] for span in previous["playback_spans"]), 120)
+        self.assertEqual(h3.timing_from_filename(next_clip["output_video"])["context_frames"], 39)
+
+    def test_context_replaces_tail_and_defaults_to_22(self):
+        rows = clips()
+        for row in rows:
+            row["h3_motion_context_length"] = 0
+        h3.plan_h3_clips(rows, 24)
+        self.assertEqual([row["h3_timing"]["context_frames"] for row in rows], [0, 22, 22])
+        for row in rows:
+            self.assertEqual(sum(span["frame_count"] for span in row["playback_spans"]), 120)
+        prior = rows[0]["h3_timing"]
+        replacement = rows[0]["playback_spans"][1]
+        self.assertEqual(replacement["source_clip_id"], "clip_1")
+        self.assertEqual(replacement["start_frame"], 0)
+        self.assertEqual(replacement["frame_count"], 22 - prior["tail_frames"])
+        self.assertEqual(rows[1]["playback_spans"][0]["start_frame"], 18)
+
     def test_chain(self):
         rows = clips()
         h3.plan_h3_clips(rows, 24)
         plans = [row["h3_timing"] for row in rows]
-        self.assertEqual([p["raw_frames"] for p in plans], [124, 175, 175])
+        self.assertEqual([p["raw_frames"] for p in plans], [124, 158, 158])
         self.assertEqual([p["context_frames"] for p in plans], [0, 39, 39])
-        self.assertEqual([p["play_frames"] for p in plans], [124, 136, 120])
-        self.assertEqual([p["play_start_frame"] for p in plans], [0, 124, 260])
-        self.assertEqual(plans[-1]["play_end_frame"], 380)
+        self.assertEqual([p["play_frames"] for p in plans], [120, 120, 120])
+        self.assertEqual([p["play_start_frame"] for p in plans], [0, 120, 240])
+        self.assertEqual(plans[-1]["play_end_frame"], 360)
         self.assertEqual([row["end_ms"] - row["start_ms"] for row in rows], [5000] * 3)
 
     def test_confirmed_layout_preserves_total_and_does_not_expand_again(self):
@@ -77,10 +147,10 @@ class H3TimingTests(unittest.TestCase):
         plan = h3.timing_from_filename(row["output_video"])
         self.assertEqual(plan["context_frames"], 39)
         self.assertTrue(plan["save_latent"])
-        self.assertEqual(h3.trim_h3_video(plan, 175, 24), (39 / 24, 136 / 24))
-        self.assertEqual(h3.trim_h3_video(plan, 136, 24), (0, 136 / 24))
+        self.assertEqual(h3.trim_h3_video(plan, 158, 24), (35 / 24, 120 / 24))
         with self.assertRaises(ValueError):
-            h3.trim_h3_video(plan, 120, 24)
+            h3.trim_h3_video(plan, 119, 24)
+        self.assertEqual(h3.trim_h3_video(plan, 120, 24), (0, 120 / 24))
         with self.assertRaises(ValueError):
             h3.trim_h3_video(plan, 136, 25)
         self.assertEqual(h3.timing_filename(row["output_video"], plan), row["output_video"])

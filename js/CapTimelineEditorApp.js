@@ -2,7 +2,7 @@ import { AgentSettings } from "./editor/AgentSettings.js";
 import { FontCatalog } from "./editor/FontCatalog.js";
 import { TimelineHistory } from "./editor/TimelineHistory.js";
 import { FontPicker } from "./editor/FontPicker.js";
-import { stripH3Timing, h3TimingFromFilename, applyH3VideoTrim, restoreH3ClipTiming } from "./editor/H3Timing.js";
+import { stripH3Timing, h3TimingFromFilename, applyH3VideoTrim, restoreH3ClipTiming, replaceH3ContextTail } from "./editor/H3Timing.js";
 import { planClipRunLayout, clipLayoutList, relatedH3ClipIds } from "./editor/ClipRunValidation.js";
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
@@ -262,6 +262,8 @@ function normalizeGeneratedVideo(row) {
         note: String(row.note || row.remark || ""),
         prompt: String(row.prompt || ""),
         h3_trim_applied: row.h3_trim_applied === true,
+        ...(row.h3_context_from ? { h3_context_from: row.h3_context_from } : {}),
+        ...(row.h3_context_original_out != null ? { h3_context_original_out: row.h3_context_original_out } : {}),
         duration_sec: Number.isFinite(durationSec) && durationSec > 0 ? durationSec : null,
         trim_in_sec: Number.isFinite(trimIn) && trimIn > 0 ? trimIn : 0,
         trim_out_sec: Number.isFinite(trimOut) && trimOut > 0 ? trimOut : null,
@@ -6229,6 +6231,17 @@ export class CapTimelineEditorApp {
             const current = meta.generatedVideos?.find((item) => item.id === row.id);
             if (current && !current.h3_trim_applied) {
                 Object.assign(current, row);
+                changed = true;
+            }
+        }
+        const ordered = [...clip.track.clips].sort((a, b) => a.startTime - b.startTime);
+        for (let i = 0; i < ordered.length; i++) {
+            const previous = ordered[i], next = ordered[i + 1];
+            const priorMeta = this._ensureClipMeta(previous), nextMeta = next && this._ensureClipMeta(next);
+            const adjacent = next && Math.abs(previous.endTime - next.startTime) <= 0.001 && !priorMeta.disabled && !nextMeta.disabled;
+            const linked = replaceH3ContextTail(this._clipGeneratedVideos(priorMeta), adjacent ? this._clipGeneratedVideos(nextMeta) : [], previous.duration);
+            if (JSON.stringify(linked) !== JSON.stringify(priorMeta.generatedVideos || [])) {
+                priorMeta.generatedVideos = linked;
                 changed = true;
             }
         }
@@ -18037,6 +18050,8 @@ export class CapTimelineEditorApp {
                             muted: v.muted === true,
                             note: v.note || "",
                             ...(v.h3_trim_applied ? { h3_trim_applied: true } : {}),
+                            ...(v.h3_context_from ? { h3_context_from: v.h3_context_from } : {}),
+                            ...(v.h3_context_original_out != null ? { h3_context_original_out: v.h3_context_original_out } : {}),
                             ...(v.prompt ? { prompt: String(v.prompt) } : {}),
                             ...(Number.isFinite(Number(v.duration_sec)) && v.duration_sec > 0
                                 ? { duration_sec: Number(v.duration_sec) }

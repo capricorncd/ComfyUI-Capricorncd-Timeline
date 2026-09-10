@@ -785,6 +785,38 @@ def _register_routes():
             "skill_url": SKILL_URL,
         })
 
+    speech_lock = asyncio.Lock()
+
+    @routes.get("/audio_keyframe_timeline/speech_settings")
+    async def api_speech_settings(_request):
+        from .cap_subtitle_speech import public_config
+        return web.json_response({"config": public_config()})
+
+    @routes.post("/audio_keyframe_timeline/speech_settings")
+    async def api_save_speech_settings(request):
+        from .cap_subtitle_speech import save_config
+        try:
+            return web.json_response({"config": save_config(await request.json())})
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+
+    @routes.post("/audio_keyframe_timeline/subtitle_speech")
+    async def api_subtitle_speech(request):
+        from .cap_subtitle_speech import generate
+        from aiohttp import ClientError
+        running, pending = server.prompt_queue.get_current_queue()
+        if speech_lock.locked() or running or pending:
+            return web.json_response({"error": "Service busy. Wait for current tasks to finish."}, status=409)
+        async with speech_lock:
+            try:
+                return web.json_response(await generate(await request.json()))
+            except ValueError as exc:
+                return web.json_response({"error": str(exc)}, status=400)
+            except (asyncio.TimeoutError, subprocess.TimeoutExpired):
+                return web.json_response({"error": "Timed out. The external service may still be running; check it before retrying."}, status=504)
+            except (ClientError, OSError):
+                return web.json_response({"error": "Speech service connection or local audio storage failed."}, status=502)
+
     @routes.get("/audio_keyframe_timeline/voice_settings")
     async def api_voice_settings(_request: web.Request) -> web.Response:
         from .cap_voice_settings import public_voice_settings

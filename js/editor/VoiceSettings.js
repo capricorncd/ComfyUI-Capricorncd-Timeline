@@ -2,11 +2,12 @@ import { api } from "../../../scripts/api.js";
 import { t as T } from "../i18n/timeline_editor.js";
 
 export class VoiceSettings {
-    constructor(root) {
+    constructor(root, { endpoint = "/audio_keyframe_timeline/voice_settings", title = T("voice_service"), note = T("voice_config_note") } = {}) {
         this.root = root;
+        this.endpoint = endpoint;
         root.innerHTML = `
-          <div class="cat-te-agent-heading">${T("voice_service")}</div>
-          <div class="cat-te-agent-note">${T("voice_config_note")}</div>
+          <div class="cat-te-agent-heading">${title}</div>
+          <div class="cat-te-agent-note">${note}</div>
           <div class="cat-te-agent-form">
             <label><span>${T("voice_endpoint")}</span><input data-voice="url" type="url" placeholder="http://127.0.0.1:PORT/voice/convert" /></label>
             <label><span>${T("model_label")}</span><input data-voice="model" type="text" /></label>
@@ -32,7 +33,7 @@ export class VoiceSettings {
     async load() {
         if (this.loaded) return;
         try {
-            const response = await api.fetchApi("/audio_keyframe_timeline/voice_settings");
+            const response = await api.fetchApi(this.endpoint);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             this.fill((await response.json()).config);
             this.loaded = true;
@@ -46,7 +47,7 @@ export class VoiceSettings {
             const payload = Object.fromEntries(["url", "model", "api_key"].map(key => [key, this.field(key).value.trim()]));
             payload.timeout_seconds = Number(this.field("timeout_seconds").value);
             payload.clear_key = this.field("clear_key").checked;
-            const response = await api.fetchApi("/audio_keyframe_timeline/voice_settings", {
+            const response = await api.fetchApi(this.endpoint, {
                 method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
             });
             const data = await response.json();

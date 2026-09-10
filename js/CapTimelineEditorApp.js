@@ -8,6 +8,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { BgmSettings } from "./editor/BgmSettings.js";
 import { VoiceSettings } from "./editor/VoiceSettings.js";
+import { SubtitleSpeech } from "./editor/SubtitleSpeech.js";
 import { CharacterVoice } from "./editor/CharacterVoice.js";
 import { Timeline, ICONS } from "./timeline/index.js";
 import { normalizeVolumePoints, migrateAudioFades, volumeAt } from "./timeline/AudioEnvelope.js";
@@ -1050,7 +1051,7 @@ export class CapTimelineEditorApp {
      */
     handleShortcutKey(e) {
         if (!this._overlay?.classList.contains("open")) return false;
-        if (this.shortcutsDialog?.open || this.exportDialog?.open || this.voiceDialog?.open) return false;
+        if (this.shortcutsDialog?.open || this.exportDialog?.open || this.voiceDialog?.open || this._subtitleSpeech?.dialog.open) return false;
         if (e.repeat) return false;
         const mod = e.ctrlKey || e.metaKey;
         if (!mod || e.altKey) return false;
@@ -1270,6 +1271,7 @@ export class CapTimelineEditorApp {
             this.shortcutsDialog?.close();
             this.exportDialog?.close();
             this.voiceDialog?.close();
+            this._subtitleSpeech?.dialog.close();
             this._removeCtxMenu();
             try { this._persistPanelLayout(); } catch { /* ignore */ }
             try { this._persistViewToLocalCache(); } catch { /* ignore */ }
@@ -1341,6 +1343,7 @@ export class CapTimelineEditorApp {
         void this._agentSettings.load();
         void this._bgmSettings.load();
         void this._voiceSettings.load();
+        void this._speechSettings.load();
     }
 
     _setSettingsCategory(category) {
@@ -1409,6 +1412,7 @@ export class CapTimelineEditorApp {
         this._agentSettings?.cancel();
         if (this._bgmSettings) this._bgmSettings.field("api_key").value = "";
         if (this._voiceSettings) this._voiceSettings.field("api_key").value = "";
+        if (this._speechSettings) this._speechSettings.field("api_key").value = "";
     }
 
     _confirmOverwriteImport() {
@@ -4012,6 +4016,7 @@ export class CapTimelineEditorApp {
                   <button type="button" class="cat-te-btn" data-settings-category="agents" aria-pressed="false">AI Agent</button>
                   <button type="button" class="cat-te-btn" data-settings-category="bgm" aria-pressed="false">BGM</button>
                   <button type="button" class="cat-te-btn" data-settings-category="voice" aria-pressed="false">${T("voice_service")}</button>
+                  <button type="button" class="cat-te-btn" data-settings-category="speech" aria-pressed="false">${T("speech_service")}</button>
                 </nav>
                 <div class="cat-te-settings-content">
                 <div class="cat-te-settings-panel" data-settings-panel="general">
@@ -4055,6 +4060,7 @@ export class CapTimelineEditorApp {
                 </div>
                 <div class="cat-te-settings-panel" data-settings-panel="bgm" hidden></div>
                 <div class="cat-te-settings-panel" data-settings-panel="voice" hidden></div>
+                <div class="cat-te-settings-panel" data-settings-panel="speech" hidden></div>
                 </div>
               </div>
             </div>
@@ -4370,6 +4376,10 @@ export class CapTimelineEditorApp {
         this._agentSettings = new AgentSettings(this.settingsModal, (message, action) => this._openDeleteConfirm(message, action));
         this._bgmSettings = new BgmSettings(this.settingsModal.querySelector('[data-settings-panel="bgm"]'));
         this._voiceSettings = new VoiceSettings(this.settingsModal.querySelector('[data-settings-panel="voice"]'));
+        this._speechSettings = new VoiceSettings(this.settingsModal.querySelector('[data-settings-panel="speech"]'), {
+            endpoint: "/audio_keyframe_timeline/speech_settings", title: T("speech_service"), note: T("speech_note"),
+        });
+        this._subtitleSpeech = new SubtitleSpeech(this, el);
         this._characterVoice = new CharacterVoice(this, el.querySelector(".cat-te-character-voice"));
         this.importZipInput = el.querySelector(".cat-te-import-zip");
         el.querySelector(".cat-te-import").addEventListener("click", (e) => this._showImportMenu(e));
@@ -11719,11 +11729,11 @@ export class CapTimelineEditorApp {
         this._refreshTimelineDuration();
     }
 
-    async _addAudioAtTime(filename, atSec, clientY) {
+    async _addAudioAtTime(filename, atSec, clientY, { canInsert = null, duration = null } = {}) {
         if (!this._timeline) return;
         const url = this._audioUrl(filename);
         let peaks = null;
-        let sourceDur = 30;
+        let sourceDur = duration ?? 30;
         let buffer = null;
         try {
             const r = await this._fetchPeaks(url);
@@ -11735,6 +11745,7 @@ export class CapTimelineEditorApp {
                 sourceDur = await this._probeAudioDuration(url);
             } catch { /* keep default */ }
         }
+        if (canInsert && !canInsert()) return;
         const dur = Math.max(0.05, sourceDur);
         this._ensureTimelineLength(atSec + dur);
         this._recordUndo();
@@ -12777,6 +12788,8 @@ export class CapTimelineEditorApp {
                 ...defaultSubtitleMeta(trackIdx),
                 ...pickSubtitleStyle(trackStyle),
                 text,
+                characterMediaId: c.character_media_id || "",
+                speechPrompt: c.speech_prompt || "",
                 disabled: !!c.disabled,
                 visible: c.visible !== false,
                 trackIndex: trackIdx,
@@ -13862,6 +13875,7 @@ export class CapTimelineEditorApp {
             || this.shortcutsDialog?.open
             || this.exportDialog?.open
             || this.voiceDialog?.open
+            || this._subtitleSpeech?.dialog.open
             || (this.aiOptimizeModal && !this.aiOptimizeModal.hidden)
             || (this.skillPickerModal && !this.skillPickerModal.hidden),
         );
@@ -14441,6 +14455,8 @@ export class CapTimelineEditorApp {
             );
         } else if (isSubtitle) {
             items.push(
+                { label: T("speech_bind"), fn: () => this._subtitleSpeech.open(this._timeline.getSelectedClips().filter(c => isSubtitleTrackType(c.track.type) && !c.track.locked), true) },
+                { label: T("speech_convert"), fn: () => this._subtitleSpeech.open(this._timeline.getSelectedClips().filter(c => isSubtitleTrackType(c.track.type) && !c.track.locked)) },
                 { label: m.disabled ? T("menu_enable_shortcut") : T("menu_disable_shortcut"), strike: !!m.disabled, fn: () => this._toggleDisableClip(clip) },
                 { label: T("menu_set_title"), fn: () => this._renameClip(clip) },
             );
@@ -17884,6 +17900,8 @@ export class CapTimelineEditorApp {
                         start_ms: startMs,
                         duration_ms: durationMs,
                         text: m.text ?? "",
+                        character_media_id: m.characterMediaId || "",
+                        speech_prompt: m.speechPrompt || "",
                     };
                     if (Number.isFinite(Number(m.resourceStartSec)) && m.resourceStartSec >= 0) {
                         subRow.resource_start_sec = Number(m.resourceStartSec);

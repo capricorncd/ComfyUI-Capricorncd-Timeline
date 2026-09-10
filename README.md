@@ -24,6 +24,8 @@ A visual timeline editor for [ComfyUI](https://github.com/comfyanonymous/ComfyUI
 
 Character voices: bind, replace, unbind and audition one reference recording in asset information. Audio-track clips and clips inside video trimming offer **Change voice**, with character selection and a link to **Settings → Voice conversion**. Binding and configuration are available; conversion requests and audio replacement are not implemented yet. Services must implement the [v1 request/response contract](docs/voice-conversion-api.md).
 
+Subtitle speech: select one or more subtitle clips, bind characters, then **Convert to audio** to review references and delivery prompts. Configure your own synchronous service under **Settings → Subtitle speech**. Each request includes subtitle text and timeline start/end times; returned audio is placed at the subtitle start without stretching or overwriting existing clips. See the [subtitle speech API contract](docs/subtitle-speech-api.md).
+
 Linked videos: click a generated video's filename to inspect its recorded Clip ID, seed, models and sampling parameters. **Set as Clip seed** reuses the value without starting generation. `Seq To Video` records identifiable sampler settings; connect dynamically supplied sampling seeds to its `seed` input as well, e.g. `MiniMaxH3.seed → Seq To Video.seed`. `Compose Clip Videos` preserves each source clip's generation record. Records are embedded in MP4 and included in the optional JSON sidecar. Missing historical records are not inferred from current settings.
 
 1. Install the extension and open an [example workflow](workflows/).

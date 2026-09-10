@@ -553,10 +553,10 @@ function defaultSubtitleMeta(trackIndex = 0) {
         bold: false,
         italic: false,
         opacity: 1,
-        strokeEnabled: true,
+        strokeEnabled: false,
         strokeColor: "#000000",
         strokeWidth: 3,
-        shadowEnabled: true,
+        shadowEnabled: false,
         shadowColor: "rgba(0,0,0,0.75)",
         shadowBlur: 4,
         shadowOffsetX: 2,
@@ -3272,10 +3272,12 @@ export class CapTimelineEditorApp {
                 </div>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("subtitle_opacity_label")}</span>
+                  <span class="cat-te-clip-slider-controls">
                   <input class="cat-te-sub-opacity" type="range" min="0" max="100" step="1" value="100" />
                   <span class="cat-te-sub-opacity-val">100%</span>
+                  </span>
                 </label>
-                <label class="cat-te-clip-setting-check"><input class="cat-te-sub-stroke" type="checkbox" checked /><span>${T("subtitle_stroke_label")}</span></label>
+                <label class="cat-te-clip-setting-check"><input class="cat-te-sub-stroke" type="checkbox" /><span>${T("subtitle_stroke_label")}</span></label>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("subtitle_stroke_color_label")}</span>
                   <input class="cat-te-sub-stroke-color" type="color" value="#000000" />
@@ -3284,7 +3286,7 @@ export class CapTimelineEditorApp {
                   <span>${T("subtitle_stroke_width_label")}</span>
                   <input class="cat-te-sub-stroke-width" type="number" min="0" max="40" step="0.5" value="3" />
                 </label>
-                <label class="cat-te-clip-setting-check"><input class="cat-te-sub-shadow" type="checkbox" checked /><span>${T("subtitle_shadow_label")}</span></label>
+                <label class="cat-te-clip-setting-check"><input class="cat-te-sub-shadow" type="checkbox" /><span>${T("subtitle_shadow_label")}</span></label>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("subtitle_shadow_color_label")}</span>
                   <input class="cat-te-sub-shadow-color" type="color" value="#000000" />
@@ -3318,19 +3320,25 @@ export class CapTimelineEditorApp {
                   </select>
                 </label>
                 <label class="cat-te-clip-setting-row">
-                  <span>${T("scale_label")} %</span>
-                  <input class="cat-te-sub-scale" type="number" min="10" max="300" step="1" value="100" />
+                  <span>${T("scale_label")}</span>
+                  <span class="cat-te-clip-slider-controls">
+                  <input class="cat-te-sub-scale" type="range" min="10" max="300" step="1" value="100" />
                   <span class="cat-te-sub-scale-value">100%</span>
+                  </span>
                 </label>
                 <label class="cat-te-clip-setting-row">
-                  <span>${T("subtitle_offset_x_label")}</span>
-                  <input class="cat-te-sub-offset-x" type="number" min="-100" max="100" step="0.1" value="0" />
+                  <span>${T("media_offset_x_label")}</span>
+                  <span class="cat-te-clip-slider-controls">
+                  <input class="cat-te-sub-offset-x" type="range" min="-100" max="100" step="0.1" value="0" />
                   <span class="cat-te-sub-offset-x-value">0%</span>
+                  </span>
                 </label>
                 <label class="cat-te-clip-setting-row">
-                  <span>${T("subtitle_offset_y_label")}</span>
-                  <input class="cat-te-sub-offset-y" type="number" min="-100" max="100" step="0.1" value="0" />
+                  <span>${T("media_offset_y_label")}</span>
+                  <span class="cat-te-clip-slider-controls">
+                  <input class="cat-te-sub-offset-y" type="range" min="-100" max="100" step="0.1" value="0" />
                   <span class="cat-te-sub-offset-y-value">0%</span>
+                  </span>
                 </label>
                 <div class="cat-te-sub-apply-row">
                   <button type="button" class="cat-te-btn cat-te-sub-apply-all">${T("subtitle_apply_all_btn")}</button>
@@ -16769,7 +16777,7 @@ export class CapTimelineEditorApp {
         meta.color = String(this.subColorInput?.value || meta.color || "#ffffff");
         meta.bold = !!this.subBoldCb?.checked;
         meta.italic = !!this.subItalicCb?.checked;
-        const opacityPct = Math.max(0, Math.min(100, Number(this.subOpacityInput?.value) || 100));
+        const opacityPct = Math.max(0, Math.min(100, Number(this.subOpacityInput?.value ?? 100)));
         meta.opacity = opacityPct / 100;
         if (this.subOpacityVal) this.subOpacityVal.textContent = `${Math.round(opacityPct)}%`;
         meta.strokeEnabled = !!this.subStrokeCb?.checked;

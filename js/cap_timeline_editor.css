@@ -2302,9 +2302,11 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-clip-opacity-panel[hidden] {
     display: none !important;
 }
+.cat-te-subtitle-panel .cat-te-clip-setting-row:has(.cat-te-clip-slider-controls),
 .cat-te-clip-opacity-panel .cat-te-clip-setting-row {
     min-height: 28px;
 }
+.cat-te-subtitle-panel .cat-te-clip-setting-row:has(.cat-te-clip-slider-controls) > span:first-child,
 .cat-te-clip-opacity-panel .cat-te-clip-setting-row > span:first-child {
     flex-shrink: 0;
 }

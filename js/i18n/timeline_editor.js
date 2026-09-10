@@ -2,6 +2,7 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        settings_general: "General",
         video_generation_loading: "Loading generation record…",
         video_generation_unavailable: "No generation record in this video.",
         video_seed_use_clip: "Set as Clip seed",
@@ -608,6 +609,7 @@ export const DICT = {
         apply_skill_failed: "Failed to apply Skill: {msg}",
     },
     zh: {
+        settings_general: "常规",
         video_generation_loading: "正在读取生成记录…",
         video_generation_unavailable: "此视频没有生成记录。",
         video_seed_use_clip: "设为 Clip 种子",
@@ -1206,6 +1208,7 @@ export const DICT = {
         apply_skill_failed: "应用 Skill 失败：{msg}",
     },
     ja: {
+        settings_general: "一般",
         video_generation_loading: "生成記録を読み込み中…",
         video_generation_unavailable: "この動画には生成記録がありません。",
         video_seed_use_clip: "Clip のシードに設定",

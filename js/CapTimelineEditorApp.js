@@ -1324,6 +1324,7 @@ export class CapTimelineEditorApp {
 
     _openSettings() {
         if (!this.settingsModal) return;
+        this._setSettingsCategory("general");
         this.autosaveIntervalInput.value = String(this._getAutosaveIntervalSec());
         if (this.promptFontSizeInput) this.promptFontSizeInput.value = String(this._getPromptFontSize());
         if (this.useClipVideoFilenameCb) {
@@ -1331,6 +1332,17 @@ export class CapTimelineEditorApp {
         }
         this.settingsModal.hidden = false;
         void this._agentSettings.load();
+    }
+
+    _setSettingsCategory(category) {
+        for (const button of this.settingsModal.querySelectorAll("[data-settings-category]")) {
+            const active = button.dataset.settingsCategory === category;
+            button.classList.toggle("is-active", active);
+            button.setAttribute("aria-pressed", String(active));
+        }
+        for (const panel of this.settingsModal.querySelectorAll("[data-settings-panel]")) {
+            panel.hidden = panel.dataset.settingsPanel !== category;
+        }
     }
 
     _updateModelPreviewConfigName() {
@@ -3916,7 +3928,13 @@ export class CapTimelineEditorApp {
                 <span>${T("settings_title")}</span>
                 <button type="button" class="cat-te-modal-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
               </div>
-              <div class="cat-te-modal-body">
+              <div class="cat-te-modal-body cat-te-settings-layout">
+                <nav class="cat-te-settings-nav" aria-label="${T("settings_title")}">
+                  <button type="button" class="cat-te-btn is-active" data-settings-category="general" aria-pressed="true">${T("settings_general")}</button>
+                  <button type="button" class="cat-te-btn" data-settings-category="agents" aria-pressed="false">AI Agent</button>
+                </nav>
+                <div class="cat-te-settings-content">
+                <div class="cat-te-settings-panel" data-settings-panel="general">
                 <label class="cat-te-modal-row">
                   <span>${T("autosave_interval_label")}</span>
                   <input class="cat-te-autosave-interval" type="number" min="1" max="300" step="1" />
@@ -3933,7 +3951,8 @@ export class CapTimelineEditorApp {
                     <span class="cat-te-info-tip-pop">${T("use_clip_specified_video_filename_info_text")}</span>
                   </span>
                 </label>
-                <div class="cat-te-agent-settings">
+                </div>
+                <div class="cat-te-agent-settings cat-te-settings-panel" data-settings-panel="agents" hidden>
                   <div class="cat-te-agent-heading">
                     <span>AI Agent</span>
                     <button type="button" class="cat-te-btn cat-te-agent-add">${T("add_btn")}</button>
@@ -3953,6 +3972,7 @@ export class CapTimelineEditorApp {
                     </div>
                   </div>
                   <div class="cat-te-agent-note">${T("agent_note")}</div>
+                </div>
                 </div>
               </div>
             </div>
@@ -4349,6 +4369,9 @@ export class CapTimelineEditorApp {
         }
         el.querySelector(".cat-te-settings").addEventListener("click", () => this._openSettings());
         this.settingsModal.querySelector(".cat-te-modal-close").addEventListener("click", () => this._closeSettings());
+        for (const button of this.settingsModal.querySelectorAll("[data-settings-category]")) {
+            button.addEventListener("click", () => this._setSettingsCategory(button.dataset.settingsCategory));
+        }
         el.querySelector(".cat-te-model-preview-import")?.addEventListener("click", () => this.modelPreviewFileInput?.click());
         el.querySelector(".cat-te-model-preview-clear")?.addEventListener("click", () => this._clearModelPreviewWorkflow());
         this.modelPreviewFileInput?.addEventListener("change", (e) => void this._importModelPreviewWorkflow(e));

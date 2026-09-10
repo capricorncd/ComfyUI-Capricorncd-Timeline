@@ -394,13 +394,46 @@ body.cat-te-row-resize * {
 }
 
 .cat-te-settings-dialog {
-    width: 520px;
+    width: 760px;
+    max-width: calc(100vw - 32px);
     max-height: calc(100vh - 48px);
 }
 
-.cat-te-settings-dialog .cat-te-modal-body {
+.cat-te-settings-dialog .cat-te-settings-layout {
+    display: flex;
+    flex-direction: row;
+    gap: 0;
+    padding: 0;
+    min-height: 340px;
+    overflow: hidden;
+}
+.cat-te-settings-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 0 0 120px;
+    padding: 16px 10px;
+    border-right: 1px solid var(--cat-border);
+}
+.cat-te-settings-nav .cat-te-btn { text-align: left; }
+.cat-te-settings-nav .is-active {
+    background: var(--cat-action);
+    border-color: var(--cat-action-hover);
+    color: #fff;
+}
+.cat-te-settings-content {
+    flex: 1;
+    min-width: 0;
+    padding: 20px;
     overflow-y: auto;
 }
+.cat-te-settings-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.cat-te-settings-panel[hidden] { display: none; }
+.cat-te-settings-content .cat-te-agent-settings { border: 0; padding: 0; }
 
 .cat-te-agent-settings {
     border-top: 1px solid var(--cat-border);

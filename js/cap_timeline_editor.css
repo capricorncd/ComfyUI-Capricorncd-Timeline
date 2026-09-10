@@ -415,6 +415,11 @@ body.cat-te-row-resize * {
     display: inline-flex;
     gap: 6px;
 }
+.cat-te-model-preview-seed-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
 .cat-te-model-preview-config-name {
     margin: 4px 0 6px;
     color: var(--cat-text);

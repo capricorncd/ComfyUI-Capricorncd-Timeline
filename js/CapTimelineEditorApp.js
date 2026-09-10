@@ -3773,7 +3773,13 @@ export class CapTimelineEditorApp {
                   <div class="cat-te-ai-right-pane cat-te-ai-right-preview" data-right-pane="preview" hidden>
                   <div class="cat-te-model-preview-settings">
                     <div class="cat-te-agent-heading">
-                      <span>${T("model_preview_settings_title")}</span>
+                      <span class="cat-te-ai-field-label">
+                        ${T("model_preview_settings_title")}
+                        <span class="cat-te-info-tip" tabindex="0" aria-label="${T("model_preview_workflow_hint")}">
+                          ${iconHtml("info", 12)}
+                          <span class="cat-te-info-tip-pop">${T("model_preview_workflow_hint")}</span>
+                        </span>
+                      </span>
                       <div class="cat-te-model-preview-config-actions">
                         <button type="button" class="cat-te-btn cat-te-model-preview-import">${T("import_preview_workflow_btn")}</button>
                         <button type="button" class="cat-te-btn cat-te-model-preview-clear">${T("clear_btn")}</button>
@@ -3781,15 +3787,16 @@ export class CapTimelineEditorApp {
                     </div>
                     <label class="cat-te-modal-row">
                       <span>${T("clip_seed_label")}</span>
-                      <input class="cat-te-model-preview-seed" type="number" min="-1" step="1" value="-1" />
-                      <button type="button" class="cat-te-btn cat-te-model-preview-seed-random" title="${T("randomize_seed_title")}" aria-label="${T("randomize_seed_title")}">${iconHtml("refresh", 12)}</button>
+                      <span class="cat-te-model-preview-seed-controls">
+                        <input class="cat-te-model-preview-seed" type="number" min="-1" step="1" value="-1" />
+                        <button type="button" class="cat-te-btn cat-te-model-preview-seed-random" title="${T("randomize_seed_title")}" aria-label="${T("randomize_seed_title")}">${iconHtml("refresh", 12)}</button>
+                      </span>
                     </label>
                     <label class="cat-te-modal-row">
                       <span>${T("preview_megapixels_label")}</span>
                       <input class="cat-te-model-preview-megapixels" type="number" min="0.01" max="4" step="0.05" value="0.2" />
                     </label>
                     <div class="cat-te-model-preview-config-name"></div>
-                    <div class="cat-te-agent-note">${T("model_preview_workflow_hint")}</div>
                     <input class="cat-te-model-preview-file" type="file" accept="application/json,.json" hidden />
                   </div>
                   <div class="cat-te-ai-preview">
@@ -3802,7 +3809,7 @@ export class CapTimelineEditorApp {
                       <video class="cat-te-ai-preview-video" controls autoplay loop muted playsinline hidden></video>
                       <div class="cat-te-ai-preview-empty"></div>
                     </div>
-                    <label class="cat-te-modal-row">
+                    <label class="cat-te-modal-check-row">
                       <input class="cat-te-preview-timeline-audio" type="checkbox" />
                       <span>${T("preview_timeline_audio_label")}</span>
                     </label>

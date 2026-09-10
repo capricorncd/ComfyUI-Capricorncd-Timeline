@@ -701,12 +701,10 @@ class CAP_TimelineEditor:
             key=lambda t: int(t.get("order", 0) or 0),
         )
         for z_index, track in enumerate(tracks, start=1):
-            track_type = str(track.get("type") or "visual").lower()
-            is_audio_track = track_type == "audio"
-            # Subtitle / text tracks are editor preview overlays only.
-            if _is_subtitle_track(track_type):
-                continue
-            if track_type == "media":
+            track_type = str(track.get("type") or "").lower()
+            is_audio_track = track_type in ("audio", "voiceover")
+            # Only director tracks create generation jobs; audio is reference data.
+            if track_type != "director" and not is_audio_track:
                 continue
             if is_audio_track:
                 if not self._audio_track_active(track):
@@ -719,7 +717,7 @@ class CAP_TimelineEditor:
                 if _is_subtitle_clip(clip, track_type):
                     continue
                 clip_type = str(clip.get("type") or ("audio" if is_audio_track else "image")).lower()
-                is_audio_clip = clip_type == "audio" or is_audio_track
+                is_audio_clip = clip_type in ("audio", "voiceover") or is_audio_track
                 # Audio follows mute only (same as editor playback). Visuals also
                 # respect clip/track visibility.
                 if is_audio_clip:

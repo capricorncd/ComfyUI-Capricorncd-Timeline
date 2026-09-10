@@ -15486,7 +15486,7 @@ export class CapTimelineEditorApp {
                 ? !!(this._genEditState?.timeline?._playing)
                 : !!this._timeline?._playing;
             const drift = Math.abs((entry.wantTime || 0) - v.currentTime);
-            if (!playing && drift > 0.05) {
+            if (!playing && drift > 0.001) {
                 this._seekPreviewVideo(entry, entry.wantTime);
             } else {
                 kickPreview();
@@ -15518,7 +15518,7 @@ export class CapTimelineEditorApp {
         // First activation / warm prefetch: tighter tolerance so we don't paint
         // a wrong near-zero frame before the real in-point seek settles.
         // While freewheeling, only correct large drift (avoids seek thrash / jumps).
-        const eps = force || !entry._hasDrawn ? 0.04 : (playing ? 1.0 : 0.04);
+        const eps = force || !entry._hasDrawn || !playing ? 0.001 : 1.0;
         if (Math.abs((v.currentTime || 0) - clamped) <= eps) return;
         entry.seeking = true;
         this._armPreviewSeekWatch(entry);
@@ -15567,9 +15567,9 @@ export class CapTimelineEditorApp {
     _previewVideoCanDraw(entry) {
         const v = entry?.el;
         if (!v || v.readyState < 2 || !(v.videoWidth > 0) || !(v.videoHeight > 0)) return false;
-        // Wait for the first in-point seek so we don't flash a wrong frame;
-        // after that, keep painting while freewheeling (even mid-seek).
-        if (entry.seeking && !entry._hasDrawn) return false;
+        // A decoder can report readyState >= 2 while its seek frame is unavailable.
+        // Keep the committed canvas until the new frame finishes seeking.
+        if (entry.seeking || v.seeking) return false;
         return true;
     }
 
@@ -15760,6 +15760,7 @@ export class CapTimelineEditorApp {
             ? (c, m, w, h) => this._drawContain(c, m, w, h)
             : (c, m, w, h) => this._drawCover(c, m, w, h);
         let drew = false;
+        let pending = false;
 
         for (const layer of layers) {
             if (generatedActive && !layer.mediaTrack && (layer.kind === "image" || layer.kind === "package")) continue;
@@ -15778,7 +15779,10 @@ export class CapTimelineEditorApp {
                 const file = layer.kind === "generated" ? layer.file : (layer.item?.file || layer.clip.src);
                 const location = layer.kind === "generated" ? "output" : "input";
                 const entry = this._ensurePreviewVideo(file, location);
-                if (!entry) continue;
+                if (!entry) {
+                    pending = true;
+                    continue;
+                }
                 onVideoUsed?.(`${location}:${file}`);
                 const items = layer.items || [];
                 let mediaTime = (layer.clip.sourceOffset || 0) + (t - layer.clip.startTime);
@@ -15801,6 +15805,8 @@ export class CapTimelineEditorApp {
                 if (this._previewVideoCanDraw(entry) && drawLayer(ctx, entry.el, cw, ch)) {
                     entry._hasDrawn = true;
                     drew = true;
+                } else {
+                    pending = true;
                 }
                 ctx.restore();
                 continue;
@@ -15818,10 +15824,13 @@ export class CapTimelineEditorApp {
                 ctx.save();
                 if (layer.mediaTrack) ctx.globalAlpha *= Math.max(0, Math.min(1, Number(layer.meta.opacity ?? 1)));
                 if (drawLayer(ctx, startEntry.el, cw, ch)) drew = true;
+                else pending = true;
                 ctx.restore();
+            } else {
+                pending = true;
             }
         }
-        return drew;
+        return drew && !pending;
     }
 
     _hasVisibleSubtitleAt(t) {
@@ -15906,7 +15915,7 @@ export class CapTimelineEditorApp {
             onVideoUsed: (key) => usedVideoKeys.add(key),
         });
         this._drawSubtitleOverlays(octx, cw, ch, t);
-        const drew = drewVisual || hasSub;
+        const drew = drewVisual || (!layers.length && hasSub);
         if (playing) this._warmNextPreviewVideo(t, usedVideoKeys);
         this._pauseUnusedPreviewVideos(usedVideoKeys);
 

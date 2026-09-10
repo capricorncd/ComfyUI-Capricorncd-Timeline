@@ -119,14 +119,6 @@ body.cat-te-row-resize * {
     color: #fff;
 }
 
-.cat-te-header-scalars {
-    font-size: 12px;
-    color: var(--cat-muted);
-    white-space: nowrap;
-    margin-right: 8px;
-    font-variant-numeric: tabular-nums;
-}
-
 .cat-te-title {
     width: 100%;
     box-sizing: border-box;
@@ -2017,10 +2009,11 @@ body.cat-te-media-dnd-over-tl {
 }
 
 .cat-te-clip-thumb-subtitle:not([hidden]) {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 72px;
     width: 100%;
     font-size: 28px;
     font-weight: 700;
@@ -2253,14 +2246,6 @@ body.cat-te-media-dnd-over-tl {
     color: var(--cat-muted);
     flex-shrink: 0;
     border-bottom: 1px solid var(--cat-raised);
-}
-
-.cat-te-project-scalars {
-    padding: 8px 12px 0;
-    font-size: 12px;
-    color: var(--cat-muted);
-    font-variant-numeric: tabular-nums;
-    flex-shrink: 0;
 }
 
 .cat-te-clip-info {
@@ -2797,12 +2782,19 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-prompt-include-chip:disabled {
     cursor: default;
 }
-.cat-te-shortcuts {
-    padding: 8px 12px;
-    font-size: 10px;
-    color: var(--cat-dim);
-    line-height: 1.6;
+.cat-te-shortcuts-dialog {
+    width: 460px;
+    max-width: calc(100vw - 40px);
+    max-height: calc(100vh - 48px);
+    padding: 0;
+    border: 1px solid var(--cat-border);
+    border-radius: 8px;
+    background: var(--cat-surface);
+    color: var(--cat-text);
+    font-size: 13px;
+    line-height: 2;
 }
+.cat-te-shortcuts-dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 
 /* Launcher widget on the node */
 .cat-te-launcher {
@@ -4384,4 +4376,22 @@ body.cat-te-media-dnd-over-tl {
     max-height: 240px;
     overflow: auto;
     overflow-wrap: anywhere;
+}
+.cat-te-clip-slider-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 65%;
+    min-width: 0;
+}
+.cat-te-clip-slider-controls input[type="range"] {
+    flex: 1;
+    min-width: 0;
+    width: 0;
+    margin: 0;
+}
+.cat-te-clip-slider-controls > span {
+    min-width: 5ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
 }

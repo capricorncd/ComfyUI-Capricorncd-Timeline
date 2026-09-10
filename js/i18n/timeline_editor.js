@@ -2,6 +2,9 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        shortcuts_title: "Keyboard shortcuts",
+        media_offset_x_label: "Offset X",
+        media_offset_y_label: "Offset Y",
         settings_general: "General",
         video_generation_loading: "Loading generation record…",
         video_generation_unavailable: "No generation record in this video.",
@@ -609,6 +612,9 @@ export const DICT = {
         apply_skill_failed: "Failed to apply Skill: {msg}",
     },
     zh: {
+        shortcuts_title: "快捷键",
+        media_offset_x_label: "水平偏移",
+        media_offset_y_label: "垂直偏移",
         settings_general: "常规",
         video_generation_loading: "正在读取生成记录…",
         video_generation_unavailable: "此视频没有生成记录。",
@@ -1208,6 +1214,9 @@ export const DICT = {
         apply_skill_failed: "应用 Skill 失败：{msg}",
     },
     ja: {
+        shortcuts_title: "ショートカットキー",
+        media_offset_x_label: "水平オフセット",
+        media_offset_y_label: "垂直オフセット",
         settings_general: "一般",
         video_generation_loading: "生成記録を読み込み中…",
         video_generation_unavailable: "この動画には生成記録がありません。",

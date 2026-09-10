@@ -1047,6 +1047,7 @@ export class CapTimelineEditorApp {
      */
     handleShortcutKey(e) {
         if (!this._overlay?.classList.contains("open")) return false;
+        if (this.shortcutsDialog?.open) return false;
         if (e.repeat) return false;
         const mod = e.ctrlKey || e.metaKey;
         if (!mod || e.altKey) return false;
@@ -1263,6 +1264,7 @@ export class CapTimelineEditorApp {
             try { this._closeComposeModal(true); } catch { /* ignore */ }
             try { this._closeAddMaterial(); } catch { /* ignore */ }
             try { this._closeSettings(); } catch { /* ignore */ }
+            this.shortcutsDialog?.close();
             this._removeCtxMenu();
             try { this._persistPanelLayout(); } catch { /* ignore */ }
             try { this._persistViewToLocalCache(); } catch { /* ignore */ }
@@ -2969,7 +2971,6 @@ export class CapTimelineEditorApp {
               <button type="button" class="cat-te-brand-project" title="${T("edit_project_name_title")}">${T("untitled_project")}</button>
             </div>
             <div class="cat-te-header-spacer"></div>
-            <div class="cat-te-header-scalars" title="${T("node_size_fps_title")}"></div>
             <button type="button" class="cat-te-btn cat-te-import">${T("import_btn_caret")}</button>
             <button type="button" class="cat-te-btn cat-te-export">${T("export_btn_caret")}</button>
             <button type="button" class="cat-te-btn cat-te-settings">${T("settings_btn")}</button>
@@ -3011,7 +3012,6 @@ export class CapTimelineEditorApp {
                     <span>${T("project_name_label")}</span>
                     <input class="cat-te-title" type="text" value="${T("untitled_project")}" aria-label="${T("project_name_label")}" />
                   </label>
-                  <div class="cat-te-project-scalars" aria-label="${T("scalars_aria")}"></div>
                   <div class="cat-te-settings-prompts">
                     <div class="cat-te-prompt-wrap cat-te-settings-prompt-wrap" data-setting-prompt="prepend_prompt">
                       <div class="cat-te-prompt-label-row">
@@ -3075,24 +3075,32 @@ export class CapTimelineEditorApp {
               </div>
               <div class="cat-te-clip-opacity-panel" hidden>
                 <label class="cat-te-clip-setting-row">
-                  <span>${T("scale_label")} %</span>
-                  <input class="cat-te-media-scale" type="range" min="1" max="300" step="1" value="100" />
-                  <span class="cat-te-media-scale-value">100%</span>
+                  <span>${T("scale_label")}</span>
+                  <span class="cat-te-clip-slider-controls">
+                    <input class="cat-te-media-scale" type="range" min="1" max="300" step="1" value="100" />
+                    <span class="cat-te-media-scale-value">100%</span>
+                  </span>
                 </label>
                 <label class="cat-te-clip-setting-row">
-                  <span>${T("subtitle_offset_x_label")}</span>
-                  <input class="cat-te-media-x" type="range" min="-100" max="100" step="1" value="0" />
-                  <span class="cat-te-media-x-value">0%</span>
+                  <span>${T("media_offset_x_label")}</span>
+                  <span class="cat-te-clip-slider-controls">
+                    <input class="cat-te-media-x" type="range" min="-100" max="100" step="1" value="0" />
+                    <span class="cat-te-media-x-value">0%</span>
+                  </span>
                 </label>
                 <label class="cat-te-clip-setting-row">
-                  <span>${T("subtitle_offset_y_label")}</span>
-                  <input class="cat-te-media-y" type="range" min="-100" max="100" step="1" value="0" />
-                  <span class="cat-te-media-y-value">0%</span>
+                  <span>${T("media_offset_y_label")}</span>
+                  <span class="cat-te-clip-slider-controls">
+                    <input class="cat-te-media-y" type="range" min="-100" max="100" step="1" value="0" />
+                    <span class="cat-te-media-y-value">0%</span>
+                  </span>
                 </label>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("opacity_label")}</span>
-                  <input class="cat-te-clip-opacity" type="range" min="0" max="100" step="1" value="100" />
-                  <span class="cat-te-clip-opacity-value">100%</span>
+                  <span class="cat-te-clip-slider-controls">
+                    <input class="cat-te-clip-opacity" type="range" min="0" max="100" step="1" value="100" />
+                    <span class="cat-te-clip-opacity-value">100%</span>
+                  </span>
                 </label>
               </div>
               <div class="cat-te-clip-volume-panel" hidden>
@@ -3301,9 +3309,6 @@ export class CapTimelineEditorApp {
                   <div class="cat-te-vo-audios-list"></div>
                 </div>
               </div>
-              </div>
-              <div class="cat-te-shortcuts">
-                ${T("shortcuts_html")}
               </div>
             </aside>
           </div>
@@ -3922,6 +3927,13 @@ export class CapTimelineEditorApp {
               </div>
             </div>
           </div>
+          <dialog class="cat-te-shortcuts-dialog" aria-label="${T("shortcuts_title")}">
+            <div class="cat-te-modal-header">
+              <span>${T("shortcuts_title")}</span>
+              <button type="button" class="cat-te-modal-close" title="${T("close_title")}" aria-label="${T("close_title")}">${iconHtml("close", 16)}</button>
+            </div>
+            <div class="cat-te-modal-body">${T("shortcuts_html")}</div>
+          </dialog>
           <div class="cat-te-modal-backdrop cat-te-settings-modal" hidden>
             <div class="cat-te-modal cat-te-settings-dialog">
               <div class="cat-te-modal-header">
@@ -3982,8 +3994,6 @@ export class CapTimelineEditorApp {
         this._overlay = el;
         this.projectNameInput = el.querySelector(".cat-te-title");
         this.brandProjectBtn = el.querySelector(".cat-te-brand-project");
-        this.headerScalarsEl = el.querySelector(".cat-te-header-scalars");
-        this.projectScalarsEl = el.querySelector(".cat-te-project-scalars");
         this.sidebarTitle = el.querySelector(".cat-te-sidebar-title");
         this.projectPanel = el.querySelector(".cat-te-project-panel");
         this.clipPanel = el.querySelector(".cat-te-clip-panel");
@@ -4249,6 +4259,9 @@ export class CapTimelineEditorApp {
         attachRichPromptHandler(this.aiSrcText, { mode: "widget" });
 
         this.settingsModal = el.querySelector(".cat-te-settings-modal");
+        this.shortcutsDialog = el.querySelector(".cat-te-shortcuts-dialog");
+        this.shortcutsDialog.querySelector("button").addEventListener("click", () => this.shortcutsDialog.close());
+        this.shortcutsDialog.addEventListener("keydown", (e) => e.stopPropagation());
         this.autosaveIntervalInput = el.querySelector(".cat-te-autosave-interval");
         this.promptFontSizeInput = el.querySelector(".cat-te-prompt-font-size");
         this.useClipVideoFilenameCb = el.querySelector(".cat-te-use-clip-video-filename");
@@ -13736,6 +13749,7 @@ export class CapTimelineEditorApp {
             || (this.mediaDeleteModal && !this.mediaDeleteModal.hidden)
             || (this.trackConvertModal && !this.trackConvertModal.hidden)
             || (this.settingsModal && !this.settingsModal.hidden)
+            || this.shortcutsDialog?.open
             || (this.aiOptimizeModal && !this.aiOptimizeModal.hidden)
             || (this.skillPickerModal && !this.skillPickerModal.hidden),
         );
@@ -15232,7 +15246,7 @@ export class CapTimelineEditorApp {
         const ph = Math.max(1, Math.round(cssH * dpr));
         if (canvas.width !== pw) canvas.width = pw;
         if (canvas.height !== ph) canvas.height = ph;
-        if (this.programMeta) this.programMeta.textContent = `${w} × ${h}`;
+        this._syncProjectScalarDisplay();
         return { canvasW: pw, canvasH: ph, logicalW: w, logicalH: h };
     }
 
@@ -15772,6 +15786,7 @@ export class CapTimelineEditorApp {
             const rect = e.currentTarget.getBoundingClientRect();
             this._buildCtxMenu([
                 { label: T("reset_track_order"), fn: () => this._resetTrackOrder() },
+                { label: T("shortcuts_title"), fn: () => this.shortcutsDialog.showModal() },
             ], rect.left, rect.bottom + 4);
         });
         tl.toolbarEl.appendChild(moreBtn);
@@ -16804,13 +16819,11 @@ export class CapTimelineEditorApp {
 
     _syncProjectScalarDisplay() {
         const fps = Number(this._w("fps")?.value ?? PY_SCALAR_DEFAULTS.fps);
-        const width = Math.round(Number(this._w("width")?.value ?? PY_SCALAR_DEFAULTS.width) || PY_SCALAR_DEFAULTS.width);
-        const height = Math.round(Number(this._w("height")?.value ?? PY_SCALAR_DEFAULTS.height) || PY_SCALAR_DEFAULTS.height);
+        const { w: width, h: height } = this.getPreviewSize();
         const fpsText = Number.isFinite(fps) ? (Number.isInteger(fps) ? String(fps) : fps.toFixed(1)) : "24";
         const sizeText = `${width} × ${height}`;
         const fpsLabel = `${fpsText} fps`;
-        if (this.headerScalarsEl) this.headerScalarsEl.textContent = `${sizeText} · ${fpsLabel}`;
-        if (this.projectScalarsEl) this.projectScalarsEl.textContent = `${sizeText} · ${fpsLabel}`;
+        if (this.programMeta) this.programMeta.textContent = `${sizeText} · ${fpsLabel}`;
     }
 
     _readSettingPrompt(key) {

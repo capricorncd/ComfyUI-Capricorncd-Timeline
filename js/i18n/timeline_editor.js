@@ -2,6 +2,10 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        export_title: "Export",
+        export_files: "Files (folder)",
+        export_workflow: "Workflow",
+        export_generated: "Generated videos",
         shortcuts_title: "Keyboard shortcuts",
         media_offset_x_label: "Offset X",
         media_offset_y_label: "Offset Y",
@@ -612,6 +616,10 @@ export const DICT = {
         apply_skill_failed: "Failed to apply Skill: {msg}",
     },
     zh: {
+        export_title: "导出",
+        export_files: "文件（目录）",
+        export_workflow: "工作流",
+        export_generated: "生成的视频",
         shortcuts_title: "快捷键",
         media_offset_x_label: "水平偏移",
         media_offset_y_label: "垂直偏移",
@@ -1214,6 +1222,10 @@ export const DICT = {
         apply_skill_failed: "应用 Skill 失败：{msg}",
     },
     ja: {
+        export_title: "エクスポート",
+        export_files: "ファイル（フォルダー）",
+        export_workflow: "ワークフロー",
+        export_generated: "生成済み動画",
         shortcuts_title: "ショートカットキー",
         media_offset_x_label: "水平オフセット",
         media_offset_y_label: "垂直オフセット",

@@ -522,10 +522,14 @@ def _register_routes():
         from .cap_timeline_project_io import build_export_entries
         lang = resolve_lang(request)
         try:
-            project = await request.json()
+            payload = await request.json()
+            if not isinstance(payload, dict):
+                return web.json_response({"error": t("invalid_project", lang)}, status=400)
+            project = payload.get("project", payload)
+            include_generated = payload.get("include_generated", True) is not False
             if not isinstance(project, dict):
                 return web.json_response({"error": t("invalid_project", lang)}, status=400)
-            exported, entries, missing = build_export_entries(project)
+            exported, entries, missing = build_export_entries(project, include_generated=include_generated)
             return web.json_response({
                 "project": exported,
                 "files": [
@@ -557,7 +561,7 @@ def _register_routes():
                 return web.json_response({"error": t("invalid_project", lang)}, status=400)
             if workflow is not None and not isinstance(workflow, dict):
                 return web.json_response({"error": "Invalid workflow"}, status=400)
-            data, filename, missing = build_export_zip_bytes(project, workflow=workflow)
+            data, filename, missing = build_export_zip_bytes(project, workflow=workflow, include_generated=payload.get("include_generated", True) is not False)
             headers = {
                 "Content-Disposition": 'attachment; filename="timeline-project.zip"',
                 "X-Export-Missing": ",".join(missing) if missing else "",

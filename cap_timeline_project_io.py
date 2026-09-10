@@ -812,7 +812,7 @@ def _remap_project_files(
     return out
 
 
-def build_export_entries(project: dict) -> tuple[dict, list[dict], list[str]]:
+def build_export_entries(project: dict, *, include_generated: bool = True) -> tuple[dict, list[dict], list[str]]:
     """Build remapped project + copy entries for packaging.
 
     Returns (exported_project, entries, missing_files).
@@ -848,7 +848,7 @@ def build_export_entries(project: dict) -> tuple[dict, list[dict], list[str]]:
             "location": "input",
         })
 
-    for file in iter_project_generated_videos(project):
+    for file in (iter_project_generated_videos(project) if include_generated else []):
         src = _resolve_output_file(file)
         if not src:
             missing.append(file)
@@ -867,9 +867,9 @@ def build_export_entries(project: dict) -> tuple[dict, list[dict], list[str]]:
     return exported, entries, missing
 
 
-def build_export_zip_bytes(project: dict, workflow: dict | None = None) -> tuple[bytes, str, list[str]]:
+def build_export_zip_bytes(project: dict, workflow: dict | None = None, *, include_generated: bool = True) -> tuple[bytes, str, list[str]]:
     """Return (zip_bytes, filename, missing_files)."""
-    exported, entries, missing = build_export_entries(project)
+    exported, entries, missing = build_export_entries(project, include_generated=include_generated)
     name = _safe_name(exported.get("name"), "timeline-project")
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:

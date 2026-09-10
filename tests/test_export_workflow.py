@@ -22,7 +22,7 @@ class ExportWorkflowTests(unittest.TestCase):
             scope = {
                 "io": io, "json": json, "zipfile": zipfile, "PACKAGE_PROJECT_NAME": "project.json",
                 "_safe_name": lambda name, default: name or default,
-                "build_export_entries": lambda p: (p, [{"src_path": str(asset), "arcname": "media/asset.txt"}], []),
+                "build_export_entries": lambda p, **options: (p, [{"src_path": str(asset), "arcname": "media/asset.txt"}], []),
             }
             exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), scope)
             export = scope["build_export_zip_bytes"]
@@ -36,6 +36,20 @@ class ExportWorkflowTests(unittest.TestCase):
                     self.assertEqual("workflow.json" in archive.namelist(), snapshot is not None)
                     if snapshot is not None:
                         self.assertEqual(json.loads(archive.read("workflow.json")), snapshot)
+
+    def test_generated_option_is_forwarded(self):
+        calls = []
+        def entries(project, *, include_generated=True):
+            calls.append(include_generated)
+            return project, [], []
+        scope = {"io": io, "json": json, "zipfile": zipfile, "PACKAGE_PROJECT_NAME": "project.json",
+                 "_safe_name": lambda name, default: name or default, "build_export_entries": entries}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), scope)
+        for enabled in (True, False):
+            blob, _, _ = scope["build_export_zip_bytes"]({"name": "test"}, include_generated=enabled)
+            with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+                self.assertEqual(archive.namelist(), ["project.json"])
+        self.assertEqual(calls, [True, False])
 
 
 if __name__ == "__main__":

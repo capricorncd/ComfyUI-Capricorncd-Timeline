@@ -1047,7 +1047,7 @@ export class CapTimelineEditorApp {
      */
     handleShortcutKey(e) {
         if (!this._overlay?.classList.contains("open")) return false;
-        if (this.shortcutsDialog?.open) return false;
+        if (this.shortcutsDialog?.open || this.exportDialog?.open) return false;
         if (e.repeat) return false;
         const mod = e.ctrlKey || e.metaKey;
         if (!mod || e.altKey) return false;
@@ -1265,6 +1265,7 @@ export class CapTimelineEditorApp {
             try { this._closeAddMaterial(); } catch { /* ignore */ }
             try { this._closeSettings(); } catch { /* ignore */ }
             this.shortcutsDialog?.close();
+            this.exportDialog?.close();
             this._removeCtxMenu();
             try { this._persistPanelLayout(); } catch { /* ignore */ }
             try { this._persistViewToLocalCache(); } catch { /* ignore */ }
@@ -1414,13 +1415,8 @@ export class CapTimelineEditorApp {
         ], r.left, r.bottom + 4);
     }
 
-    _showExportMenu(e) {
-        const r = e.currentTarget.getBoundingClientRect();
-        this._buildCtxMenu([
-            { label: T("export_to_directory"), fn: () => void this._exportToDirectory() },
-            { label: T("export_as_zip"), fn: () => void this._exportAsZip() },
-            { label: T("compose_video_menu"), fn: () => void this._composeGeneratedVideosExport() },
-        ], r.left, r.bottom + 4);
+    _openExportDialog() {
+        this.exportDialog.showModal();
     }
 
     _showRunMenu(e) {
@@ -2240,14 +2236,14 @@ export class CapTimelineEditorApp {
         return JSON.parse(JSON.stringify(graph.serialize()));
     }
 
-    async _exportToDirectory() {
+    async _exportToDirectory({ includeWorkflow = true, includeGenerated = true } = {}) {
         try {
             const dir = await this._pickDirectory("readwrite");
-            const workflow = this._exportWorkflowSnapshot();
+            const workflow = includeWorkflow ? this._exportWorkflowSnapshot() : null;
             const response = await fetch(api.apiURL("/audio_keyframe_timeline/export_prepare"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(this._buildProject()),
+                body: JSON.stringify({ project: this._buildProject(), include_generated: includeGenerated }),
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || T("export_prepare_failed"));
@@ -2257,7 +2253,7 @@ export class CapTimelineEditorApp {
                 "project.json",
                 new Blob([JSON.stringify(data.project, null, 2)], { type: "application/json;charset=utf-8" }),
             );
-            await this._writeRelativeFile(
+            if (workflow) await this._writeRelativeFile(
                 dir,
                 "workflow.json",
                 new Blob([JSON.stringify(workflow, null, 2)], { type: "application/json;charset=utf-8" }),
@@ -2817,13 +2813,13 @@ export class CapTimelineEditorApp {
         this._drawWatermarkOnCanvas(ctx, cw, ch);
     }
 
-    async _exportAsZip() {
+    async _exportAsZip({ includeWorkflow = true, includeGenerated = true } = {}) {
         try {
-            const workflow = this._exportWorkflowSnapshot();
+            const workflow = includeWorkflow ? this._exportWorkflowSnapshot() : null;
             const response = await fetch(api.apiURL("/audio_keyframe_timeline/export_zip"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ project: this._buildProject(), workflow }),
+                body: JSON.stringify({ project: this._buildProject(), workflow, include_generated: includeGenerated }),
             });
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
@@ -2972,7 +2968,8 @@ export class CapTimelineEditorApp {
             </div>
             <div class="cat-te-header-spacer"></div>
             <button type="button" class="cat-te-btn cat-te-import">${T("import_btn_caret")}</button>
-            <button type="button" class="cat-te-btn cat-te-export">${T("export_btn_caret")}</button>
+            <button type="button" class="cat-te-btn cat-te-export">${T("export_title")}</button>
+            <button type="button" class="cat-te-btn cat-te-compose-open">${T("compose_video_menu")}</button>
             <button type="button" class="cat-te-btn cat-te-settings">${T("settings_btn")}</button>
             <button type="button" class="cat-te-btn cat-te-header-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
             <input class="cat-te-import-zip" type="file" accept=".zip,application/zip" hidden />
@@ -3927,6 +3924,19 @@ export class CapTimelineEditorApp {
               </div>
             </div>
           </div>
+          <dialog class="cat-te-export-dialog" aria-label="${T("export_title")}">
+            <div class="cat-te-modal-header">
+              <span>${T("export_title")}</span>
+              <button type="button" class="cat-te-modal-close" aria-label="${T("close_title")}">${iconHtml("close", 16)}</button>
+            </div>
+            <div class="cat-te-modal-body">
+              <label class="cat-te-modal-check-row"><input type="radio" name="cap-export-format" value="directory" checked /><span>${T("export_files")}</span></label>
+              <label class="cat-te-modal-check-row"><input type="radio" name="cap-export-format" value="zip" /><span>ZIP</span></label>
+              <label class="cat-te-modal-check-row"><input class="cat-te-export-workflow" type="checkbox" checked /><span>${T("export_workflow")}</span></label>
+              <label class="cat-te-modal-check-row"><input class="cat-te-export-generated" type="checkbox" checked /><span>${T("export_generated")}</span></label>
+              <div class="cat-te-confirm-actions"><button type="button" class="cat-te-btn cat-te-btn-primary cat-te-export-start">${T("export_title")}</button></div>
+            </div>
+          </dialog>
           <dialog class="cat-te-shortcuts-dialog" aria-label="${T("shortcuts_title")}">
             <div class="cat-te-modal-header">
               <span>${T("shortcuts_title")}</span>
@@ -4259,6 +4269,19 @@ export class CapTimelineEditorApp {
         attachRichPromptHandler(this.aiSrcText, { mode: "widget" });
 
         this.settingsModal = el.querySelector(".cat-te-settings-modal");
+        this.exportDialog = el.querySelector(".cat-te-export-dialog");
+        this.exportDialog.querySelector(".cat-te-modal-close").addEventListener("click", () => this.exportDialog.close());
+        this.exportDialog.addEventListener("keydown", (e) => e.stopPropagation());
+        this.exportDialog.querySelector(".cat-te-export-start").addEventListener("click", () => {
+            const options = {
+                includeWorkflow: this.exportDialog.querySelector(".cat-te-export-workflow").checked,
+                includeGenerated: this.exportDialog.querySelector(".cat-te-export-generated").checked,
+            };
+            const format = this.exportDialog.querySelector('input[type="radio"]:checked').value;
+            this.exportDialog.close();
+            if (format === "zip") void this._exportAsZip(options);
+            else void this._exportToDirectory(options);
+        });
         this.shortcutsDialog = el.querySelector(".cat-te-shortcuts-dialog");
         this.shortcutsDialog.querySelector("button").addEventListener("click", () => this.shortcutsDialog.close());
         this.shortcutsDialog.addEventListener("keydown", (e) => e.stopPropagation());
@@ -4272,7 +4295,8 @@ export class CapTimelineEditorApp {
         this._agentSettings = new AgentSettings(this.settingsModal, (message, action) => this._openDeleteConfirm(message, action));
         this.importZipInput = el.querySelector(".cat-te-import-zip");
         el.querySelector(".cat-te-import").addEventListener("click", (e) => this._showImportMenu(e));
-        el.querySelector(".cat-te-export").addEventListener("click", (e) => this._showExportMenu(e));
+        el.querySelector(".cat-te-export").addEventListener("click", () => this._openExportDialog());
+        el.querySelector(".cat-te-compose-open").addEventListener("click", () => void this._composeGeneratedVideosExport());
         this.importZipInput.addEventListener("change", (e) => void this._importProjectZip(e));
         el.querySelector(".cat-te-header-close").addEventListener("click", () => this.close());
         this.addMaterialInput.addEventListener("change", (e) => this._previewSelectedMaterial(e));
@@ -13750,6 +13774,7 @@ export class CapTimelineEditorApp {
             || (this.trackConvertModal && !this.trackConvertModal.hidden)
             || (this.settingsModal && !this.settingsModal.hidden)
             || this.shortcutsDialog?.open
+            || this.exportDialog?.open
             || (this.aiOptimizeModal && !this.aiOptimizeModal.hidden)
             || (this.skillPickerModal && !this.skillPickerModal.hidden),
         );

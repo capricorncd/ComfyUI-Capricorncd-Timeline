@@ -2782,6 +2782,7 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-prompt-include-chip:disabled {
     cursor: default;
 }
+.cat-te-export-dialog,
 .cat-te-shortcuts-dialog {
     width: 460px;
     max-width: calc(100vw - 40px);
@@ -2794,6 +2795,7 @@ body.cat-te-media-dnd-over-tl {
     font-size: 13px;
     line-height: 2;
 }
+.cat-te-export-dialog::backdrop,
 .cat-te-shortcuts-dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 
 /* Launcher widget on the node */

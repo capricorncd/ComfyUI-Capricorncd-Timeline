@@ -344,7 +344,13 @@ export class Timeline extends EventEmitter {
 
   // ─── events ───────────────────────────────────────────────────────────────
 
+  _focusFromPointer(e) {
+    if (e.button !== 0 || e.target.closest('button, input, select, textarea, a[href], [contenteditable="true"]')) return;
+    this._container.focus({ preventScroll: true });
+  }
+
   _bindEvents() {
+    this._container.addEventListener('pointerdown', (e) => this._focusFromPointer(e), true);
     this.scrollEl.addEventListener('mousedown', (e) => {
       if (e.button !== 0 || !(e.ctrlKey || e.metaKey)) return;
       if (e.target.closest('button, input, select, textarea')) return;

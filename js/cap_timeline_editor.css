@@ -2291,6 +2291,24 @@ body.cat-te-media-dnd-over-tl {
     opacity: 0.4;
 }
 
+.cat-te-clip-opacity-panel {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--cat-raised);
+}
+.cat-te-clip-opacity-panel[hidden] {
+    display: none !important;
+}
+.cat-te-clip-opacity-panel .cat-te-clip-setting-row {
+    min-height: 28px;
+}
+.cat-te-clip-opacity-panel .cat-te-clip-setting-row > span:first-child {
+    flex-shrink: 0;
+}
+
 .cat-te-clip-volume-panel {
     flex-shrink: 0;
     padding: 10px 12px;

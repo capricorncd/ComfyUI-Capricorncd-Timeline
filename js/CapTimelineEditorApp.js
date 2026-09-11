@@ -10419,6 +10419,7 @@ export class CapTimelineEditorApp {
      */
     _startResourceGenProgramPreview(clip, file, urlOverride = null, { loop = false } = {}) {
         if (!clip) return;
+        if (this._resourceGenPreview?.merged) this._stopResourceGenProgramPreview();
         const url = urlOverride || (file ? this._outputVideoUrl(file) : "");
         if (!url) return;
         const fileKey = file || url;
@@ -10502,8 +10503,10 @@ export class CapTimelineEditorApp {
         this._stopResourceGenPreviewLoop();
         const tick = () => {
             this._resourceGenPreviewRaf = 0;
-            if (!this._resourceGenPreview?.video) return;
-            this._layoutResourceGenProgramVideo();
+            if (!this._resourceGenPreview) return;
+            if (this._resourceGenPreview.merged) this._renderClipHoverPreview();
+            else this._layoutResourceGenProgramVideo();
+            if (!this._resourceGenPreview) return;
             this._resourceGenPreviewRaf = requestAnimationFrame(tick);
         };
         this._resourceGenPreviewRaf = requestAnimationFrame(tick);
@@ -10512,6 +10515,10 @@ export class CapTimelineEditorApp {
     _stopResourceGenProgramPreview() {
         this._cancelResourceGenProgramPreviewStop();
         this._stopResourceGenPreviewLoop();
+        if (this._resourceGenPreview?.merged) {
+            this._stopAudioPlayback();
+            this._pauseUnusedPreviewVideos(new Set());
+        }
         const prevClipId = this._resourceGenPreview?.clipId;
         const video = this._resourceGenPreview?.video
             || this.programStage?.querySelector(".cat-te-program-gen-preview-video");
@@ -10530,6 +10537,67 @@ export class CapTimelineEditorApp {
             if (clip) this._decorateClip(clip);
         }
         this._scheduleProgramPreview();
+    }
+
+    _startClipHoverPreview(clip) {
+        if (!clip || this._timeline?._playing || !(clip.duration > 0)) return;
+        this._cancelResourceGenProgramPreviewStop();
+        if (this._resourceGenPreview?.merged && this._resourceGenPreview.clipId === clip.id) return;
+        this._stopResourceGenProgramPreview();
+        this._hideOutputVideoHoverPreview();
+        this._stopAudioPlayback();
+        this._pauseUnusedPreviewVideos(new Set());
+        const ctx = this._ensurePlaybackContext();
+        this._resourceGenPreview = {
+            merged: true, clipId: clip.id, clip,
+            startedAt: ctx.currentTime + 0.03, cycle: -1,
+        };
+        this._decorateClip(clip);
+        this._startResourceGenPreviewLoop();
+    }
+
+    _renderClipHoverPreview() {
+        const state = this._resourceGenPreview;
+        if (!state?.merged) return;
+        const clip = state.clip;
+        if (this._findClipById(clip.id) !== clip || this._timeline?._playing) {
+            this._stopResourceGenProgramPreview();
+            return;
+        }
+        const ctx = this._ensurePlaybackContext();
+        const elapsed = Math.max(0, ctx.currentTime - state.startedAt);
+        const cycle = Math.floor(elapsed / clip.duration);
+        if (cycle !== state.cycle) {
+            state.cycle = cycle;
+            this._stopAudioPlayback();
+            this._pauseUnusedPreviewVideos(new Set());
+            void this._scheduleGeneratedVideoWebAudio(state.startedAt + cycle * clip.duration, clip.startTime, {
+                jobs: this._collectGeneratedVideoAudioJobs(clip.startTime, clip),
+                isPlaying: () => this._resourceGenPreview === state && state.cycle === cycle,
+            });
+        }
+        const t = clip.startTime + elapsed % clip.duration;
+        const layout = this._layoutProgramCanvas();
+        if (!layout || !this.programCanvas) return;
+        const { canvasW: w, canvasH: h } = layout;
+        if (!state.canvas || state.canvas.width !== w || state.canvas.height !== h) {
+            state.canvas = document.createElement("canvas");
+            state.canvas.width = w;
+            state.canvas.height = h;
+        }
+        const draw = state.canvas.getContext("2d");
+        const target = this.programCanvas.getContext("2d");
+        if (!draw || !target) return;
+        draw.fillStyle = "#000";
+        draw.fillRect(0, 0, w, h);
+        const used = new Set();
+        const layers = this._collectPreviewLayers(t, clip);
+        const ready = this._drawPreviewLayersOnce(draw, w, h, t, {
+            layers, playing: true, fit: "contain", onVideoUsed: key => used.add(key),
+        });
+        this._pauseUnusedPreviewVideos(used);
+        if (ready || !layers.length) target.drawImage(state.canvas, 0, 0);
+        if (this.programEmpty) this.programEmpty.hidden = true;
     }
 
     _showOutputVideoHoverPreview(anchorEl, file) {
@@ -12371,7 +12439,7 @@ export class CapTimelineEditorApp {
      * Generated-video audio jobs from `fromTime` onward (absolute timeline secs).
      * Canvas preview videos stay muted; these feed Web Audio instead.
      */
-    _collectGeneratedVideoAudioJobs(fromTime) {
+    _collectGeneratedVideoAudioJobs(fromTime, onlyClip = null) {
         const jobs = [];
         const t0 = Math.max(0, Number(fromTime) || 0);
         for (const track of this._allImageTracks()) {
@@ -12379,9 +12447,10 @@ export class CapTimelineEditorApp {
             const info = this._trackInfo.get(track.id) || {};
             if (info.enabled === false) continue;
             for (const clip of track.clips) {
+                if (onlyClip && clip !== onlyClip) continue;
                 const m = this._meta.get(clip.id) ?? defaultImageMeta();
                 if (m.disabled || m.visible === false || m.muted) continue;
-                if (!this._clipUsesGeneratedPreview(m)) continue;
+                if (!onlyClip && !this._clipUsesGeneratedPreview(m)) continue;
                 const gens = this._clipGeneratedVideos(m).filter((g) => g.enabled !== false);
                 for (const gen of gens) {
                     if (gen.muted === true || !gen.file) continue;
@@ -12420,15 +12489,13 @@ export class CapTimelineEditorApp {
         return jobs;
     }
 
-    async _scheduleGeneratedVideoWebAudio(startCtxTime, startPlayhead) {
-        const tl = this._timeline;
-        if (!tl?._playing) return;
+    async _scheduleGeneratedVideoWebAudio(startCtxTime, startPlayhead, { jobs = null, isPlaying = () => !!this._timeline?._playing } = {}) {
+        if (!isPlaying()) return;
         const token = (this._genMainAudioToken = (this._genMainAudioToken || 0) + 1);
         const ctx = this._ensurePlaybackContext();
-        const jobs = this._collectGeneratedVideoAudioJobs(startPlayhead);
-        for (const job of jobs) {
+        for (const job of jobs || this._collectGeneratedVideoAudioJobs(startPlayhead)) {
             const buffer = await this._ensureGenVideoAudioBuffer(job.file, job.location || "output");
-            if (this._genMainAudioToken !== token || !tl._playing) return;
+            if (this._genMainAudioToken !== token || !isPlaying()) return;
             if (!buffer) continue;
             const now = Math.max(startCtxTime, ctx.currentTime);
             const playhead = startPlayhead + (now - startCtxTime);
@@ -13429,7 +13496,7 @@ export class CapTimelineEditorApp {
             : null;
         clip.el.classList.remove("cat-te-clip-gen-empty");
         const genPreview = this._clipUsesGeneratedPreview(m);
-        // Video badge: hover plays finished generated video (or live sampling);
+        // Video badge: hover plays the clip's edited composition (or live sampling);
         // click toggles normal ↔ generated preview state.
         const showPreviewBadge = !!(enabledGen || runPreview?.url);
         if (showPreviewBadge) {
@@ -13450,8 +13517,7 @@ export class CapTimelineEditorApp {
                         return;
                     }
                     const meta = this._meta.get(clip.id) ?? defaultImageMeta();
-                    const gen = this._firstEnabledGeneratedVideo(meta);
-                    if (gen?.file) this._startResourceGenProgramPreview(clip, gen.file, null, { loop: true });
+                    if (this._firstEnabledGeneratedVideo(meta)?.file) this._startClipHoverPreview(clip);
                 });
                 previewBadge.addEventListener("mouseleave", () => {
                     this._scheduleResourceGenProgramPreviewStop();
@@ -15689,9 +15755,9 @@ export class CapTimelineEditorApp {
             this._clearPreviewSeekWatch(entry);
             entry.seeking = false;
             entry.ready = v.readyState >= 2;
-            const playing = this._isGenEditModalOpen()
+            const playing = entry._playSynced || (this._isGenEditModalOpen()
                 ? !!(this._genEditState?.timeline?._playing)
-                : !!this._timeline?._playing;
+                : !!this._timeline?._playing);
             const drift = Math.abs((entry.wantTime || 0) - v.currentTime);
             if (!playing && drift > 0.001) {
                 this._seekPreviewVideo(entry, entry.wantTime);
@@ -15890,7 +15956,7 @@ export class CapTimelineEditorApp {
         return { item: items[index], index };
     }
 
-    _collectPreviewLayers(t) {
+    _collectPreviewLayers(t, onlyClip = null) {
         const layers = [];
         // tracks[] has overlays first (top), then main — paint bottom→top via reverse.
         for (const track of [...this._allRenderableTracks()].reverse()) {
@@ -15898,10 +15964,11 @@ export class CapTimelineEditorApp {
             const info = this._trackInfo.get(track.id) || {};
             if (info.enabled === false) continue;
             for (const clip of track.clips) {
+                if (onlyClip && clip !== onlyClip) continue;
                 if (!(t >= clip.startTime - 1e-6 && t < clip.endTime - 1e-9)) continue;
                 const m = this._meta.get(clip.id) ?? defaultImageMeta();
                 if (m.disabled || m.visible === false) continue;
-                if (isDirectorTrackType(track.type) && this._clipUsesGeneratedPreview(m)) {
+                if (isDirectorTrackType(track.type) && (onlyClip || this._clipUsesGeneratedPreview(m))) {
                     const gens = this._clipGeneratedVideos(m).filter((g) => g.enabled !== false);
                     if (!gens.length) {
                         layers.push({ kind: "package", clip, meta: m, mediaTrack: false });
@@ -15961,7 +16028,7 @@ export class CapTimelineEditorApp {
      * compose modal's watermark preview. Does not touch video pause/resume
      * bookkeeping; pass `onVideoUsed` to track that in the caller.
      * `fit`: "cover" (default, crop to fill) or "contain" (letterbox). */
-    _drawPreviewLayersOnce(ctx, cw, ch, t, { onVideoUsed, layers: layersOpt, fit = "cover" } = {}) {
+    _drawPreviewLayersOnce(ctx, cw, ch, t, { onVideoUsed, layers: layersOpt, fit = "cover", playing = null } = {}) {
         const layers = layersOpt || this._collectPreviewLayers(t);
         const generatedActive = layers.some((layer) => layer.kind === "generated");
         const drawMedia = fit === "contain"
@@ -16005,6 +16072,7 @@ export class CapTimelineEditorApp {
                 entry.el.playbackRate = layer.mediaTrack ? (layer.clip.playbackRate || 1) : 1;
                 this._syncPreviewVideo(entry, mediaTime, {
                     audible: layer.kind === "generated" && layer.muted !== true,
+                    playing,
                 });
                 const drawLayer = layer.mediaTrack
                     ? (c, m, w, h) => this._drawMediaLayer(c, m, w, h, layer.meta)
@@ -16059,6 +16127,10 @@ export class CapTimelineEditorApp {
 
     async _renderProgramPreview() {
         if (this._isGenEditModalOpen()) return;
+        if (this._resourceGenPreview?.merged) {
+            this._renderClipHoverPreview();
+            return;
+        }
         if (this._resourceGenPreview?.video && !this._resourceGenPreview.video.hidden) {
             this._layoutProgramCanvas();
             this._layoutResourceGenProgramVideo();

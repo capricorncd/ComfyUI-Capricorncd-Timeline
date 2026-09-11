@@ -11881,7 +11881,6 @@ export class CapTimelineEditorApp {
             first ||= clip;
         }
         tl.selectClip(first);
-        tl.setCurrentTime(first.startTime);
         this._refreshTimelineDuration();
         this._saveToWidgets();
         this._scheduleProgramPreview();
@@ -16264,10 +16263,8 @@ export class CapTimelineEditorApp {
                 const trackEl = e.target.closest?.(".tl-track");
                 const track = tl.tracks.find(row => row.el === trackEl);
                 if (isSubtitleTrackType(track?.type)) {
-                    const rect = scroll.getBoundingClientRect();
-                    const at = Math.max(0, (e.clientX - rect.left + scroll.scrollLeft) / Math.max(1e-6, tl.pixelsPerSecond));
                     items.push({ label: T("subtitle_batch_insert"), disabled: !!track.locked,
-                        fn: () => this._openSubtitleBatchDialog(track, at) });
+                        fn: () => this._openSubtitleBatchDialog(track, tl.currentTime) });
                 }
                 if (CapTimelineEditorApp._clipClipboard?.length) {
                     items.push({ label: T("menu_paste_shortcut"), fn: () => this._pasteClips() });

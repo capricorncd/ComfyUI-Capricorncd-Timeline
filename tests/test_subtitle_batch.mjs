@@ -11,6 +11,12 @@ function method(name) {
         key=>key, type=>['text','subtitle'].includes(type), index=>({trackIndex:index}), style=>style || {});
 }
 const insert = method('_insertSubtitleBatch');
+const menuAction = source.match(/fn: \(\) => this\._openSubtitleBatchDialog\(track, ([^)]+)\)/);
+assert(menuAction);
+let insertion;
+new Function('track', 'tl', `this._openSubtitleBatchDialog(track, ${menuAction[1]});`).call(
+    {_openSubtitleBatchDialog:(track, at)=>{insertion=[track,at];}}, 'sub', {currentTime:12.75});
+assert.deepEqual(insertion,['sub',12.75], 'menu uses the playhead, not the right-click position');
 function fixture() {
     const track = {id:'sub',type:'text',locked:false,clips:[],color:'#abc'};
     const calls = {undo:0,save:0,preview:0};
@@ -20,11 +26,11 @@ function fixture() {
         _trackHasRoom:method('_trackHasRoom'), _ensureTimelineLength:end=>{calls.end=end;},
         _decorateClip(){}, _refreshTimelineDuration(){}, _saveToWidgets(){calls.save++;},
         _scheduleProgramPreview(){calls.preview++;},
-        _timeline:{tracks:[track], addClip(id, data){
+        _timeline:{tracks:[track], currentTime:7.25, addClip(id, data){
             assert.equal(id, track.id);
             const clip = {...data,id:`s${track.clips.length}`,endTime:data.startTime+data.duration};
             track.clips.push(clip); return clip;
-        }, selectClip:clip=>{calls.selected=clip;},setCurrentTime:t=>{calls.seek=t;}},
+        }, selectClip:clip=>{calls.selected=clip;},setCurrentTime(t){calls.seek=t; this.currentTime=t;}},
     };
     return {app,track,calls};
 }
@@ -34,7 +40,9 @@ function fixture() {
     assert.deepEqual(track.clips.map(c=>[c.startTime,c.duration]), [[1.25,3],[4.25,3],[8.25,3],[13.25,3]]);
     assert.deepEqual([...app._meta.values()].map(m=>m.text), ['第一行','第二行','第三行','第四行']);
     assert([...app._meta.values()].every(m=>m.fontSize===42 && m.offsetY===5));
-    assert.deepEqual([calls.undo,calls.save,calls.preview,calls.end,calls.seek], [1,1,1,16.25,1.25]);
+    assert.deepEqual([calls.undo,calls.save,calls.preview,calls.end], [1,1,1,16.25]);
+    assert.equal(calls.seek,undefined, 'batch insertion must not seek to its first subtitle');
+    assert.equal(app._timeline.currentTime,7.25);
 }
 for (const text of ['', '\r\n  \n\t']) {
     const {app,track,calls} = fixture();
@@ -120,4 +128,13 @@ for (const clips of [[], [{startTime:0,duration:3}]]) {
     assert.equal(calls.undo,0);
 }
 assert(source.includes('this._subtitleBatchDialog?.close();'));
+for (const at of [3, 7, 12]) {
+    const {app,track,calls} = fixture();
+    app._timeline.currentTime = at;
+    app._timeline.tracks.push({id:'ref',type:'text',clips:[{startTime:2,duration:4},{startTime:9,duration:2}]});
+    assert.equal(insert.call(app,track,at,'one\ntwo','ref'),'');
+    assert.equal(app._timeline.currentTime,at, 'keep seek inside a reference, in a gap, or after all references');
+    assert.equal(calls.seek,undefined);
+    assert.equal(calls.selected,track.clips[0], 'still select the first inserted subtitle');
+}
 console.log('Batch subtitles: line spacing, defaults, style, overlap, locks and single undo passed');

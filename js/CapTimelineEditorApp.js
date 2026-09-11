@@ -11841,13 +11841,15 @@ export class CapTimelineEditorApp {
             const reference = tl.tracks.find(other => other.id === syncTrackId && other !== track && isSubtitleTrackType(other.type));
             if (!reference) return T("subtitle_batch_sync_unavailable");
             const texts = lines.filter(Boolean);
-            const clips = reference.clips.filter(clip => clip.startTime >= cursor - 1e-6)
+            const clips = reference.clips.filter(clip => clip.startTime + clip.duration > cursor + 1e-6)
                 .sort((a, b) => a.startTime - b.startTime);
-            if (clips.length < texts.length) {
-                return T("subtitle_batch_sync_short", { available: clips.length, required: texts.length });
-            }
-            texts.forEach((text, index) => rows.push({ text, startTime: clips[index].startTime, duration: clips[index].duration }));
-            cursor = Math.max(...rows.map(row => row.startTime + row.duration));
+            texts.forEach((text, index) => {
+                const referenceClip = clips[index];
+                const startTime = referenceClip ? referenceClip.startTime : cursor;
+                const duration = referenceClip ? referenceClip.duration : 3;
+                rows.push({ text, startTime, duration });
+                cursor = startTime + duration;
+            });
         } else {
             for (const line of lines) {
                 if (!line) {

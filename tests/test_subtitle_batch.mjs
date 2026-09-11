@@ -78,11 +78,11 @@ assert(!source.includes('_pasteSubtitleText'), 'do not restore the reverted Ctrl
     assert.equal(JSON.stringify(reference),original, 'reference order, style and contents are untouched');
     assert([...app._meta.values()].every(m=>m.fontSize===42), 'keep destination styling');
 }
-for (const reference of [null, {id:'ref',type:'audio',clips:[]}, {id:'ref',type:'text',clips:[]}]) {
+for (const reference of [null, {id:'ref',type:'audio',clips:[]}]) {
     const {app,track,calls} = fixture();
     if (reference) app._timeline.tracks.push(reference);
     const error = insert.call(app,track,0,'one\ntwo','ref');
-    assert.equal(error, reference?.type === 'text' ? 'subtitle_batch_sync_short' : 'subtitle_batch_sync_unavailable');
+    assert.equal(error, 'subtitle_batch_sync_unavailable');
     assert.equal(track.clips.length,0);
     assert.equal(calls.undo,0);
     assert.equal(insert.call(app,track,0,'one',track.id),'subtitle_batch_sync_unavailable');
@@ -90,13 +90,34 @@ for (const reference of [null, {id:'ref',type:'audio',clips:[]}, {id:'ref',type:
 {
     const {app,track,calls} = fixture();
     app._timeline.tracks.push({id:'ref',type:'text',clips:[{startTime:2,duration:4},{startTime:9,duration:2}]});
-    assert.equal(insert.call(app,track,3,'one\ntwo','ref'),'subtitle_batch_sync_short', 'skip reference starting before seek');
+    assert.equal(insert.call(app,track,3,'one\ntwo\n\nthree\nfour','ref'),'');
+    assert.deepEqual(track.clips.map(c=>[c.startTime,c.duration]), [[2,4],[9,2],[11,3],[14,3]],
+        'include subtitle covering seek; extra non-empty lines follow the last match');
+    assert.equal(calls.end,17);
+    assert.equal(calls.undo,1);
+    track.clips=[];
     track.clips.push({startTime:10,endTime:12});
-    assert.equal(insert.call(app,track,3,'one','ref'),'subtitle_batch_overlap');
-    assert.equal(calls.undo,0);
+    assert.equal(insert.call(app,track,3,'one\ntwo','ref'),'subtitle_batch_overlap');
+    assert.equal(calls.undo,1, 'overlap still rejects the whole batch');
     track.clips=[];
     assert.equal(insert.call(app,track,9,'one','ref'),'');
     assert.equal(track.clips[0].startTime,9, 'include exact insertion boundary');
+}
+for (const clips of [[], [{startTime:0,duration:3}]]) {
+    const {app,track,calls} = fixture();
+    app._timeline.tracks.push({id:'ref',type:'text',clips});
+    assert.equal(insert.call(app,track,3,'one\n\ntwo','ref'),'');
+    assert.deepEqual(track.clips.map(c=>[c.startTime,c.duration]), [[3,3],[6,3]],
+        'no remaining references: start at seek, excluding a reference ending exactly there');
+    assert.equal(calls.end,9);
+}
+{
+    const {app,track,calls} = fixture();
+    app._timeline.tracks.push({id:'ref',type:'text',clips:[{startTime:2,duration:4}]});
+    track.clips.push({startTime:8,endTime:9});
+    assert.equal(insert.call(app,track,2,'one\ntwo','ref'),'subtitle_batch_overlap');
+    assert.equal(track.clips.length,1, 'extra 3-second rows also preserve existing destination subtitles');
+    assert.equal(calls.undo,0);
 }
 assert(source.includes('this._subtitleBatchDialog?.close();'));
 console.log('Batch subtitles: line spacing, defaults, style, overlap, locks and single undo passed');

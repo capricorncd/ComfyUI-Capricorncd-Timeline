@@ -15548,11 +15548,12 @@ export class CapTimelineEditorApp {
         v.muted = true;
         if (isPlaying) {
             const drift = Math.abs((v.currentTime || 0) - clamped);
-            // Freewheel after the first sync — only hard-correct large drift.
-            const needSync = !entry._playSynced || !entry._hasDrawn || drift > 1.0;
+            // Once positioned, allow the decoder to deliver its first frame before
+            // correcting small drift; otherwise each render tick starts another seek.
+            const needSync = !entry._playSynced || drift > 1.0;
             if (needSync) {
-                this._seekPreviewVideo(entry, clamped, { force: !entry._hasDrawn });
-                entry._playSynced = true;
+                this._seekPreviewVideo(entry, clamped, { force: !entry._playSynced });
+                entry._playSynced = v.readyState >= 1;
             }
             if (v.paused && (entry.ready || v.readyState >= 2)) {
                 void v.play().catch(() => {});
@@ -15874,7 +15875,6 @@ export class CapTimelineEditorApp {
             this._scheduleProgramPreview();
             return;
         }
-        this._programFrameKey = frameKey;
         const layers = this._collectPreviewLayers(t);
         const hasSub = this._hasVisibleSubtitleAt(t);
         const usedVideoKeys = new Set();
@@ -15923,6 +15923,7 @@ export class CapTimelineEditorApp {
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.drawImage(off, 0, 0);
             this._programHadFrame = true;
+            this._programFrameKey = frameKey;
         } else if (playing && this._programHadFrame) {
             // Next clip still seeking/buffering — hold previous pixels.
             this._scheduleProgramPreview();

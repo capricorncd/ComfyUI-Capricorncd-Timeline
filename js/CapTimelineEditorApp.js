@@ -1274,6 +1274,7 @@ export class CapTimelineEditorApp {
             this.exportDialog?.close();
             this.voiceDialog?.close();
             this._subtitleSpeech?.dialog.close();
+            this._subtitleBatchDialog?.close();
             this._removeCtxMenu();
             try { this._persistPanelLayout(); } catch { /* ignore */ }
             try { this._persistViewToLocalCache(); } catch { /* ignore */ }
@@ -11705,6 +11706,83 @@ export class CapTimelineEditorApp {
         this._scheduleProgramPreview();
     }
 
+    _openSubtitleBatchDialog(track, atSec) {
+        if (!isSubtitleTrackType(track?.type) || track.locked) return;
+        this._subtitleBatchDialog?.close();
+        this._timeline.pause();
+        const dialog = document.createElement("dialog");
+        this._subtitleBatchDialog = dialog;
+        dialog.className = "cat-te-voice-dialog";
+        dialog.setAttribute("aria-label", T("subtitle_batch_insert"));
+        dialog.innerHTML = `<div class="cat-te-modal-header"><span>${T("subtitle_batch_insert")}</span></div>
+            <div class="cat-te-modal-body">
+                <p>${T("subtitle_batch_hint")}</p>
+                <textarea rows="10" autofocus style="width:100%;box-sizing:border-box" aria-label="${T("subtitle_batch_insert")}"></textarea>
+                <p role="status" aria-live="polite"></p>
+                <div class="cat-te-confirm-actions">
+                    <button class="cat-te-btn" data-action="cancel">${T("cancel_btn")}</button>
+                    <button class="cat-te-btn cat-te-btn-primary" data-action="insert">${T("confirm_btn")}</button>
+                </div>
+            </div>`;
+        dialog.addEventListener("keydown", e => e.stopPropagation());
+        dialog.addEventListener("close", () => {
+            dialog.remove();
+            if (this._subtitleBatchDialog === dialog) this._subtitleBatchDialog = null;
+        });
+        dialog.querySelector('[data-action="cancel"]').onclick = () => dialog.close();
+        dialog.querySelector('[data-action="insert"]').onclick = () => {
+            const error = this._insertSubtitleBatch(track, atSec, dialog.querySelector("textarea").value);
+            if (error) dialog.querySelector('[role="status"]').textContent = error;
+            else dialog.close();
+        };
+        this._overlay.append(dialog);
+        dialog.showModal();
+    }
+
+    _insertSubtitleBatch(track, atSec, text) {
+        const tl = this._timeline;
+        if (!tl?.tracks.includes(track) || !isSubtitleTrackType(track?.type) || track.locked) {
+            return T("subtitle_batch_unavailable");
+        }
+        const content = String(text || "").trim();
+        if (!content) return T("subtitle_batch_empty");
+        const rows = [];
+        let cursor = Math.max(0, Number(atSec) || 0);
+        for (const line of content.split(/\r\n?|\n/)) {
+            if (!line.trim()) {
+                cursor += 1;
+                continue;
+            }
+            rows.push({ text: line.trim(), startTime: cursor });
+            cursor += 3;
+        }
+        if (rows.some(row => !this._trackHasRoom(track, row.startTime, 3))) {
+            return T("subtitle_batch_overlap");
+        }
+        this._recordUndo();
+        this._ensureTimelineLength(cursor);
+        let first;
+        for (const row of rows) {
+            const clip = tl.addClip(track.id, {
+                name: row.text.slice(0, 40), startTime: row.startTime, duration: 3,
+                color: track.color || "#ff9e4a",
+            });
+            this._meta.set(clip.id, {
+                ...defaultSubtitleMeta(this._trackIndex(track)),
+                ...pickSubtitleStyle(this._trackInfo.get(track.id)?.subtitleStyle),
+                text: row.text,
+            });
+            this._decorateClip(clip);
+            first ||= clip;
+        }
+        tl.selectClip(first);
+        tl.setCurrentTime(first.startTime);
+        this._refreshTimelineDuration();
+        this._saveToWidgets();
+        this._scheduleProgramPreview();
+        return "";
+    }
+
     _insertPackageAtTime(atSec) {
         if (!this._timeline) return;
         const track = this._pickInsertImageTrack(atSec);
@@ -16068,10 +16146,22 @@ export class CapTimelineEditorApp {
         scroll.addEventListener("contextmenu", (e) => {
             const clipEl = e.target.closest?.(".tl-clip");
             if (!clipEl) {
-                if (!CapTimelineEditorApp._clipClipboard?.length) return;
+                const items = [];
+                const trackEl = e.target.closest?.(".tl-track");
+                const track = tl.tracks.find(row => row.el === trackEl);
+                if (isSubtitleTrackType(track?.type)) {
+                    const rect = scroll.getBoundingClientRect();
+                    const at = Math.max(0, (e.clientX - rect.left + scroll.scrollLeft) / Math.max(1e-6, tl.pixelsPerSecond));
+                    items.push({ label: T("subtitle_batch_insert"), disabled: !!track.locked,
+                        fn: () => this._openSubtitleBatchDialog(track, at) });
+                }
+                if (CapTimelineEditorApp._clipClipboard?.length) {
+                    items.push({ label: T("menu_paste_shortcut"), fn: () => this._pasteClips() });
+                }
+                if (!items.length) return;
                 e.preventDefault();
                 this._buildCtxMenu(
-                    [{ label: T("menu_paste_shortcut"), fn: () => this._pasteClips() }],
+                    items,
                     e.clientX,
                     e.clientY,
                 );

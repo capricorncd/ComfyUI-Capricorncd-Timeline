@@ -444,6 +444,19 @@ def _render_text_watermark_png(text_cfg: dict, scale_pct: float) -> str:
     return path
 
 
+def _subtitle_rgba(value: str, opacity: float) -> tuple[int, int, int, int]:
+    color = str(value or "").strip()
+    hex_color = re.fullmatch(r"#([\da-f]{6})([\da-f]{2})?", color, re.I)
+    if hex_color:
+        rgb = tuple(int(hex_color[1][i:i + 2], 16) for i in (0, 2, 4))
+        alpha = int(hex_color[2], 16) / 255 if hex_color[2] else 1
+    else:
+        rgba = re.fullmatch(r"rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d*\.?\d+)\s*\)", color, re.I)
+        rgb = tuple(min(255, int(rgba[i])) for i in (1, 2, 3)) if rgba else (0, 0, 0)
+        alpha = min(1, float(rgba[4])) if rgba else 1
+    return (*rgb, round(255 * alpha * opacity))
+
+
 def _render_subtitle_png(text: str, style: dict) -> str:
     from PIL import Image, ImageDraw, ImageFont
 
@@ -461,10 +474,7 @@ def _render_subtitle_png(text: str, style: dict) -> str:
     fill = tuple(int(color[i:i + 2], 16) for i in (0, 2, 4)) + (round(255 * opacity),)
     # Canvas strokes straddle the glyph edge; Pillow's stroke extends outward.
     stroke_width = max(0, round(float(style.get("stroke_width", 0) or 0) * render_scale / 2)) if style.get("stroke_enabled", True) is not False else 0
-    stroke_color = str(style.get("stroke_color") or "#000000").lstrip("#")
-    if len(stroke_color) != 6:
-        stroke_color = "000000"
-    stroke_fill = tuple(int(stroke_color[i:i + 2], 16) for i in (0, 2, 4)) + (round(255 * opacity),)
+    stroke_fill = _subtitle_rgba(style.get("stroke_color"), opacity)
     align = str(style.get("align") or "center").lower()
     spacing = max(2, round(font_size * 0.25)) * render_scale
     scratch = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
@@ -479,10 +489,7 @@ def _render_subtitle_png(text: str, style: dict) -> str:
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     pos = (pad - box[0], pad - box[1])
     if shadow_enabled:
-        shadow_color = str(style.get("shadow_color") or "#000000").lstrip("#")
-        if len(shadow_color) != 6:
-            shadow_color = "000000"
-        shadow_fill = tuple(int(shadow_color[i:i + 2], 16) for i in (0, 2, 4)) + (round(255 * opacity),)
+        shadow_fill = _subtitle_rgba(style.get("shadow_color"), opacity)
         ImageDraw.Draw(image).multiline_text((pos[0] + shadow_x, pos[1] + shadow_y), text, font=font, fill=shadow_fill, spacing=spacing, align=align, stroke_width=stroke_width, stroke_fill=shadow_fill)
         if shadow_radius:
             image = image.filter(ImageFilter.GaussianBlur(shadow_radius))

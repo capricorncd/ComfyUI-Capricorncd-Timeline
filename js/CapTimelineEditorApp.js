@@ -543,6 +543,24 @@ function normalizeClipVolume(value) {
     return Number.isFinite(n) ? Math.max(0, Math.min(2, n)) : 1;
 }
 
+function parseSubtitleColor(value) {
+    const color = String(value || "").trim();
+    const hex = /^#([\da-f]{6})([\da-f]{2})?$/i.exec(color);
+    if (hex) return { hex: `#${hex[1]}`, alpha: hex[2] ? parseInt(hex[2], 16) / 255 : 1 };
+    const rgba = /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d*\.?\d+)\s*\)$/i.exec(color);
+    if (rgba) return {
+        hex: `#${rgba.slice(1, 4).map(v => Math.min(255, Number(v)).toString(16).padStart(2, "0")).join("")}`,
+        alpha: Math.min(1, Number(rgba[4])),
+    };
+    return { hex: "#000000", alpha: 1 };
+}
+
+function subtitleColorWithOpacity(color, percent) {
+    const { hex } = parseSubtitleColor(color);
+    const rgb = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+    return `rgba(${rgb.join(",")},${Math.max(0, Math.min(100, Number(percent))) / 100})`;
+}
+
 function defaultSubtitleMeta(trackIndex = 0) {
     return {
         clipType: "subtitle",
@@ -3323,6 +3341,13 @@ export class CapTimelineEditorApp {
                   <input class="cat-te-sub-stroke-color" type="color" value="#000000" />
                 </label>
                 <label class="cat-te-clip-setting-row">
+                  <span>${T("subtitle_stroke_opacity_label")}</span>
+                  <span class="cat-te-clip-slider-controls">
+                    <input class="cat-te-sub-stroke-opacity" type="range" min="0" max="100" step="1" value="100" />
+                    <span>100%</span>
+                  </span>
+                </label>
+                <label class="cat-te-clip-setting-row">
                   <span>${T("subtitle_stroke_width_label")}</span>
                   <input class="cat-te-sub-stroke-width" type="number" min="0" max="40" step="0.5" value="3" />
                 </label>
@@ -3330,6 +3355,13 @@ export class CapTimelineEditorApp {
                 <label class="cat-te-clip-setting-row">
                   <span>${T("subtitle_shadow_color_label")}</span>
                   <input class="cat-te-sub-shadow-color" type="color" value="#000000" />
+                </label>
+                <label class="cat-te-clip-setting-row">
+                  <span>${T("subtitle_shadow_opacity_label")}</span>
+                  <span class="cat-te-clip-slider-controls">
+                    <input class="cat-te-sub-shadow-opacity" type="range" min="0" max="100" step="1" value="75" />
+                    <span>75%</span>
+                  </span>
                 </label>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("subtitle_shadow_blur_label")}</span>
@@ -4202,9 +4234,11 @@ export class CapTimelineEditorApp {
         this.subOpacityVal = el.querySelector(".cat-te-sub-opacity-val");
         this.subStrokeCb = el.querySelector(".cat-te-sub-stroke");
         this.subStrokeColorInput = el.querySelector(".cat-te-sub-stroke-color");
+        this.subStrokeOpacityInput = el.querySelector(".cat-te-sub-stroke-opacity");
         this.subStrokeWidthInput = el.querySelector(".cat-te-sub-stroke-width");
         this.subShadowCb = el.querySelector(".cat-te-sub-shadow");
         this.subShadowColorInput = el.querySelector(".cat-te-sub-shadow-color");
+        this.subShadowOpacityInput = el.querySelector(".cat-te-sub-shadow-opacity");
         this.subShadowBlurInput = el.querySelector(".cat-te-sub-shadow-blur");
         this.subShadowXInput = el.querySelector(".cat-te-sub-shadow-x");
         this.subShadowYInput = el.querySelector(".cat-te-sub-shadow-y");
@@ -16924,9 +16958,11 @@ export class CapTimelineEditorApp {
             [this.subOpacityInput, "opacity", "opacity"],
             [this.subStrokeCb, "strokeEnabled", "bool"],
             [this.subStrokeColorInput, "strokeColor", "str"],
+            [this.subStrokeOpacityInput, "strokeColor", "opacity"],
             [this.subStrokeWidthInput, "strokeWidth", "num"],
             [this.subShadowCb, "shadowEnabled", "bool"],
             [this.subShadowColorInput, "shadowColor", "str"],
+            [this.subShadowOpacityInput, "shadowColor", "opacity"],
             [this.subShadowBlurInput, "shadowBlur", "num"],
             [this.subShadowXInput, "shadowOffsetX", "num"],
             [this.subShadowYInput, "shadowOffsetY", "num"],
@@ -16971,19 +17007,21 @@ export class CapTimelineEditorApp {
             if (this.subColorInput) this.subColorInput.value = /^#[0-9a-fA-F]{6}$/.test(m.color) ? m.color : "#ffffff";
             if (this.subBoldCb) this.subBoldCb.checked = !!m.bold;
             if (this.subItalicCb) this.subItalicCb.checked = !!m.italic;
-            const opacityPct = Math.round(Math.max(0, Math.min(1, Number(m.opacity) || 1)) * 100);
+            const opacityPct = Math.round(Math.max(0, Math.min(1, Number(m.opacity ?? 1))) * 100);
             if (this.subOpacityInput) this.subOpacityInput.value = String(opacityPct);
             if (this.subOpacityVal) this.subOpacityVal.textContent = `${opacityPct}%`;
             if (this.subStrokeCb) this.subStrokeCb.checked = m.strokeEnabled !== false;
-            if (this.subStrokeColorInput) {
-                this.subStrokeColorInput.value = /^#[0-9a-fA-F]{6}$/.test(m.strokeColor) ? m.strokeColor : "#000000";
+            for (const [colorInput, opacityInput, color] of [
+                [this.subStrokeColorInput, this.subStrokeOpacityInput, m.strokeColor],
+                [this.subShadowColorInput, this.subShadowOpacityInput, m.shadowColor],
+            ]) {
+                const parsed = parseSubtitleColor(color);
+                colorInput.value = parsed.hex;
+                opacityInput.value = String(Math.round(parsed.alpha * 100));
+                opacityInput.nextElementSibling.textContent = `${opacityInput.value}%`;
             }
             if (this.subStrokeWidthInput) this.subStrokeWidthInput.value = String(Number(m.strokeWidth) || 0);
             if (this.subShadowCb) this.subShadowCb.checked = m.shadowEnabled !== false;
-            const shadowHex = String(m.shadowColor || "#000000");
-            if (this.subShadowColorInput) {
-                this.subShadowColorInput.value = /^#[0-9a-fA-F]{6}$/.test(shadowHex) ? shadowHex : "#000000";
-            }
             if (this.subShadowBlurInput) this.subShadowBlurInput.value = String(Number(m.shadowBlur) || 0);
             if (this.subShadowXInput) this.subShadowXInput.value = String(Number(m.shadowOffsetX) || 0);
             if (this.subShadowYInput) this.subShadowYInput.value = String(Number(m.shadowOffsetY) || 0);
@@ -17014,10 +17052,12 @@ export class CapTimelineEditorApp {
         meta.opacity = opacityPct / 100;
         if (this.subOpacityVal) this.subOpacityVal.textContent = `${Math.round(opacityPct)}%`;
         meta.strokeEnabled = !!this.subStrokeCb?.checked;
-        meta.strokeColor = String(this.subStrokeColorInput?.value || meta.strokeColor || "#000000");
+        meta.strokeColor = subtitleColorWithOpacity(this.subStrokeColorInput.value, this.subStrokeOpacityInput.value);
+        this.subStrokeOpacityInput.nextElementSibling.textContent = `${this.subStrokeOpacityInput.value}%`;
         meta.strokeWidth = Math.max(0, Number(this.subStrokeWidthInput?.value) || 0);
         meta.shadowEnabled = !!this.subShadowCb?.checked;
-        meta.shadowColor = String(this.subShadowColorInput?.value || meta.shadowColor || "#000000");
+        meta.shadowColor = subtitleColorWithOpacity(this.subShadowColorInput.value, this.subShadowOpacityInput.value);
+        this.subShadowOpacityInput.nextElementSibling.textContent = `${this.subShadowOpacityInput.value}%`;
         meta.shadowBlur = Math.max(0, Number(this.subShadowBlurInput?.value) || 0);
         meta.shadowOffsetX = Number(this.subShadowXInput?.value) || 0;
         meta.shadowOffsetY = Number(this.subShadowYInput?.value) || 0;
@@ -17144,7 +17184,7 @@ export class CapTimelineEditorApp {
         ctx.font = `${style} ${weight} ${fontSize}px ${family}`;
         ctx.textAlign = m.align === "left" || m.align === "right" ? m.align : "center";
         ctx.textBaseline = "middle";
-        ctx.globalAlpha = Math.max(0, Math.min(1, Number(m.opacity) || 1));
+        ctx.globalAlpha = Math.max(0, Math.min(1, Number(m.opacity ?? 1)));
 
         const lines = text.split(/\r?\n/);
         const lineHeight = fontSize * 1.25;

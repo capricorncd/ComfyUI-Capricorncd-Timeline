@@ -1505,7 +1505,12 @@ export class CapTimelineEditorApp {
         const changed = tracks.some((track, index) => track !== tl.tracks[index]);
         if (changed && recordUndo) this._recordUndo();
         tl.tracks = tracks;
-        tracks.forEach((track, index) => {
+        this._syncTrackOrder({ save });
+    }
+
+    _syncTrackOrder({ save = false } = {}) {
+        const tl = this._timeline;
+        tl.tracks.forEach((track, index) => {
             tl._tracksEl.appendChild(track.el);
             tl._trackHeadersEl.appendChild(track.headerEl);
             const info = this._trackInfo.get(track.id);
@@ -1519,6 +1524,24 @@ export class CapTimelineEditorApp {
         this._syncTrackRoleRefs();
         this._scheduleProgramPreview();
         if (save) this._saveToWidgets();
+    }
+
+    _canMoveTrack(track, direction) {
+        if (direction !== -1 && direction !== 1) return false;
+        const tracks = this._timeline?.tracks || [];
+        const index = tracks.indexOf(track);
+        const adjacent = index >= 0 ? tracks[index + direction] : null;
+        return !!adjacent && this._trackTypeRank(track) < 5
+            && this._trackTypeRank(track) === this._trackTypeRank(adjacent);
+    }
+
+    _moveTrack(track, direction) {
+        if (!this._canMoveTrack(track, direction)) return;
+        this._recordUndo();
+        const tracks = this._timeline.tracks;
+        const index = tracks.indexOf(track);
+        [tracks[index], tracks[index + direction]] = [tracks[index + direction], tracks[index]];
+        this._syncTrackOrder({ save: true });
     }
 
     _showAddTrackMenu(e) {
@@ -1543,6 +1566,13 @@ export class CapTimelineEditorApp {
             label: T("track_color_menu"),
             fn: () => this._openTrackColorModal(track),
         }];
+        for (const [direction, label] of [[-1, "move_up_title"], [1, "move_down_title"]]) {
+            items.push({
+                label: T(label),
+                disabled: !this._canMoveTrack(track, direction),
+                fn: () => this._moveTrack(track, direction),
+            });
+        }
         if (isDirectorTrackType(track.type) || isMediaTrackType(track.type)) {
             const toMedia = isDirectorTrackType(track.type);
             items.push({

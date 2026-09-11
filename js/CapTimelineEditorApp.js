@@ -2383,12 +2383,36 @@ export class CapTimelineEditorApp {
         this._openComposeModal();
     }
 
-    _composeDefaultFilename() {
+    _composeDefaultFilename(filename = "") {
         const stamp = new Date();
         const pad = (n) => String(n).padStart(2, "0");
         const tag = `${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}`
             + `_${pad(stamp.getHours())}${pad(stamp.getMinutes())}${pad(stamp.getSeconds())}`;
-        return `${this._safeProjectFilename()}_${tag}.mp4`;
+        const name = filename ? filename.replace(/(?:_\d{8}_\d{6})?\.mp4$/i, "") : this._safeProjectFilename();
+        return `${name}_${tag}.mp4`;
+    }
+
+    _composeExportSettings() {
+        return {
+            filename_prefix: this.composePrefixInput?.value || "cap_timeline_compose/",
+            filename: this.composeFilenameInput?.value || "",
+            output_resolution: this.composeResolutionSelect?.value || "project",
+            export_quality: this.composeQualitySelect?.value || "maximum",
+            watermark: this._watermark,
+        };
+    }
+
+    _onComposeSettingsChange() {
+        if (!this._composeDone || this._composeBusy) return;
+        const settings = this._composeExportSettings();
+        if (JSON.stringify(settings) === JSON.stringify(this._composeSubmittedSettings)) return;
+        this._composeDone = false;
+        this._lastComposeOutput = null;
+        if (this.composeFilenameInput && settings.filename === this._composeSubmittedSettings.filename) {
+            this.composeFilenameInput.value = this._composeDefaultFilename(settings.filename);
+        }
+        if (this.composeRunBtn) this.composeRunBtn.textContent = T("compose_start_btn");
+        this._setComposeStatus("");
     }
 
     _openComposeModal() {
@@ -2448,6 +2472,7 @@ export class CapTimelineEditorApp {
 
         this._saveToWidgets();
         const project = this._buildProject();
+        this._composeSubmittedSettings = JSON.parse(JSON.stringify(this._composeExportSettings()));
         this._composeBusy = true;
         if (this.composeRunBtn) this.composeRunBtn.disabled = true;
         this._setComposeStatus(T("composing_please_wait"));
@@ -2457,11 +2482,7 @@ export class CapTimelineEditorApp {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     project,
-                    filename_prefix: filenamePrefix,
-                    filename,
-                    output_resolution: this.composeResolutionSelect?.value || "project",
-                    export_quality: this.composeQualitySelect?.value || "maximum",
-                    watermark: this._watermark,
+                    ...this._composeSubmittedSettings,
                 }),
             });
             const data = await response.json().catch(() => ({}));
@@ -2485,6 +2506,7 @@ export class CapTimelineEditorApp {
         } finally {
             this._composeBusy = false;
             if (this.composeRunBtn) this.composeRunBtn.disabled = false;
+            this._onComposeSettingsChange();
         }
     }
 
@@ -2603,6 +2625,7 @@ export class CapTimelineEditorApp {
             this._wmActiveTab = "image";
             this._syncWatermarkUiFromState();
             this._scheduleComposePreview();
+            this._onComposeSettingsChange();
         } catch (error) {
             alert(T("upload_watermark_image_failed", { msg: error instanceof Error ? error.message : String(error) }));
         }
@@ -2620,6 +2643,7 @@ export class CapTimelineEditorApp {
         this._wmActiveTab = "text";
         this._syncWatermarkUiFromState();
         this._scheduleComposePreview();
+        this._onComposeSettingsChange();
     }
 
     _bindWatermarkUi() {
@@ -4837,6 +4861,9 @@ export class CapTimelineEditorApp {
             void this._runComposeVideoExport();
         });
         this._bindWatermarkUi();
+        for (const event of ["input", "change", "click"]) {
+            this.composeModal?.addEventListener(event, () => this._onComposeSettingsChange());
+        }
         this.mediaPreviewType?.addEventListener("change", () => this._onMediaPreviewTypeChange());
         this.mediaPreviewTypeCustom?.addEventListener("change", () => this._saveMediaPreviewMeta());
         this.mediaPreviewTypeCustom?.addEventListener("blur", () => this._saveMediaPreviewMeta());

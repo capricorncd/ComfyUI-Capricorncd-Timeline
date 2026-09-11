@@ -11757,7 +11757,8 @@ export class CapTimelineEditorApp {
         dialog.setAttribute("aria-label", T("subtitle_batch_insert"));
         dialog.innerHTML = `<div class="cat-te-modal-header"><span>${T("subtitle_batch_insert")}</span></div>
             <div class="cat-te-modal-body">
-                <p>${T("subtitle_batch_hint")}</p>
+                <label class="cat-te-clip-setting-row"><span>${T("subtitle_batch_sync")}</span><select data-action="sync-track"></select></label>
+                <p data-batch-hint>${T("subtitle_batch_hint")}</p>
                 <textarea rows="10" autofocus style="width:100%;box-sizing:border-box" aria-label="${T("subtitle_batch_insert")}"></textarea>
                 <p role="status" aria-live="polite"></p>
                 <div class="cat-te-confirm-actions">
@@ -11765,6 +11766,18 @@ export class CapTimelineEditorApp {
                     <button class="cat-te-btn cat-te-btn-primary" data-action="insert">${T("confirm_btn")}</button>
                 </div>
             </div>`;
+        const syncTrack = dialog.querySelector('[data-action="sync-track"]');
+        syncTrack.add(new Option(T("subtitle_batch_no_sync"), ""));
+        for (const other of this._timeline.tracks) {
+            if (other !== track && isSubtitleTrackType(other.type)) {
+                syncTrack.add(new Option(other.name || other.id, other.id));
+            }
+        }
+        syncTrack.disabled = syncTrack.options.length === 1;
+        syncTrack.onchange = () => {
+            dialog.querySelector("[data-batch-hint]").textContent = T(syncTrack.value ? "subtitle_batch_sync_hint" : "subtitle_batch_hint");
+            dialog.querySelector('[role="status"]').textContent = "";
+        };
         dialog.addEventListener("keydown", e => e.stopPropagation());
         dialog.addEventListener("close", () => {
             dialog.remove();
@@ -11772,7 +11785,7 @@ export class CapTimelineEditorApp {
         });
         dialog.querySelector('[data-action="cancel"]').onclick = () => dialog.close();
         dialog.querySelector('[data-action="insert"]').onclick = () => {
-            const error = this._insertSubtitleBatch(track, atSec, dialog.querySelector("textarea").value);
+            const error = this._insertSubtitleBatch(track, atSec, dialog.querySelector("textarea").value, syncTrack.value);
             if (error) dialog.querySelector('[role="status"]').textContent = error;
             else dialog.close();
         };
@@ -11780,7 +11793,7 @@ export class CapTimelineEditorApp {
         dialog.showModal();
     }
 
-    _insertSubtitleBatch(track, atSec, text) {
+    _insertSubtitleBatch(track, atSec, text, syncTrackId = "") {
         const tl = this._timeline;
         if (!tl?.tracks.includes(track) || !isSubtitleTrackType(track?.type) || track.locked) {
             return T("subtitle_batch_unavailable");
@@ -11789,15 +11802,30 @@ export class CapTimelineEditorApp {
         if (!content) return T("subtitle_batch_empty");
         const rows = [];
         let cursor = Math.max(0, Number(atSec) || 0);
-        for (const line of content.split(/\r\n?|\n/)) {
-            if (!line.trim()) {
-                cursor += 1;
-                continue;
+        const lines = content.split(/\r\n?|\n/).map(line => line.trim());
+        if (syncTrackId) {
+            const reference = tl.tracks.find(other => other.id === syncTrackId && other !== track && isSubtitleTrackType(other.type));
+            if (!reference) return T("subtitle_batch_sync_unavailable");
+            const texts = lines.filter(Boolean);
+            const clips = reference.clips.filter(clip => clip.startTime >= cursor - 1e-6)
+                .sort((a, b) => a.startTime - b.startTime);
+            if (clips.length < texts.length) {
+                return T("subtitle_batch_sync_short", { available: clips.length, required: texts.length });
             }
-            rows.push({ text: line.trim(), startTime: cursor });
-            cursor += 3;
+            texts.forEach((text, index) => rows.push({ text, startTime: clips[index].startTime, duration: clips[index].duration }));
+            cursor = Math.max(...rows.map(row => row.startTime + row.duration));
+        } else {
+            for (const line of lines) {
+                if (!line) {
+                    cursor += 1;
+                    continue;
+                }
+                rows.push({ text: line, startTime: cursor, duration: 3 });
+                cursor += 3;
+            }
         }
-        if (rows.some(row => !this._trackHasRoom(track, row.startTime, 3))) {
+        if (rows.some((row, index) => !this._trackHasRoom(track, row.startTime, row.duration)
+            || (index > 0 && rows[index - 1].startTime + rows[index - 1].duration > row.startTime + 1e-6))) {
             return T("subtitle_batch_overlap");
         }
         this._recordUndo();
@@ -11805,7 +11833,7 @@ export class CapTimelineEditorApp {
         let first;
         for (const row of rows) {
             const clip = tl.addClip(track.id, {
-                name: row.text.slice(0, 40), startTime: row.startTime, duration: 3,
+                name: row.text.slice(0, 40), startTime: row.startTime, duration: row.duration,
                 color: track.color || "#ff9e4a",
             });
             this._meta.set(clip.id, {

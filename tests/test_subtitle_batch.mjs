@@ -62,5 +62,41 @@ for (const reason of ['locked','removed','wrong type']) {
     assert.equal(calls.undo,0);
 }
 assert(!source.includes('_pasteSubtitleText'), 'do not restore the reverted Ctrl+V feature');
+{
+    const {app,track,calls} = fixture();
+    const reference = {id:'ref',type:'subtitle',name:'中文',locked:true,clips:[
+        {startTime:8.75,duration:1.25}, {startTime:1,duration:3},
+        {startTime:4.5,duration:2.125}, {startTime:12,duration:4},
+    ]};
+    app._timeline.tracks.push(reference);
+    const original = JSON.stringify(reference);
+    assert.equal(insert.call(app, track, 4, '\n日本語1\n\n日本語2\n', 'ref'), '');
+    assert.deepEqual(track.clips.map(c=>[c.startTime,c.duration]), [[4.5,2.125],[8.75,1.25]]);
+    assert.deepEqual([...app._meta.values()].map(m=>m.text), ['日本語1','日本語2']);
+    assert.equal(calls.end,10);
+    assert.equal(calls.undo,1);
+    assert.equal(JSON.stringify(reference),original, 'reference order, style and contents are untouched');
+    assert([...app._meta.values()].every(m=>m.fontSize===42), 'keep destination styling');
+}
+for (const reference of [null, {id:'ref',type:'audio',clips:[]}, {id:'ref',type:'text',clips:[]}]) {
+    const {app,track,calls} = fixture();
+    if (reference) app._timeline.tracks.push(reference);
+    const error = insert.call(app,track,0,'one\ntwo','ref');
+    assert.equal(error, reference?.type === 'text' ? 'subtitle_batch_sync_short' : 'subtitle_batch_sync_unavailable');
+    assert.equal(track.clips.length,0);
+    assert.equal(calls.undo,0);
+    assert.equal(insert.call(app,track,0,'one',track.id),'subtitle_batch_sync_unavailable');
+}
+{
+    const {app,track,calls} = fixture();
+    app._timeline.tracks.push({id:'ref',type:'text',clips:[{startTime:2,duration:4},{startTime:9,duration:2}]});
+    assert.equal(insert.call(app,track,3,'one\ntwo','ref'),'subtitle_batch_sync_short', 'skip reference starting before seek');
+    track.clips.push({startTime:10,endTime:12});
+    assert.equal(insert.call(app,track,3,'one','ref'),'subtitle_batch_overlap');
+    assert.equal(calls.undo,0);
+    track.clips=[];
+    assert.equal(insert.call(app,track,9,'one','ref'),'');
+    assert.equal(track.clips[0].startTime,9, 'include exact insertion boundary');
+}
 assert(source.includes('this._subtitleBatchDialog?.close();'));
 console.log('Batch subtitles: line spacing, defaults, style, overlap, locks and single undo passed');

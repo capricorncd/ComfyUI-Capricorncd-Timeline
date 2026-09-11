@@ -53,9 +53,9 @@ export class AudioEnvelope {
       e.stopPropagation(); e.preventDefault();
       if (clip.track.locked || e.target.dataset.point != null) return;
       const r = this.svg.getBoundingClientRect();
-      const ms = Math.round((clip.sourceOffset + clamp((e.clientX-r.left)/r.width, 0, 1) * clip.duration) * 1000);
+      const ms = Math.round((clip.sourceOffset + clamp((e.clientX-r.left)/r.width, 0, 1) * clip.duration * (clip.playbackRate || 1)) * 1000);
       this.begin();
-      if (!this.points.length) this.points = [{source_ms: clip.sourceOffset*1000, gain:1}, {source_ms:(clip.sourceOffset+clip.duration)*1000, gain:1}];
+      if (!this.points.length) this.points = [{source_ms: clip.sourceOffset*1000, gain:1}, {source_ms:(clip.sourceOffset+clip.duration*(clip.playbackRate || 1))*1000, gain:1}];
       const point = {source_ms:ms, gain:volumeAt(this.points, ms)};
       this.points = normalizeVolumePoints([...this.points, point]);
       this.selected = this.points.find(p => p.source_ms === ms);
@@ -84,8 +84,8 @@ export class AudioEnvelope {
         point.gain = Math.round(gain*1000)/1000;
         const i=this.points.indexOf(point);
         const min = Math.max(clip.sourceOffset*1000, i ? this.points[i-1].source_ms+1 : 0);
-        const max = Math.min((clip.sourceOffset+clip.duration)*1000, i+1<this.points.length ? this.points[i+1].source_ms-1 : Infinity);
-        if (min<=max) point.source_ms=clamp(Math.round((clip.sourceOffset+(ev.clientX-r.left)/r.width*clip.duration)*1000),min,max);
+        const max = Math.min((clip.sourceOffset+clip.duration*(clip.playbackRate || 1))*1000, i+1<this.points.length ? this.points[i+1].source_ms-1 : Infinity);
+        if (min<=max) point.source_ms=clamp(Math.round((clip.sourceOffset+(ev.clientX-r.left)/r.width*clip.duration*(clip.playbackRate || 1))*1000),min,max);
         this.render(point.gain);
       }, onEnd: () => { if(changed) this.finish(); else this.render(); } });
     });
@@ -101,7 +101,7 @@ export class AudioEnvelope {
     return true;
   }
   render(guide=null) {
-    const c=this.clip, start=c.sourceOffset*1000, end=(c.sourceOffset+c.duration)*1000;
+    const c=this.clip, start=c.sourceOffset*1000, end=(c.sourceOffset+c.duration*(c.playbackRate || 1))*1000;
     const x=ms=>(ms-start)/(end-start)*1000, y=g=>(2-g)*50;
     const visible=this.points.filter(p=>p.source_ms>=start&&p.source_ms<=end);
     const path=[{source_ms:start,gain:volumeAt(this.points,start)},...visible,{source_ms:end,gain:volumeAt(this.points,end)}];

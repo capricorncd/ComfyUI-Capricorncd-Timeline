@@ -12,6 +12,7 @@ import shutil
 import torch
 import folder_paths
 from .audio_envelope import apply_volume_points, normalize_volume_points
+from .media_speed import playback_rate
 from .h3_timing import plan_h3_clips, source_clip_timing
 
 from .prompt_text import strip_comment_lines as _strip_comment_lines
@@ -473,6 +474,10 @@ class CAP_TimelineEditor:
             if seg.shape[1] != mixed.shape[1]:
                 seg = seg.repeat(1, mixed.shape[1], 1) if seg.shape[1] == 1 else seg[:, :mixed.shape[1]]
 
+            seg = apply_volume_points(seg, sample_rate, src_start, row.get("volume_points"))
+            rate = playback_rate(row.get("playback_rate"))
+            if rate != 1:
+                seg = self._pack(self._resample_waveform(seg.squeeze(0), round(sample_rate * rate), sample_rate), sample_rate)["waveform"]
             seg = self._apply_fade_envelope(
                 seg,
                 sample_rate,
@@ -482,7 +487,6 @@ class CAP_TimelineEditor:
                 int(row.get("host_local_start_ms", 0) or 0),
             )
             volume = _clip_volume(row.get("volume", 1.0))
-            seg = apply_volume_points(seg, sample_rate, src_start, row.get("volume_points"))
             if volume != 1.0:
                 seg = seg * volume
             pos = max(0, int(round(timeline_ms / 1000 * sample_rate)))
@@ -625,6 +629,7 @@ class CAP_TimelineEditor:
                 continue
             source = self._source(audio)
             source_in = max(0, int(source.get("in_ms", 0) or 0))
+            rate = playback_rate(audio.get("playback_rate"))
             media_rows = resolve_clip_media(project, audio)
             media = media_rows[0] if media_rows else None
             if not isinstance(media, dict):
@@ -650,8 +655,9 @@ class CAP_TimelineEditor:
                 "source_clip_id": str(audio.get("id", "")),
                 "source_kind": str(source.get("kind") or "audio"),
                 "id": mid,
-                "source_start_ms": source_in + overlap_start - audio_start,
-                "source_end_ms": source_in + overlap_end - audio_start,
+                "source_start_ms": source_in + round((overlap_start - audio_start) * rate),
+                "source_end_ms": source_in + round((overlap_end - audio_start) * rate),
+                "playback_rate": rate,
                 "clip_offset_ms": overlap_start - start_ms,
                 "fade_in_ms": fade_in_ms,
                 "fade_out_ms": fade_out_ms,

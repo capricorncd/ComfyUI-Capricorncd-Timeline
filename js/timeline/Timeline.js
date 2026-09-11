@@ -719,7 +719,7 @@ export class Timeline extends EventEmitter {
       // as dragging the left handle — advance sourceOffset by however much
       // startTime is moving forward, or playback keeps reading from the
       // original (pre-trim) point in the source.
-      clip.sourceOffset = (clip.sourceOffset || 0) + (t - clip.startTime);
+      clip.sourceOffset = (clip.sourceOffset || 0) + (t - clip.startTime) * clip.playbackRate;
       clip.duration = clip.endTime - t;
       clip.startTime = t;
     } else {

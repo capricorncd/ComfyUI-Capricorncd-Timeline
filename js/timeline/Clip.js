@@ -1,5 +1,5 @@
 import { EventEmitter } from './EventEmitter.js';
-import { generateId, clamp, generateWaveform, bindDragSession } from './utils.js';
+import { generateId, clamp, generateWaveform, bindDragSession, normalizePlaybackRate } from './utils.js';
 import { AudioEnvelope } from './AudioEnvelope.js';
 
 const MIN_DURATION = 0.05; // seconds
@@ -18,6 +18,7 @@ export class Clip extends EventEmitter {
     // sourceDuration or before offset 0.
     this.sourceDuration = data.sourceDuration ?? Infinity;
     this.sourceOffset = data.sourceOffset ?? 0;
+    this.playbackRate = normalizePlaybackRate(data.playbackRate);
     this.src = data.src || null;
     this.thumbnail = data.thumbnail || null;
     this.color = data.color || null;
@@ -208,7 +209,7 @@ export class Clip extends EventEmitter {
     if (Number.isFinite(srcDur) && srcDur > 0) {
       const start = clamp(this.sourceOffset / srcDur, 0, 1);
       const end = clamp(
-        (this.sourceOffset + Math.max(MIN_DURATION, this.duration)) / srcDur,
+        (this.sourceOffset + Math.max(MIN_DURATION, this.duration) * this.playbackRate) / srcDur,
         start + 1e-6,
         1,
       );
@@ -507,7 +508,7 @@ export class Clip extends EventEmitter {
         // clips (e.g. images, sourceDuration = Infinity) have no such limit.
         const minStart = Math.max(
           prevClip ? prevClip.endTime : 0,
-          Number.isFinite(this.sourceDuration) ? origStart - origSourceOffset : -Infinity,
+          Number.isFinite(this.sourceDuration) ? origStart - origSourceOffset / this.playbackRate : -Infinity,
           0,
         );
         const maxStart = origStart + origDur - MIN_DURATION;
@@ -515,12 +516,12 @@ export class Clip extends EventEmitter {
         newStart = tl._snapEdgeTime(this, newStart);
         newStart = clamp(newStart, minStart, maxStart);
         this.duration = origDur - (newStart - origStart);
-        this.sourceOffset = origSourceOffset + (newStart - origStart);
+        this.sourceOffset = origSourceOffset + (newStart - origStart) * this.playbackRate;
         this.startTime = newStart;
       } else {
         // Dragging right reveals later source content; it can't go past
         // however much of the source remains after the current offset.
-        const sourceMax = origStart + (this.sourceDuration - origSourceOffset);
+        const sourceMax = origStart + (this.sourceDuration - origSourceOffset) / this.playbackRate;
         const maxEnd = Math.min(
           nextClip ? nextClip.startTime : tl.duration,
           sourceMax,

@@ -40,6 +40,8 @@ def stream_copy_plan(plan, watermark_active):
     muted = None
     probes = {}
     for seg in segments:
+        if seg.get("playback_rate", 1) != 1:
+            return None, "cut"
         if seg["kind"] != "video" or seg.get("layer") != "director":
             return None, "overlays"
         if abs(seg["start_sec"] - previous_end) > 0.0001:

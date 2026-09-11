@@ -13,6 +13,7 @@ import folder_paths
 from PIL import ImageFilter
 
 from .audio_envelope import normalize_volume_points, volume_points_filter
+from .media_speed import playback_rate, audio_speed_filter
 from .compose_stream_copy import stream_copy_plan, copy_segments
 from .cap_i18n import get_last_known_lang, t as _t
 from .cap_compose_clip_videos import _probe_has_audio, _run_ffmpeg
@@ -172,6 +173,7 @@ def _collect_plan(
                         "path": path,
                         "kind": kind,
                         "layer": "media",
+                        "playback_rate": playback_rate(clip.get("playback_rate")) if kind == "video" else 1.0,
                         "opacity": max(0.0, min(1.0, float(clip.get("opacity", 1.0)))),
                         "scale": max(1.0, min(300.0, float(clip.get("media_scale", 100)))) / 100,
                         "offset_x": max(-100.0, min(100.0, float(clip.get("media_offset_x", 0)))) / 100,
@@ -291,6 +293,7 @@ def _collect_plan(
                 "fade_out_sec": fade_out_sec,
                 "volume": _clip_volume(clip.get("volume", 1.0)),
                 "volume_points": normalize_volume_points(clip.get("volume_points")),
+                "playback_rate": playback_rate(clip.get("playback_rate")),
             })
 
     # Project milliseconds and source trim seconds must share the output frame grid.
@@ -672,8 +675,12 @@ def compose_timeline_project(
         start_frame = round(start * fps)
         count = round(dur * fps)
         source_frame = round(seg["source_in_sec"] * fps)
+        rate = seg.get("playback_rate", 1.0)
+        speed_filter = (f"setpts=(PTS-STARTPTS)/{rate},fps={fps},"
+                        f"tpad=stop_mode=clone:stop_duration={1 / fps:.9f},trim=end_frame={count},") if rate != 1 else ""
         timing_filter = (
-            f"fps={fps},trim=start_frame={source_frame}:end_frame={source_frame + count},"
+            f"fps={fps},trim=start_frame={source_frame}:end_frame={source_frame + round(count * rate)},"
+            f"{speed_filter}"
             f"settb=expr=1/{fps},setpts=N+{start_frame},"
         )
         if seg.get("layer") == "media" or seg.get("kind") == "image":
@@ -740,7 +747,8 @@ def compose_timeline_project(
         delay_ms = max(0, int(round(seg["start_sec"] * 1000)))
         label = f"ga{i}"
         filters.append(
-            f"[{idx}:a]atrim=start={seg['source_in_sec']:.6f}:duration={seg['duration_sec']:.6f},asetpts=PTS-STARTPTS,"
+            f"[{idx}:a]atrim=start={seg['source_in_sec']:.6f}:duration={seg['duration_sec'] * seg.get('playback_rate', 1):.6f},asetpts=PTS-STARTPTS"
+            f"{audio_speed_filter(seg.get('playback_rate', 1))},"
             f"volume={seg['volume']:.6f},adelay={delay_ms}|{delay_ms}[{label}]"
         )
         amix_labels.append(label)
@@ -750,11 +758,12 @@ def compose_timeline_project(
         delay_ms = max(0, int(round(seg["start_sec"] * 1000)))
         label = f"aa{j}"
         chain = (
-            f"[{idx}:a]atrim=start={seg['source_in_sec']:.6f}:duration={seg['duration_sec']:.6f},"
+            f"[{idx}:a]atrim=start={seg['source_in_sec']:.6f}:duration={seg['duration_sec'] * seg.get('playback_rate', 1):.6f},"
             f"asetpts=PTS-STARTPTS"
         )
         fade_in = float(seg.get("fade_in_sec") or 0.0)
         chain += volume_points_filter(seg.get("volume_points"), seg["source_in_sec"])
+        chain += audio_speed_filter(seg.get("playback_rate", 1))
         fade_out = float(seg.get("fade_out_sec") or 0.0)
         if fade_in > 0:
             chain += f",afade=t=in:st=0:d={fade_in:.6f}"

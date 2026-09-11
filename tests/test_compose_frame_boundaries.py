@@ -1,4 +1,5 @@
 import ast
+import importlib.util
 import logging
 import os
 from pathlib import Path
@@ -25,6 +26,10 @@ def run(cmd, **kwargs):
 scope = dict(Any=Any, os=os, shutil=shutil, tempfile=tempfile, log=logging.getLogger(__name__),
              _ffmpeg_path=str, _run_ffmpeg=run, _resolve_output_video=str,
              _build_watermark_filters=lambda *args: ([], [], 'vout', None))
+speed_spec = importlib.util.spec_from_file_location('media_speed', source.parent / 'media_speed.py')
+speed = importlib.util.module_from_spec(speed_spec)
+speed_spec.loader.exec_module(speed)
+scope.update(playback_rate=speed.playback_rate, audio_speed_filter=speed.audio_speed_filter)
 exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef)
                             and n.name in names], type_ignores=[]), str(source), 'exec'), scope)
 

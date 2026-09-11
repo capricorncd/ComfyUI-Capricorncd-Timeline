@@ -6,6 +6,8 @@ let _id = 0;
 export const generateId = (p = 'tl') => `${p}_${++_id}_${Date.now().toString(36)}`;
 
 export const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+export const normalizePlaybackRate = value => Number.isFinite(Number(value)) && Number(value) > 0
+  ? clamp(Number(value), 0.25, 4) : 1;
 
 /**
  * Format seconds as a time string.

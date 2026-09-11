@@ -19,4 +19,8 @@ const panel = css.match(/\.cat-te-clip-opacity-panel\s*\{([^}]+)\}/)[1];
 assert.match(panel, /flex-direction: column/);
 assert.match(panel, /gap: 10px/);
 assert.match(panel, /padding: 10px 12px/);
+const speedPanel = css.match(/\.cat-te-clip-volume-panel,\s*\.cat-te-clip-speed-panel\s*\{([^}]+)\}/)[1];
+assert.match(speedPanel, /padding: 10px 12px/, 'speed controls have the same inset as clip volume');
+assert.match(speedPanel, /flex-shrink: 0/);
+assert.match(css, /\.cat-te-clip-speed-panel\[hidden\]\s*\{\s*display: none !important;/);
 console.log('Timeline pointer focus and media parameter spacing passed');

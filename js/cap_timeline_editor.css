@@ -2311,13 +2311,15 @@ body.cat-te-media-dnd-over-tl {
     flex-shrink: 0;
 }
 
-.cat-te-clip-volume-panel {
+.cat-te-clip-volume-panel,
+.cat-te-clip-speed-panel {
     flex-shrink: 0;
     padding: 10px 12px;
     border-bottom: 1px solid var(--cat-raised);
 }
 
-.cat-te-clip-volume-panel[hidden] {
+.cat-te-clip-volume-panel[hidden],
+.cat-te-clip-speed-panel[hidden] {
     display: none !important;
 }
 

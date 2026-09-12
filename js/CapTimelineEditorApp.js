@@ -1544,6 +1544,57 @@ export class CapTimelineEditorApp {
         ], r.left, r.bottom + 4, { ignoreNextClick: false });
     }
 
+    _canCreateProject() {
+        return this._timelineReady && !this._destroyed
+            && !this._runAllClipsBusy && !this._runningPromptId && !this._pendingGeneratedJobs.length
+            && !this._modelPreviewRunning && !this._aiOptimizeBusy
+            && !this._composeBusy && !this._projectExportBusy && !this._fileDropBusy;
+    }
+
+    async _newProject() {
+        if (!this._canCreateProject()) return;
+        const loadSeq = this._loadSeq;
+        const openGen = this._openGen;
+        const confirmed = await showCapConfirm(T("confirm_new_project"), {
+            title: T("new_project"),
+            confirmLabel: T("new_project"),
+            cancelLabel: T("cancel_btn"),
+        });
+        if (!confirmed || !this._canCreateProject() || loadSeq !== this._loadSeq
+            || openGen !== this._openGen || !this._isNodeOnLiveGraph()) return;
+
+        const project = {
+            project_version: this._currentVersion(),
+            schema_version: this._currentSchemaVersion(),
+            name: T("untitled_project"),
+            media: [],
+            tracks: [],
+            settings: {
+                ...PY_SCALAR_DEFAULTS,
+                ...Object.fromEntries(SETTING_PROMPT_KEYS.map(key => [key, ""])),
+                timeline_zoom: 1.2,
+                current_time: 0,
+                timeline_scroll_left: 0,
+                timeline_scroll_top: 0,
+            },
+        };
+        // Reuse editor teardown so previews, audio, selection and floating dialogs
+        // cannot retain references to the previous project.
+        this._closeInternal(false);
+        this._history.clear();
+        this._genVideoStamp = null;
+        this._runtimeOnlyClipIds = null;
+        this._deferredGeneratedJobs = [];
+        this._runPreviewByClipId.clear();
+        for (const [name, value] of Object.entries(PY_SCALAR_DEFAULTS)) {
+            const widget = this._w(name);
+            if (widget) widget.value = value;
+        }
+        this._writeProjectJson(JSON.stringify(project));
+        this._resetProjectExport();
+        this.open();
+    }
+
     _resetTrackOrder() {
         this._applyTrackTypeOrder({ recordUndo: true, save: true });
     }
@@ -16376,6 +16427,7 @@ export class CapTimelineEditorApp {
         moreBtn.bindMenu(e => {
             const rect = e.currentTarget.getBoundingClientRect();
             return this._buildCtxMenu([
+                { label: T("new_project"), disabled: !this._canCreateProject(), fn: () => void this._newProject() },
                 { label: T("reset_track_order"), fn: () => this._resetTrackOrder() },
                 {
                     label: T("clear_generated_video_links"),

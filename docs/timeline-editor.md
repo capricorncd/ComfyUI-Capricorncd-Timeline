@@ -29,6 +29,7 @@ Open the editor from the node launcher (fullscreen shell). Edits sync back into 
 
 - **Program monitor** above the timeline: composites the frame under the playhead at the node `width` × `height` aspect ratio (main + overlay layers; image cover; start/end crossfade centered in the clip, ≤1s; video sampled from trim-in); drag the bottom splitter to resize height
 - Multiple tracks (visual and audio); add tracks from the toolbar menu
+- **More → New Project** resets the current editor to an untitled project with empty default tracks, no media or Clips, blank global prompts, default dimensions/FPS and playhead at zero. Confirmation is required; export first to keep the old project. Undo history is cleared, but disk files and AI service configurations are preserved. Unavailable while generation, preview or export is in progress.
 - Per-track: lock, visibility, mute (audio)
 - Drag / resize clips; multi-select with `Ctrl+Click`
 - Audio-track clips: double-click the volume line to add a point, drag to adjust gain (center 100%, range 0–200%), and select a point then press Delete to remove it. A horizontal guide snaps to other point levels in the clip. Linear interpolation replaces the old fade handles; legacy fades become points on import. The curve multiplies clip volume for playback, Agent audio, mixing and export. Edits support undo; trimming and splitting preserve source-relative point positions.

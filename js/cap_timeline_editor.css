@@ -3396,6 +3396,10 @@ body.cat-te-media-dnd-over-tl {
     flex: 1 0 100px;
     min-height: 100px;
 }
+.cat-te-ai-resource-insert {
+    align-self: flex-end;
+    flex-shrink: 0;
+}
 .cat-te-ai-optimize-tabs {
     display: flex;
     flex-wrap: wrap;

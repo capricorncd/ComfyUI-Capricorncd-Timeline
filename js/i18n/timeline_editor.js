@@ -2,6 +2,8 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        resource_insert_clip_prompt: "Insert into Clip prompt",
+        resource_insert_clip_hint: "Insert the selected enabled image's description as an H3 Subject entry. Requires a description and an unlocked track.",
         resource_list: "Resource list (drag to reorder)",
         resource_full_preview: "Full-width preview",
         voice_service: "Voice conversion",
@@ -691,6 +693,8 @@ export const DICT = {
         apply_skill_failed: "Failed to apply Skill: {msg}",
     },
     zh: {
+        resource_insert_clip_prompt: "插入到 Clip 提示词",
+        resource_insert_clip_hint: "将当前已启用图片的描述插入为 H3 Subject 条目；需要素材有描述且轨道未锁定。",
         resource_list: "素材列表（拖动排序）",
         resource_full_preview: "100% 宽度预览",
         voice_service: "音色转换",
@@ -1372,6 +1376,8 @@ export const DICT = {
         apply_skill_failed: "应用 Skill 失败：{msg}",
     },
     ja: {
+        resource_insert_clip_prompt: "Clip プロンプトに挿入",
+        resource_insert_clip_hint: "選択した有効な画像の説明を H3 Subject 行として挿入します。説明が必要で、トラックのロック解除が必要です。",
         resource_list: "素材リスト（ドラッグで並べ替え）",
         resource_full_preview: "幅100%でプレビュー",
         voice_service: "声質変換",

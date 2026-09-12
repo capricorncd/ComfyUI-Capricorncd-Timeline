@@ -45,6 +45,7 @@ try {
     const editor = {
         aiResourcePane: byClass('cat-te-ai-resource-pane'), aiResourceStage: byClass('cat-te-ai-resource-stage'),
         aiResourceName: byClass('cat-te-ai-resource-name'), aiResourceDescription: byClass('cat-te-ai-resource-description'),
+        aiResourceInsertBtn: byClass('cat-te-ai-resource-insert'),
         aiResourceCarousel: byClass('cat-te-ai-resource-preview'), aiSourceEditor: byClass('cat-te-ai-source-editor'),
         aiSrcText: byClass('cat-te-ai-src-text'), aiSourceTabs: document.querySelectorAll('.cat-te-ai-source-tab'),
         _aiOptimizeClipId: 'clip', _findClipById: () => clip, _clipPreviewMediaEntries: () => items,
@@ -56,9 +57,10 @@ try {
         _findMediaById: id => rows.find(row => row.id === id), _findMedia: () => null, _mediaStatus: new Map(),
         _assetFileUrl: (file, kind, location) => kind === 'image' ? svg : `/test-missing-${location}-${file}`,
         _setAiOptimizeBusy() {}, _promptManagerValue: tab => `${tab} unchanged`,
+        _stripPromptComments: text => text.split(/\r?\n/).filter(line => !/^\s*#/.test(line)).join('\n'),
     };
     for (const name of ['_clearAiResourcePreview', '_renderAiResource', '_setAiOptimizeSrcTab', '_fillAiOptimizeSrc', '_writePromptManagerValue',
-        '_configureClipResourceCarousel', '_bindClipResourceCarousel', '_refreshClipResourceViews', '_clipPreviewItemIndex', '_setClipPreviewItemIndex',
+        '_configureClipResourceCarousel', '_bindClipResourceCarousel', '_refreshClipResourceViews', '_clipPreviewItemIndex', '_setClipPreviewItemIndex', '_aiResourceSubjectEntry',
         '_applyClipItemOrder', '_setClipItemEnabled', '_removeClipItem', '_removeClipItemNow']) editor[name] = method(name);
     const c = editor.aiResourceCarousel;
     editor._bindClipResourceCarousel(c, () => clip);
@@ -66,6 +68,7 @@ try {
     assert(editor.aiSourceEditor.hidden && !editor.aiResourcePane.hidden, 'resource pane replaces editor');
     assert(editor.aiSrcText.readOnly && editor.aiResourceDescription.readOnly, 'descriptions are read-only');
     assert(editor.aiResourceDescription.value === rows[0].setting_description, 'raw description, not image generation prompt');
+    assert(!editor.aiResourceInsertBtn.disabled, 'described image enables insertion');
     assert(!editor.aiResourcePane.querySelector('[onerror]'), 'description cannot create HTML');
     assert(editor._writePromptManagerValue('resource', 'bad') === false, 'read-only tab cannot overwrite Clip prompt');
     await new Promise(resolve => requestAnimationFrame(resolve));
@@ -83,6 +86,7 @@ try {
     const video = editor.aiResourceStage.querySelector('video');
     assert(video && video.controls && video.paused && video.src.includes('output-reference.mp4'), 'video stays paused and uses output path');
     assert(editor.aiResourceDescription.value === 'Video description', 'description follows selection');
+    assert(editor.aiResourceInsertBtn.disabled, 'video cannot insert an invented Picture reference');
     c.step(1);
     assert(!video.hasAttribute('src'), 'previous playback released');
     assert(editor.aiResourceStage.querySelector('audio'), 'audio reference preview');

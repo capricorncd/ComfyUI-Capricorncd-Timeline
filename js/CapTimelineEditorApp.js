@@ -3969,6 +3969,7 @@ export class CapTimelineEditorApp {
                     </cap-media-carousel>
                     <div class="cat-te-ai-resource-name" aria-live="polite"></div>
                     <textarea class="cat-te-ai-resource-description" readonly aria-label="${T("media_asset_description")}"></textarea>
+                    <cap-button class="cat-te-ai-resource-insert" title="${T("resource_insert_clip_hint")}" disabled>${T("resource_insert_clip_prompt")}</cap-button>
                   </div>
                 </div>
                 <div class="cat-te-ai-optimize-right">
@@ -4570,6 +4571,7 @@ export class CapTimelineEditorApp {
         this.aiResourceStage = el.querySelector(".cat-te-ai-resource-stage");
         this.aiResourceName = el.querySelector(".cat-te-ai-resource-name");
         this.aiResourceDescription = el.querySelector(".cat-te-ai-resource-description");
+        this.aiResourceInsertBtn = el.querySelector(".cat-te-ai-resource-insert");
         this.aiResourceCarousel = el.querySelector(".cat-te-ai-resource-preview");
         this.aiSourceTabs = el.querySelectorAll(".cat-te-ai-source-tab");
         this.aiRightTabs = el.querySelectorAll(".cat-te-ai-right-tab");
@@ -5014,6 +5016,7 @@ export class CapTimelineEditorApp {
         this.aiSrcText?.addEventListener("blur", () => { this._promptManagerUndoArmed = false; });
         this.aiSrcText?.addEventListener("input", () => this._onPromptManagerSourceInput());
         this._bindClipResourceCarousel(this.aiResourceCarousel, () => this._findClipById(this._aiOptimizeClipId));
+        this.aiResourceInsertBtn.addEventListener("click", () => this._insertAiResourceDescription());
         this.aiSourceTabs?.forEach((tab) => {
             tab.addEventListener("click", () => this._setAiOptimizeSrcTab(tab.dataset.sourceTab));
         });
@@ -17662,11 +17665,43 @@ export class CapTimelineEditorApp {
         this.aiResourceStage?.replaceChildren();
     }
 
+    _aiResourceSubjectEntry(clip) {
+        if (!clip || clip.track?.locked) return "";
+        const meta = this._ensureClipMeta(clip);
+        const items = this._clipItems(meta);
+        const index = this._clipPreviewItemIndex(clip, meta);
+        const item = items[index];
+        if (!item || item.kind !== "image" || item.enabled === false) return "";
+        const media = (item.id && this._findMediaById(item.id)) || this._findMedia(item.kind, item.file);
+        const description = String(media?.setting_description || "").trim();
+        if (!description) return "";
+        const picture = items.slice(0, index + 1).filter(it => it.kind === "image" && it.enabled !== false).length;
+        const prompt = this._stripPromptComments(this._promptManagerValue("clip", clip));
+        const used = [...prompt.matchAll(/<Subject\s+(\d+)>/gi)].map(match => Number(match[1]));
+        const subject = used.reduce((max, n) => Math.max(max, n), 0) + 1;
+        return `- <Subject ${subject}> 来自 <Picture ${picture}>。${description}${/[。！？.!?]$/.test(description) ? "" : "。"}`;
+    }
+
+    _insertAiResourceDescription() {
+        const clip = this._findClipById(this._aiOptimizeClipId);
+        const entry = this._aiResourceSubjectEntry(clip);
+        if (!entry) return;
+        const prompt = this._promptManagerValue("clip", clip);
+        const newline = prompt.includes("\r\n") ? "\r\n" : "\n";
+        const header = /^[\t ]*subject_definitions[\t ]*[:：][^\r\n]*/im.exec(prompt);
+        const at = header ? header.index + header[0].length : 0;
+        const next = header
+            ? prompt.slice(0, at) + newline + entry + prompt.slice(at)
+            : entry + (prompt ? newline + prompt : "");
+        if (this._writePromptManagerValue("clip", next)) this._setAiOptimizeSrcTab("clip");
+    }
+
     _renderAiResource() {
         if (!this.aiResourceStage) return;
         this._clearAiResourcePreview();
         const clip = this._findClipById(this._aiOptimizeClipId);
         const items = this._clipPreviewMediaEntries(clip);
+        this.aiResourceInsertBtn.disabled = !this._aiResourceSubjectEntry(clip);
         this._aiResourceIndex = clip ? this._clipPreviewItemIndex(clip, this._ensureClipMeta(clip)) : 0;
         this._configureClipResourceCarousel(this.aiResourceCarousel, clip, items, this._aiResourceIndex);
         const item = items[this._aiResourceIndex];

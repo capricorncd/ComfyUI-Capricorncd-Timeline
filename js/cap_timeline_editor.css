@@ -2721,6 +2721,14 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-media-preview-meta textarea { resize: vertical; min-height: 54px; }
 
 .cat-te-media-preview-modal .cat-te-media-preview-dialog {
+    --cap-dialog-min-width: 640px;
+    --cap-dialog-min-height: 360px;
+    position: relative;
+    box-sizing: border-box;
+    min-width: min(var(--cap-dialog-min-width), 80vw);
+    min-height: min(var(--cap-dialog-min-height), 80vh);
+    max-width: 80vw;
+    max-height: 80vh;
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr) auto;

@@ -21,7 +21,7 @@ import { parseTimecode, formatTimecode, frameIndexFromSecs, encodeClipTimingMs, 
 import { attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror } from "./rich_prompt.js";
 import { loadExtensionCss, showCapConfirm } from "./cap_ui.js";
 import { iconHtml } from "./cap_icons.js";
-import { bindDialogDrag, resetDialogPosition } from "./components/Dialog.js";
+import { bindDialogDrag, bindDialogResize, resetDialogPosition } from "./components/Dialog.js";
 import { t as T } from "./i18n/timeline_editor.js";
 
 /** Right-side empty margin as a fraction of the timeline viewport width. */
@@ -5046,7 +5046,10 @@ export class CapTimelineEditorApp {
         this._bindClipResourceCarousel(this.aiResourceCarousel, () => this._findClipById(this._aiOptimizeClipId));
         this.aiResourceInsertBtn.addEventListener("click", () => this._insertAiResourceDescription());
         this.aiSourceTabs?.forEach((tab) => {
-            tab.addEventListener("click", () => this._setAiOptimizeSrcTab(tab.dataset.sourceTab));
+            tab.addEventListener("click", () => {
+                this._onPromptManagerSourceInput();
+                this._setAiOptimizeSrcTab(tab.dataset.sourceTab);
+            });
         });
         this.aiRightTabs?.forEach((tab) => {
             tab.addEventListener("click", () => this._setAiOptimizeRightTab(tab.dataset.rightTab));
@@ -10306,6 +10309,13 @@ export class CapTimelineEditorApp {
             const dialog = modal.querySelector(".cat-te-modal");
             const dragTarget = dialog.closest(".cat-te-ai-optimize-shell") || dialog;
             this._modalDragCleanups.push(bindDialogDrag(dialog, dialog.querySelector(".cat-te-modal-header"), dragTarget));
+            if (modal === this.mediaPreviewModal) {
+                const handle = document.createElement("cap-dialog-resize-handle");
+                handle.setAttribute("aria-hidden", "true");
+                dialog.appendChild(handle);
+                const unbindResize = bindDialogResize(dialog, handle);
+                this._modalDragCleanups.push(() => { unbindResize(); handle.remove(); });
+            }
         }
         sync();
     }
@@ -17584,6 +17594,8 @@ export class CapTimelineEditorApp {
 
     _onPromptManagerSourceInput() {
         if (!this.aiSrcText || this.aiSrcText.readOnly) return;
+        const clip = this._findClipById(this._aiOptimizeClipId);
+        if (!clip || this.aiSrcText.value === this._promptManagerValue(this._aiOptimizeSrc, clip)) return;
         if (this._promptManagerUndoArmed) {
             this._recordUndo();
             this._promptManagerUndoArmed = false;
@@ -17747,7 +17759,7 @@ export class CapTimelineEditorApp {
         this.aiResourceStage?.replaceChildren();
     }
 
-    _aiResourceSubjectEntry(clip, selectedIndex) {
+    _aiResourceSubjectEntry(clip, selectedIndex, currentPrompt = this._promptManagerValue("clip", clip)) {
         if (!clip || clip.track?.locked) return "";
         const meta = this._ensureClipMeta(clip);
         const items = this._clipItems(meta);
@@ -17758,7 +17770,7 @@ export class CapTimelineEditorApp {
         const description = String(media?.setting_description || "").trim();
         if (!description) return "";
         const picture = items.slice(0, index + 1).filter(it => it.kind === "image" && it.enabled !== false).length;
-        const prompt = this._stripPromptComments(this._promptManagerValue("clip", clip));
+        const prompt = this._stripPromptComments(currentPrompt);
         const used = [...prompt.matchAll(/<Subject\s+(\d+)>/gi)].map(match => Number(match[1]));
         const subject = used.reduce((max, n) => Math.max(max, n), 0) + 1;
         return `- <Subject ${subject}> 来自 <Picture ${picture}>。${description}${/[。！？.!?]$/.test(description) ? "" : "。"}`;
@@ -17766,9 +17778,11 @@ export class CapTimelineEditorApp {
 
     _insertAiResourceDescription() {
         const clip = this._findClipById(this._aiOptimizeClipId);
-        const entry = this._aiResourceSubjectEntry(clip, this.aiResourceCarousel?.index);
-        if (!entry) return;
+        if (!clip || clip.track?.locked) return;
+        if (this._aiOptimizeSrc === "clip") this._onPromptManagerSourceInput();
         const prompt = this._promptManagerValue("clip", clip);
+        const entry = this._aiResourceSubjectEntry(clip, this.aiResourceCarousel?.index, prompt);
+        if (!entry) return;
         const newline = prompt.includes("\r\n") ? "\r\n" : "\n";
         const header = /^[\t ]*subject_definitions[\t ]*[:：][^\r\n]*/im.exec(prompt);
         const at = header ? header.index + header[0].length : 0;

@@ -105,6 +105,18 @@ export function bindDialogResize(dialog, handle) {
     };
 }
 
+class DialogResizeHandle extends HTMLElement {
+    constructor() {
+        super();
+        this.attachShadow({ mode: "open" }).innerHTML = `<style>
+            :host { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; z-index: 2; cursor: nwse-resize; touch-action: none; }
+            :host::after { content: ""; position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-right: 2px solid var(--cat-muted, #a3b5b8); border-bottom: 2px solid var(--cat-muted, #a3b5b8); }
+        </style>`;
+    }
+}
+
+if (!customElements.get("cap-dialog-resize-handle")) customElements.define("cap-dialog-resize-handle", DialogResizeHandle);
+
 export class Dialog extends HTMLElement {
     static observedAttributes = ["aria-label", "close-label", "close-disabled"];
 
@@ -138,13 +150,11 @@ export class Dialog extends HTMLElement {
                 header > cap-button { flex-shrink: 0; }
                 .body { flex: 1; min-height: 0; overflow: auto; }
                 .is-dragging, .is-resizing { user-select: none; }
-                .resize-handle { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none; }
-                .resize-handle::after { content: ""; position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-right: 2px solid var(--cat-muted, #a3b5b8); border-bottom: 2px solid var(--cat-muted, #a3b5b8); }
             </style>
             <dialog aria-labelledby="title">
                 <header><slot id="title" name="title"></slot><cap-button shape="square" variant="danger" aria-label="Close" title="Close">${iconHtml("close", 18)}</cap-button></header>
                 <div class="body"><slot></slot></div>
-                <div class="resize-handle" aria-hidden="true"></div>
+                <cap-dialog-resize-handle class="resize-handle" aria-hidden="true"></cap-dialog-resize-handle>
             </dialog>`;
         this._dialog = root.querySelector("dialog");
         this._closeButton = root.querySelector("cap-button");

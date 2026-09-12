@@ -28,7 +28,7 @@ const app = {
     _refreshFinalPromptDisplay() {}, _setAiOptimizeSrcTab(tab) { selectedTab = tab; },
     _stripPromptComments: text => text.split(/\r?\n/).filter(line => !/^\s*#/.test(line)).join('\n'),
 };
-for (const name of ['_aiResourceSubjectEntry', '_insertAiResourceDescription', '_promptManagerValue', '_writePromptManagerValue']) app[name] = method(name);
+for (const name of ['_aiResourceSubjectEntry', '_insertAiResourceDescription', '_promptManagerValue', '_writePromptManagerValue', '_onPromptManagerSourceInput']) app[name] = method(name);
 const entry = '- <Subject 1> 来自 <Picture 2>。戴眼镜的女孩。';
 assert.equal(app._aiResourceSubjectEntry(clip), entry, 'enabled images only determine Picture number');
 for (const [before, after] of [
@@ -53,6 +53,36 @@ meta.prompt = 'subject_definitions:\n<Subject 2> 是另一个主体。\n# <Subje
 assert.match(app._aiResourceSubjectEntry(clip), /^- <Subject 5>/, 'Subject uses its own non-conflicting number, not the Picture number');
 app._insertAiResourceDescription();
 assert.match(app._aiResourceSubjectEntry(clip), /^- <Subject 6>/, 'subsequent insertion does not redefine the previous subject');
+// Rendered button state must not reserve or cache the next Subject number.
+meta.prompt = 'subject_definitions:\n<Subject 1> old';
+assert.match(app._aiResourceSubjectEntry(clip), /^- <Subject 2>/);
+meta.prompt = 'subject_definitions:\n<Subject 8> latest\n# <Subject 99> ignored';
+app._insertAiResourceDescription();
+assert.match(meta.prompt, /^subject_definitions:\n- <Subject 9>/, 'click rereads edited model data');
+assert(meta.prompt.includes('<Subject 8> latest'));
+meta.prompt = 'summary: all subjects removed';
+app._insertAiResourceDescription();
+assert.match(meta.prompt, /^- <Subject 1>/, 'deleted subjects do not leave a cached counter');
+
+// Commit the live Clip editor before leaving for the resource tab.
+app.aiSrcText = { value: 'subject_definitions:\n<Subject 12> freshly pasted', readOnly: false };
+app._aiOptimizeSrc = 'clip';
+app._onPromptManagerSourceInput();
+app._aiOptimizeSrc = 'resource'; app.aiSrcText.readOnly = true;
+app._insertAiResourceDescription();
+assert.match(meta.prompt, /^subject_definitions:\n- <Subject 13>/);
+assert(meta.prompt.includes('<Subject 12> freshly pasted'));
+
+// A hidden editor may still hold global text: never use it for Clip numbering.
+app.aiSrcText.value = '<Subject 900> global text';
+meta.prompt = 'subject_definitions:\n<Subject 3> actual clip';
+app._insertAiResourceDescription();
+assert.match(meta.prompt, /^subject_definitions:\n- <Subject 4>/);
+app._aiOptimizeSrc = 'clip'; app.aiSrcText.readOnly = false;
+app.aiSrcText.value = 'subject_definitions:\n<Subject 17> live clip input';
+app._insertAiResourceDescription();
+assert.match(meta.prompt, /^subject_definitions:\n- <Subject 18>/, 'active editor is read on click');
+delete app.aiSrcText; delete app._aiOptimizeSrc;
 index = 0; meta.prompt = '';
 assert.equal(app._aiResourceSubjectEntry(clip), '- <Subject 1> 来自 <Picture 1>。晴天咖啡厅。', 'no duplicate trailing punctuation');
 const previousUndo = undo;

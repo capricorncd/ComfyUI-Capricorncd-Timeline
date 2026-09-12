@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 // Exercise the actual shared drag implementation without a browser.
 const source = readFileSync(new URL('../js/components/Dialog.js', import.meta.url), 'utf8');
-const helpers = source.slice(source.indexOf('export function resetDialogPosition'), source.indexOf('export class Dialog'));
+const helpers = source.slice(source.indexOf('export function resetDialogPosition'), source.indexOf('class DialogResizeHandle'));
 const { bindDialogDrag, bindDialogResize, resetDialogPosition } = new Function(helpers.replaceAll('export function', 'function') + '; return {bindDialogDrag, bindDialogResize, resetDialogPosition};')();
 function element(extra = {}) {
     const classes = new Set();

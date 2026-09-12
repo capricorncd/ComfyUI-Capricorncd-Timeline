@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh">
+<meta charset="utf-8">
+<title>Media preview resize regression</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<div id="overlay" class="cat-te-overlay open" tabindex="-1"></div>
+<pre id="result">RUNNING</pre>
+<script type="module">
+import { bindDialogDrag, bindDialogResize, resetDialogPosition } from '../js/components/Dialog.js';
+import '../js/components/TabButton.js';
+import { iconHtml } from '../js/cap_icons.js';
+const assert = (ok, message) => { if (!ok) throw Error(message); };
+const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+try {
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const start = source.indexOf('<div class="cat-te-modal-backdrop cat-te-media-preview-modal"');
+    const markup = source.slice(start, source.indexOf('<div class="cat-te-modal-backdrop cat-te-raw-meta-modal"', start));
+    const labels = { replace_material_label: '替换素材', insert_into_selected_clips: '插入到当前Clip', insert_at_position_btn: '插入到当前位置' };
+    const overlay = document.querySelector('#overlay');
+    overlay.innerHTML = new Function('T', 'iconHtml', 'return `' + markup + '`;')(key => labels[key] || key, iconHtml);
+    const modal = overlay.firstElementChild;
+    const dialog = modal.querySelector('.cat-te-modal');
+    const app = { _overlay: overlay, mediaPreviewModal: modal, _timeline: {} };
+    const methodStart = source.indexOf('    _bindModalInteractions(');
+    const bind = new Function('bindDialogDrag', 'bindDialogResize', 'resetDialogPosition',
+        'return ({' + source.slice(methodStart, source.indexOf('\n    }', methodStart) + 6) + '})._bindModalInteractions;')(
+        bindDialogDrag, bindDialogResize, resetDialogPosition);
+    bind.call(app);
+    modal.hidden = false;
+    await tick();
+    const grip = dialog.querySelector('cap-dialog-resize-handle');
+    assert(grip, 'legacy media preview is wired to shared resize grip');
+    const rect = dialog.getBoundingClientRect();
+    const g = grip.getBoundingClientRect();
+    assert(document.elementFromPoint(g.x + 8, g.y + 8) === grip, 'resize grip receives pointer events above the footer');
+    assert(Math.abs(rect.width - innerWidth * .8) < 2, 'initial width is 80vw including borders');
+    let capture;
+    grip.setPointerCapture = id => { capture = id; };
+    grip.hasPointerCapture = id => capture === id;
+    grip.releasePointerCapture = () => { capture = null; };
+    function resize(dx, dy) {
+        const box = grip.getBoundingClientRect();
+        const init = { pointerId: 1, button: 0, clientX: box.x + 8, clientY: box.y + 8 };
+        grip.dispatchEvent(new PointerEvent('pointerdown', init));
+        grip.dispatchEvent(new PointerEvent('pointermove', { ...init, clientX: init.clientX + dx, clientY: init.clientY + dy }));
+        grip.dispatchEvent(new PointerEvent('pointerup', init));
+    }
+    resize(-1000, -1000);
+    let box = dialog.getBoundingClientRect();
+    assert(Math.abs(box.width - Math.min(640, innerWidth * .8)) < 2, 'minimum width');
+    assert(Math.abs(box.height - Math.min(360, innerHeight * .8)) < 2, 'minimum height');
+    assert(box.left === rect.left && box.top === rect.top, 'resize anchors top-left');
+    const footer = dialog.querySelector('.cat-te-media-preview-footer').getBoundingClientRect();
+    assert(footer.bottom <= box.bottom && footer.right <= box.right, 'footer remains inside resized dialog');
+    resize(2000, 2000);
+    box = dialog.getBoundingClientRect();
+    assert(box.width <= innerWidth * .8 + 1 && box.height <= innerHeight * .8 + 1, 'maximum size');
+    resize(-150, -150);
+    const saved = dialog.getBoundingClientRect();
+    modal.hidden = true; await tick();
+    modal.hidden = false; await tick();
+    box = dialog.getBoundingClientRect();
+    assert(Math.abs(box.width - saved.width) < 1 && Math.abs(box.height - saved.height) < 1, 'retain resized dimensions');
+    assert(Math.abs(box.left - (innerWidth - box.width) / 2) < 2 && Math.abs(box.top - (innerHeight - box.height) / 2) < 2, 'reopening recenters');
+    app._modalObserver.disconnect();
+    bind.call(app);
+    assert(dialog.querySelectorAll('cap-dialog-resize-handle').length === 1, 'rebinding cleans up old grip');
+    window.previewResize = { dialog, grip: dialog.querySelector('cap-dialog-resize-handle') };
+    document.querySelector('#result').textContent = 'PASS: media preview grip hit testing, resize bounds, footer, recenter and cleanup';
+} catch (error) {
+    document.querySelector('#result').textContent = 'FAIL: ' + error.stack;
+}
+</script>
+</html>

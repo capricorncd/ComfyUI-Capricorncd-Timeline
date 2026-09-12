@@ -92,6 +92,8 @@ Configure width using `--cap-dialog-width` (default 460px). The component caps d
 
 Drag the bottom-right grip to resize. The top-left stays fixed, and resizing is limited by both 80vw/80vh and available viewport space. Size is retained while the component exists; reopening still recenters it. Set `--cap-dialog-min-width` and `--cap-dialog-min-height` in pixels (defaults 320 × 160); smaller viewports take precedence over these minimums. Close uses the shared [Lucide X](https://lucide.dev/icons/x) SVG at 18px.
 
+The legacy media-preview dialog reuses `cap-dialog-resize-handle` and `bindDialogResize`, with a 640 × 360 minimum and the same 80vw/80vh maximum. Keep resize-grip styling in `Dialog.js`; do not duplicate it in editor CSS.
+
 | Dialog | Minimum width × height (px) |
 | --- | --- |
 | Project export | 420 × 320 |

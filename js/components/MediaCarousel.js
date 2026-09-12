@@ -24,7 +24,7 @@ export class MediaCarousel extends HTMLElement {
                 ::slotted(*) { width: 100%; height: 100%; box-sizing: border-box; }
                 .previous, .next { position: absolute; top: 50%; transform: translateY(-50%); }
                 .view { position: absolute; top: 6px; right: 6px; }
-                .remove { position: absolute; bottom: 6px; right: 6px; }
+                .actions { position: absolute; bottom: 6px; right: 6px; display: flex; gap: 6px; }
                 :host([drop-active]) .frame { outline: 2px solid var(--cat-accent, #64d8c5); outline-offset: -2px; }
                 .list { position: absolute; inset: 40px 0 0; overflow: auto; padding: 4px; }
                 .row { display: flex; gap: 6px; align-items: center; padding: 6px;
@@ -50,7 +50,10 @@ export class MediaCarousel extends HTMLElement {
                 <span class="count" aria-live="polite" hidden></span>
                 <div class="list" role="listbox" hidden></div>
                 <cap-button shape="square" size="small" class="view" hidden></cap-button>
-                <cap-button variant="danger" shape="square" size="small" class="remove" hidden>${iconHtml('trash', 16)}</cap-button>
+                <div class="actions">
+                    <cap-button shape="square" size="small" class="toggle" hidden>${iconHtml('eye', 16)}</cap-button>
+                    <cap-button variant="danger" shape="square" size="small" class="remove" hidden>${iconHtml('trash', 16)}</cap-button>
+                </div>
             </div>`;
         this._previous = root.querySelector('.previous');
         this._next = root.querySelector('.next');
@@ -58,6 +61,11 @@ export class MediaCarousel extends HTMLElement {
         this._list = root.querySelector('.list');
         this._view = root.querySelector('.view');
         this._remove = root.querySelector('.remove');
+        this._toggle = root.querySelector('.toggle');
+        this._toggle.addEventListener('click', event => {
+            event.stopPropagation();
+            if (this.index >= 0) this._request('toggle', { index: this.index });
+        });
         this._remove.addEventListener('click', event => {
             event.stopPropagation();
             if (this.count) this._request('delete', { index: this.index });
@@ -84,11 +92,15 @@ export class MediaCarousel extends HTMLElement {
     setSelection(index, count) {
         this.count = Math.max(0, Math.trunc(count) || 0);
         this.index = Math.max(0, Math.min(Math.trunc(index) || 0, this.count - 1));
-        this._previous.hidden = this._next.hidden = this.mode === 'list' || this.count < 2;
-        this._counter.hidden = this.mode === 'list' || !this.count;
-        this._counter.textContent = this.count ? `${this.index + 1}/${this.count}` : '';
-        this._remove.hidden = this.mode === 'list' || !this.count || this._view.hidden;
-        this._remove.disabled = !this.editable;
+        const indices = this._navigationIndices();
+        if (this.mode === 'preview' && this.count && !indices.includes(this.index)) {
+            this.index = indices.find(i => i >= this.index) ?? indices[0] ?? -1;
+        }
+        this._previous.hidden = this._next.hidden = this.mode === 'list' || indices.length < 2;
+        this._counter.hidden = this.mode === 'list' || !indices.length;
+        this._counter.textContent = indices.length ? `${indices.indexOf(this.index) + 1}/${indices.length}` : '';
+        this._remove.hidden = this._toggle.hidden = this.mode === 'list' || !indices.length || this._view.hidden;
+        this._remove.disabled = this._toggle.disabled = !this.editable;
         for (const [i, row] of [...this._list.children].entries()) {
             row.setAttribute('aria-selected', String(i === this.index));
         }
@@ -119,6 +131,8 @@ export class MediaCarousel extends HTMLElement {
         this._view.setAttribute('aria-label', this._view.title);
         this._remove.title = this.labels.remove || 'Remove from Clip';
         this._remove.setAttribute('aria-label', this._remove.title);
+        this._toggle.title = this.labels.disable || 'Disable';
+        this._toggle.setAttribute('aria-label', this._toggle.title);
         this._list.setAttribute('aria-label', this.labels.list || 'Resource list');
         this.setSelection(this.index, this.count);
         if (list) this._renderList();
@@ -234,9 +248,16 @@ export class MediaCarousel extends HTMLElement {
         }
     }
 
+    _navigationIndices() {
+        return Array.from({ length: this.count }, (_, i) => i)
+            .filter(i => this.mode === 'list' || this.items[i]?.enabled !== false);
+    }
+
     step(delta) {
-        if (this.count < 2) return;
-        this.setSelection((this.index + delta + this.count) % this.count, this.count);
+        const indices = this._navigationIndices();
+        if (indices.length < 2) return;
+        const position = indices.indexOf(this.index);
+        this.setSelection(indices[(position + delta + indices.length) % indices.length], this.count);
         this.dispatchEvent(new CustomEvent('media-change', { detail: { index: this.index }, bubbles: true, composed: true }));
     }
 }

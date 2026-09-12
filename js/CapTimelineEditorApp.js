@@ -13974,7 +13974,7 @@ export class CapTimelineEditorApp {
         if (state?.source !== "clip" || !state.clipId) return;
         const clip = this._findClipById(state.clipId);
         if (!clip) return;
-        this._setClipPreviewItemIndex(clip, index);
+        this._setClipPreviewItemIndex(clip, state.items[index]?.clipItemIndex ?? index);
         if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
     }
 
@@ -14013,11 +14013,14 @@ export class CapTimelineEditorApp {
     }
 
     _openClipMediaPreview(clip) {
-        const items = this._clipPreviewMediaEntries(clip);
+        const items = this._clipPreviewMediaEntries(clip)
+            .map((item, clipItemIndex) => ({ ...item, clipItemIndex }))
+            .filter(item => item.enabled !== false);
         if (!items.length) return;
         const m = this._ensureClipMeta(clip);
-        let index = this._clipPreviewItemIndex(clip, m);
-        if (index < 0 || index >= items.length) index = 0;
+        const selected = this._selClip?.id === clip.id ? this.clipSwiper.index : this._clipPreviewItemIndex(clip, m);
+        let index = items.findIndex(item => item.clipItemIndex >= selected);
+        if (index < 0) index = 0;
         const current = items[index];
         const status = this._mediaStatus.get(`${current.kind}:${current.file}`);
         if (status?.location === "missing") {
@@ -16648,7 +16651,7 @@ export class CapTimelineEditorApp {
 
         const m = this._ensureClipMeta(clip);
         const items = (isAudio || isVoiceover || isSubtitle) ? [] : this._clipItems(m);
-        const idx = this._clipPreviewItemIndex(clip, m);
+        const idx = this._configureClipResourceCarousel(this.clipSwiper, clip, items, this._clipPreviewItemIndex(clip, m));
         const current = items[idx] || null;
         if (this.clipInfoDetail) this.clipInfoDetail.hidden = false;
 
@@ -16670,7 +16673,10 @@ export class CapTimelineEditorApp {
                 this.clipThumb.removeAttribute("src");
                 this.clipThumb.style.display = "none";
             }
-            if (this.clipThumbEmpty) this.clipThumbEmpty.hidden = false;
+            if (this.clipThumbEmpty) {
+                this.clipThumbEmpty.hidden = false;
+                this.clipThumbEmpty.textContent = items.length ? T("resource_no_enabled") : T("empty_clip");
+            }
         } else if (current.kind === "video") {
             if (this.clipThumb) {
                 this.clipThumb.removeAttribute("src");
@@ -16732,7 +16738,6 @@ export class CapTimelineEditorApp {
                 this.clipSourceDurEl.textContent = "";
             }
         }
-        this._configureClipResourceCarousel(this.clipSwiper, clip, items, idx);
         this._renderClipGeneratedVideosList(clip, m, isAudio || isSubtitle || isMedia);
     }
 
@@ -17618,6 +17623,7 @@ export class CapTimelineEditorApp {
                 remove: T("remove_from_clip_title"), empty: T("prompt_resource_empty"),
             },
         });
+        return carousel.index;
     }
 
     _refreshClipResourceViews(clip) {
@@ -17634,7 +17640,10 @@ export class CapTimelineEditorApp {
         });
         carousel.addEventListener("media-view-change", () => {
             if (carousel === this.aiResourceCarousel) this._renderAiResource();
-            else this.clipThumbVideo?.pause();
+            else {
+                const clip = getClip();
+                if (clip) this._updateClipInfoPanel(clip);
+            }
         });
         carousel.addEventListener("media-edit", event => {
             const clip = getClip();
@@ -17665,11 +17674,11 @@ export class CapTimelineEditorApp {
         this.aiResourceStage?.replaceChildren();
     }
 
-    _aiResourceSubjectEntry(clip) {
+    _aiResourceSubjectEntry(clip, selectedIndex) {
         if (!clip || clip.track?.locked) return "";
         const meta = this._ensureClipMeta(clip);
         const items = this._clipItems(meta);
-        const index = this._clipPreviewItemIndex(clip, meta);
+        const index = selectedIndex ?? this._clipPreviewItemIndex(clip, meta);
         const item = items[index];
         if (!item || item.kind !== "image" || item.enabled === false) return "";
         const media = (item.id && this._findMediaById(item.id)) || this._findMedia(item.kind, item.file);
@@ -17684,7 +17693,7 @@ export class CapTimelineEditorApp {
 
     _insertAiResourceDescription() {
         const clip = this._findClipById(this._aiOptimizeClipId);
-        const entry = this._aiResourceSubjectEntry(clip);
+        const entry = this._aiResourceSubjectEntry(clip, this.aiResourceCarousel?.index);
         if (!entry) return;
         const prompt = this._promptManagerValue("clip", clip);
         const newline = prompt.includes("\r\n") ? "\r\n" : "\n";
@@ -17701,12 +17710,12 @@ export class CapTimelineEditorApp {
         this._clearAiResourcePreview();
         const clip = this._findClipById(this._aiOptimizeClipId);
         const items = this._clipPreviewMediaEntries(clip);
-        this.aiResourceInsertBtn.disabled = !this._aiResourceSubjectEntry(clip);
-        this._aiResourceIndex = clip ? this._clipPreviewItemIndex(clip, this._ensureClipMeta(clip)) : 0;
-        this._configureClipResourceCarousel(this.aiResourceCarousel, clip, items, this._aiResourceIndex);
+        const selected = clip ? this._clipPreviewItemIndex(clip, this._ensureClipMeta(clip)) : 0;
+        this._aiResourceIndex = this._configureClipResourceCarousel(this.aiResourceCarousel, clip, items, selected);
+        this.aiResourceInsertBtn.disabled = !this._aiResourceSubjectEntry(clip, this._aiResourceIndex);
         const item = items[this._aiResourceIndex];
         if (!item) {
-            this.aiResourceName.textContent = T("prompt_resource_empty");
+            this.aiResourceName.textContent = T(items.length ? "resource_no_enabled" : "prompt_resource_empty");
             this.aiResourceDescription.value = "";
             this.aiResourceDescription.placeholder = T("prompt_resource_no_description");
             return;

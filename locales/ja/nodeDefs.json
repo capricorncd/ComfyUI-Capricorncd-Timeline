@@ -193,8 +193,8 @@
       "clip_role": {
         "name": "クリップの種類"
       },
-      "agent": {
-        "name": "エージェント"
+      "model_type": {
+        "name": "モデル種類"
       },
       "detailed_description": {
         "name": "詳細説明"

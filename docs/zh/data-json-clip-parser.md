@@ -101,8 +101,8 @@ Timeline Editor 使用固定的 `prepend_prompt` 和 `append_prompt` 包住 Clip
 | `from_preview_start` | STRING | 预览（时间轴原始）开始时刻标签，如 `FROM_0012_12_432` |
 | `seq_filename_prefix` | STRING | Seq To Video 前缀（`run_timestamp/from_start` 或 `…/index`） |
 | `images` | IMAGE | 片段全部静帧组成的 IMAGE 批次 |
-| `clip_role` | STRING | 片段类型（供 Agent） |
-| `agent` | STRING | Agent id |
+| `clip_role` | STRING | 片段生成类型 |
+| `model_type` | STRING | 模型类型名称，如 MiniMaxH3、LTX，不是 MODEL 对象；兼容读取原有 `agent` 字段，输出位置和类型不变 |
 | `detailed_description` | STRING | 兼容输出，从 `prompt` 内的 `detailed_description` 段落提取 |
 | `clip_json` | STRING | 自包含片段 JSON：含 `fps`、`global_prompt`，以及 `images` / `videos` 绝对 `file` 路径、已解析的 `audios`、内嵌 `materials` |
 

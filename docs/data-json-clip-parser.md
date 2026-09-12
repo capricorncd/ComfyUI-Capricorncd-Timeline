@@ -97,8 +97,8 @@ Adds extra seconds to the clip's audio end time. This is useful when the generat
 | `from_preview_start` | STRING | Preview (original timeline) start tag, e.g. `FROM_0012_12_432` |
 | `seq_filename_prefix` | STRING | Prefix for Seq To Video (`run_timestamp/from_start` or `…/index`) |
 | `images` | IMAGE | All clip stills as one IMAGE batch |
-| `clip_role` | STRING | Clip role for agents |
-| `agent` | STRING | Agent id |
+| `clip_role` | STRING | Clip generation mode |
+| `model_type` | STRING | Model type name, such as MiniMaxH3 or LTX, not a MODEL object; reads the existing `agent` field for compatibility. Output position and type are unchanged. |
 | `detailed_description` | STRING | Compatibility output extracted from the `detailed_description` section inside `prompt` |
 | `clip_json` | STRING | Self-contained clip JSON: `fps`, `global_prompt`, `images` / `videos` with absolute `file` paths, resolved `audios`, and embedded `materials` |
 

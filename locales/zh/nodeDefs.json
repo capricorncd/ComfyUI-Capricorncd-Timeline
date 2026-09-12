@@ -193,8 +193,8 @@
       "clip_role": {
         "name": "类型"
       },
-      "agent": {
-        "name": "Agent"
+      "model_type": {
+        "name": "模型类型"
       },
       "detailed_description": {
         "name": "详细描述"

@@ -113,7 +113,7 @@ class CAP_DataJsonClipParser:
         "seq_filename_prefix",
         "images",
         "clip_role",
-        "agent",
+        "model_type",
         "detailed_description",
         "clip_json",
         "second_sample",
@@ -130,7 +130,7 @@ class CAP_DataJsonClipParser:
         "run_timestamp, generate_preview_video, FROM_ tags, seq_filename_prefix "
         "(run_timestamp/from_start or run_timestamp/index) for Seq To Video, "
         "images (all clip images in editor order as one IMAGE batch), "
-        "clip_role, agent, detailed_description, clip_json (self-contained clip with resolved "
+        "clip_role, model_type (STRING), detailed_description, clip_json (self-contained clip with resolved "
         "image/video file paths and embedded materials), second_sample, output_video "
         "(CapTimelineEditor-specified save path when enabled), save_latent "
         "(whether to run H3 Motion Context Save Latent for this clip), and "
@@ -732,7 +732,7 @@ class CAP_DataJsonClipParser:
             last_frame = blank
         images = self._load_images_batch(refs, materials, blank)
         clip_role = str(clip.get("clip_role") or "multi_ref").strip() or "multi_ref"
-        agent = str(clip.get("agent") or "MiniMaxH3").strip() or "MiniMaxH3"
+        model_type = str(clip.get("agent") or "MiniMaxH3").strip() or "MiniMaxH3"
         detailed_description = self._prompt_section(clip.get("prompt") or "", "detailed_description")
         clip_json = self._build_clip_json(
             clip,
@@ -761,7 +761,7 @@ class CAP_DataJsonClipParser:
             seq_filename_prefix,
             images,
             clip_role,
-            agent,
+            model_type,
             detailed_description,
             clip_json,
             second_sample,

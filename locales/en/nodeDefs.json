@@ -193,8 +193,8 @@
       "clip_role": {
         "name": "Clip Role"
       },
-      "agent": {
-        "name": "Agent"
+      "model_type": {
+        "name": "Model Type"
       },
       "detailed_description": {
         "name": "Detailed description"

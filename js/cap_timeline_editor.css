@@ -591,6 +591,7 @@ body.cat-te-row-resize * {
 
 .cat-te-media-preview-nav {
     flex-shrink: 0;
+    align-self: center;
 }
 
 .cat-te-media-preview-footer {

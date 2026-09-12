@@ -3613,9 +3613,9 @@ export class CapTimelineEditorApp {
                 <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-media-preview-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-media-preview-body">
-                <cap-button shape="circle" size="large" class="cat-te-media-preview-nav prev" title="${T("prev_image_title")}" aria-label="${T("prev_image_aria")}">‹</cap-button>
+                <cap-button shape="circle" size="large" class="cat-te-media-preview-nav prev" title="${T("prev_image_title")}" aria-label="${T("prev_image_aria")}">${iconHtml("chevronLeft", 24)}</cap-button>
                 <div class="cat-te-media-preview-stage"></div>
-                <cap-button shape="circle" size="large" class="cat-te-media-preview-nav next" title="${T("next_image_title")}" aria-label="${T("next_image_aria")}">›</cap-button>
+                <cap-button shape="circle" size="large" class="cat-te-media-preview-nav next" title="${T("next_image_title")}" aria-label="${T("next_image_aria")}">${iconHtml("chevronRight", 24)}</cap-button>
               </div>
               <div class="cat-te-media-preview-meta">
                 <div class="cat-te-media-info-tabs" role="tablist">

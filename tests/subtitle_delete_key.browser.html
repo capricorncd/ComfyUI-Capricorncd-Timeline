@@ -1,0 +1,60 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Subtitle text deletion shortcut regression</title>
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app = {};"}}</script>
+<div id="timeline" style="width:900px;height:300px"></div>
+<textarea id="subtitle">字幕文字</textarea>
+<input id="size" type="number" value="48">
+<div id="editable" contenteditable="true"><span>字幕文字</span></div>
+<div id="shadow"></div>
+<pre id="result">RUNNING</pre>
+<script type="module">
+import { Timeline } from '../js/timeline/Timeline.js';
+import { isEditingField } from '../js/timeline/utils.js';
+const assert = (condition, message) => { if (!condition) throw Error(message); };
+try {
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const start = source.indexOf('    handleDeleteKey(');
+    const handleDeleteKey = new Function('isEditingField', 'T', 'return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '}).handleDeleteKey')(isEditingField, key => key);
+    let confirmations = 0, envelopeDeletes = 0;
+    const editor = {
+        _overlay: {classList: {contains: () => true}},
+        _openDeleteConfirm() { confirmations++; },
+    };
+    window.addEventListener('keydown', event => handleDeleteKey.call(editor, event), true);
+    const tl = new Timeline(document.querySelector('#timeline'), {duration: 10});
+    editor._timeline = tl;
+    const track = tl.addTrack({type: 'text'});
+    const clip = tl.addClip(track.id, {name: '字幕文字', startTime: 0, duration: 3});
+    clip.audioEnvelope = {deleteSelected() { envelopeDeletes++; return false; }};
+    tl.selectClip(clip);
+    tl.on('clip:delete', () => confirmations++);
+    const shadow = document.querySelector('#shadow').attachShadow({mode: 'open'});
+    const shadowInput = document.createElement('input');
+    shadow.append(shadowInput);
+    const fields = [document.querySelector('#subtitle'), document.querySelector('#size'), document.querySelector('#editable'), shadowInput];
+    for (const field of fields) {
+        field.focus();
+        for (const key of ['Delete', 'Backspace']) {
+            for (const target of [field, window]) {
+                const event = new KeyboardEvent('keydown', {key, code: key, bubbles: true, composed: true, cancelable: true});
+                target.dispatchEvent(event);
+                assert(!event.defaultPrevented, 'native editing must retain ' + key);
+            }
+        }
+    }
+    assert(confirmations === 0 && envelopeDeletes === 0, 'editing must not delete Clips or envelope points');
+    tl._container.focus();
+    for (const key of ['Delete', 'Backspace']) {
+        const event = new KeyboardEvent('keydown', {key, code: key, bubbles: true, cancelable: true});
+        tl._container.dispatchEvent(event);
+        assert(event.defaultPrevented, 'timeline deletion still handled');
+    }
+    assert(confirmations === 2, 'one confirmation per timeline delete');
+    window.testState = {tl, get confirmations() { return confirmations; }};
+    document.querySelector('#result').textContent = 'PASS: text/number/contenteditable/shadow inputs, forwarded keys and timeline deletion';
+} catch (error) {
+    document.querySelector('#result').textContent = 'FAIL: ' + error.stack;
+    throw error;
+}
+</script>

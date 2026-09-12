@@ -1,6 +1,6 @@
 import { EventEmitter } from './EventEmitter.js';
 import '../components/DropdownButton.js';
-import { bindDragSession, clamp, formatTime as _formatTime, TRACK_TYPES, trackTypeLabel } from './utils.js';
+import { bindDragSession, clamp, formatTime as _formatTime, isEditingField, TRACK_TYPES, trackTypeLabel } from './utils.js';
 import { iconHtml } from '../cap_icons.js';
 import { Track } from './Track.js';
 import { TimeRuler } from './TimeRuler.js';
@@ -413,7 +413,7 @@ export class Timeline extends EventEmitter {
       if (this._keyboardSuspended) return;
       if (e.target.closest?.('cap-dialog')) return;
       if (e.target.closest?.('cap-button, cap-tab-button, cap-dropdown-button')) return;
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (isEditingField(e)) return;
       switch (e.code) {
         case 'Space':
           consume(e); this.togglePlay(); break;

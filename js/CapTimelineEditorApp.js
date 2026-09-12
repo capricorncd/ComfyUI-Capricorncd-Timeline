@@ -15,7 +15,7 @@ import { VoiceSettings } from "./editor/VoiceSettings.js";
 import { SubtitleSpeech } from "./editor/SubtitleSpeech.js";
 import { CharacterVoice } from "./editor/CharacterVoice.js";
 import { Timeline, ICONS } from "./timeline/index.js";
-import { normalizePlaybackRate } from "./timeline/utils.js";
+import { isEditingField, normalizePlaybackRate } from "./timeline/utils.js";
 import { normalizeVolumePoints, migrateAudioFades, volumeAt } from "./timeline/AudioEnvelope.js";
 import { parseTimecode, formatTimecode, frameIndexFromSecs, encodeClipTimingMs, decodeClipTimingSecs } from "./timecode.js";
 import { attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror } from "./rich_prompt.js";
@@ -5695,7 +5695,7 @@ export class CapTimelineEditorApp {
 
     handleDeleteKey(e) {
         if (!this._overlay?.classList.contains("open")) return false;
-        if (e.target?.closest?.("input, textarea, select")) return false;
+        if (isEditingField(e)) return false;
         if (e.key !== "Delete" && e.key !== "Backspace") return false;
         if (this._timeline?.getSelectedClips().some(c => c.audioEnvelope?.deleteSelected())) {
             e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.();

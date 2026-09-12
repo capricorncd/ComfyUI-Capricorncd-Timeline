@@ -6,6 +6,14 @@ let _id = 0;
 export const generateId = (p = 'tl') => `${p}_${++_id}_${Date.now().toString(36)}`;
 
 export const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+export function isEditingField(event) {
+  const isField = node => !!(node?.isContentEditable || node?.closest?.('input, textarea, select'));
+  if ((event.composedPath?.() || [event.target]).some(isField)) return true;
+  let focused = document.activeElement;
+  while (focused?.shadowRoot?.activeElement) focused = focused.shadowRoot.activeElement;
+  return isField(focused);
+}
+
 export const normalizePlaybackRate = value => Number.isFinite(Number(value)) && Number(value) > 0
   ? clamp(Number(value), 0.25, 4) : 1;
 

@@ -8,6 +8,7 @@ export class Clip extends EventEmitter {
   constructor(track, data) {
     super();
     this.id = data.id || generateId('clip');
+    this.groupId = typeof data.groupId === 'string' ? data.groupId : '';
     this.track = track;
     this.name = data.name || 'Clip';
     this.startTime = data.startTime ?? 0;
@@ -322,7 +323,7 @@ export class Clip extends EventEmitter {
       } catch (err) {
         console.error('[CapTE] selectClip failed', err);
       }
-      if (this.track.timeline.getSelectedClips().filter(c => !c.track.locked).length > 1) {
+      if (this.groupId || this.track.timeline.getSelectedClips().filter(c => !c.track.locked).length > 1) {
         this.track.timeline._dragSelectedClips(e, this);
         return;
       }
@@ -353,7 +354,7 @@ export class Clip extends EventEmitter {
     const origTrack = this.track;
     const ordered = [...origTrack.clips].sort((a, b) => a.startTime - b.startTime);
     const index = ordered.indexOf(this);
-    const swapTargets = [ordered[index - 1], ordered[index + 1]].filter(Boolean).map(clip => {
+    const swapTargets = [ordered[index - 1], ordered[index + 1]].filter(clip => clip && !clip.groupId).map(clip => {
       const left = clip.startTime < startTime ? clip : this;
       const right = left === this ? clip : this;
       const gap = right.startTime - left.endTime;
@@ -586,6 +587,6 @@ export class Clip extends EventEmitter {
   }
 
   toJSON() {
-    return { id: this.id, name: this.name, startTime: this.startTime, duration: this.duration, src: this.src, thumbnail: this.thumbnail };
+    return { id: this.id, groupId: this.groupId, name: this.name, startTime: this.startTime, duration: this.duration, src: this.src, thumbnail: this.thumbnail };
   }
 }

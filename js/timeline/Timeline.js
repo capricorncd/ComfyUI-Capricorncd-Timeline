@@ -785,6 +785,9 @@ export class Timeline extends EventEmitter {
         const y = r.top - rect.top + this.scrollEl.scrollTop;
         if (x < right && x + r.width > left && y < bottom && y + r.height > top) ids.add(c.id);
       }
+      for (const c of this.expandClipGroups(candidates.filter(c => ids.has(c.id)))) {
+        if (!c.track.locked) ids.add(c.id);
+      }
       this._selectedIds = ids;
       for (const t of this.tracks) for (const c of t.clips) c.setSelected(ids.has(c.id));
       this._selected = candidates.find(c => ids.has(c.id)) || null;
@@ -802,7 +805,8 @@ export class Timeline extends EventEmitter {
   }
 
   _dragSelectedClips(e, anchor) {
-    const clips = this.getSelectedClips().filter(c => !c.track.locked);
+    const clips = this.expandClipGroups(this.getSelectedClips());
+    if (!clips.length || clips.some(c => c.track.locked)) return;
     const ids = new Set(clips.map(c => c.id));
     const starts = clips.map(c => c.startTime);
     let min = -Math.min(...starts), max = Infinity;
@@ -853,18 +857,23 @@ export class Timeline extends EventEmitter {
       return;
     }
 
+    const members = this.expandClipGroups([clip]).filter(c => !c.track.locked);
     if (additive) {
       if (this._selectedIds.has(clip.id)) {
-        this._selectedIds.delete(clip.id);
-        clip.setSelected(false);
-        if (this._selected?.id === clip.id) {
+        for (const member of members) {
+          this._selectedIds.delete(member.id);
+          member.setSelected(false);
+        }
+        if (!this._selectedIds.has(this._selected?.id)) {
           this._selected = this._selectedIds.size
             ? this._findClipById([...this._selectedIds].at(-1))
             : null;
         }
       } else {
-        this._selectedIds.add(clip.id);
-        clip.setSelected(true);
+        for (const member of members) {
+          this._selectedIds.add(member.id);
+          member.setSelected(true);
+        }
         this._selected = clip;
       }
       this.emit('clip:select', {
@@ -879,10 +888,12 @@ export class Timeline extends EventEmitter {
       if (id !== clip.id) this._findClipById(id)?.setSelected(false);
     }
     this._selectedIds.clear();
-    this._selectedIds.add(clip.id);
     this._selected?.setSelected(false);
     this._selected = clip;
-    clip.setSelected(true);
+    for (const member of members) {
+      this._selectedIds.add(member.id);
+      member.setSelected(true);
+    }
     this.emit('clip:select', {
       clip,
       track: clip.track,
@@ -912,6 +923,15 @@ export class Timeline extends EventEmitter {
       if (c) return c;
     }
     return null;
+  }
+
+  expandClipGroups(clips) {
+    const groups = new Set(clips.map(c => c.groupId).filter(Boolean));
+    const result = new Set(clips);
+    for (const track of this.tracks) for (const clip of track.clips) {
+      if (clip.groupId && groups.has(clip.groupId)) result.add(clip);
+    }
+    return [...result];
   }
 
   getSelectedClips() {

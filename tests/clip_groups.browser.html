@@ -1,0 +1,87 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Clip groups regression</title>
+<link rel="stylesheet" href="../js/timeline/timeline.css">
+<style>#timeline {width:950px;height:550px}</style>
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app = {};"}}</script>
+<div id="timeline"></div><pre id="result">RUNNING</pre>
+<script type="module">
+import {Timeline} from '../js/timeline/Timeline.js';
+import {TimelineHistory} from '../js/editor/TimelineHistory.js';
+import {isEditingField} from '../js/timeline/utils.js';
+const assert = (ok, message) => {if (!ok) throw Error(message);};
+try {
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const ClipApp = {_clipClipboard:null};
+    const method = name => {
+        const start = source.indexOf('    ' + name + '(');
+        return new Function('uid', 'isEditingField', 'CapTimelineEditorApp', 'return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '}).' + name)(() => crypto.randomUUID(), isEditingField, ClipApp);
+    };
+    const tl = new Timeline(document.querySelector('#timeline'), {duration:30, fps:24});
+    const tracks = ['image','video','audio','text','voiceover'].map(type => tl.addTrack({type}));
+    const clips = tracks.map((track, i) => tl.addClip(track.id, {id:'c'+i, startTime:2+i/24, duration:2+i/24}));
+    const history = new TimelineHistory({
+        capture:() => clips.map(c => c.toJSON()),
+        restore:async rows => rows.forEach((row, i) => {Object.assign(clips[i], row); clips[i]._applyPosition();}), onChange() {},
+    });
+    const app = {_timeline:tl, _overlay:{classList:{contains:()=>true}}, _shortcutModKey:e=>e.key.toLowerCase(),
+        _recordUndo:()=>history.record(), _saveToWidgets(){}, _setClipGroup:method('_setClipGroup')};
+    const key = (shiftKey=false, target=document.body) => method('handleShortcutKey').call(app, {
+        key:'g', ctrlKey:true, shiftKey, target, preventDefault(){}, stopPropagation(){}, stopImmediatePropagation(){},
+    });
+    const selectAll = () => {tl.clearSelection(); clips.forEach(c => {if (!tl._selectedIds.has(c.id)) tl.selectClip(c,{additive:true});});};
+    selectAll();
+    assert(key() && clips[0].groupId && clips.every(c=>c.groupId===clips[0].groupId), 'Ctrl+G groups all track types');
+    assert(!source.includes('_disableOthers('), 'old disable-others behavior removed');
+    tl.clearSelection(); tl.selectClip(clips[2]);
+    assert(tl.getSelectedClips().length===5 && clips.every(c=>c.selected), 'click selects entire group');
+    tl.selectClip(clips[1], {additive:true});
+    assert(!tl.getSelectedClips().length, 'Ctrl selection toggles entire group');
+    tl.selectClip(clips[0]);
+    tl.on('clip:movestart',()=>history.begin());
+    tl.on('clip:moveend',e=>history.commit(e.moved));
+    const drag = (seconds) => {
+        const x=200;
+        tl._dragSelectedClips(new MouseEvent('mousedown',{clientX:x,button:0}), clips[0]);
+        window.dispatchEvent(new MouseEvent('mousemove',{clientX:x+seconds*tl.pixelsPerSecond}));
+        window.dispatchEvent(new MouseEvent('mouseup'));
+    };
+    const initial=clips.map(c=>({start:c.startTime,duration:c.duration,offset:c.sourceOffset}));
+    drag(1);
+    clips.forEach((c,i)=>assert(Math.abs(c.startTime-initial[i].start-1)<1e-7 && c.duration===initial[i].duration && c.sourceOffset===initial[i].offset,'group move preserves relative timing and source trims'));
+    await history.undo(); assert(clips[0].startTime===2, 'move is one undo step');
+    await history.redo(); assert(clips[0].startTime===3, 'move redo');
+    tracks[2].setLocked(true); tl.selectClip(clips[0]);
+    drag(1); assert(clips[0].startTime===3 && clips[2].startTime===initial[2].start+1, 'locked member prevents partial movement');
+    assert(!app._setClipGroup(true), 'cannot regroup only unlocked subset');
+    tracks[2].setLocked(false); tl.selectClip(clips[0]);
+    drag(-100); assert(clips[0].startTime===0,'group cannot cross time zero');
+    const obstacle=tl.addClip(tracks[0].id,{startTime:4,duration:2});
+    drag(100); assert(clips[0].endTime===4,'group stops at nonmember collision');
+    key(true); assert(clips.every(c=>!c.groupId),'Ctrl+Shift+G ungroups');
+    await history.undo(); assert(clips.every(c=>c.groupId===clips[0].groupId) && clips[0].groupId,'undo restores grouping');
+    const saved=clips[0].toJSON();
+    const restored=tl.addClip(tracks[0].id,{...saved,id:'restored',startTime:20});
+    assert(restored.groupId===clips[0].groupId,'serialized Clip preserves group');
+    tl.removeClip(restored.track.id, restored.id);
+    ClipApp._clipClipboard = clips.map(c=>({...c.toJSON(), trackId:c.track.id, meta:{}}));
+    Object.assign(app, {
+        _resolvePasteTrack:s=>tl.getTrack(s.trackId), _pasteGroupFitsAt:()=>true,
+        _ensureTimelineLength(){}, _cloneClipMeta:m=>({...m}), _trackIndex:t=>tracks.indexOf(t),
+        _meta:new Map(), _decorateClip(){}, _updatePromptPanel(){}, _refreshTimelineDuration(){}, _scheduleProgramPreview(){},
+    });
+    tl.currentTime=12;
+    assert(method('_pasteClips').call(app),'paste grouped clips');
+    const copies=tl.getSelectedClips();
+    assert(copies.length===clips.length && copies[0].groupId!==clips[0].groupId && copies.every(c=>c.groupId===copies[0].groupId),'pasted clips form an independent selected group');
+    tl.clearSelection(); tl.selectClip(copies[0]);
+    assert(tl.getSelectedClips().length===5 && !tl.getSelectedClips().includes(clips[0]),'copy selection never expands into original');
+    tl.selectClip(clips[0],{additive:true}); key();
+    assert([...clips,...copies].every(c=>c.groupId===clips[0].groupId),'group command merges selected groups');
+    const input=document.createElement('input'); document.body.append(input); input.focus();
+    assert(!key(true,input) && clips[0].groupId,'typing does not invoke group shortcuts');
+    input.remove();
+    tl.destroy();
+    document.querySelector('#result').textContent='PASS: Ctrl+G, all track types, selection, movement, bounds, collisions, locks, undo/redo, persistence and text focus';
+} catch(error) {document.querySelector('#result').textContent='FAIL: '+error.stack; throw error;}
+</script>

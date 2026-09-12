@@ -1110,6 +1110,14 @@ export class CapTimelineEditorApp {
             return true;
         }
 
+        if (key === "g") {
+            if (isEditingField(e) || this._blockingModal || this._timeline?._keyboardSuspended) return false;
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation?.();
+            this._setClipGroup(e.shiftKey);
+            return true;
+        }
         if (e.shiftKey) return false;
 
         if (key === "c") {
@@ -1145,12 +1153,11 @@ export class CapTimelineEditorApp {
             if (clip && !clip.track.locked) this._splitClip(clip);
             return true;
         }
-        if (key !== "b" && key !== "g") return false;
+        if (key !== "b") return false;
         const clip = this.getSelectedClip();
         if (!clip) return false;
         if (clip.track?.type === "audio") return false;
-        if (key === "b") this._toggleDisableClip(clip);
-        else this._disableOthers(clip);
+        this._toggleDisableClip(clip);
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation?.();
@@ -13514,6 +13521,7 @@ export class CapTimelineEditorApp {
             }
             const clip = this._addRestoredClip(track, {
                 id: c.id || uid(),
+                groupId: c.group_id,
                 name: af.split(/[\\/]/).pop() || T("media_kind_audio"),
                 startTime,
                 duration: dur,
@@ -13547,6 +13555,7 @@ export class CapTimelineEditorApp {
             const name = String(c.name || T("voiceover_clip_default_name"));
             const clip = this._addRestoredClip(track, {
                 id: c.id || uid(),
+                groupId: c.group_id,
                 name: name.slice(0, 40) || T("voiceover_clip_default_name"),
                 startTime,
                 duration: dur,
@@ -13577,6 +13586,7 @@ export class CapTimelineEditorApp {
             const text = String(c.text ?? c.name ?? T("subtitle_default_text"));
             const clip = this._addRestoredClip(track, {
                 id: c.id || uid(),
+                groupId: c.group_id,
                 name: text.slice(0, 40) || T("subtitle_default_text"),
                 startTime,
                 duration: dur,
@@ -13620,6 +13630,7 @@ export class CapTimelineEditorApp {
             const trimIn = Math.max(0, Number(c.trim_in) || 0);
             const clip = this._addRestoredClip(track, {
                 id: c.id || uid(),
+                groupId: c.group_id,
                 name: c.name || first?.file?.split(/[\\/]/).pop() || DEFAULT_CLIP_NAME,
                 startTime,
                 duration: dur,
@@ -13704,6 +13715,7 @@ export class CapTimelineEditorApp {
             }
             const clip = this._addRestoredClip(track, {
                 id: c.id || uid(),
+                groupId: c.group_id,
                 name: fname,
                 startTime,
                 duration: dur,
@@ -13771,6 +13783,7 @@ export class CapTimelineEditorApp {
         const fname = img.split(/[\\/]/).pop() || T("asset_fallback_name");
         const clip = this._addRestoredClip(track, {
             id: c.id || uid(),
+            groupId: c.group_id,
             name: fname,
             startTime,
             duration: dur,
@@ -15363,7 +15376,6 @@ export class CapTimelineEditorApp {
                 { label: T("run_track_right_menu"), fn: () => void this._runSelectedTrackSide("right", clip) },
                 { label: T("run_track_left_menu"), fn: () => void this._runSelectedTrackSide("left", clip) },
                 { label: m.disabled ? T("menu_enable_shortcut") : T("menu_disable_shortcut"), strike: !!m.disabled, fn: () => this._toggleDisableClip(clip) },
-                { label: T("menu_disable_others_assets_shortcut"), fn: () => this._disableOthers(clip) },
                 { label: T("menu_set_title"), fn: () => this._renameClip(clip) },
                 { label: T("linked_generated_videos_title"), fn: () => void this._openOutputVideosPicker(clip) },
                 { label: T("clear_clip_video_links"), danger: true, disabled: !this._clipGeneratedVideos(m).length,
@@ -15388,6 +15400,8 @@ export class CapTimelineEditorApp {
             }
         }
         items.push(
+            { label: T("menu_group_clips"), fn: () => this._setClipGroup(false), disabled: this._timeline.getSelectedClips().length < 2 },
+            { label: T("menu_ungroup_clips"), fn: () => this._setClipGroup(true), disabled: !this._timeline.getSelectedClips().some(c => c.groupId) },
             { label: T("menu_copy_shortcut"), fn: () => this._copySelectedClips() },
             { label: T("menu_paste_shortcut"), fn: () => this._pasteClips() },
             { label: T("delete_btn"), fn: () => this._deleteClip(clip), danger: true },
@@ -15454,6 +15468,7 @@ export class CapTimelineEditorApp {
                         : defaultImageMeta());
         return {
             trackId: clip.track.id,
+            groupId: clip.groupId,
             trackType: isAudio
                 ? "audio"
                 : isVoiceover
@@ -15608,6 +15623,10 @@ export class CapTimelineEditorApp {
             }
         }
 
+        const pastedGroups = new Map();
+        for (const snap of snaps) {
+            if (snap.groupId && !pastedGroups.has(snap.groupId)) pastedGroups.set(snap.groupId, uid());
+        }
         const created = [];
         for (let i = 0; i < snaps.length; i++) {
             const snap = snaps[i];
@@ -15616,6 +15635,7 @@ export class CapTimelineEditorApp {
             this._ensureTimelineLength(start + snap.duration);
             const clip = tl.addClip(track.id, {
                 name: snap.name,
+                groupId: pastedGroups.get(snap.groupId) || "",
                 startTime: start,
                 duration: snap.duration,
                 src: snap.src,
@@ -15647,7 +15667,7 @@ export class CapTimelineEditorApp {
 
         tl.selectClip(created[0]);
         for (let i = 1; i < created.length; i++) {
-            tl.selectClip(created[i], { additive: true });
+            if (!tl._selectedIds.has(created[i].id)) tl.selectClip(created[i], { additive: true });
         }
         this._updatePromptPanel();
         this._refreshTimelineDuration();
@@ -15811,26 +15831,18 @@ export class CapTimelineEditorApp {
         if (this._selClip?.id === clip.id) this._updatePromptPanel();
     }
 
-    _disableOthers(clip) {
-        const all = (clip.track?.clips || []).filter(c => c.id !== clip.id);
-        if (!all.length) return;
+    _setClipGroup(ungroup = false) {
+        const tl = this._timeline;
+        const clips = tl?.expandClipGroups(tl.getSelectedClips()) || [];
+        if (!clips.length || clips.some(c => c.track.locked)) return false;
+        if (ungroup ? !clips.some(c => c.groupId) : clips.length < 2) return false;
+        if (!ungroup && clips[0].groupId && clips.every(c => c.groupId === clips[0].groupId)) return false;
         this._recordUndo();
-        const target = all.every(c => (this._meta.get(c.id) ?? defaultImageMeta()).disabled) ? false : true;
-        for (const c of all) {
-            const m = this._meta.get(c.id) ?? defaultImageMeta();
-            if (m.disabled !== target) {
-                m.disabled = target;
-                this._meta.set(c.id, m);
-                this._decorateClip(c);
-            }
-        }
-        const self = this._meta.get(clip.id) ?? defaultImageMeta();
-        if (self.disabled) {
-            self.disabled = false;
-            this._meta.set(clip.id, self);
-            this._decorateClip(clip);
-            if (this._selClip?.id === clip.id) this._updatePromptPanel();
-        }
+        const groupId = ungroup ? "" : uid();
+        for (const clip of clips) clip.groupId = groupId;
+        if (!ungroup) tl.selectClip(clips[0]);
+        this._saveToWidgets();
+        return true;
     }
 
     _mediaKindForFile(file) {
@@ -18841,6 +18853,7 @@ export class CapTimelineEditorApp {
                 if (isVoiceoverTrack) {
                     const voRow = {
                         id: clip.id,
+                        ...(clip.groupId ? { group_id: clip.groupId } : {}),
                         type: "voiceover",
                         enabled: !m.disabled,
                         visible: m.visible !== false,
@@ -18867,6 +18880,7 @@ export class CapTimelineEditorApp {
                 if (isSubTrack) {
                     const subRow = {
                         id: clip.id,
+                        ...(clip.groupId ? { group_id: clip.groupId } : {}),
                         type: "subtitle",
                         enabled: !m.disabled,
                         visible: m.visible !== false,
@@ -18913,6 +18927,7 @@ export class CapTimelineEditorApp {
                 }
                 const row = {
                     id: clip.id,
+                    ...(clip.groupId ? { group_id: clip.groupId } : {}),
                     type: track.type === "audio" ? "audio" : isMediaTrackType(track.type) ? "media" : "clip",
                     enabled: !m.disabled,
                     visible: m.visible !== false,

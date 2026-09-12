@@ -130,7 +130,7 @@ Re-generate one segment without rebuilding the rest.
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+B` | Disable / enable the selected clip(s) |
-| `Ctrl+G` | Disable all other clips (toggle) |
+| `Ctrl+G` | Group selected clips across tracks and types |
 
 Batch runs skip disabled or hidden director clips and tracks; muted audio is excluded from reference audio. Explicitly running one director Clip (via its context menu or Prompt Manager) includes it even when the Clip or its track is disabled/hidden, without changing the saved flags. Other disabled clips remain excluded.
 
@@ -143,9 +143,12 @@ Batch runs skip disabled or hidden director clips and tracks; muted audio is exc
 | `Ctrl+Click` | Multi-select clips |
 | `Delete` / `Backspace` | Delete selection (with confirm) |
 | `Ctrl+B` | Disable / enable selected clip |
-| `Ctrl+G` | Disable / enable all other clips |
+| `Ctrl+G` | Group selected clips |
+| `Ctrl+Shift+G` | Ungroup clips |
 | `Ctrl+Wheel` | Zoom timeline |
 | `Alt+Wheel` | Scroll timeline horizontally |
+
+Click any member to select its group. Dragging preserves durations, relative timing and source offsets; a locked member prevents the entire group from moving. Groups persist in projects and support undo/redo. Pasting creates an independent group. Group/Ungroup are also available in the Clip context menu.
 
 ---
 

@@ -244,9 +244,9 @@ class CAP_TimelineEditor:
         "data_json contains only enabled runtime clips and their intersecting audio slices."
     )
 
-    RETURN_TYPES = ("FLOAT", "INT", "INT", "STRING", "STRING", "INT", "INT", "AUDIO", "STRING")
+    RETURN_TYPES = ("FLOAT", "INT", "INT", "STRING", "INT", "INT", "AUDIO", "STRING")
     RETURN_NAMES = (
-        "fps", "width", "height", "prepend_prompt", "data_json",
+        "fps", "width", "height", "data_json",
         "clips_length", "total_frame_count", "clips_audio", "frame_seq_dir",
     )
     FUNCTION = "execute"
@@ -850,7 +850,7 @@ class CAP_TimelineEditor:
         }, ensure_ascii=False)
 
         return (
-            fps, width, height, prepend_prompt, data_json, len(runtime_clips),
+            fps, width, height, data_json, len(runtime_clips),
             total_frame_count, clips_audio_out, frame_seq_dir,
         )
 

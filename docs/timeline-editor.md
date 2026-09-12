@@ -152,12 +152,13 @@ Disabled / hidden / muted clips are omitted from runtime `data_json`. Tracks tha
 | `fps` | FLOAT | Frames per second |
 | `width` | INT | Video width |
 | `height` | INT | Video height |
-| `prepend_prompt` | STRING | Prompt prepended to every enabled Clip prompt (`project_json.settings.prepend_prompt`) |
 | `data_json` | STRING | Runtime JSON for enabled visible segments only (see below) |
 | `clips_length` | INT | Number of runtime clips |
 | `total_frame_count` | INT | Sum of runtime clip frame counts at `fps` |
 | `clips_audio` | AUDIO | Full-timeline mix of unmuted audio (and video-with-audio) clips |
 | `frame_seq_dir` | STRING | Temp directory for frame sequences (`output/temp/capricorncd-frame-sequences`); created on first run, cleared on each subsequent run |
+
+The separate `prepend_prompt` output has been removed; project settings and `data_json.prepend_prompt` are unchanged. Loading a saved UI workflow remaps the remaining output connections and disconnects the removed output. Re-export old API workflows from the updated UI before running them.
 
 ---
 

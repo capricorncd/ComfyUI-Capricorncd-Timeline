@@ -123,9 +123,6 @@
       "height": {
         "name": "Height"
       },
-      "prepend_prompt": {
-        "name": "Prepend Prompt"
-      },
       "data_json": {
         "name": "Data JSON"
       },

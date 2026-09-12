@@ -10,6 +10,49 @@ const LEGACY_PROMPT_FIELDS = [
     "prefix_prompt", "prompt_prefix", "suffix_prompt", "prompt_suffix",
 ];
 
+function migrateTimelineOutputs(graph) {
+    if (!graph) return;
+    const removedSlots = new Map();
+    const removedLinks = new Set();
+    for (const node of graph.nodes || []) {
+        if (node.type !== NODE_CLASS) continue;
+        const slot = node.outputs?.findIndex(output => output.name === "prepend_prompt") ?? -1;
+        if (slot < 0) continue;
+        removedSlots.set(String(node.id), slot);
+        for (const id of node.outputs[slot].links || []) removedLinks.add(id);
+        node.outputs.splice(slot, 1);
+        node.outputs.forEach((output, index) => {
+            if (output.slot_index != null) output.slot_index = index;
+        });
+    }
+    if (removedSlots.size) {
+        graph.links = (graph.links || []).filter(link => {
+            const array = Array.isArray(link);
+            const id = array ? link[0] : link.id;
+            const origin = array ? link[1] : link.origin_id;
+            const slot = array ? link[2] : link.origin_slot;
+            const removed = removedSlots.get(String(origin));
+            if (removed !== undefined && slot === removed) removedLinks.add(id);
+            if (removedLinks.has(id)) return false;
+            if (removed !== undefined && slot > removed) {
+                if (array) link[2]--;
+                else link.origin_slot--;
+            }
+            return true;
+        });
+        for (const node of graph.nodes || []) {
+            for (const input of node.inputs || []) {
+                if (removedLinks.has(input.link)) input.link = null;
+            }
+        }
+        // Subgraph boundary ports also retain link IDs.
+        for (const output of graph.outputs || []) {
+            if (output.linkIds) output.linkIds = output.linkIds.filter(id => !removedLinks.has(id));
+        }
+    }
+    for (const subgraph of graph.definitions?.subgraphs || []) migrateTimelineOutputs(subgraph);
+}
+
 function configuredNamedValues(info) {
     const named = { ...(info?.properties?.cat_named || {}) };
     const inputs = Array.isArray(info?.inputs) ? info.inputs : [];
@@ -119,6 +162,7 @@ function hookLoadGraphData() {
             ?? workflow?.changeTracker?._capTeFrozenActiveState
             ?? null;
         const data = frozen || graphData;
+        migrateTimelineOutputs(data);
         if (frozen && workflow?.changeTracker) {
             try { workflow.changeTracker.activeState = frozen; } catch { /* ignore */ }
         }

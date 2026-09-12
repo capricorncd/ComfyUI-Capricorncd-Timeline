@@ -123,9 +123,6 @@
       "height": {
         "name": "高さ"
       },
-      "prepend_prompt": {
-        "name": "前置プロンプト"
-      },
       "data_json": {
         "name": "データ JSON"
       },

@@ -153,12 +153,13 @@ Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的
 | `fps` | FLOAT | 帧率 |
 | `width` | INT | 视频宽度 |
 | `height` | INT | 视频高度 |
-| `prepend_prompt` | STRING | 固定拼接在每个启用 Clip 提示词之前（`project_json.settings.prepend_prompt`） |
 | `data_json` | STRING | 仅含启用且可见片段的运行时 JSON（见下文） |
 | `clips_length` | INT | 运行时片段数量 |
 | `total_frame_count` | INT | 按 `fps` 汇总的总帧数 |
 | `clips_audio` | AUDIO | 整条时间轴上未静音音频（及带音视频）的混音 |
 | `frame_seq_dir` | STRING | 序列帧临时目录（`output/temp/capricorncd-frame-sequences`），首次运行创建，之后每次运行前清空 |
+
+已删除独立的 `prepend_prompt` 输出；工程设置及 `data_json.prepend_prompt` 保持不变。加载旧版界面工作流时，自动调整其余输出连线，断开已删除输出的连线。旧 API 工作流请先在更新后的界面中重新导出再运行。
 
 ---
 

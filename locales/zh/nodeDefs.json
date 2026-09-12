@@ -123,9 +123,6 @@
       "height": {
         "name": "高度"
       },
-      "prepend_prompt": {
-        "name": "前置提示词"
-      },
       "data_json": {
         "name": "配置数据"
       },

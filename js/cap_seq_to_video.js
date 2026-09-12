@@ -6,6 +6,7 @@ import { t } from "./i18n/seq_to_video.js";
 
 const PLAYER_NODES   = new Set(["CAP_SeqToVideo", "CAP_ComposeClipVideos"]);
 const PLAYER_H       = 200;  // placeholder / initial height in px
+const PLAYER_MARGIN  = 10;   // ComfyUI DOM widget inset on each side
 const MIN_NODE_WIDTH = 300;  // px
 
 function loadCss() {
@@ -25,6 +26,11 @@ function clampWidth(size) {
 function clearStvWidgetWidth(node) {
     const w = node._stvWidget;
     if (w && w.width != null) delete w.width;
+}
+
+function playerWidgetHeight(node) {
+    // DOM content occupies the layout height minus both widget margins.
+    return node._stvPlayerH + PLAYER_MARGIN * 2;
 }
 
 // ── ffmpeg status — checked once, result cached ────────────────────────────
@@ -158,13 +164,14 @@ function _buildPlayer(node) {
         // canvasOnly the player is not rendered on the node canvas.
         canvasOnly: true,
         hideOnZoom: false,
-        getMinHeight: () => node._stvPlayerH,
-        getHeight:    () => node._stvPlayerH,
+        margin: PLAYER_MARGIN,
+        getMinHeight: () => playerWidgetHeight(node),
+        getHeight:    () => playerWidgetHeight(node),
     });
     w.serialize = false;
     w.computeLayoutSize = () => ({
-        minHeight: node._stvPlayerH,
-        maxHeight: node._stvPlayerH,
+        minHeight: playerWidgetHeight(node),
+        maxHeight: playerWidgetHeight(node),
         minWidth: MIN_NODE_WIDTH,
     });
 

@@ -7,7 +7,9 @@ import io
 import json
 import os
 import re
+import shutil
 import zipfile
+from datetime import datetime
 
 from .cap_i18n import get_last_known_lang, t as _t
 from .timecode import AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, resolve_media_path
@@ -883,6 +885,58 @@ def build_export_zip_bytes(project: dict, workflow: dict | None = None, *, inclu
         for entry in entries:
             zf.write(entry["src_path"], arcname=entry["arcname"])
     return buf.getvalue(), f"{name}.zip", missing
+
+
+def save_project_export(project: dict, directory: str, package_format: str, workflow: dict | None = None,
+                        *, include_generated: bool = True) -> tuple[str, list[str]]:
+    """Write a new, dated package on disk without overwriting earlier exports."""
+    if package_format not in {"directory", "zip"}:
+        raise ValueError("Invalid export format")
+    if not os.path.isabs(directory) or directory.startswith(("\\\\", "//")):
+        raise ValueError("Export directory must be an absolute local path")
+    root = os.path.realpath(directory)
+    if root.startswith(("\\\\", "//")):
+        raise ValueError("Export directory must be a local path")
+    if not os.path.isdir(root):
+        raise ValueError(f"Export directory does not exist: {directory}")
+    exported, entries, missing = build_export_entries(project, include_generated=include_generated)
+    # Package paths must stay inside the new directory, including on Windows.
+    for entry in entries:
+        parts = entry["arcname"].replace("\\", "/").split("/")
+        if any(part in {"", ".", ".."} or ":" in part for part in parts):
+            raise ValueError(f"Invalid package path: {entry['arcname']}")
+    name = _safe_name(exported.get("name"), "timeline-project")
+    name = f"{name}_{datetime.now():%Y%m%d_%H%M%S}"
+    index = 0
+    while True:
+        stem = name if index == 0 else f"{name}_{index}"
+        path = os.path.join(root, stem + (".zip" if package_format == "zip" else ""))
+        try:
+            if package_format == "zip":
+                archive = zipfile.ZipFile(path, "x", compression=zipfile.ZIP_DEFLATED)
+            else:
+                os.mkdir(path)
+            break
+        except FileExistsError:
+            index += 1
+    if package_format == "zip":
+        with archive:
+            archive.writestr(PACKAGE_PROJECT_NAME, json.dumps(exported, ensure_ascii=False, indent=2))
+            if workflow is not None:
+                archive.writestr("workflow.json", json.dumps(workflow, ensure_ascii=False, indent=2))
+            for entry in entries:
+                archive.write(entry["src_path"], arcname=entry["arcname"])
+    else:
+        for entry in entries:
+            target = os.path.join(path, *entry["arcname"].replace("\\", "/").split("/"))
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            shutil.copyfile(entry["src_path"], target)
+        if workflow is not None:
+            with open(os.path.join(path, "workflow.json"), "w", encoding="utf-8") as stream:
+                json.dump(workflow, stream, ensure_ascii=False, indent=2)
+        with open(os.path.join(path, PACKAGE_PROJECT_NAME), "w", encoding="utf-8") as stream:
+            json.dump(exported, stream, ensure_ascii=False, indent=2)
+    return path, missing
 
 
 def _import_media_bytes(kind: str, filename: str, data: bytes) -> str:

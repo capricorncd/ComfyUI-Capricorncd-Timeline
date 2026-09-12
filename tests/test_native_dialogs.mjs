@@ -21,7 +21,7 @@ const modal = {
         return shell;
     },
 };
-const native = { tagName: 'DIALOG', open: true, inert: true };
+const native = { tagName: 'DIALOG', open: true, inert: true, querySelector: () => ({ addEventListener() {} }) };
 const background = { tagName: 'DIV' };
 globalThis.document = { activeElement: null };
 globalThis.MutationObserver = class { constructor(fn) { this.fn = fn; } observe() {} };
@@ -33,6 +33,8 @@ const app = {
         classList: { contains: () => true },
     },
     _timeline: {},
+    exportDialog: native,
+    _bindModalDrag: method('_bindModalDrag'),
 };
 method('_bindModalInteractions').call(app);
 assert.equal(native.inert, false, 'nested native dialog must remain clickable');

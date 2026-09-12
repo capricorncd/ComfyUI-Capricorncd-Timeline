@@ -263,7 +263,8 @@ body.cat-te-row-resize * {
 .cat-te-modal-backdrop[hidden] { display: none; }
 .cat-te-modal-backdrop { pointer-events: auto; }
 .cat-te-modal-header { cursor: move; touch-action: none; }
-.cat-te-modal.is-dragging { user-select: none; }
+.cat-te-modal.is-dragging,
+.cat-te-export-dialog.is-dragging { user-select: none; }
 
 .cat-te-modal {
     width: 320px;
@@ -3698,6 +3699,7 @@ body.cat-te-media-dnd-over-tl {
     height: 14px;
     accent-color: var(--cat-action);
 }
+.cat-te-export-status,
 .cat-te-compose-status {
     font-size: 12px;
     line-height: 1.4;
@@ -3707,17 +3709,25 @@ body.cat-te-media-dnd-over-tl {
     background: var(--cat-raised);
     border: 1px solid var(--cat-border);
 }
+.cat-te-export-status.is-error,
 .cat-te-compose-status.is-error {
     color: #fecaca;
     border-color: #7f1d1d;
     background: #1f1216;
     overflow-wrap: anywhere;
 }
+.cat-te-export-status.is-ok,
 .cat-te-compose-status.is-ok {
     color: #bbf7d0;
     border-color: #166534;
     background: #0f1a14;
 }
+.cat-te-export-status {
+    margin-top: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.cat-te-export-path { margin: 12px 0; }
 .cat-te-compose-actions {
     display: flex;
     justify-content: flex-end;

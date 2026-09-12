@@ -880,6 +880,8 @@ export class CapTimelineEditorApp {
         /** Web Audio sources for gen-edit modal playback (canvas videos stay muted). */
         this._genEditAudioSources = [];
         this._composeBusy = false;
+        this._projectExportBusy = false;
+        this._exportRevealToken = null;
         this._aiOptimizeBusy = false;
         this._aiOptimizeAbort = null;
         this._modelPreviewPromptId = null;
@@ -1450,7 +1452,48 @@ export class CapTimelineEditorApp {
     }
 
     _openExportDialog() {
+        if (!this._projectExportBusy) this._resetProjectExport();
+        for (const property of ["position", "left", "top", "margin", "right", "bottom"]) {
+            this.exportDialog.style[property] = "";
+        }
         this.exportDialog.showModal();
+    }
+
+    _setExportStatus(text, state = "") {
+        const status = this.exportDialog.querySelector('[role="status"]');
+        status.textContent = text;
+        status.hidden = !text;
+        status.classList.toggle("is-error", state === "error");
+        status.classList.toggle("is-ok", state === "ok");
+    }
+
+    _resetProjectExport() {
+        this._exportRevealToken = null;
+        const button = this.exportDialog.querySelector(".cat-te-export-start");
+        button.textContent = T("export_title");
+        button.title = "";
+        this._setExportStatus("");
+    }
+
+    _projectExportSaved(revealToken) {
+        this._exportRevealToken = revealToken;
+        const button = this.exportDialog.querySelector(".cat-te-export-start");
+        button.textContent = T("open_folder_btn");
+        button.title = "";
+    }
+
+    async _openExportDirectory() {
+        try {
+            const response = await fetch(api.apiURL("/audio_keyframe_timeline/reveal_export"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reveal_token: this._exportRevealToken }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || T("open_folder_prepare_failed"));
+        } catch (error) {
+            this._setExportStatus(T("open_folder_failed", { msg: error instanceof Error ? error.message : String(error) }), "error");
+        }
     }
 
     _openVoiceConversion(clip) {
@@ -2170,19 +2213,6 @@ export class CapTimelineEditorApp {
         return window.showDirectoryPicker({ mode });
     }
 
-    async _writeRelativeFile(root, relPath, data) {
-        const parts = String(relPath || "").replace(/\\/g, "/").split("/").filter(Boolean);
-        if (!parts.length) throw new Error(T("invalid_export_path"));
-        let dir = root;
-        for (let i = 0; i < parts.length - 1; i++) {
-            dir = await dir.getDirectoryHandle(parts[i], { create: true });
-        }
-        const fh = await dir.getFileHandle(parts[parts.length - 1], { create: true });
-        const writable = await fh.createWritable();
-        await writable.write(data);
-        await writable.close();
-    }
-
     async _readRelativeFile(root, relPath) {
         const parts = String(relPath || "").replace(/\\/g, "/").split("/").filter(Boolean);
         if (!parts.length) throw new Error(T("invalid_import_path"));
@@ -2213,17 +2243,6 @@ export class CapTimelineEditorApp {
             }
         }
         throw lastError || new Error(T("missing_asset_file", { file }));
-    }
-
-    _downloadBlob(blob, filename) {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
     }
 
     _validateImportedProject(project) {
@@ -2334,49 +2353,113 @@ export class CapTimelineEditorApp {
         return JSON.parse(JSON.stringify(graph.serialize()));
     }
 
-    async _exportToDirectory({ includeWorkflow = true, includeGenerated = true } = {}) {
+    async _runProjectExport({ format, includeWorkflow = true, includeGenerated = true }) {
+        if (this._projectExportBusy) return;
+        this._projectExportBusy = true;
+        const controls = this.exportDialog.querySelectorAll("input, button");
+        controls.forEach(control => { control.disabled = true; });
+        this._resetProjectExport();
+        this._setExportStatus(T(format === "zip" ? "export_zip_packing" : "export_directory_saving"));
         try {
-            const dir = await this._pickDirectory("readwrite");
+            const directory = this.exportDialog.querySelector(".cat-te-export-directory").value.trim();
+            if (!directory) {
+                await this._exportProjectInBrowser({ format, includeWorkflow, includeGenerated });
+                return;
+            }
             const workflow = includeWorkflow ? this._exportWorkflowSnapshot() : null;
-            const response = await fetch(api.apiURL("/audio_keyframe_timeline/export_prepare"), {
+            const response = await fetch(api.apiURL("/audio_keyframe_timeline/export_save"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ project: this._buildProject(), include_generated: includeGenerated }),
+                body: JSON.stringify({ project: this._buildProject(), directory, format, workflow, include_generated: includeGenerated }),
             });
-            const data = await response.json().catch(() => ({}));
+            const data = await response.json();
             if (!response.ok) throw new Error(data.error || T("export_prepare_failed"));
-            const missing = [...(data.missing || [])];
-            await this._writeRelativeFile(
-                dir,
-                "project.json",
-                new Blob([JSON.stringify(data.project, null, 2)], { type: "application/json;charset=utf-8" }),
-            );
-            if (workflow) await this._writeRelativeFile(
-                dir,
-                "workflow.json",
-                new Blob([JSON.stringify(workflow, null, 2)], { type: "application/json;charset=utf-8" }),
-            );
-            for (const entry of data.files || []) {
-                const location = entry.location === "output" ? "output" : "input";
-                const url = location === "output"
-                    ? this._outputVideoUrl(entry.file)
-                    : this._assetFileUrl(entry.file, entry.kind, "input");
-                const fileRes = await fetch(url);
-                if (!fileRes.ok) {
-                    missing.push(entry.file);
-                    continue;
-                }
-                await this._writeRelativeFile(dir, entry.arcname, await fileRes.blob());
-            }
-            if (missing.length) {
-                alert(T("export_to_dir_missing", { n: missing.length, list: missing.slice(0, 8).join("\n") + (missing.length > 8 ? "\n…" : "") }));
-            } else {
-                alert(T("exported_to_directory"));
-            }
+            const missing = data.missing || [];
+            let message = T("export_saved_path", { path: data.path });
+            if (missing.length) message += "\n" + T("export_missing_assets", {
+                n: missing.length, list: missing.slice(0, 8).join("\n") + (missing.length > 8 ? "\n…" : ""),
+            });
+            this._setExportStatus(message, missing.length ? "error" : "ok");
+            this._projectExportSaved(data.reveal_token);
         } catch (error) {
-            if (error?.name === "AbortError") return;
-            alert(T("export_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            this._setExportStatus(T("export_failed", { msg: error instanceof Error ? `${error.name}: ${error.message}` : String(error) }), "error");
+        } finally {
+            this._projectExportBusy = false;
+            controls.forEach(control => { control.disabled = false; });
         }
+    }
+
+    async _writeExportFile(root, relativePath, data) {
+        const parts = String(relativePath).replace(/\\/g, "/").split("/");
+        if (parts.some(part => !part || part === "." || part === ".." || part.includes(":"))) {
+            throw new Error(T("invalid_export_path"));
+        }
+        let directory = root;
+        for (const part of parts.slice(0, -1)) directory = await directory.getDirectoryHandle(part, { create: true });
+        const file = await directory.getFileHandle(parts.at(-1), { create: true });
+        const writable = await file.createWritable();
+        await writable.write(data);
+        await writable.close();
+    }
+
+    _projectZipFilename() {
+        let name = this._safeProjectFilename("timeline-project").replace(/[\x7f-\x9f]/g, "_");
+        if (/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(name)) name = `_${name}`;
+        return `${name}.zip`;
+    }
+
+    async _exportProjectInBrowser({ format, includeWorkflow, includeGenerated }) {
+        let directory;
+        this._setExportStatus(T("export_browser_select_directory"));
+        try {
+            directory = await this._pickDirectory("readwrite");
+        } catch (error) {
+            if (error?.name !== "AbortError") throw error;
+            this._setExportStatus(T("export_browser_cancelled"));
+            return;
+        }
+        this._setExportStatus(T(format === "zip" ? "export_zip_packing" : "export_directory_saving"));
+        const workflow = includeWorkflow ? this._exportWorkflowSnapshot() : null;
+        const response = await fetch(api.apiURL(format === "zip"
+            ? "/audio_keyframe_timeline/export_zip" : "/audio_keyframe_timeline/export_prepare"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ project: this._buildProject(), workflow, include_generated: includeGenerated }),
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || T("export_prepare_failed"));
+        }
+        let missing, message;
+        if (format === "zip") {
+            const blob = await response.blob();
+            const filename = this._projectZipFilename();
+            this._setExportStatus(T("export_browser_zip_saving", { name: filename }));
+            await this._writeExportFile(directory, filename, blob);
+            const saved = await (await directory.getFileHandle(filename)).getFile();
+            if (saved.size !== blob.size) throw new Error(T("export_browser_zip_size_mismatch"));
+            missing = (response.headers.get("X-Export-Missing") || "").split(",").filter(Boolean);
+            message = T("export_saved_path", { path: `${directory.name}/${filename}` });
+        } else {
+            const data = await response.json();
+            missing = [...(data.missing || [])];
+            for (const entry of data.files || []) {
+                const url = entry.location === "output" ? this._outputVideoUrl(entry.file)
+                    : this._assetFileUrl(entry.file, entry.kind, "input");
+                const asset = await fetch(url);
+                if (!asset.ok) { missing.push(entry.file); continue; }
+                await this._writeExportFile(directory, entry.arcname, await asset.blob());
+            }
+            if (workflow) await this._writeExportFile(directory, "workflow.json",
+                new Blob([JSON.stringify(workflow, null, 2)], { type: "application/json" }));
+            await this._writeExportFile(directory, "project.json",
+                new Blob([JSON.stringify(data.project, null, 2)], { type: "application/json" }));
+            message = T("export_saved_path", { path: directory.name });
+        }
+        if (missing.length) message += "\n" + T("export_missing_assets", {
+            n: missing.length, list: missing.slice(0, 8).join("\n") + (missing.length > 8 ? "\n…" : ""),
+        });
+        this._setExportStatus(message, missing.length ? "error" : "ok");
     }
 
     _composeGeneratedVideosExport() {
@@ -2933,44 +3016,6 @@ export class CapTimelineEditorApp {
         this._drawPreviewLayersOnce(ctx, cw, ch, t);
         this._drawSubtitleOverlays(ctx, cw, ch, t);
         this._drawWatermarkOnCanvas(ctx, cw, ch);
-    }
-
-    async _exportAsZip({ includeWorkflow = true, includeGenerated = true } = {}) {
-        try {
-            const workflow = includeWorkflow ? this._exportWorkflowSnapshot() : null;
-            const response = await fetch(api.apiURL("/audio_keyframe_timeline/export_zip"), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ project: this._buildProject(), workflow, include_generated: includeGenerated }),
-            });
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.error || T("export_zip_failed"));
-            }
-            const blob = await response.blob();
-            const headerName = response.headers.get("X-Export-Filename");
-            const filename = headerName || `${this._safeProjectFilename()}.zip`;
-            const missingHeader = response.headers.get("X-Export-Missing") || "";
-            const missing = missingHeader ? missingHeader.split(",").filter(Boolean) : [];
-
-            try {
-                const dir = await this._pickDirectory("readwrite");
-                await this._writeRelativeFile(dir, filename, blob);
-            } catch (pickerError) {
-                if (pickerError?.name === "AbortError") return;
-                if (typeof window.showDirectoryPicker !== "function") {
-                    this._downloadBlob(blob, filename);
-                } else {
-                    throw pickerError;
-                }
-            }
-            if (missing.length) {
-                alert(T("export_zip_missing", { n: missing.length, list: missing.slice(0, 8).join("\n") + (missing.length > 8 ? "\n…" : "") }));
-            }
-        } catch (error) {
-            if (error?.name === "AbortError") return;
-            alert(T("export_failed", { msg: error instanceof Error ? error.message : String(error) }));
-        }
     }
 
     _chooseZipImport() {
@@ -4098,10 +4143,21 @@ export class CapTimelineEditorApp {
               <button type="button" class="cat-te-modal-close" aria-label="${T("close_title")}">${iconHtml("close", 16)}</button>
             </div>
             <div class="cat-te-modal-body">
-              <label class="cat-te-modal-check-row"><input type="radio" name="cap-export-format" value="directory" checked /><span>${T("export_files")}</span></label>
-              <label class="cat-te-modal-check-row"><input type="radio" name="cap-export-format" value="zip" /><span>ZIP</span></label>
+              <div class="cat-te-wm-tabs cat-te-export-formats">
+                <button type="button" class="cat-te-wm-tab is-active" data-format="directory" aria-pressed="true">${T("export_files")}</button>
+                <button type="button" class="cat-te-wm-tab" data-format="zip" aria-pressed="false">ZIP</button>
+              </div>
+              <label class="cat-te-compose-field cat-te-export-path">
+                <span>${T("export_directory_label")}
+                  <span class="cat-te-info-tip" tabindex="0" role="note" aria-label="${T("export_directory_help")}">
+                    ${iconHtml("info", 12)}<span class="cat-te-info-tip-pop">${T("export_directory_help")}</span>
+                  </span>
+                </span>
+                <input class="cat-te-export-directory" type="text" placeholder="${T("export_directory_placeholder")}" />
+              </label>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-workflow" type="checkbox" checked /><span>${T("export_workflow")}</span></label>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-generated" type="checkbox" checked /><span>${T("export_generated")}</span></label>
+              <div class="cat-te-export-status" role="status" aria-live="polite" hidden></div>
               <div class="cat-te-confirm-actions"><button type="button" class="cat-te-btn cat-te-btn-primary cat-te-export-start">${T("export_title")}</button></div>
             </div>
           </dialog>
@@ -4369,7 +4425,7 @@ export class CapTimelineEditorApp {
         this.composeRunBtn = el.querySelector(".cat-te-compose-run");
         this.composePreviewCanvas = el.querySelector(".cat-te-compose-preview-canvas");
         this.composePreviewStage = el.querySelector(".cat-te-compose-preview-stage");
-        this.wmTabs = el.querySelectorAll(".cat-te-wm-tab");
+        this.wmTabs = this.composeModal.querySelectorAll(".cat-te-wm-tab");
         this.wmPanelText = el.querySelector(".cat-te-wm-panel-text");
         this.wmPanelImage = el.querySelector(".cat-te-wm-panel-image");
         this.wmTextContent = el.querySelector(".cat-te-wm-text-content");
@@ -4463,17 +4519,38 @@ export class CapTimelineEditorApp {
         });
         this.voiceDialog.querySelector("select").addEventListener("change", () => this._updateVoiceAudition());
         this.exportDialog = el.querySelector(".cat-te-export-dialog");
-        this.exportDialog.querySelector(".cat-te-modal-close").addEventListener("click", () => this.exportDialog.close());
+        this.exportDialog.querySelector(".cat-te-modal-close").addEventListener("click", () => {
+            if (!this._projectExportBusy) this.exportDialog.close();
+        });
+        this.exportDialog.addEventListener("cancel", e => {
+            if (this._projectExportBusy) e.preventDefault();
+        });
         this.exportDialog.addEventListener("keydown", (e) => e.stopPropagation());
+        this.exportDialog.querySelectorAll("[data-format]").forEach(button => {
+            button.addEventListener("click", () => {
+                if (this._projectExportBusy || button.classList.contains("is-active")) return;
+                this.exportDialog.querySelectorAll("[data-format]").forEach(tab => {
+                    tab.classList.toggle("is-active", tab === button);
+                    tab.setAttribute("aria-pressed", String(tab === button));
+                });
+                this._resetProjectExport();
+            });
+        });
+        this.exportDialog.addEventListener("input", () => {
+            if (!this._projectExportBusy) this._resetProjectExport();
+        });
         this.exportDialog.querySelector(".cat-te-export-start").addEventListener("click", () => {
+            if (this._projectExportBusy) return;
+            if (this._exportRevealToken) {
+                void this._openExportDirectory();
+                return;
+            }
             const options = {
                 includeWorkflow: this.exportDialog.querySelector(".cat-te-export-workflow").checked,
                 includeGenerated: this.exportDialog.querySelector(".cat-te-export-generated").checked,
             };
-            const format = this.exportDialog.querySelector('input[type="radio"]:checked').value;
-            this.exportDialog.close();
-            if (format === "zip") void this._exportAsZip(options);
-            else void this._exportToDirectory(options);
+            const format = this.exportDialog.querySelector('[data-format].is-active').dataset.format;
+            void this._runProjectExport({ format, ...options });
         });
         this.shortcutsDialog = el.querySelector(".cat-te-shortcuts-dialog");
         this.shortcutsDialog.querySelector("button").addEventListener("click", () => this.shortcutsDialog.close());
@@ -10108,30 +10185,40 @@ export class CapTimelineEditorApp {
             this._modalObserver.observe(modal, { attributes: true, attributeFilter: ["hidden", "class"], attributeOldValue: true });
             const dialog = modal.querySelector(".cat-te-modal");
             const dragTarget = dialog.closest(".cat-te-ai-optimize-shell") || dialog;
-            const handle = dialog.querySelector(".cat-te-modal-header");
-            handle.addEventListener("pointerdown", (e) => {
-                if (e.button !== 0 || e.target.closest("button, input, select, textarea, a, [contenteditable='true']")) return;
-                e.preventDefault();
-                const rect = dragTarget.getBoundingClientRect();
-                const ox = e.clientX - rect.left;
-                const oy = e.clientY - rect.top;
-                handle.setPointerCapture(e.pointerId);
-                dialog.classList.add("is-dragging");
-                const move = (event) => {
-                    dragTarget.style.position = "fixed";
-                    dragTarget.style.left = `${Math.max(8, Math.min(window.innerWidth - rect.width - 8, event.clientX - ox))}px`;
-                    dragTarget.style.top = `${Math.max(8, Math.min(window.innerHeight - rect.height - 8, event.clientY - oy))}px`;
-                };
-                const end = () => {
-                    dialog.classList.remove("is-dragging");
-                    handle.removeEventListener("pointermove", move);
-                    handle.removeEventListener("lostpointercapture", end);
-                };
-                handle.addEventListener("pointermove", move);
-                handle.addEventListener("lostpointercapture", end);
-            });
+            this._bindModalDrag(dialog, dragTarget);
         }
+        this._bindModalDrag(this.exportDialog);
         sync();
+    }
+
+    _bindModalDrag(dialog, dragTarget = dialog) {
+        const handle = dialog.querySelector(".cat-te-modal-header");
+        handle.addEventListener("pointerdown", (e) => {
+            if (e.button !== 0 || e.target.closest("button, input, select, textarea, a, [contenteditable='true']")) return;
+            e.preventDefault();
+            const rect = dragTarget.getBoundingClientRect();
+            const ox = e.clientX - rect.left;
+            const oy = e.clientY - rect.top;
+            handle.setPointerCapture(e.pointerId);
+            dialog.classList.add("is-dragging");
+            const move = (event) => {
+                if (dragTarget.tagName === "DIALOG") {
+                    dragTarget.style.margin = "0";
+                    dragTarget.style.right = "auto";
+                    dragTarget.style.bottom = "auto";
+                }
+                dragTarget.style.position = "fixed";
+                dragTarget.style.left = `${Math.max(8, Math.min(window.innerWidth - rect.width - 8, event.clientX - ox))}px`;
+                dragTarget.style.top = `${Math.max(8, Math.min(window.innerHeight - rect.height - 8, event.clientY - oy))}px`;
+            };
+            const end = () => {
+                dialog.classList.remove("is-dragging");
+                handle.removeEventListener("pointermove", move);
+                handle.removeEventListener("lostpointercapture", end);
+            };
+            handle.addEventListener("pointermove", move);
+            handle.addEventListener("lostpointercapture", end);
+        });
     }
 
     handleModalKey(e) {

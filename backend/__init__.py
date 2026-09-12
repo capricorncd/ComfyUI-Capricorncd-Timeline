@@ -7,11 +7,14 @@ import subprocess
 import sys
 import time
 import uuid
+from urllib.parse import quote
 
 from aiohttp import web
+import folder_paths
 
 from .cap_i18n import resolve_lang, t
 from .cap_video_metadata import read_video_generation
+from .cap_timeline_project_io import save_project_export
 from .cap_load_image_metadata import (
     NODE_CLASS_MAPPINGS as _CLM_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _CLM_NAMES,
@@ -516,6 +519,56 @@ def _register_routes():
             logging.exception("[CapricorncdTools] move_asset error")
             return web.json_response({"error": str(exc)}, status=500)
 
+    export_destinations = {}
+
+    @routes.post("/audio_keyframe_timeline/export_save")
+    async def api_export_save(request: web.Request) -> web.Response:
+        if request.remote not in {"127.0.0.1", "::1", "::ffff:127.0.0.1"} or request.content_type != "application/json":
+            return web.json_response({"error": "Local JSON requests only"}, status=403)
+        try:
+            payload = await request.json()
+            if not isinstance(payload, dict) or not isinstance(payload.get("project"), dict):
+                raise ValueError("Invalid project")
+            workflow = payload.get("workflow")
+            if workflow is not None and not isinstance(workflow, dict):
+                raise ValueError("Invalid workflow")
+            directory = str(payload.get("directory") or "").strip()
+            path, missing = await asyncio.to_thread(
+                save_project_export, payload["project"], directory, payload.get("format", "directory"), workflow,
+                include_generated=payload.get("include_generated", True) is not False,
+            )
+            token = uuid.uuid4().hex
+            export_destinations[token] = os.path.join(path, "project.json") if os.path.isdir(path) else path
+            while len(export_destinations) > 32:
+                del export_destinations[next(iter(export_destinations))]
+            return web.json_response({"path": path, "reveal_token": token, "missing": missing})
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        except Exception as exc:
+            logging.exception("[CapricorncdTools] export_save error")
+            return web.json_response({"error": str(exc)}, status=500)
+
+    @routes.post("/audio_keyframe_timeline/reveal_export")
+    async def api_reveal_export(request: web.Request) -> web.Response:
+        if request.remote not in {"127.0.0.1", "::1", "::ffff:127.0.0.1"} or request.content_type != "application/json":
+            return web.json_response({"error": "Local JSON requests only"}, status=403)
+        try:
+            data = await request.json()
+            token = data.get("reveal_token") if isinstance(data, dict) else None
+            path = export_destinations.get(token) if isinstance(token, str) else None
+            if not path or not os.path.isfile(path):
+                return web.json_response({"error": "Export folder unavailable; export again after restarting ComfyUI"}, status=404)
+            if sys.platform == "win32":
+                subprocess.Popen(["explorer", f"/select,{path}"])
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", path])
+            else:
+                subprocess.Popen(["xdg-open", os.path.dirname(path)])
+            return web.json_response({"ok": True})
+        except Exception as exc:
+            logging.exception("[CapricorncdTools] reveal_export error")
+            return web.json_response({"error": str(exc)}, status=500)
+
     @routes.post("/audio_keyframe_timeline/export_prepare")
     async def api_export_prepare(request: web.Request) -> web.Response:
         from .cap_timeline_project_io import build_export_entries
@@ -562,9 +615,10 @@ def _register_routes():
                 return web.json_response({"error": "Invalid workflow"}, status=400)
             data, filename, missing = build_export_zip_bytes(project, workflow=workflow, include_generated=payload.get("include_generated", True) is not False)
             headers = {
-                "Content-Disposition": 'attachment; filename="timeline-project.zip"',
+                "Content-Disposition": f"attachment; filename=\"timeline-project.zip\"; filename*=UTF-8''{quote(filename, safe='')}",
                 "X-Export-Missing": ",".join(missing) if missing else "",
-                "X-Export-Filename": filename,
+                "X-Export-Filename": "timeline-project.zip",
+                "X-Export-Filename-UTF8": quote(filename, safe=""),
             }
             return web.Response(body=data, headers=headers, content_type="application/zip")
         except Exception as exc:

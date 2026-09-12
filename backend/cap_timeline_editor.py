@@ -241,7 +241,7 @@ class CAP_TimelineEditor:
 
     DESCRIPTION = (
         "Fullscreen timeline editor. The editor stores one track-nested project_json; "
-        "data_json contains only enabled runtime clips and their intersecting audio slices."
+        "data_json contains enabled clips (or explicitly requested director clips) and their intersecting audio slices."
     )
 
     RETURN_TYPES = ("FLOAT", "INT", "INT", "STRING", "INT", "INT", "AUDIO", "STRING")
@@ -715,15 +715,22 @@ class CAP_TimelineEditor:
             if is_audio_track:
                 if not self._audio_track_active(track):
                     continue
-            elif not self._track_active(track):
-                continue
             for clip in track.get("clips", []):
-                if not isinstance(clip, dict) or clip.get("enabled", True) is False:
+                if not isinstance(clip, dict):
                     continue
                 if _is_subtitle_clip(clip, track_type):
                     continue
                 clip_type = str(clip.get("type") or ("audio" if is_audio_track else "image")).lower()
                 is_audio_clip = clip_type in ("audio", "voiceover") or is_audio_track
+                requested_director = (
+                    track_type == "director" and not is_audio_clip
+                    and only_ids is not None and str(clip.get("id", "")) in only_ids
+                )
+                if not requested_director and (
+                    clip.get("enabled", True) is False
+                    or (not is_audio_track and not self._track_active(track))
+                ):
+                    continue
                 # Audio follows mute only (same as editor playback). Visuals also
                 # respect clip/track visibility.
                 if is_audio_clip:
@@ -731,7 +738,7 @@ class CAP_TimelineEditor:
                         continue
                     audio_clips.append(clip)
                 else:
-                    if clip.get("visible", True) is False:
+                    if clip.get("visible", True) is False and not requested_director:
                         continue
                     clip = source_clip_timing(clip)
                     visual_clips.append((track, clip, z_index))

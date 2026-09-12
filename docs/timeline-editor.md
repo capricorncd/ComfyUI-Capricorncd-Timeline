@@ -129,7 +129,7 @@ Re-generate one segment without rebuilding the rest.
 | `Ctrl+B` | Disable / enable the selected clip(s) |
 | `Ctrl+G` | Disable all other clips (toggle) |
 
-Disabled / hidden / muted clips are omitted from runtime `data_json`. Tracks that are disabled or invisible are skipped entirely.
+Batch runs skip disabled or hidden director clips and tracks; muted audio is excluded from reference audio. Explicitly running one director Clip (via its context menu or Prompt Manager) includes it even when the Clip or its track is disabled/hidden, without changing the saved flags. Other disabled clips remain excluded.
 
 ---
 
@@ -224,7 +224,7 @@ When an imported image contains supported `ImageAssetMetadata`, the editor copie
 | `timeline_scroll_left` / `timeline_scroll_top` | number | Timeline scroll |
 | `watermark` | object | Compose-video watermark (below) |
 | `use_clip_specified_video_filename` | bool | Default `true`. When on, Run writes `output_video` and auto-links that path; when off, keep legacy auto-detect |
-| `runtime_only_clip_ids` | string[]? | Temporary; set only during single-clip Run |
+| `runtime_only_clip_ids` | string[]? | Temporary run filter; explicitly listed director clips bypass disabled/hidden flags without changing project state |
 | `gen_video_stamp` | string? | Temporary stamp (`yyyyMMdd-HHmmss`) for aligning `output_video` with the frontend expected path |
 
 #### `settings.watermark`

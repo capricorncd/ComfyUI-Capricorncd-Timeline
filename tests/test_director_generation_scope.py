@@ -13,9 +13,10 @@ end = next(i for i, n in enumerate(execute.body) if isinstance(n, ast.Assign)
 selection = compile(ast.Module(body=execute.body[start:end], type_ignores=[]), str(source), "exec")
 
 
-def select(tracks):
+def select(tracks, only_ids=None):
     env = {
         "project": {"tracks": tracks},
+        "only_ids": only_ids,
         "self": SimpleNamespace(
             _track_active=lambda t: t.get("enabled", True) and t.get("visible", True),
             _audio_track_active=lambda t: t.get("enabled", True), _source=lambda c: {}),
@@ -28,6 +29,25 @@ def select(tracks):
 
 
 class DirectorGenerationScopeTests(unittest.TestCase):
+    def test_explicit_run_includes_disabled_director_without_changing_flags(self):
+        clip = dict(id="requested", type="clip", enabled=False, visible=False)
+        track = dict(type="director", enabled=False, visible=False, clips=[
+            clip, dict(clip, id="other"),
+        ])
+        self.assertEqual(select([track]), ([], []))
+        self.assertEqual(select([track], {"requested"}), (["requested"], []))
+        self.assertFalse(clip["enabled"])
+        self.assertFalse(clip["visible"])
+        self.assertFalse(track["enabled"])
+        self.assertEqual(select([track], {"missing"}), ([], []))
+
+    def test_explicit_ids_do_not_enable_audio_or_non_director_tracks(self):
+        clip = dict(id="requested", type="clip", enabled=False)
+        tracks = [dict(type=kind, enabled=False, clips=[clip])
+                  for kind in ("audio", "voiceover", "media", "subtitle")]
+        tracks.append(dict(type="director", clips=[dict(clip, type="audio")]))
+        self.assertEqual(select(tracks, {"requested"}), ([], []))
+
     def test_full_length_voiceover_is_not_second_video(self):
         first = dict(id="clip_ep02_long_01", type="clip", start_ms=0, duration_ms=8000)
         second = dict(first, id="clip_ep02_long_02", start_ms=8000)

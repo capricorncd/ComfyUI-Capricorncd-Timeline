@@ -211,7 +211,8 @@ def _register_routes():
 
     register_metadata_routes(routes)
 
-    # Transient encoded frames only: one per active preview, capped at 8 MiB total.
+    # Keep immutable recent steps; a video's range requests must read the same bytes.
+    # At most 8 previews, each capped at 8 MiB and 3 steps, expiring after 120 seconds.
     preview_images = {}
 
     @routes.post("/audio_keyframe_timeline/preview_image/{prompt_id}")
@@ -234,14 +235,17 @@ def _register_routes():
         if not data:
             raise web.HTTPBadRequest(text="Empty preview image.")
         now = time.monotonic()
-        for key, (_, _, expires, _) in list(preview_images.items()):
+        for key, (_, expires) in list(preview_images.items()):
             if expires <= now:
                 del preview_images[key]
         if prompt_id not in preview_images and len(preview_images) >= 8:
             del preview_images[next(iter(preview_images))]
-        previous = preview_images.get(prompt_id)
-        if previous is None or sequence > previous[3]:
-            preview_images[prompt_id] = (bytes(data), request.content_type, now + 120, sequence)
+        frames, _ = preview_images.get(prompt_id, ({}, 0))
+        if sequence not in frames:
+            frames[sequence] = (bytes(data), request.content_type)
+        while len(frames) > 3 or sum(len(item[0]) for item in frames.values()) > 8 * 1024 * 1024:
+            del frames[min(frames)]
+        preview_images[prompt_id] = (frames, now + 120)
         return web.Response(status=204)
 
     @routes.get("/audio_keyframe_timeline/preview_image/{prompt_id}")
@@ -250,11 +254,33 @@ def _register_routes():
         frame = preview_images.get(key)
         if frame is None:
             raise web.HTTPNotFound()
-        data, mime, expires, _ = frame
+        frames, expires = frame
         if expires <= time.monotonic():
             del preview_images[key]
             raise web.HTTPNotFound()
-        return web.Response(body=data, content_type=mime, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+        try:
+            sequence = int(request.query.get("frame", str(max(frames))))
+        except ValueError:
+            raise web.HTTPBadRequest(text="Invalid frame number.")
+        if sequence not in frames:
+            raise web.HTTPNotFound(text="Preview step expired.")
+        data, mime = frames[sequence]
+        headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Accept-Ranges": "bytes"}
+        if "Range" not in request.headers:
+            return web.Response(body=data, content_type=mime, headers=headers)
+        size = len(data)
+        try:
+            byte_range = request.http_range
+        except ValueError:
+            return web.Response(status=416, headers={"Content-Range": f"bytes */{size}"})
+        start = byte_range.start or 0
+        if start < 0:
+            start = max(0, size + start)
+        stop = min(byte_range.stop if byte_range.stop is not None else size, size)
+        if start >= stop:
+            return web.Response(status=416, headers={"Content-Range": f"bytes */{size}"})
+        headers["Content-Range"] = f"bytes {start}-{stop - 1}/{size}"
+        return web.Response(body=data[start:stop], status=206, content_type=mime, headers=headers)
 
     @routes.delete("/audio_keyframe_timeline/preview_image/{prompt_id}")
     async def api_delete_preview_image(request: web.Request) -> web.Response:

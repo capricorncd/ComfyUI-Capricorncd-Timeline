@@ -401,6 +401,13 @@ body.cat-te-row-resize * {
     border-top: 1px solid var(--cat-border);
     padding-top: 14px;
 }
+.cat-te-model-preview-settings > summary {
+    color: var(--cat-text);
+    font-size: 12px;
+    line-height: 1.5;
+    cursor: pointer;
+    padding: 6px 0;
+}
 .cat-te-model-preview-config-actions {
     display: inline-flex;
     gap: 6px;
@@ -3726,13 +3733,6 @@ body.cat-te-media-dnd-over-tl {
     justify-content: flex-end;
     gap: 12px;
     flex-shrink: 0;
-}
-.cat-te-ai-generate,
-.cat-te-ai-preview-run,
-.cat-te-ai-run {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
 }
 .cat-te-ai-generate svg,
 .cat-te-ai-preview-run svg,

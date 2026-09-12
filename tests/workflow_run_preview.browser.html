@@ -1,0 +1,66 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Current workflow preview UI</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<link rel="stylesheet" href="../js/cap_ui.css">
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app = {};"}}</script>
+<style>body {background: #101619;} #result {position: fixed;bottom: 0;color: white;z-index:99999;}</style>
+<div id="fixture"></div><pre id="result">RUNNING</pre>
+<script type="module">
+import '../js/components/TabButton.js';
+import { iconHtml } from '../js/cap_icons.js';
+import { DICT } from '../js/i18n/timeline_editor.js';
+const T = key => DICT.zh[key] || key;
+const assert = (value, message) => { if (!value) throw Error(message); };
+try {
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const start = source.indexOf('<div class="cat-te-modal-backdrop cat-te-ai-optimize-modal"');
+    const end = source.indexOf('<div class="cat-te-modal-backdrop cat-te-skill-picker-modal"', start);
+    document.querySelector('#fixture').innerHTML = new Function('T', 'iconHtml', 'return `' + source.slice(start, end) + '`')(T, iconHtml);
+    const modal = document.querySelector('.cat-te-ai-optimize-modal');
+    modal.hidden = false;
+    const method = name => {
+        const at = source.indexOf('    ' + name + '(');
+        return new Function('T', 'iconHtml', 'app', 'return ({' + source.slice(at, source.indexOf('\n    }', at) + 6) + '}).' + name)(T, iconHtml, {});
+    };
+    const e = {
+        _aiOptimizeClipId: 'clip', _workflowQueueRemaining: 0, _pendingGeneratedJobs: [],
+        _findClipById: () => ({id:'clip'}), aiOptimizeModal: modal,
+        aiRunBtn: modal.querySelector('.cat-te-ai-run'), aiPreviewBtn: modal.querySelector('.cat-te-ai-preview-run'),
+        aiGenerateBtn: modal.querySelector('.cat-te-ai-generate'),
+        workflowStopBtn: modal.querySelector('.cat-te-workflow-stop'),
+        aiRightTabs: modal.querySelectorAll('[data-right-tab]'), aiRightPanes: modal.querySelectorAll('[data-right-pane]'),
+        aiPreviewPanel: modal.querySelector('.cat-te-ai-preview'), aiPreviewStatus: modal.querySelector('.cat-te-ai-preview-status'),
+        aiPreviewVideo: modal.querySelector('.cat-te-ai-preview-video'), aiPreviewImage: modal.querySelector('.cat-te-ai-preview-image'),
+        aiPreviewEmpty: modal.querySelector('.cat-te-ai-preview-empty'), _stopModelPreviewAudio() {},
+    };
+    for (const name of ['_workflowQueueBusy', '_syncWorkflowRunButton', '_setAiOptimizeRightTab', '_showWorkflowPreview', '_renderModelPreview']) e[name] = method(name);
+    e._syncWorkflowRunButton();
+    assert(e.aiRunBtn.textContent.includes('运行与预览'), 'idle label');
+    e._workflowQueueRemaining = 1; e._syncWorkflowRunButton();
+    assert(e.aiRunBtn.textContent.includes('加入队列'), 'busy label');
+    e._workflowQueueRemaining = 0;
+    e._workflowPreview = {clipId: 'clip', promptId: 'own', active: true, status: '采样 1 / 4', entry: null};
+    e._setAiOptimizeRightTab('preview'); e._syncWorkflowRunButton();
+    assert(e.aiGenerateBtn.hidden && getComputedStyle(e.aiGenerateBtn).display === 'none', 'prompt generation is hidden on Video Preview');
+    e._setAiOptimizeRightTab('ai');
+    assert(!e.aiGenerateBtn.hidden && getComputedStyle(e.aiGenerateBtn).display !== 'none', 'prompt generation returns on AI tab');
+    e._setAiOptimizeRightTab('preview');
+    assert(!modal.querySelector('[data-right-pane="preview"]').hidden, 'preview tab visible');
+    assert(!e.workflowStopBtn.hidden && !e.workflowStopBtn.disabled, 'scoped stop is available');
+    assert(e.aiPreviewBtn.disabled, 'separate preview cannot overlap monitored run');
+    const details = modal.querySelector('details');
+    assert(!details.open && e.aiPreviewBtn.closest('details') === details, 'separate workflow collapsed and opt-in');
+    const tip = modal.querySelector('[aria-label*="preview_frames"]');
+    assert(tip && tip.querySelector('svg'), 'shared info icon exists');
+    tip.focus();
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    assert(getComputedStyle(tip.querySelector('.cat-te-info-tip-pop')).display !== 'none', 'Tip shows on keyboard focus');
+    assert(!modal.querySelector('.cat-te-ai-optimize-actions .cat-te-ai-preview-run'), 'only current-workflow run in primary footer');
+    window.previewUI = e;
+    document.querySelector('#result').textContent = 'PASS: current-workflow labels, shared buttons, preview tab, scoped stop, optional standalone mode and accessible Tip';
+} catch (error) {
+    document.querySelector('#result').textContent = 'FAIL: ' + error.stack;
+    throw error;
+}
+</script>

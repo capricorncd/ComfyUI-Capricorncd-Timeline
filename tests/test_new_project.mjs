@@ -26,6 +26,7 @@ function fixture() {
         _closeInternal(save) { assert.equal(save, false); this.calls.push('close'); },
         _writeProjectJson(json) { this.project = JSON.parse(json); this.calls.push('write'); },
         _resetProjectExport() { this.calls.push('resetExport'); },
+        _clearWorkflowPreview() { this._workflowPreview = null; },
         open() { this.calls.push('open'); },
     };
     editor._history = { clear() { editor.calls.push('clearHistory'); } };

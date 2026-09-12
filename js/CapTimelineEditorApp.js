@@ -880,6 +880,9 @@ export class CapTimelineEditorApp {
         this._resourceGenPreviewStopTimer = 0;
         /** Live KJ Model Preview Override blobs while a clip is sampling: clipId → { url, mime }. */
         this._runPreviewByClipId = new Map();
+        this._workflowPreview = null;
+        this._workflowQueueRemaining = null;
+        this._workflowRunSubmitting = false;
         /** Decoded audio from generated/output videos: file → Promise<AudioBuffer|null>. */
         this._genAudioBufferCache = new Map();
         /** Web Audio sources for gen-edit modal playback (canvas videos stay muted). */
@@ -1588,6 +1591,7 @@ export class CapTimelineEditorApp {
         this._runtimeOnlyClipIds = null;
         this._deferredGeneratedJobs = [];
         this._runPreviewByClipId.clear();
+        this._clearWorkflowPreview();
         for (const [name, value] of Object.entries(PY_SCALAR_DEFAULTS)) {
             const widget = this._w(name);
             if (widget) widget.value = value;
@@ -2234,6 +2238,22 @@ export class CapTimelineEditorApp {
 
     static _installClipRunJobHook() {
         if (typeof app?.graphToPrompt !== "function" || app.graphToPrompt._capTeClipRunHooked) return;
+        const previewRequests = new WeakMap();
+        const queuePrompt = api.queuePrompt;
+        if (typeof queuePrompt === "function") {
+            api.queuePrompt = async function (number, prompt, ...args) {
+                const preview = previewRequests.get(prompt?.output);
+                try {
+                    const result = await queuePrompt.call(this, number, prompt, ...args);
+                    if (preview && result?.prompt_id) {
+                        preview.editor._setWorkflowPreviewPrompt(preview.session, String(result.prompt_id));
+                    }
+                    return result;
+                } finally {
+                    if (prompt?.output) previewRequests.delete(prompt.output);
+                }
+            };
+        }
         const orig = app.graphToPrompt;
         app.graphToPrompt = async function (...args) {
             const jobs = CapTimelineEditorApp._clipRunJobs;
@@ -2253,7 +2273,14 @@ export class CapTimelineEditorApp {
                 } catch { /* ignore */ }
             }
             try {
-                return await orig.apply(this, args);
+                const result = await orig.apply(this, args);
+                if (job?.workflowPreview && editor?._workflowPreview === job.workflowPreview) {
+                    job.workflowPreview.output = result.output;
+                    job.workflowPreview.nodeIds = new Set(Object.entries(result.output || {})
+                        .filter(([, node]) => node.class_type === "ModelPreviewOverrideKJ").map(([id]) => id));
+                    previewRequests.set(result.output, {editor, session: job.workflowPreview});
+                }
+                return result;
             } finally {
                 if (job && jobs?.[0] === job) {
                     jobs.shift();
@@ -3194,6 +3221,7 @@ export class CapTimelineEditorApp {
 
     destroy() {
         if (this._destroyed) return;
+        this._clearWorkflowPreview();
         this._stopModelPreviewAudio();
         // Save BEFORE marking destroyed — `_saveToWidgets` bails on `_destroyed`,
         // and tab-switch teardown (beforeConfigureGraph) used to skip the flush.
@@ -4096,7 +4124,15 @@ export class CapTimelineEditorApp {
                   </label>
                   </div>
                   <div class="cat-te-ai-right-pane cat-te-ai-right-preview" data-right-pane="preview" hidden>
-                  <div class="cat-te-model-preview-settings">
+                  <label class="cat-te-modal-row">
+                    <span>${T("clip_seed_label")}</span>
+                    <span class="cat-te-model-preview-seed-controls">
+                      <input class="cat-te-model-preview-seed" type="number" min="-1" step="1" value="-1" />
+                      <cap-button shape="square" class="cat-te-model-preview-seed-random" title="${T("randomize_seed_title")}" aria-label="${T("randomize_seed_title")}">${iconHtml("refresh", 12)}</cap-button>
+                    </span>
+                  </label>
+                  <details class="cat-te-model-preview-settings">
+                    <summary>${T("standalone_preview_title")}</summary>
                     <div class="cat-te-agent-heading">
                       <span class="cat-te-ai-field-label">
                         ${T("model_preview_settings_title")}
@@ -4111,22 +4147,21 @@ export class CapTimelineEditorApp {
                       </div>
                     </div>
                     <label class="cat-te-modal-row">
-                      <span>${T("clip_seed_label")}</span>
-                      <span class="cat-te-model-preview-seed-controls">
-                        <input class="cat-te-model-preview-seed" type="number" min="-1" step="1" value="-1" />
-                        <cap-button shape="square" class="cat-te-model-preview-seed-random" title="${T("randomize_seed_title")}" aria-label="${T("randomize_seed_title")}">${iconHtml("refresh", 12)}</cap-button>
-                      </span>
-                    </label>
-                    <label class="cat-te-modal-row">
                       <span>${T("preview_megapixels_label")}</span>
                       <input class="cat-te-model-preview-megapixels" type="number" min="0.01" max="4" step="0.05" value="0.2" />
                     </label>
                     <div class="cat-te-model-preview-config-name"></div>
                     <input class="cat-te-model-preview-file" type="file" accept="application/json,.json" hidden />
-                  </div>
+                    <cap-button class="cat-te-ai-preview-run">${iconHtml("eye", 12)}<span>${T("preview_btn")}</span></cap-button>
+                  </details>
                   <div class="cat-te-ai-preview">
                     <div class="cat-te-ai-preview-head">
-                      <span>${T("video_preview_tab")}</span>
+                      <span>${T("video_preview_tab")}
+                        <span class="cat-te-info-tip" tabindex="0" aria-label="${T("workflow_preview_tip")}">
+                          ${iconHtml("info", 12)}
+                          <span class="cat-te-info-tip-pop">${T("workflow_preview_tip")}</span>
+                        </span>
+                      </span>
                       <span class="cat-te-ai-preview-status"></span>
                     </div>
                     <div class="cat-te-ai-preview-stage">
@@ -4142,8 +4177,8 @@ export class CapTimelineEditorApp {
                   </div>
                   <div class="cat-te-ai-optimize-actions">
                     <cap-button variant="primary" class="cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></cap-button>
-                    <cap-button class="cat-te-ai-preview-run">${iconHtml("eye", 12)}<span>${T("preview_btn")}</span></cap-button>
-                    <cap-button class="cat-te-ai-run">${iconHtml("play", 12)}<span>${T("run_and_close")}</span></cap-button>
+                    <cap-button class="cat-te-workflow-stop" hidden>${iconHtml("stop", 12)}<span>${T("workflow_stop")}</span></cap-button>
+                    <cap-button class="cat-te-ai-run">${iconHtml("play", 12)}<span>${T("workflow_run_queue")}</span></cap-button>
                   </div>
                 </div>
               </div>
@@ -5064,12 +5099,10 @@ export class CapTimelineEditorApp {
             if (this._modelPreviewPromptId) void this._stopModelPreview();
             else void this._startModelPreview();
         });
-        el.querySelector(".cat-te-ai-run").addEventListener("click", () => {
-            const clip = this._findClipById(this._aiOptimizeClipId);
-            if (!clip) return;
-            void this._runClipDownstream(clip);
-            this._closeAiOptimizeModal();
-        });
+        this.aiRunBtn = el.querySelector(".cat-te-ai-run");
+        this.workflowStopBtn = el.querySelector(".cat-te-workflow-stop");
+        this.aiRunBtn.addEventListener("click", () => void this._runPromptManagerWorkflow());
+        this.workflowStopBtn.addEventListener("click", () => void this._stopWorkflowPreview());
         this.aiLangSelect?.addEventListener("change", () => {
             const lang = this._aiOutputLanguage();
             localStorage.setItem(STORAGE_AI_PROMPT_LANG, lang);
@@ -6842,6 +6875,10 @@ export class CapTimelineEditorApp {
 
     _abortPendingGeneratedJob(e) {
         const promptId = this._promptIdFromEvent(e);
+        if (promptId && promptId === this._workflowPreview?.promptId) {
+            const message = e?.detail?.exception_message;
+            this._finishWorkflowPreview(message ? T("model_preview_failed", {msg: String(message)}) : T("model_preview_stopped"));
+        }
         if (promptId && promptId === this._modelPreviewPromptId) {
             const message = e?.detail?.exception_message;
             this._finishModelPreview(message
@@ -6884,6 +6921,9 @@ export class CapTimelineEditorApp {
      */
     _onQueueStatusEvent(e) {
         if (this._destroyed) return;
+        const queueRemaining = Number(e?.detail?.exec_info?.queue_remaining);
+        if (Number.isFinite(queueRemaining)) this._workflowQueueRemaining = queueRemaining;
+        this._syncWorkflowRunButton();
         if (!this._pendingGeneratedJobs.length && !this._runningPromptId) return;
         const remaining = Number(e?.detail?.exec_info?.queue_remaining);
         if (remaining === 0) {
@@ -6895,6 +6935,9 @@ export class CapTimelineEditorApp {
             this._clearRunningForPrompt(this._runningPromptId);
             this._clearAllRunPreviews();
             this._genVideoStamp = null;
+            if (this._workflowPreview?.active && !this._workflowRunSubmitting && !app.processingQueue) {
+                this._finishWorkflowPreview(T("workflow_preview_no_video"));
+            }
             this._syncClipRunDecorations();
             return;
         }
@@ -7014,6 +7057,7 @@ export class CapTimelineEditorApp {
         }
         this._runningClipId = job?.clipId ?? null;
         this._runningProgress = 0;
+        void this._bindWorkflowPreviewPrompt(promptId);
         this._syncClipRunDecorations();
     }
 
@@ -7034,6 +7078,7 @@ export class CapTimelineEditorApp {
         const prevClip = this._runningClipId;
         this._runningClipId = clipId;
         this._runningProgress = 0;
+        void this._bindWorkflowPreviewPrompt(promptId);
         if (prevClip != null && String(prevClip) !== clipId) this._clearRunPreview(prevClip);
         this._syncClipRunDecorations();
     }
@@ -7066,6 +7111,10 @@ export class CapTimelineEditorApp {
             clipId = job?.clipId ? String(job.clipId) : "";
         }
         if (!clipId || !this._teNotifyBelongsHere(clipId, file)) return;
+        if (this._workflowPreview?.clipId === String(clipId)
+            && this._workflowPreview.promptId === this._promptIdFromEvent(e)) {
+            this._finishWorkflowPreview(T("model_preview_complete"), file);
+        }
 
         const idx = this._pendingGeneratedJobs.findIndex((j) => String(j.clipId) === clipId);
         let stamp = null;
@@ -7129,6 +7178,192 @@ export class CapTimelineEditorApp {
         for (const id of [...this._runPreviewByClipId.keys()]) this._clearRunPreview(id);
     }
 
+    _workflowQueueBusy() {
+        return this._workflowQueueRemaining !== 0 || !!this._runningPromptId
+            || !!this._pendingGeneratedJobs.length || !!this._runAllClipsBusy
+            || !!app.processingQueue || !!this._modelPreviewPromptId || !!this._workflowPreview?.active;
+    }
+
+    _syncWorkflowRunButton() {
+        if (!this.aiRunBtn) return;
+        this.aiRunBtn.disabled = this._workflowRunSubmitting || !this._findClipById(this._aiOptimizeClipId);
+        this.aiRunBtn.innerHTML = `${iconHtml("play", 12)}<span>${T(this._workflowQueueBusy()
+            ? "workflow_run_queue" : "workflow_run_preview")}</span>`;
+        const session = this._workflowPreview;
+        if (this.aiPreviewBtn) this.aiPreviewBtn.disabled = !!session?.active;
+        if (this.workflowStopBtn) {
+            this.workflowStopBtn.hidden = !session?.active || session.clipId !== String(this._aiOptimizeClipId);
+            this.workflowStopBtn.disabled = !session?.promptId || session.stopping;
+        }
+    }
+
+    async _refreshWorkflowQueue() {
+        try {
+            const response = await api.fetchApi("/queue");
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const queue = await response.json();
+            if (this._destroyed) return;
+            this._workflowQueueRemaining = (queue.queue_running || []).length + (queue.queue_pending || []).length;
+            if (!this._workflowQueueRemaining && !this._workflowRunSubmitting && !app.processingQueue
+                && this._workflowPreview?.active) this._finishWorkflowPreview(T("workflow_preview_no_video"));
+        } catch {
+            // Unknown queue state is queue-only; never attach an unrelated preview.
+            this._workflowQueueRemaining = null;
+        }
+        this._syncWorkflowRunButton();
+    }
+
+    async _runPromptManagerWorkflow() {
+        if (this._workflowRunSubmitting) return;
+        const clip = this._findClipById(this._aiOptimizeClipId);
+        if (!clip) return;
+        this._onPromptManagerSourceInput();
+        this._workflowRunSubmitting = true;
+        this._syncWorkflowRunButton();
+        let session = null;
+        try {
+            await this._refreshWorkflowQueue();
+            if (this._destroyed || this.aiOptimizeModal.hidden || String(this._aiOptimizeClipId) !== String(clip.id)) return;
+            if (!this._workflowQueueBusy()) {
+                this._clearWorkflowPreview();
+                session = {clipId: String(clip.id), active: true, promptId: null, nodeIds: new Set(),
+                    imageId: crypto.randomUUID(), sequence: 0, entry: null, status: T("model_preview_queueing")};
+                this._workflowPreview = session;
+                this._setAiOptimizeRightTab("preview");
+                this._showWorkflowPreview();
+            }
+            const queued = await this._runClipDownstream(clip, session);
+            if (session && !queued) this._finishWorkflowPreview(T("workflow_run_not_queued"));
+        } finally {
+            this._workflowRunSubmitting = false;
+            this._syncWorkflowRunButton();
+            void this._refreshWorkflowQueue();
+        }
+    }
+
+    _setWorkflowPreviewPrompt(session, promptId) {
+        if (this._destroyed || this._workflowPreview !== session || !session.active || !promptId
+            || (session.promptId && session.promptId !== promptId)) return;
+        session.promptId = promptId;
+        session.status = this._runningPromptId === promptId
+            ? T(session.nodeIds.size ? "model_preview_running" : "workflow_preview_missing_node")
+            : T("model_preview_queued");
+        this._showWorkflowPreview();
+        this._syncWorkflowRunButton();
+    }
+
+    async _bindWorkflowPreviewPrompt(promptId) {
+        const session = this._workflowPreview;
+        if (!session?.active || !promptId) return;
+        if (session.promptId) {
+            if (session.promptId === promptId) this._setWorkflowPreviewPrompt(session, promptId);
+            return;
+        }
+        if (!session.output || session.binding) return;
+        session.binding = true;
+        try {
+            const response = await api.fetchApi("/queue");
+            if (!response.ok) return;
+            const queue = await response.json();
+            const row = [...(queue.queue_running || []), ...(queue.queue_pending || [])]
+                .find(item => String(item[1]) === promptId);
+            if (this._workflowPreview !== session || !session.active || !row) return;
+            // The server normalizes graph inputs. Match the scoped timeline project,
+            // not the whole mutable execution graph (including sampler/extension inputs).
+            const matches = Object.entries(session.output).some(([id, node]) => {
+                const raw = node.inputs?.project_json;
+                if (node.class_type !== "CAP_TimelineEditor" || typeof raw !== "string"
+                    || row[2]?.[id]?.class_type !== node.class_type || row[2][id].inputs?.project_json !== raw) return false;
+                const ids = JSON.parse(raw).settings?.runtime_only_clip_ids;
+                return Array.isArray(ids) && ids.map(String).includes(session.clipId);
+            });
+            if (!matches) return;
+            this._setWorkflowPreviewPrompt(session, promptId);
+        } catch { /* A missing queue match must not claim another task. */ }
+        finally { session.binding = false; }
+    }
+
+    _showWorkflowPreview() {
+        const session = this._workflowPreview;
+        if (!session || session.clipId !== String(this._aiOptimizeClipId) || this.aiOptimizeModal?.hidden) return false;
+        if (this._aiOptimizeRightTab !== "preview") return false;
+        this._renderModelPreview(session.entry, session.status);
+        return true;
+    }
+
+    async _receiveWorkflowPreview(d, mime) {
+        const session = this._workflowPreview;
+        if (!session?.active || !session.promptId || session.promptId !== this._runningPromptId
+            || session.clipId !== String(this._runningClipId) || !session.nodeIds.has(String(d.node_id))
+            || !["image/jpeg", "image/webp", "video/mp4"].includes(mime)) return;
+        const sequence = ++session.sequence;
+        const path = `/audio_keyframe_timeline/preview_image/${session.imageId}?frame=${sequence}`;
+        try {
+            const response = await api.fetchApi(path, {
+                method: "POST", headers: {"Content-Type": mime}, body: this._b64ToBlob(d.image, mime),
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            if (this._workflowPreview !== session || !session.active) {
+                void api.fetchApi(`/audio_keyframe_timeline/preview_image/${session.imageId}`, {method: "DELETE"}).catch(() => {});
+                return;
+            }
+            if (sequence !== session.sequence || session.entry?.final) return;
+            session.entry = {url: api.apiURL(path), mime, clipId: session.clipId};
+            session.status = T("model_preview_step", {step: Number(d.step) || 0, total: Number(d.total) || 0});
+            this._showWorkflowPreview();
+        } catch (error) {
+            if (this._workflowPreview !== session || !session.active || sequence !== session.sequence) return;
+            session.status = T("model_preview_failed", {msg: error.message});
+            this._showWorkflowPreview();
+        }
+    }
+
+    _finishWorkflowPreview(status, file = null) {
+        const session = this._workflowPreview;
+        if (!session) return;
+        session.active = false;
+        session.status = status;
+        if (file) session.entry = {url: this._outputVideoUrl(file), mime: "video/mp4", clipId: session.clipId, final: true};
+        this._showWorkflowPreview();
+        this._syncWorkflowRunButton();
+    }
+
+    async _stopWorkflowPreview() {
+        const session = this._workflowPreview;
+        if (!session?.active || !session.promptId || session.stopping) return;
+        session.stopping = true;
+        this._syncWorkflowRunButton();
+        try {
+            const response = await api.fetchApi("/queue");
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const queue = await response.json();
+            if ((queue.queue_running || []).some(row => String(row[1]) === session.promptId)) {
+                const interrupted = await api.fetchApi("/interrupt", {
+                    method: "POST", headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({prompt_id: session.promptId}),
+                });
+                if (!interrupted.ok) throw new Error(`HTTP ${interrupted.status}`);
+            } else if ((queue.queue_pending || []).some(row => String(row[1]) === session.promptId)) {
+                await api.deleteItem("queue", session.promptId);
+            }
+            if (this._workflowPreview === session) this._finishWorkflowPreview(T("model_preview_stopped"));
+        } catch (error) {
+            if (this._workflowPreview === session) {
+                session.status = T("model_preview_failed", {msg: error.message});
+                this._showWorkflowPreview();
+            }
+        } finally {
+            session.stopping = false;
+            this._syncWorkflowRunButton();
+        }
+    }
+
+    _clearWorkflowPreview() {
+        const session = this._workflowPreview;
+        this._workflowPreview = null;
+        if (session) void api.fetchApi(`/audio_keyframe_timeline/preview_image/${session.imageId}`, {method: "DELETE"}).catch(() => {});
+    }
+
     _renderModelPreview(entry = this._modelPreviewEntry, status = "") {
         if (!this.aiPreviewPanel) return;
         this.aiPreviewPanel.hidden = false;
@@ -7139,6 +7374,8 @@ export class CapTimelineEditorApp {
         if (video) {
             video.hidden = !videoReady;
             if (!videoUrl && video.hasAttribute("src")) {
+                video.onloadeddata = null;
+                video.onerror = null;
                 video.pause();
                 video.removeAttribute("src");
                 video.load();
@@ -7156,6 +7393,7 @@ export class CapTimelineEditorApp {
                     if (this.aiPreviewImage) this.aiPreviewImage.hidden = true;
                 };
                 video.onerror = () => {
+                    if (video.getAttribute("src") !== videoUrl) return;
                     if (this.aiPreviewStatus) this.aiPreviewStatus.textContent = T("model_preview_failed", {
                         msg: video.error?.message || `MediaError ${video.error?.code || ""}`,
                     });
@@ -7263,7 +7501,8 @@ export class CapTimelineEditorApp {
 
     async _startModelPreview() {
         const clip = this._findClipById(this._aiOptimizeClipId);
-        if (!clip || this._modelPreviewPromptId) return;
+        if (!clip || this._modelPreviewPromptId || this._workflowPreview?.active) return;
+        this._clearWorkflowPreview();
         if (!await this._validateClipRunDurations([clip])) return;
         let workflow;
         try {
@@ -7469,6 +7708,7 @@ export class CapTimelineEditorApp {
         if (!d || typeof d.image !== "string") return;
         // KJ's initial noise frame is JPEG but its step-0 payload omits mime.
         const mime = typeof d.mime === "string" ? d.mime : (d.step === 0 ? "image/jpeg" : "");
+        void this._receiveWorkflowPreview(d, mime);
         const previewNodeId = String(d.node_id || "");
         const belongsToModelPreview = this._modelPreviewRunning
             && this._modelPreviewOverrideNodeIds?.has(previewNodeId);
@@ -7554,6 +7794,11 @@ export class CapTimelineEditorApp {
         const next = Math.max(0, Math.min(1, Number(ratio) || 0));
         if (Math.abs(next - this._runningProgress) < 0.002) return;
         this._runningProgress = next;
+        const session = this._workflowPreview;
+        if (session?.active && session.promptId === this._runningPromptId && session.clipId === String(this._runningClipId)) {
+            session.status = T(next >= 1 ? "model_preview_decoding" : "model_preview_progress", {pct: Math.round(next * 100)});
+            this._showWorkflowPreview();
+        }
         // Progress can arrive before we bound a clip id — promote FIFO then.
         if (this._runningClipId == null && this._runningPromptId) {
             this._bindPromptIdToPendingJob(this._runningPromptId);
@@ -7567,6 +7812,7 @@ export class CapTimelineEditorApp {
         const d = e?.detail;
         if (!d || typeof d !== "object") return;
         const pid = String(d.prompt_id ?? d.promptId ?? "").trim();
+        void this._bindWorkflowPreviewPrompt(pid);
         if (pid && pid === this._modelPreviewPromptId) {
             const max = Number(d.max);
             if (max > 0) this._renderModelPreview(
@@ -7593,6 +7839,7 @@ export class CapTimelineEditorApp {
         const d = e?.detail;
         if (!d || typeof d !== "object") return;
         const pid = String(d.prompt_id ?? d.promptId ?? "").trim();
+        void this._bindWorkflowPreviewPrompt(pid);
         if (pid && pid === this._modelPreviewPromptId) return;
         if (pid) {
             if (this._runningPromptId && this._runningPromptId !== pid) return;
@@ -7644,6 +7891,7 @@ export class CapTimelineEditorApp {
     }
 
     _syncClipRunDecorations() {
+        this._syncWorkflowRunButton();
         if (!this._timeline || this._destroyed) return;
         for (const track of this._timeline.tracks || []) {
             for (const clip of track.clips || []) this._decorateClip(clip);
@@ -7667,7 +7915,8 @@ export class CapTimelineEditorApp {
         const walk = (value, depth = 0) => {
             if (value == null || depth > 6) return;
             if (typeof value === "string") {
-                add(value);
+                // Show Text may emit the planned .mp4 filename before sampling starts.
+                // Only structured output-file descriptors prove a video was produced.
                 return;
             }
             if (Array.isArray(value)) {
@@ -7703,6 +7952,10 @@ export class CapTimelineEditorApp {
         const files = this._collectExecutedOutputVideos(e?.detail);
         if (!files.length) return;
         const promptId = this._promptIdFromEvent(e);
+        if (promptId && this._workflowPreview?.promptId === promptId) {
+            const file = files.find(file => this._clipIdFromSpecifiedVideoPath(file) === this._workflowPreview.clipId) || files[0];
+            if (file) this._finishWorkflowPreview(T("model_preview_complete"), file);
+        }
         for (const file of files) {
             const clipId = this._clipIdFromSpecifiedVideoPath(file);
             if (clipId) {
@@ -7721,6 +7974,29 @@ export class CapTimelineEditorApp {
     async _flushPendingGeneratedVideos(e) {
         if (this._destroyed || !this._isNodeOnLiveGraph()) return;
         const promptId = this._promptIdFromEvent(e);
+        if (promptId && this._workflowPreview?.promptId === promptId && !this._workflowPreview.entry?.final) {
+            const session = this._workflowPreview;
+            let file = null;
+            try {
+                for (let attempt = 0; attempt < 4; attempt++) {
+                    const response = await api.fetchApi(`/history/${encodeURIComponent(promptId)}`);
+                    if (!response.ok) break;
+                    const history = await response.json();
+                    if (this._destroyed) return;
+                    if (this._workflowPreview !== session) break;
+                    const outputs = history[promptId]?.outputs;
+                    if (outputs) {
+                        const files = this._collectExecutedOutputVideos({output: outputs});
+                        file = files.find(file => this._clipIdFromSpecifiedVideoPath(file) === session.clipId) || files[0];
+                        break;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 250));
+                }
+            } catch { /* Normal generated-video association below still runs. */ }
+            if (this._workflowPreview === session && !session.entry?.final) {
+                this._finishWorkflowPreview(T(file ? "model_preview_complete" : "workflow_preview_no_video"), file);
+            }
+        }
         if (promptId && promptId === this._modelPreviewPromptId) {
             if (!this._modelPreviewEntry?.final) {
                 try {
@@ -15385,7 +15661,7 @@ export class CapTimelineEditorApp {
      * only this visual clip. Uses settings.runtime_only_clip_ids (not temporary
      * disable flags) so the filter survives queuePrompt flush / restore races.
      */
-    async _runClipDownstream(clip) {
+    async _runClipDownstream(clip, workflowPreview = null) {
         if (!clip || !this.node) return;
         const m = this._meta.get(clip.id) ?? defaultImageMeta();
         if (clip.track?.type === "audio" || m.clipType === "audio") {
@@ -15396,7 +15672,11 @@ export class CapTimelineEditorApp {
             return;
         }
         if (this._isEmptyGroupClip(m)) return;
-        if (await this._confirmRelatedClipRun(clip) !== "single") return;
+        const relatedRun = await this._confirmRelatedClipRun(clip);
+        if (relatedRun !== "single") {
+            if (workflowPreview && relatedRun === "all") this._finishWorkflowPreview(T("workflow_run_queue"));
+            return relatedRun === "all";
+        }
         if (!await this._validateClipRunDurations([clip])) return;
         if (typeof app?.queuePrompt !== "function") {
             alert(T("queue_prompt_not_found"));
@@ -15415,6 +15695,7 @@ export class CapTimelineEditorApp {
             stamp,
             expectedFile,
             projectJson: JSON.stringify(this._buildProject()),
+            workflowPreview,
         };
         CapTimelineEditorApp._clipRunEditor = this;
         CapTimelineEditorApp._clipRunJobs = [job];
@@ -15433,11 +15714,13 @@ export class CapTimelineEditorApp {
             });
             const result = await app.queuePrompt(0, 1);
             if (result === false) {
+                // ComfyUI has buffered this request behind another graph submission.
                 await this._waitForQueueIdle();
             }
             const pid = this._promptIdFromQueueResult(result);
             if (pid) this._bindPromptIdToPendingJob(pid, clip.id);
             this._schedulePendingJobsQueueReconcile();
+            return true;
         } catch (error) {
             const idx = CapTimelineEditorApp._clipRunJobs.indexOf(job);
             if (idx >= 0) CapTimelineEditorApp._clipRunJobs.splice(idx, 1);
@@ -17877,6 +18160,7 @@ export class CapTimelineEditorApp {
     _setAiOptimizeRightTab(tab = "ai") {
         const next = tab === "preview" ? "preview" : "ai";
         this._aiOptimizeRightTab = next;
+        if (this.aiGenerateBtn) this.aiGenerateBtn.hidden = next !== "ai";
         this.aiRightTabs?.forEach((button) => {
             const active = button.dataset.rightTab === next;
             button.classList.toggle("is-active", active);
@@ -17890,6 +18174,7 @@ export class CapTimelineEditorApp {
             this._stopModelPreviewAudio();
             return;
         }
+        if (this._showWorkflowPreview()) return;
         const clipId = String(this._aiOptimizeClipId || "");
         const matches = clipId && (
             clipId === String(this._modelPreviewClipId || "")
@@ -18034,6 +18319,8 @@ export class CapTimelineEditorApp {
         this._cancelAiOptimize();
         const meta = this._ensureClipMeta(clip);
         this._aiOptimizeClipId = clip.id;
+        this._syncWorkflowRunButton();
+        void this._refreshWorkflowQueue();
         if (this.aiOptimizeTitle) {
             this.aiOptimizeTitle.textContent = T("prompt_manager_title");
         }
@@ -18065,6 +18352,7 @@ export class CapTimelineEditorApp {
             this._renderModelPreview(null, T("model_preview_waiting"));
         }
         this._syncModelPreviewButton();
+        this._showWorkflowPreview();
     }
 
     async _stepAiOptimizeClip(delta) {

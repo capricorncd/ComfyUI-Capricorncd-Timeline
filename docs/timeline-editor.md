@@ -71,7 +71,7 @@ Open the editor from the node launcher (fullscreen shell). Edits sync back into 
 - The right side provides AI Optimize and Video Preview tabs. Preview-workflow import, clearing, Clip seed, preview resolution (MP), and load status are configured in Video Preview instead of the editor Settings dialog. Clicking the bottom Preview button switches to Video Preview before the preview workflow starts.
 - AI generation only writes the current `clip.prompt`; project-level Prepend and Append prompts change only through direct edits in their tabs or the project panel.
 - “Provide to model” independently controls the current Clip prompt, asset descriptions, image/keyframe data, video-reference data, overlapping timeline audio data, and the current Clip's latest enabled generated video. The previous generated video is off by default; when enabled, the Agent treats it as a result to diagnose against the prompt and references, then corrects visual, action, camera, and continuity failures. Stored image-generation prompts are not sent to the Clip-prompt Agent.
-- Target Agent selects the output contract, while generation mode selects multi-reference, first/last-frame, text-to-video, video-reference, or video-edit behavior. The execution model is selected separately from configured Agents such as ChatGPT or Gemini, or a local Qwen3-VL model.
+- Target prompt format selects the output contract for the Clip's video model, while generation mode selects multi-reference, first/last-frame, text-to-video, video-reference, or video-edit behavior. The execution model is selected separately from configured Agents such as ChatGPT or Gemini, or a local Qwen3-VL model.
 - Local Qwen3-VL does not receive audio. When audio data is enabled, use a configured Agent that accepts audio; audio usage can be automatic, performance-driven, lip-sync, or disabled. Enabled, unmuted audio-track clips overlapping the current Clip are source-trimmed, positioned, faded, and mixed into one WAV whose duration exactly matches the current Clip before it is sent.
 - Prompt Skill is enabled only for MiniMaxH3. The picker lists the official MiniMax repository first and the community repository second; Update synchronizes both. Applying a Skill includes its main/localized `SKILL.md` and text references under `references/` in the Agent instructions.
 - The modal **Preview** button runs an imported API-format workflow containing **Generate Timeline Preview** (`CAP_TimelinePreview`).
@@ -274,8 +274,8 @@ Times are milliseconds snapped to the project `fps` frame grid: `start_ms` / `du
 | `generate_preview_video` / `second_sample` | Generation flags |
 | `clip_role` | `multi_ref` / `first_last` / `t2v` / `video_ref` / `video_edit` / `other` |
 | `clip_role_custom` | Custom text when `clip_role === "other"` |
-| `agent` | `MiniMaxH3` / `LTX` / `Bernini` / `Wan` / `other` |
-| `agent_custom` | Custom name when `agent === "other"` |
+| `agent` | Video model: `MiniMaxH3` / `LTX` / `Bernini` / `Wan` / `other`; field name retained for project compatibility |
+| `agent_custom` | Custom video model name when `agent === "other"` |
 | `generated_videos` | Optional bound MP4s: `{ id, file, enabled, muted, note }` (`file` relative to `output/`) |
 | `preview_mode` | Optional; `"generated"` for generated-video preview |
 | `has_audio` / `muted` | Optional for video sources with audio |

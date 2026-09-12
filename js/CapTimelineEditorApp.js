@@ -3343,7 +3343,7 @@ export class CapTimelineEditorApp {
                   <input class="cat-te-clip-role-custom" type="text" placeholder="${T("enter_type_placeholder")}" disabled />
                 </label>
                 <label class="cat-te-clip-setting-row">
-                  <span>Agent</span>
+                  <span>${T("video_model_label")}</span>
                   <select class="cat-te-clip-agent" disabled>
                     <option value="MiniMaxH3">MiniMaxH3</option>
                     <option value="LTX">LTX</option>
@@ -3353,7 +3353,7 @@ export class CapTimelineEditorApp {
                   </select>
                 </label>
                 <label class="cat-te-clip-setting-row cat-te-clip-agent-custom-row" hidden>
-                  <span>${T("custom_agent_label")}</span>
+                  <span>${T("custom_video_model_label")}</span>
                   <input class="cat-te-clip-agent-custom" type="text" placeholder="${T("enter_model_name_placeholder")}" disabled />
                 </label>
                 <label class="cat-te-clip-setting-row">

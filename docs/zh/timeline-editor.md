@@ -70,8 +70,8 @@ Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的
 - 弹窗右侧提供“AI 优化”和“视频预览”两个 Tab；预览工作流的导入、清除、Clip 种子、预览分辨率（MP）与载入状态均在“视频预览”Tab 中设置，不再放在编辑器“设置”窗口。点击底部“预览”会先自动切换到“视频预览”，再启动预览工作流。
 - AI 生成只写入当前 `clip.prompt`；工程级前置、后置提示词只有在对应 Tab 或工程面板中手动编辑时才会变化。
 - “提供给大模型”可分别控制：当前 Clip 提示词、素材描述、图片/首尾帧数据、视频参考数据、时间轴背景音频数据，以及当前 Clip 最新一条已启用的上一版生成视频。上一版生成视频默认不发送；启用后，Agent 将其作为待诊断的生成结果，对照提示词和参考素材修正画面、动作、镜头与一致性问题。素材中保存的图片生成提示词不会发送给 Clip 提示词 Agent。
-- “目标 Agent”决定返回格式；“生成模式”用于区分 MiniMax H3 多图参考、首尾帧、文生视频、视频参考/编辑等模式，也用于生成 LTX 等模型所需的相应格式。
-- “模型”选择实际执行请求的已配置 Agent（例如 ChatGPT、Gemini）或本地 Qwen3-VL；目标 Agent 与执行模型相互独立。
+- “目标提示词格式”决定 Clip 视频模型所需的返回格式；“生成模式”用于区分 MiniMax H3 多图参考、首尾帧、文生视频、视频参考/编辑等模式，也用于生成 LTX 等模型所需的相应格式。
+- “模型”选择实际执行请求的已配置 Agent（例如 ChatGPT、Gemini）或本地 Qwen3-VL；目标视频模型与执行提示词优化的模型相互独立。
 - 本地 Qwen3-VL 不接收音频数据；勾选音频数据时需选择支持音频输入的已配置 Agent。音频用途可设为自动判断、按背景音频表演、口型同步或不使用。发送前会截取所有与当前 Clip 重叠、已启用且未静音的音频轨片段，应用源内偏移、时间轴位置和淡入淡出，混合成一条与当前 Clip 等长的 WAV。
 - Prompt Skill 仅在目标 Agent 为 MiniMaxH3 时启用。Skill 库同时加载 MiniMax 官方与社区来源，官方排在前面；点击“更新”会同步两者。应用 Skill 时会把主 `SKILL.md`、中文版本（如有）及 `references/` 中的文本完整加入 Agent 指令。
 - 弹窗中的**预览**按钮会运行导入的 API 格式工作流，该工作流必须包含**生成时间轴预览**（`CAP_TimelinePreview`）节点。
@@ -275,8 +275,8 @@ Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的
 | `generate_preview_video` / `second_sample` | 生成相关开关 |
 | `clip_role` | `multi_ref` / `first_last` / `t2v` / `video_ref` / `video_edit` / `other` |
 | `clip_role_custom` | `clip_role === "other"` 时的自定义文案 |
-| `agent` | `MiniMaxH3` / `LTX` / `Bernini` / `Wan` / `other` |
-| `agent_custom` | `agent === "other"` 时的自定义名 |
+| `agent` | 视频模型：`MiniMaxH3` / `LTX` / `Bernini` / `Wan` / `other`；为兼容已有工程保留字段名 |
+| `agent_custom` | `agent === "other"` 时的自定义视频模型名 |
 | `generated_videos` | 可选；绑定的生成 MP4：`{ id, file, enabled, muted, note }`（`file` 相对 `output/`） |
 | `preview_mode` | 可选；`"generated"` 表示默认看生成视频预览 |
 | `has_audio` / `muted` | 视频素材带音时可选 |

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>StatusMessage browser test</title>
+<style>
+    :root { --cat-text: #e2e8f0; --cat-raised: #24343a; --cat-border: #344950; }
+    section { width: 320px; }
+    .other div, .other .panel { color: magenta !important; background: yellow !important; border: 20px solid red !important; }
+</style>
+<section><cap-status-message id="export" hidden></cap-status-message></section>
+<section class="other"><cap-status-message id="compose" hidden></cap-status-message></section>
+<pre id="result">RUNNING</pre>
+<script type="module">
+    import '../js/components/StatusMessage.js';
+    const result = document.querySelector('#result');
+    try {
+        const assert = (value, message) => { if (!value) throw new Error(message); };
+        const elements = [document.querySelector('#export'), document.querySelector('#compose')];
+        for (const [state, color] of [['info', 'rgb(226, 232, 240)'], ['success', 'rgb(187, 247, 208)'], ['error', 'rgb(254, 202, 202)']]) {
+            const appearances = elements.map(element => {
+                element.setStatus('Status\n' + 'long-path/'.repeat(40), state);
+                const panel = element.shadowRoot.querySelector('.panel');
+                const css = getComputedStyle(panel);
+                assert(css.color === color, `${state} color`);
+                assert(css.whiteSpace === 'pre-wrap', 'multiline text');
+                assert(panel.getBoundingClientRect().width <= 320, 'long paths wrap inside panel');
+                assert(css.borderTopWidth === '1px', 'global modal styles cannot override border');
+                assert(panel.getAttribute('role') === 'status', 'live status semantics');
+                return [css.color, css.backgroundColor, css.borderColor, css.padding, css.fontSize].join('|');
+            });
+            assert(appearances[0] === appearances[1], 'same component must look identical in different modal containers');
+        }
+        elements[0].setStatus('<img src=x onerror=alert(1)>');
+        assert(!elements[0].querySelector('img'), 'message must be literal text');
+        elements[0].setStatus('');
+        assert(getComputedStyle(elements[0]).display === 'none', 'empty messages hide');
+        elements[0].setStatus('Ready');
+        assert(getComputedStyle(elements[0]).display === 'block', 'messages can reappear');
+        result.textContent = 'PASS: native custom element, Shadow DOM isolation, colors, wrapping, visibility and text safety';
+        result.dataset.result = 'pass';
+    } catch (error) {
+        result.textContent = 'FAIL: ' + error.message;
+        result.dataset.result = 'fail';
+    }
+</script>
+</html>

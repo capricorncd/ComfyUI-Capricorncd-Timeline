@@ -28,6 +28,11 @@ function element(extra = {}) {
 }
 function fixture(fetch) {
     const status = element(), startButton = element(), close = element(), path = element({ value: 'D:/exports/特别篇' });
+    status.setStatus = function(text, state) {
+        this.textContent = String(text ?? '');
+        this.state = state === 'success' || state === 'error' ? state : 'info';
+        this.hidden = !this.textContent;
+    };
     const workflow = element({ checked: true }), generated = element({ checked: true });
     const formats = ['directory', 'zip'].map(format => element({ dataset: { format } }));
     formats[0].classList.add('is-active');
@@ -35,7 +40,7 @@ function fixture(fetch) {
     const dialog = element({
         querySelector(selector) {
             return ({
-                '[role="status"]': status, '.cat-te-export-start': startButton,
+                '.cat-te-export-status': status, '.cat-te-export-start': startButton,
                 '.cat-te-export-directory': path, '.cat-te-export-workflow': workflow,
                 '.cat-te-export-generated': generated, '.cat-te-modal-close': close,
                 '[data-format].is-active': formats.find(b => b.classList.contains('is-active')),
@@ -67,7 +72,7 @@ for (const format of ['directory', 'zip']) {
     assert.equal(f.app._exportRevealToken, 'saved-token');
     assert.match(f.startButton.textContent, /open_folder_btn/);
     assert.match(f.status.textContent, /export_saved_path.*特别篇/);
-    assert(f.status.classList.contains('is-ok'));
+    assert((f.status.state === 'success'));
     assert(f.controls.every(c => !c.disabled));
     await f.app._openExportDirectory();
     assert.deepEqual(requests[1], { url: '/audio_keyframe_timeline/reveal_export', body: { reveal_token: 'saved-token' } });
@@ -106,7 +111,7 @@ for (const failure of ['http', 'network', 'json']) {
         } };
     });
     await f.app._runProjectExport({ format: 'zip' });
-    assert(f.status.classList.contains('is-error'));
+    assert((f.status.state === 'error'));
     assert.match(f.status.textContent, /export_failed/);
     assert.equal(f.app._exportRevealToken, null);
     assert(f.controls.every(c => !c.disabled));
@@ -125,8 +130,8 @@ for (const failure of ['http', 'network', 'json']) {
     finish({ ok: true, json: async () => ({ ...success, missing: ['missing.png'] }) });
     await pending;
     assert.match(f.status.textContent, /missing.png/);
-    assert(!f.status.classList.contains('is-ok'), 'missing assets retain a visible warning');
-    assert(f.status.classList.contains('is-error'), 'incomplete exports use the error color');
+    assert(!(f.status.state === 'success'), 'missing assets retain a visible warning');
+    assert((f.status.state === 'error'), 'incomplete exports use the error color');
 }
 {
     const f = fixture(async () => ({ ok: false, json: async () => ({ error: 'Export expired' }) }));
@@ -167,8 +172,8 @@ assert(source.includes('this.wmTabs = this.composeModal.querySelectorAll'), 'exp
         } };
     };
     f.app._writeExportFile = async (directory, name, blob) => {
-        assert(!f.status.classList.contains('is-ok'));
-        assert(!f.status.classList.contains('is-error'));
+        assert(!(f.status.state === 'success'));
+        assert(!(f.status.state === 'error'));
         assert.match(f.status.textContent, /export_browser_zip_saving/);
         events.push('write'); writes.push({ name, text: await blob.text() });
     };
@@ -182,7 +187,7 @@ assert(source.includes('this.wmTabs = this.composeModal.querySelectorAll'), 'exp
     assert.equal(f.app._exportRevealToken, null);
     assert.match(f.startButton.textContent, /export_title/);
     assert.match(f.status.textContent, /export_saved_path.*浏览器目录\/特别篇.zip/);
-    assert(f.status.classList.contains('is-ok'), 'success is green only after the ZIP was written and verified');
+    assert((f.status.state === 'success'), 'success is green only after the ZIP was written and verified');
 }
 {
     const requests = [], writes = [];
@@ -207,7 +212,7 @@ assert(source.includes('this.wmTabs = this.composeModal.querySelectorAll'), 'exp
     assert.deepEqual(JSON.parse(writes[2].content), project);
     assert.equal(f.app._exportRevealToken, null);
     assert.match(f.startButton.textContent, /export_title/);
-    assert(f.status.classList.contains('is-ok'));
+    assert((f.status.state === 'success'));
 }
 for (const format of ['directory', 'zip']) for (const failure of ['cancel', 'unsupported', 'write', 'close']) {
     let fetches = 0;
@@ -230,9 +235,9 @@ for (const format of ['directory', 'zip']) for (const failure of ['cancel', 'uns
     if (failure === 'cancel') {
         assert.equal(fetches, 0);
         assert.match(f.status.textContent, /export_browser_cancelled/);
-        assert(!f.status.classList.contains('is-error'));
+        assert(!(f.status.state === 'error'));
     } else {
-        assert(f.status.classList.contains('is-error'));
+        assert((f.status.state === 'error'));
         assert.match(f.status.textContent, /export_failed/);
     }
     assert.equal(f.app._exportRevealToken, null);
@@ -244,7 +249,7 @@ for (const format of ['directory', 'zip']) for (const failure of ['cancel', 'uns
     f.app._pickDirectory = async () => ({ name: 'dir', getFileHandle: async () => ({ getFile: async () => ({ size: 0 }) }) });
     f.app._writeExportFile = async () => {};
     await f.app._runProjectExport({ format: 'zip' });
-    assert(f.status.classList.contains('is-error'));
+    assert((f.status.state === 'error'));
     assert.match(f.status.textContent, /export_browser_zip_size_mismatch/);
     assert.equal(f.app._exportRevealToken, null);
 }

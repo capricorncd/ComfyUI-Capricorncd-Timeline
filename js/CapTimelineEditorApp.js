@@ -1,4 +1,5 @@
 import { AgentSettings } from "./editor/AgentSettings.js";
+import "./components/StatusMessage.js";
 import { FontCatalog } from "./editor/FontCatalog.js";
 import { TimelineHistory } from "./editor/TimelineHistory.js";
 import { FontPicker } from "./editor/FontPicker.js";
@@ -1460,11 +1461,8 @@ export class CapTimelineEditorApp {
     }
 
     _setExportStatus(text, state = "") {
-        const status = this.exportDialog.querySelector('[role="status"]');
-        status.textContent = text;
-        status.hidden = !text;
-        status.classList.toggle("is-error", state === "error");
-        status.classList.toggle("is-ok", state === "ok");
+        this.exportDialog.querySelector(".cat-te-export-status")
+            .setStatus(text, state === "ok" ? "success" : state);
     }
 
     _resetProjectExport() {
@@ -2506,11 +2504,7 @@ export class CapTimelineEditorApp {
         if (this.composeFilenameInput) this.composeFilenameInput.value = this._composeDefaultFilename();
         if (this.composeResolutionSelect) this.composeResolutionSelect.value = "project";
         if (this.composeQualitySelect) this.composeQualitySelect.value = "maximum";
-        if (this.composeStatus) {
-            this.composeStatus.hidden = true;
-            this.composeStatus.textContent = "";
-            this.composeStatus.classList.remove("is-error", "is-ok");
-        }
+        this._setComposeStatus("");
         this._composeDone = false;
         this._lastComposeOutput = null;
         if (this.composeRunBtn) {
@@ -2533,11 +2527,7 @@ export class CapTimelineEditorApp {
     }
 
     _setComposeStatus(text, { error = false, ok = false } = {}) {
-        if (!this.composeStatus) return;
-        this.composeStatus.hidden = !text;
-        this.composeStatus.textContent = text || "";
-        this.composeStatus.classList.toggle("is-error", !!error);
-        this.composeStatus.classList.toggle("is-ok", !!ok);
+        this.composeStatus?.setStatus(text, error ? "error" : ok ? "success" : "info");
     }
 
     async _runComposeVideoExport() {
@@ -3845,7 +3835,7 @@ export class CapTimelineEditorApp {
                     </div>
                   </div>
 
-                  <div class="cat-te-compose-status" hidden></div>
+                  <cap-status-message class="cat-te-compose-status" hidden></cap-status-message>
                 </div>
               </div>
               <div class="cat-te-compose-actions">
@@ -4157,7 +4147,7 @@ export class CapTimelineEditorApp {
               </label>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-workflow" type="checkbox" checked /><span>${T("export_workflow")}</span></label>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-generated" type="checkbox" checked /><span>${T("export_generated")}</span></label>
-              <div class="cat-te-export-status" role="status" aria-live="polite" hidden></div>
+              <cap-status-message class="cat-te-export-status" hidden></cap-status-message>
               <div class="cat-te-confirm-actions"><button type="button" class="cat-te-btn cat-te-btn-primary cat-te-export-start">${T("export_title")}</button></div>
             </div>
           </dialog>

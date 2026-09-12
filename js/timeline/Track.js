@@ -69,6 +69,7 @@ export class Track extends EventEmitter {
     this.locked = !!v;
     this.el.classList.toggle('tl-track-locked', this.locked);
     this.headerEl.classList.toggle('tl-track-locked', this.locked);
+    if (this.locked) this.timeline._deselectLockedClips();
   }
 
   setVisible(v) {

@@ -314,6 +314,7 @@ export class Clip extends EventEmitter {
     body.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
       e.stopPropagation();
+      if (!canEdit()) return;
       // Keep select errors from blocking the drag session (panel sync can throw).
       try {
         const tl = this.track.timeline;
@@ -321,7 +322,6 @@ export class Clip extends EventEmitter {
       } catch (err) {
         console.error('[CapTE] selectClip failed', err);
       }
-      if (!canEdit()) return;
       if (this.track.timeline.getSelectedClips().filter(c => !c.track.locked).length > 1) {
         this.track.timeline._dragSelectedClips(e, this);
         return;

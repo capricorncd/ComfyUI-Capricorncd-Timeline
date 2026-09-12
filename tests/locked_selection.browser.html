@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Locked track selection regression</title>
+<link rel="stylesheet" href="../js/timeline/timeline.css">
+<style>#timeline {width: 950px; height: 500px;}</style>
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app = {};"}}</script>
+<div id="timeline"></div><pre id="result">RUNNING</pre>
+<script type="module">
+import { Timeline } from '../js/timeline/Timeline.js';
+const assert = (value, message) => { if (!value) throw Error(message); };
+try {
+    const tl = new Timeline(document.querySelector('#timeline'), {duration: 10});
+    const tracks = ['image', 'video', 'audio', 'text', 'voiceover'].map((type, i) => tl.addTrack({id: 'track' + i, type}));
+    const clips = tracks.map((track, i) => tl.addClip(track.id, {id: 'clip' + i, name: track.type, startTime: 1, duration: 2}));
+    const selected = () => tl.getSelectedClips().map(c => c.id).join(',');
+    let selections = 0, deselections = 0;
+    tl.on('clip:select', () => selections++);
+    tl.on('clip:deselect', () => deselections++);
+    for (const clip of clips) {
+        tl.selectClip(clip);
+        clip.track.setLocked(true);
+        assert(!selected() && tl._selected === null && !clip.el.classList.contains('selected'), 'locking clears selected Clip on ' + clip.track.type);
+        const count = selections;
+        tl.selectClip(clip); tl.selectClip(clip, {additive: true});
+        clip.el.querySelector('.tl-clip-body').dispatchEvent(new MouseEvent('mousedown', {button: 0, bubbles: true}));
+        window.dispatchEvent(new MouseEvent('mouseup'));
+        assert(!selected() && selections === count, 'locked single click and API selection are ignored');
+        clip.track.setLocked(false);
+        assert(!selected(), 'unlock does not restore stale selection');
+        tl.selectClip(clip);
+        assert(selected() === clip.id, 'unlocked clip can be selected');
+        tl.clearSelection();
+    }
+    tl.selectClip(clips[0]); tl.selectClip(clips[1], {additive: true});
+    tracks[1].setLocked(true);
+    assert(selected() === clips[0].id && tl._selected === clips[0], 'locking preserves other-track selection and moves primary');
+    clips[1].el.querySelector('.tl-clip-body').dispatchEvent(new MouseEvent('mousedown', {button: 0, ctrlKey: true, bubbles: true}));
+    window.dispatchEvent(new MouseEvent('mouseup'));
+    assert(selected() === clips[0].id, 'Ctrl click does not add locked Clip');
+    tracks[0].setLocked(true);
+    assert(!selected() && deselections > 0, 'last locked selection notifies editor to clear settings');
+    tracks.forEach(track => track.setLocked(false));
+    tl.selectClip(clips[0]);
+    const rect = tl.scrollEl.getBoundingClientRect();
+    tl._boxSelect(new MouseEvent('mousedown', {clientX: rect.left + 1, clientY: rect.top + 1}));
+    tracks[0].setLocked(true);
+    window.dispatchEvent(new MouseEvent('mousemove', {clientX: rect.right - 1, clientY: rect.bottom - 1}));
+    window.dispatchEvent(new MouseEvent('mouseup'));
+    assert(tl.getSelectedClips().length > 0 && tl.getSelectedClips().every(c => !c.track.locked), 'box selection cannot resurrect a track locked mid-gesture');
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const start = source.indexOf('    _showClipCtxMenu(');
+    const showMenu = new Function('return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '})._showClipCtxMenu')();
+    showMenu.call({}, clips[0], {});
+    assert(!tl.getSelectedClips().includes(clips[0]), 'locked context menu exits before selecting or reading edit state');
+    document.querySelector('#result').textContent = 'PASS: all track types, locked clicks, Ctrl selection, programmatic selection, lock-time deselection, preserved multi-selection, box gesture and right-click guard';
+    tl.destroy();
+} catch (error) {
+    document.querySelector('#result').textContent = 'FAIL: ' + error.stack;
+    throw error;
+}
+</script>
+</html>

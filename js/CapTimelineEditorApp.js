@@ -14900,6 +14900,7 @@ export class CapTimelineEditorApp {
     }
 
     _showClipCtxMenu(clip, e) {
+        if (clip.track.locked) return;
         const selected = this._timeline.getSelectedClips();
         if (!selected.some(c => c.id === clip.id)) {
             this._timeline.selectClip(clip);

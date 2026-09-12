@@ -777,7 +777,7 @@ export class Timeline extends EventEmitter {
       const left = Math.min(start.x, end.x), top = Math.min(start.y, end.y);
       const right = Math.max(start.x, end.x), bottom = Math.max(start.y, end.y);
       Object.assign(box.style, { left: `${left}px`, top: `${top}px`, width: `${right-left}px`, height: `${bottom-top}px` });
-      const ids = new Set(initial);
+      const ids = new Set(candidates.filter(c => !c.track.locked && initial.has(c.id)).map(c => c.id));
       for (const c of candidates) {
         if (c.track.locked) continue;
         const r = c.el.getBoundingClientRect();
@@ -839,6 +839,7 @@ export class Timeline extends EventEmitter {
   }
 
   selectClip(clip, opts = {}) {
+    if (clip?.track.locked) return;
     const additive = !!opts.additive;
 
     if (!clip) {
@@ -887,6 +888,22 @@ export class Timeline extends EventEmitter {
       track: clip.track,
       selected: this.getSelectedClips(),
     });
+  }
+
+  _deselectLockedClips() {
+    const locked = this.getSelectedClips().filter(c => c.track.locked);
+    if (!locked.length) return;
+    for (const clip of locked) {
+      this._selectedIds.delete(clip.id);
+      clip.setSelected(false);
+    }
+    const selected = this.getSelectedClips();
+    if (!selected.length) {
+      this.selectClip(null);
+      return;
+    }
+    if (this._selected?.track.locked) this._selected = selected.at(-1);
+    this.emit('clip:select', { clip: this._selected, track: this._selected?.track, selected });
   }
 
   _findClipById(clipId) {

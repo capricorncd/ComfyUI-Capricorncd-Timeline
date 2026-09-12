@@ -142,29 +142,6 @@ function parseSchemaVersion(project) {
     return Number.isInteger(n) && n >= 1 ? n : 1;
 }
 
-function splitH3ProjectPrompt(value) {
-    const text = String(value || "").replace(/^```[^\n]*\n?|```$/gm, "").trim();
-    const pattern = /^(subject_definitions|summary|retention_analysis|detailed_description|overall_soundscape|non_diegetic_music)\s*:\s*/gmi;
-    const matches = [...text.matchAll(pattern)];
-    const sections = {};
-    for (let index = 0; index < matches.length; index += 1) {
-        const match = matches[index];
-        const key = match[1].toLowerCase();
-        const start = match.index + match[0].length;
-        const end = index + 1 < matches.length ? matches[index + 1].index : text.length;
-        sections[key] = text.slice(start, end).trim();
-    }
-    const clipKeys = ["subject_definitions", "summary", "retention_analysis", "detailed_description"];
-    if (!clipKeys.every((key) => sections[key]) || !sections.detailed_description) return null;
-    const soundAndMusic = ["overall_soundscape", "non_diegetic_music"]
-        .filter((key) => sections[key])
-        .map((key) => `${key}:\n${sections[key]}`)
-        .join("\n\n");
-    return {
-        clipPrompt: clipKeys.map((key) => `${key}:\n${sections[key]}`).join("\n\n"),
-        soundAndMusic,
-    };
-}
 
 function joinPromptParts(...values) {
     const parts = [];
@@ -189,8 +166,7 @@ function legacySettingPrompt(settings, key) {
 
 function migrateProjectSettingPrompts(settings, legacyRoot = null) {
     const root = legacyRoot && legacyRoot !== settings ? legacyRoot : {};
-    settings.prepend_prompt = joinPromptParts(
-        settings.prepend_prompt,
+    if (!Object.hasOwn(settings, "prepend_prompt")) settings.prepend_prompt = joinPromptParts(
         settings.prefix_prompt,
         settings.prompt_prefix,
         legacySettingPrompt(settings, "global_prompt"),
@@ -201,8 +177,7 @@ function migrateProjectSettingPrompts(settings, legacyRoot = null) {
         legacySettingPrompt(root, "global_prompt"),
         legacySettingPrompt(root, "style_prompt"),
     );
-    settings.append_prompt = joinPromptParts(
-        settings.append_prompt,
+    if (!Object.hasOwn(settings, "append_prompt")) settings.append_prompt = joinPromptParts(
         settings.suffix_prompt,
         settings.prompt_suffix,
         legacySettingPrompt(settings, "non_diegetic_music"),
@@ -5919,9 +5894,10 @@ export class CapTimelineEditorApp {
         this._loadMediaStarsForDir();
         if (schemaVersion < 2) this._migrateProjectSchema1To2(src);
         else this._hydrateMediaCatalog(src);
-        if (schemaVersion < 3) this._migrateProjectSchema2To3(src);
-        if (schemaVersion < 4) this._migrateProjectSchema3To4(src);
-        this._normalizeH3PromptFields(src);
+        if (schemaVersion < 4) {
+            this._migrateLegacyClipPrompts(src);
+            this._migrateProjectSchema3To4(src);
+        }
         delete src.settings.prompt_concat_order;
         for (const track of src.tracks) {
             for (const clip of track?.clips || []) {
@@ -5940,56 +5916,13 @@ export class CapTimelineEditorApp {
         return src;
     }
 
-    _migrateProjectSchema2To3(project) {
+    _migrateLegacyClipPrompts(project) {
         for (const track of project.tracks || []) {
             for (const clip of track?.clips || []) {
                 if (!clip || typeof clip !== "object") continue;
-                if ("ai_prompt" in clip) {
-                    const split = splitH3ProjectPrompt(clip.ai_prompt);
-                    const legacyPrompt = split?.clipPrompt || String(clip.ai_prompt || "").trim();
-                    if (split) {
-                        this._storeH3SoundAndMusic(project, split.soundAndMusic);
-                    }
-                    clip.prompt = joinPromptParts(legacyPrompt, clip.prompt);
+                if (clip.detailed_description || clip.ai_prompt) {
+                    clip.prompt = joinPromptParts(clip.prompt, clip.detailed_description, clip.ai_prompt);
                 }
-                delete clip.ai_prompt;
-            }
-        }
-    }
-
-    _storeH3SoundAndMusic(project, text) {
-        const sound = String(text || "").trim();
-        if (!sound) return;
-        const settings = project.settings && typeof project.settings === "object" ? project.settings : (project.settings = {});
-        const current = String(settings.append_prompt || "").trim();
-        if (!current) settings.append_prompt = sound;
-        else if (!current.includes(sound)) settings.append_prompt = `${sound}\n\n${current}`;
-    }
-
-    _normalizeH3PromptFields(project) {
-        for (const track of project.tracks || []) {
-            for (const clip of track?.clips || []) {
-                if (!clip || typeof clip !== "object") continue;
-                let prompt = String(clip.prompt || "").trim();
-                const promptSplit = splitH3ProjectPrompt(prompt);
-                if (promptSplit) {
-                    prompt = promptSplit.clipPrompt;
-                    this._storeH3SoundAndMusic(project, promptSplit.soundAndMusic);
-                }
-                const legacyDetailed = String(clip.detailed_description || clip.ai_prompt || "").trim();
-                if (legacyDetailed) {
-                    const detailedSplit = splitH3ProjectPrompt(legacyDetailed);
-                    if (detailedSplit) {
-                        prompt = joinPromptParts(detailedSplit.clipPrompt, prompt);
-                        this._storeH3SoundAndMusic(project, detailedSplit.soundAndMusic);
-                    } else {
-                        const detailed = /^detailed_description\s*:/i.test(legacyDetailed)
-                            ? legacyDetailed
-                            : `detailed_description:\n${legacyDetailed}`;
-                        prompt = joinPromptParts(prompt, detailed);
-                    }
-                }
-                clip.prompt = prompt;
                 delete clip.detailed_description;
                 delete clip.ai_prompt;
             }

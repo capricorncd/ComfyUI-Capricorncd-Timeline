@@ -71,6 +71,8 @@ Open the editor from the node launcher (fullscreen shell). Edits sync back into 
 
 ### AI optimize prompt
 
+Importing, restoring and exporting Schema 4 projects preserves Clip prompts and existing global Prepend/Append prompts verbatim, without parsing or rearranging MiniMax H3 sections. Clip-local `overall_soundscape` stays in its Clip rather than being collected into the global Append prompt. Legacy field conversion also keeps Clip content out of global prompts.
+
 The last left-side tab, **Full Prompt**, is read-only and shows the same composed text used for generation: enabled global prefix → enabled asset descriptions → Clip prompt → enabled global append. It follows the inclusion controls and removes `#` comment lines; nothing is written back to the Clip prompt.
 
 Rich prompt fields: with no text selected, **Ctrl+C** copies the current logical line; pasting that line with no selection inserts it below the current line. Text copied from a selection or another application pastes at the cursor. Pasting over a selection replaces it normally. Plain-text Prompt Skill fields are unchanged.

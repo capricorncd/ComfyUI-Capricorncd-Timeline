@@ -12634,8 +12634,8 @@ export class CapTimelineEditorApp {
                 } else {
                     if (!clip.hasAudio) continue;
                     if (track.visible === false || m?.disabled) continue;
-                    if (track.muted) continue;
-        // Generated-video preview audio is scheduled separately
+                    if (track.muted || m?.muted) continue;
+                    // Generated-video preview audio is scheduled separately
                     // via Web Audio (canvas <video> stays muted).
                     if (this._clipUsesGeneratedPreview(m)) continue;
                 }
@@ -13611,6 +13611,18 @@ export class CapTimelineEditorApp {
         return track.clips.find(c => t >= c.startTime - 1e-6 && t < c.endTime + 1e-6) ?? null;
     }
 
+    _setMediaClipMuted(clip, muted) {
+        if (!clip || !isMediaTrackType(clip.track?.type) || clip.track.locked) return;
+        const meta = this._ensureClipMeta(clip);
+        if (!!meta.muted === !!muted) return;
+        this._recordUndo();
+        meta.muted = !!muted;
+        this._meta.set(clip.id, meta);
+        this._decorateClip(clip);
+        this._saveToWidgets();
+        if (this._timeline?._playing) this._startAudioPlayback();
+    }
+
     _decorateClip(clip) {
         if (!clip?.el) return;
         const m = this._ensureClipMeta(clip);
@@ -13693,6 +13705,20 @@ export class CapTimelineEditorApp {
             muteBadge.title = m.muted ? T("unmute_label") : T("mute_label");
         } else if (muteBadge) {
             muteBadge.remove();
+        }
+
+        let videoMuteBadge = clip.el.querySelector(".cat-te-video-muted-badge");
+        if (isMediaTrackType(track.type) && clip.hasAudio && (m.muted || track.muted)) {
+            if (!videoMuteBadge) {
+                videoMuteBadge = document.createElement("span");
+                videoMuteBadge.className = "cat-te-video-muted-badge";
+                videoMuteBadge.innerHTML = iconHtml("volumeOff", 14);
+                videoMuteBadge.setAttribute("role", "img");
+                videoMuteBadge.setAttribute("aria-label", T("muted_label"));
+                clip.el.appendChild(videoMuteBadge);
+            }
+        } else {
+            videoMuteBadge?.remove();
         }
 
         let badge = clip.el.querySelector(".cat-te-end-badge");
@@ -15040,11 +15066,7 @@ export class CapTimelineEditorApp {
                 { label: T("convert_to_director_clip"), fn: () => this._convertMediaClipToDirector(clip) },
                 ...(clip.hasAudio ? [{
                     label: m.muted ? T("unmute_label") : T("mute_label"),
-                    fn: () => {
-                        m.muted = !m.muted;
-                        this._meta.set(clip.id, m);
-                        this._decorateClip(clip);
-                    },
+                    fn: () => this._setMediaClipMuted(clip, !m.muted),
                 }] : []),
                 { label: m.disabled ? T("menu_enable_shortcut") : T("menu_disable_shortcut"), strike: !!m.disabled, fn: () => this._toggleDisableClip(clip) },
                 { label: T("menu_set_title"), fn: () => this._renameClip(clip) },

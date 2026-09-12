@@ -1866,6 +1866,19 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-mute-badge:hover { background: rgba(60, 60, 80, 0.85); }
 
+.cat-te-video-muted-badge {
+    position: absolute;
+    right: 10px;
+    bottom: 4px;
+    z-index: 5;
+    display: flex;
+    padding: 3px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    pointer-events: none;
+}
+
 .cat-te-multi-selection-panel {
     padding: 16px;
     line-height: 1.7;

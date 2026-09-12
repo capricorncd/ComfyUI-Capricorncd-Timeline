@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Media Clip mute</title>
+<link rel="stylesheet" href="../js/timeline/timeline.css">
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app = {};"}}</script>
+<div id="timeline" style="width:950px;height:500px"></div><pre id="result">RUNNING</pre>
+<script type="module">
+import { Timeline } from '../js/timeline/Timeline.js';
+import { normalizeVolumePoints } from '../js/timeline/AudioEnvelope.js';
+import { TimelineHistory } from '../js/editor/TimelineHistory.js';
+import { iconHtml } from '../js/cap_icons.js';
+const assert = (ok, message) => { if (!ok) throw Error(message); };
+try {
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const method = name => {
+        const start = source.indexOf('    ' + name + '(');
+        return new Function('isMediaTrackType','isDirectorTrackType','isSubtitleTrackType','isVoiceoverTrackType',
+            'isSubtitleClipMeta','isVoiceoverClipMeta','normalizeVolumePoints','T','iconHtml',
+            'return ({' + source.slice(start,source.indexOf('\n    }',start)+6) + '}).' + name)(
+            type=>type==='video',type=>type==='image',type=>type==='text',type=>type==='voiceover',
+            ()=>false,()=>false,normalizeVolumePoints,key=>key,iconHtml);
+    };
+    const tl=new Timeline(document.querySelector('#timeline'),{duration:10});
+    const track=tl.addTrack({type:'video'});
+    const clips=[0,1].map(i=>track.addClip({id:'clip'+i,name:'video'+i,startTime:i*4,duration:4,hasAudio:true}));
+    for(const clip of clips) clip._audioBuffer={};
+    const app={
+        _timeline:tl,_meta:new Map(clips.map(clip=>[clip.id,{clipType:'video',muted:false}])),
+        _ensureClipMeta(clip){return this._meta.get(clip.id);},_clipUsesGeneratedPreview:()=>false,
+        _runPreviewByClipId:new Map(),_saveToWidgets(){this.saved++;},saved:0,restarts:0,
+        _startAudioPlayback(){this.restarts++;this.audible=this._collectAudibleClips();},
+        _recordUndo(){history.record();},
+    };
+    for(const name of ['_setMediaClipMuted','_collectAudibleClips','_decorateClip']) app[name]=method(name);
+    const history=new TimelineHistory({capture:()=>structuredClone([...app._meta]),restore:snapshot=>{
+        app._meta=new Map(snapshot);clips.forEach(clip=>app._decorateClip(clip));
+    },onChange(){}});
+    assert(app._collectAudibleClips().length===2,'both initially audible');
+    tl._playing=true;
+    app._setMediaClipMuted(clips[0],true);
+    assert(app.saved===1&&app.restarts===1,'mute saves and reschedules currently playing audio');
+    assert(app.audible.length===1&&app.audible[0]===clips[1],'muted Clip omitted, other video still audible');
+    const badge=clips[0].el.querySelector('.cat-te-video-muted-badge');
+    assert(badge&&badge.querySelector('svg'),'muted video gets speaker-off icon');
+    const bounds=clips[0].el.getBoundingClientRect(),icon=badge.getBoundingClientRect();
+    assert(Math.abs(bounds.bottom-icon.bottom)<=6&&icon.right<=bounds.right&&icon.left+icon.width/2>bounds.left+bounds.width/2,'icon in lower-right of Clip');
+    assert(getComputedStyle(badge).pointerEvents==='none','status icon does not block editing gestures');
+    assert(!clips[1].el.querySelector('.cat-te-video-muted-badge'),'unmuted video has no badge');
+    app._decorateClip(clips[0]);
+    assert(clips[0].el.querySelectorAll('.cat-te-video-muted-badge').length===1,'redraw does not duplicate badge');
+    await history.undo();
+    assert(!clips[0].el.querySelector('.cat-te-video-muted-badge')&&app._collectAudibleClips().length===2,'undo restores sound state and badge');
+    await history.redo();
+    assert(clips[0].el.querySelector('.cat-te-video-muted-badge')&&app._collectAudibleClips().length===1,'redo restores mute');
+    app._setMediaClipMuted(clips[0],false);
+    assert(app.audible.length===2&&!clips[0].el.querySelector('.cat-te-video-muted-badge'),'unmute resumes sound and removes badge');
+    const saves=app.saved;
+    track.locked=true;app._setMediaClipMuted(clips[0],true);
+    assert(app.saved===saves,'locked track rejects change');track.locked=false;
+    track.muted=true;
+    assert(app._collectAudibleClips().length===0,'track mute still works');
+    track.muted=false;track.visible=false;
+    assert(app._collectAudibleClips().length===0,'hidden track stays silent');
+    track.visible=true;app._meta.get(clips[0].id).disabled=true;
+    assert(app._collectAudibleClips().length===1,'disabled clip stays silent');
+    tl._playing=false;
+    document.querySelector('#result').textContent='PASS: media mute playback filtering, rescheduling, undo/redo, persistence, icon placement and guards';
+}catch(error){document.querySelector('#result').textContent='FAIL: '+error.stack;}
+</script>

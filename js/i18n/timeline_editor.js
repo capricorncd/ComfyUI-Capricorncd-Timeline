@@ -1238,7 +1238,7 @@ export const DICT = {
         clear_links_btn: "清除关联",
         confirm_clear_generated_video_links: "确定清除 {clips} 个导演 Clip 的 {videos} 条生成视频关联？包含锁定及禁用的 Clip。不删除磁盘视频文件，不影响参考素材和已分离的音频，Clip 起止时间保持不变。可按 Ctrl+Z 撤销。",
         workflow_run_preview: "运行与预览",
-        workflow_run_queue: "运行（加入队列）",
+        workflow_run_queue: "加入运行队列",
         workflow_run_not_queued: "已取消运行或未加入队列。",
         workflow_preview_no_video: "任务已结束，未收到已保存的视频。请检查当前工作流的视频保存节点。",
         workflow_stop: "中止本次任务",

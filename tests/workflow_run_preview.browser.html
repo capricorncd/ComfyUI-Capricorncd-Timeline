@@ -38,7 +38,7 @@ try {
     e._syncWorkflowRunButton();
     assert(e.aiRunBtn.textContent.includes('运行与预览'), 'idle label');
     e._workflowQueueRemaining = 1; e._syncWorkflowRunButton();
-    assert(e.aiRunBtn.textContent.includes('加入队列'), 'busy label');
+    assert(e.aiRunBtn.textContent.includes('加入运行队列'), 'busy label');
     e._workflowQueueRemaining = 0;
     e._workflowPreview = {clipId: 'clip', promptId: 'own', active: true, status: '采样 1 / 4', entry: null};
     e._setAiOptimizeRightTab('preview'); e._syncWorkflowRunButton();

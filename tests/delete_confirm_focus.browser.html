@@ -1,0 +1,60 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Nested delete confirmation focus</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<div id="overlay" class="cat-te-overlay open" tabindex="-1">
+    <div class="cat-te-modal-backdrop" id="parent" hidden>
+        <div class="cat-te-modal"><div class="cat-te-modal-header">Generated videos<cap-button class="cat-te-modal-close">X</cap-button></div>
+            <cap-button id="delete">Delete Clip</cap-button>
+        </div>
+    </div>
+</div>
+<pre id="result">RUNNING</pre>
+<script type="module">
+import { bindDialogDrag, bindDialogResize, resetDialogPosition } from '../js/components/Dialog.js';
+import { iconHtml } from '../js/cap_icons.js';
+const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+const assert = (value, message) => { if (!value) throw Error(message); };
+try {
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const start = source.indexOf('<div class="cat-te-modal-backdrop cat-te-media-delete-modal"');
+    const markup = source.slice(start, source.indexOf('<div class="cat-te-modal-backdrop cat-te-track-convert-modal"', start));
+    const overlay = document.querySelector('#overlay');
+    overlay.insertAdjacentHTML('beforeend', new Function('T', 'iconHtml', 'return `' + markup + '`;')(key => key, iconHtml));
+    const modal = overlay.querySelector('.cat-te-media-delete-modal');
+    const cancel = modal.querySelector('.cat-te-media-delete-cancel');
+    const close = modal.querySelector('.cat-te-modal-close');
+    const parent = document.querySelector('#parent');
+    const app = {
+        _overlay: overlay, _timeline: {}, mediaDeleteModal: modal,
+        mediaDeleteMessage: modal.querySelector('.cat-te-media-delete-message'),
+    };
+    const method = name => {
+        const index = source.indexOf('    ' + name + '(');
+        return new Function('bindDialogDrag', 'bindDialogResize', 'resetDialogPosition', 'T',
+            'return ({' + source.slice(index, source.indexOf('\n    }', index) + 6) + '}).' + name)(
+            bindDialogDrag, bindDialogResize, resetDialogPosition, key => key);
+    };
+    for (const name of ['_bindModalInteractions', '_openDeleteConfirm', '_closeMediaDeleteModal']) app[name]=method(name);
+    app._bindModalInteractions();
+    cancel.addEventListener('click', () => app._closeMediaDeleteModal());
+    let deleted = false;
+    document.querySelector('#delete').addEventListener('click', () => app._openDeleteConfirm('Delete one Clip?', () => {deleted=true;}));
+    parent.hidden = false;
+    await tick();
+    assert(modal.inert, 'closed confirmation is inert behind the parent modal');
+    for (let i=0; i<2; i++) {
+        document.querySelector('#delete').click();
+        await tick();
+        assert(document.activeElement===cancel, 'nested confirmation focuses cancel after inert is cleared');
+        assert(!close.shadowRoot.querySelector('button').matches(':focus-visible'), 'X does not show initial focus ring');
+        assert(parent.inert && !modal.inert, 'nested dialog owns interaction');
+        cancel.click(); await tick();
+        assert(modal.hidden && !parent.inert && !deleted, 'cancel restores parent without deleting');
+    }
+    parent.hidden = true; await tick();
+    app._openDeleteConfirm('Delete?', () => {deleted=true;}); await tick();
+    assert(document.activeElement===cancel, 'standalone delete confirmation also defaults to cancel');
+    document.querySelector('#result').textContent='PASS: nested/reopened/standalone deletion focuses Cancel; X focus ring and background ownership correct';
+} catch(error) {document.querySelector('#result').textContent='FAIL: '+error.stack;}
+</script>

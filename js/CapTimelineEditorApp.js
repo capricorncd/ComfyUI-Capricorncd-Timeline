@@ -4215,7 +4215,7 @@ export class CapTimelineEditorApp {
               <div class="cat-te-modal-body">
                 <div class="cat-te-media-delete-message"></div>
                 <div class="cat-te-confirm-actions">
-                  <cap-button class="cat-te-media-delete-cancel">${T("cancel_btn")}</cap-button>
+                  <cap-button class="cat-te-media-delete-cancel" autofocus>${T("cancel_btn")}</cap-button>
                   <cap-button variant="danger" class="cat-te-media-delete-confirm">${T("delete_btn")}</cap-button>
                 </div>
               </div>
@@ -10292,7 +10292,11 @@ export class CapTimelineEditorApp {
             if (this._timeline) this._timeline._keyboardSuspended = !!this._blockingModal;
             if (previous !== this._blockingModal && !this._overlay.querySelector("dialog[open], cap-dialog[open][modal]")) {
                 if (this._blockingModal) {
-                    if (!this._blockingModal.contains(document.activeElement)) this._blockingModal.querySelector(".cat-te-modal-close")?.focus();
+                    if (!this._blockingModal.contains(document.activeElement)) {
+                        const initialFocus = this._blockingModal.querySelector("[autofocus]")
+                            || this._blockingModal.querySelector(".cat-te-modal-close");
+                        initialFocus?.focus({ preventScroll: true });
+                    }
                 } else if (previous) this._overlay.focus();
             }
         };
@@ -14892,7 +14896,6 @@ export class CapTimelineEditorApp {
         if (this.mediaDeleteTitle) this.mediaDeleteTitle.textContent = title;
         this.mediaDeleteMessage.textContent = message;
         this.mediaDeleteModal.hidden = false;
-        this.mediaDeleteModal.querySelector(".cat-te-media-delete-cancel")?.focus();
     }
 
     _closeMediaDeleteModal() {

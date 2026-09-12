@@ -3684,6 +3684,8 @@ export class CapTimelineEditorApp {
               <div class="cat-te-media-preview-footer">
                 <span class="cat-te-media-preview-hint">${T("media_preview_hint")}</span>
                 <div class="cat-te-media-preview-actions">
+                  <cap-button class="cat-te-media-preview-replace">${T("replace_material_label")}</cap-button>
+                  <cap-button class="cat-te-media-preview-insert-clip">${T("insert_into_selected_clips")}</cap-button>
                   <cap-button variant="primary" class="cat-te-media-preview-insert">${T("insert_at_position_btn")}</cap-button>
                 </div>
               </div>
@@ -4457,6 +4459,8 @@ export class CapTimelineEditorApp {
         this.mediaPreviewPrevBtn = el.querySelector(".cat-te-media-preview-nav.prev");
         this.mediaPreviewNextBtn = el.querySelector(".cat-te-media-preview-nav.next");
         this.mediaPreviewInsertBtn = el.querySelector(".cat-te-media-preview-insert");
+        this.mediaPreviewReplaceBtn = el.querySelector(".cat-te-media-preview-replace");
+        this.mediaPreviewInsertClipBtn = el.querySelector(".cat-te-media-preview-insert-clip");
         this.mediaPreviewFooter = el.querySelector(".cat-te-media-preview-footer");
         this.mediaPreviewHint = el.querySelector(".cat-te-media-preview-hint");
         this.mediaGenerationPrompt = el.querySelector(".cat-te-media-generation-prompt");
@@ -4730,6 +4734,8 @@ export class CapTimelineEditorApp {
             e.stopPropagation();
             void this._insertMediaPreviewAtSeek();
         });
+        this.mediaPreviewReplaceBtn?.addEventListener("click", () => this._replaceMediaPreviewMaterial());
+        this.mediaPreviewInsertClipBtn?.addEventListener("click", () => this._insertMediaPreviewIntoClips());
         this.mediaPreviewBody?.addEventListener("mousedown", (e) => {
             if (this.mediaPreviewModal.hidden) return;
             if (this._mediaPreviewState?.browse === false) return;
@@ -11065,9 +11071,9 @@ export class CapTimelineEditorApp {
         if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
     }
 
-    _insertItemIntoClip(clip, file, kind) {
+    _insertItemIntoClip(clip, file, kind, recordUndo = true) {
         if (!clip || !file || clip.track?.locked || clip.track?.type === "audio") return;
-        this._recordUndo();
+        if (recordUndo) this._recordUndo();
         const m = this._ensureClipMeta(clip);
         this._normalizeVisualMeta(clip, m);
         const media = this._ensureMedia(kind === "video" ? "video" : "image", file);
@@ -13891,13 +13897,39 @@ export class CapTimelineEditorApp {
             this.mediaPreviewNextBtn.hidden = !multi;
             this.mediaPreviewNextBtn.disabled = !multi;
         }
-        if (this.mediaPreviewFooter) this.mediaPreviewFooter.hidden = !libraryBrowse;
+        if (this.mediaPreviewFooter) this.mediaPreviewFooter.hidden = !browse || !this._mediaPreviewItem();
         if (this.mediaPreviewHint) this.mediaPreviewHint.hidden = !libraryBrowse;
-        if (this.mediaPreviewInsertBtn) this.mediaPreviewInsertBtn.hidden = !libraryBrowse;
+        if (this.mediaPreviewInsertBtn) this.mediaPreviewInsertBtn.hidden = !browse;
 
-        if (libraryBrowse) {
+        if (browse) {
             this._updateMediaPreviewInsertBtn();
         }
+    }
+
+    _mediaPreviewClipTargets() {
+        const item = this._mediaPreviewItem();
+        if (!item || !["image", "video"].includes(item.kind)
+            || this._mediaPreviewState?.browse === false
+            || this._mediaStatus.get(`${item.kind}:${item.file}`)?.location === "missing") return [];
+        return (this._timeline?.getSelectedClips() || []).filter(clip => !clip.track.locked
+            && (isDirectorTrackType(clip.track.type) || isMediaTrackType(clip.track.type)));
+    }
+
+    _insertMediaPreviewIntoClips() {
+        const targets = this._mediaPreviewClipTargets();
+        if (!targets.length) return;
+        const { file, kind } = this._mediaPreviewItem();
+        this._saveMediaPreviewMeta();
+        this._recordUndo();
+        for (const clip of targets) this._insertItemIntoClip(clip, file, kind, false);
+        this._scheduleProgramPreview();
+    }
+
+    _replaceMediaPreviewMaterial() {
+        const item = this._mediaPreviewItem();
+        if (!item || this._mediaPreviewState?.browse === false) return;
+        this._saveMediaPreviewMeta();
+        this._chooseMaterialFile({ file: item.file, kind: item.kind });
     }
 
     _updateMediaPreviewInsertBtn() {
@@ -13905,6 +13937,14 @@ export class CapTimelineEditorApp {
         const state = this._mediaPreviewState;
         if (!btn || state?.browse === false) return;
         const item = this._mediaPreviewItem();
+        if (this.mediaPreviewReplaceBtn) this.mediaPreviewReplaceBtn.disabled = !item;
+        if (this.mediaPreviewInsertClipBtn) {
+            const targets = this._mediaPreviewClipTargets();
+            this.mediaPreviewInsertClipBtn.disabled = !targets.length;
+            this.mediaPreviewInsertClipBtn.title = targets.length
+                ? T("insert_into_selected_clips_count", { count: targets.length })
+                : T("insert_into_selected_clips_hint");
+        }
         if (!item || !this._timeline) {
             btn.disabled = true;
             btn.title = "";
@@ -14734,6 +14774,12 @@ export class CapTimelineEditorApp {
         }
         this._swapMediaListEntry(oldFile, newFile, kind);
         this._writeMediaMeta(kind, newFile, this._getMediaMeta(kind, newFile));
+        const preview = this._mediaPreviewState;
+        if (preview?.items?.some(item => item.kind === kind && item.file === oldFile)) {
+            preview.items = preview.items.map(item => item.kind === kind && item.file === oldFile
+                ? { ...item, file: newFile } : item);
+            this._showMediaPreviewAt(preview.index);
+        }
     }
 
     /** Remove one library media from project/timeline lists. Returns whether disk delete is needed. */
@@ -16452,6 +16498,7 @@ export class CapTimelineEditorApp {
         tl.on("clip:select", ({ selected }) => {
             this._selClips = selected ?? tl.getSelectedClips();
             this._syncSelectedClip();
+            this._updateMediaPreviewInsertBtn();
             // Do not focus the overlay here: focus during clip mousedown aborts
             // the mouse sequence and can leave drag listeners stuck, which then
             // eat sidebar clicks (settings look dead, drag feels broken).
@@ -16470,6 +16517,7 @@ export class CapTimelineEditorApp {
         tl.on("clip:deselect", () => {
             this._selClip = null;
             this._selClips = [];
+            this._updateMediaPreviewInsertBtn();
             this._updatePromptPanel();
         });
         tl.on("clip:remove", ({ clipId, trackId }) => {

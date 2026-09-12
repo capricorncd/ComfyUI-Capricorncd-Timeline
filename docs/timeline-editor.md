@@ -23,6 +23,7 @@ Open the editor from the node launcher (fullscreen shell). Edits sync back into 
 - Drag media onto the timeline, or right-click / insert at the playhead
 - Star ratings and star filters for media bookmarks
 - Double-click / preview modal for inspection
+- The preview footer offers **Replace Material** (choose a same-type file, preview, confirm; updates project references without deleting the original), **Insert into Current Clip** (append an image/video to selected unlocked director/media Clips, including multi-selection; one undo step), and **Insert at Current Position** (create a Clip at the playhead, including audio).
 - Add media via the upload dialog (writes into `input`; no assets directory)
 
 ### Preview / Timeline (center)

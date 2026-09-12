@@ -625,7 +625,8 @@ body.cat-te-row-resize * {
     justify-content: flex-end;
     flex-wrap: wrap;
     gap: 8px;
-    flex-shrink: 0;
+    min-width: 0;
+    margin-left: auto;
 }
 
 .cat-te-media-preview-content {
@@ -647,10 +648,6 @@ body.cat-te-row-resize * {
 
 .cat-te-media-preview-solo .cat-te-media-preview-nav {
     display: none;
-}
-
-.cat-te-media-preview-solo .cat-te-media-preview-footer {
-    display: none !important;
 }
 
 .cat-te-media-preview-solo .cat-te-media-preview-stage {

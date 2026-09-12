@@ -68,15 +68,17 @@ function fixture() {
   const mutedClasses=new Set();
   clips[2].el={classList:{toggle(name,on){if(on) mutedClasses.add(name); else mutedClasses.delete(name);}}};
   tracks[2].setMuted=function(value){this.muted=value;};
+  st.audioDraft.push({id:'other-audio',muted:false});
   method('_setupGenEditAudioTrackControls').call(app,tracks[2]);
   const mute=tracks[2].actionsEl.children[2];
   mute.handlers.click({stopPropagation(){}});
   assert.equal(st.audioDraft[0].muted,true);
+  assert.equal(st.audioDraft[1].muted,false,'muting one track leaves other audio tracks audible');
   assert(mutedClasses.has('cat-te-clip-muted'),'mute uses the main timeline grayscale class');
   mute.handlers.click({stopPropagation(){}});
   assert.equal(st.audioDraft[0].muted,false);
   assert(!mutedClasses.has('cat-te-clip-muted'),'unmute restores the clip color');
-  assert.match(source,/c\.el\.classList\.toggle\("cat-te-clip-muted", aTrack\.muted \|\| row\.muted === true\)/,
+  assert.match(source,/c\.el\.classList\.toggle\("cat-te-clip-muted", aTrack\.muted\)/,
     'rebuilding the dialog preserves muted styling');
 }
 {

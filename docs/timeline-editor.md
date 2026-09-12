@@ -104,6 +104,8 @@ Attach ComfyUI `output/` MP4s to a visual clip (context menu **Add generated vid
 
 Compose Video layers enabled generated videos in their saved subtrack order, using each video's edit offset and trim range within its parent Clip. All unmuted enabled video audio is mixed, including visually covered layers, along with detached audio.
 
+In the generated-video editor, each detached audio clip has its own track with independent mute, volume envelope and deletion. Reopening also separates previously overlapping audio rows without changing their timing or source offsets.
+
 In **Trim Video**, remove a video association with the track's trash button or its header context menu. Locked tracks cannot be removed. Confirmation explicitly states that the disk file is kept; removing the last video closes the trim dialog.
 
 ## Compose export settings

@@ -1,0 +1,53 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Detached generated audio tracks</title>
+<link rel="stylesheet" href="../js/timeline/timeline.css">
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app = {};"}}</script>
+<div id="timeline" style="width:950px;height:500px"></div><pre id="result">RUNNING</pre>
+<script type="module">
+import { Timeline } from '../js/timeline/Timeline.js';
+import { normalizeVolumePoints } from '../js/timeline/AudioEnvelope.js';
+import '../js/components/Button.js';
+const assert = (ok, message) => { if (!ok) throw Error(message); };
+try {
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const method = name => {
+        const start = source.indexOf('    ' + name + '(');
+        return new Function('Timeline', 'TRACK_HEIGHT', 'T', 'normalizeVolumePoints', 'ICONS',
+            'return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '}).' + name)(
+            Timeline, 78, key => key, normalizeVolumePoints, {});
+    };
+    const rows = [0,1,2].map(i => ({id:'a'+i,file:'video'+i+'.wav',from_gen_id:'g'+i,
+        edit_start_sec:0,duration:5+i,source_offset:i,source_duration:12,muted:i===1,
+        volume_points:[{time:0,volume:1},{time:2,volume:.5}]}));
+    const st = {draft:[],audioDraft:structuredClone(rows)};
+    const app = {
+        _genEditState:st, genEditTlHost:document.querySelector('#timeline'), getFps:()=>24,
+        _genEditParentDuration:()=>8, _genEditTimelineDuration:()=>10,
+        _destroyGenEditTimeline(){st.timeline?.destroy();},
+        _setupGenEditTrackDeleteMenu(){}, _audioUrl:()=>'',
+        _syncGenEditOutOfBoundsUI(){},_applyGenEditChanges(){},_scheduleGenEditPreview(){},
+        _syncGenEditInspector(){},_stopGenEditAudioPlayback(){},_pauseUnusedPreviewVideos(){},
+    };
+    for (const name of ['_buildGenEditTimeline','_setupGenEditAudioTrackControls','_pullGenEditDraftFromTimeline']) app[name]=method(name);
+    app._buildGenEditTimeline();
+    let tracks=st.timeline.tracks;
+    assert(tracks.length===3 && tracks.every(t=>t.clips.length===1),'each detached source receives its own track');
+    assert(tracks[0].clips[0].el.getBoundingClientRect().top < tracks[1].clips[0].el.getBoundingClientRect().top,'overlapping audio is visually separated');
+    for (let i=0;i<3;i++) {
+        assert(tracks[i].muted===(i===1),'initial mute stays per row');
+        assert(tracks[i].clips[0].startTime===0 && tracks[i].clips[0].sourceOffset===i,'source offset and placement unchanged');
+    }
+    tracks[0].actionsEl.children[2].click();
+    assert(st.audioDraft[0].muted && st.audioDraft[1].muted && !st.audioDraft[2].muted,'mute affects only chosen track');
+    assert(!tracks[2].clips[0].el.classList.contains('cat-te-clip-muted'),'other waveforms stay enabled');
+    app._pullGenEditDraftFromTimeline();
+    assert(st.audioDraft.every((row,i)=>row.from_gen_id===rows[i].from_gen_id && row.duration===rows[i].duration),'saving keeps associations/durations');
+    const saved=structuredClone(st.audioDraft);
+    app._buildGenEditTimeline();
+    app._pullGenEditDraftFromTimeline();
+    assert(JSON.stringify(st.audioDraft)===JSON.stringify(saved),'reopening preserves independent tracks, envelopes and mute');
+    assert(st.timeline.tracks.length===3,'old overlapping rows also rebuild as separate tracks');
+    document.querySelector('#result').textContent='PASS: detached audio independent tracks, layout, mute, timing, source offsets, envelopes and reopen';
+} catch(error) {document.querySelector('#result').textContent='FAIL: '+error.stack;}
+</script>

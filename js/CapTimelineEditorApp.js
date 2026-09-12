@@ -8530,52 +8530,49 @@ export class CapTimelineEditorApp {
         // Detached audio lives only in this modal (not the main timeline).
         st.audioMap = new Map();
         const audioRows = Array.isArray(st.audioDraft) ? st.audioDraft : [];
-        if (audioRows.length) {
+        for (const row of audioRows) {
+            if (!row?.file) continue;
             const aTrack = tl.addTrack({
                 type: "audio",
-                name: T("audio_track_name"),
+                name: row.file.split(/[\\/]/).pop() || T("audio_track_name"),
                 height: TRACK_HEIGHT,
             });
             aTrack.height = TRACK_HEIGHT;
             aTrack.el.style.height = `${TRACK_HEIGHT}px`;
             aTrack.headerEl.style.height = `${TRACK_HEIGHT}px`;
-            // Track-level mute (same as main timeline); draft rows share it.
-            if (audioRows.some((r) => r.muted === true)) aTrack.setMuted(true);
+            aTrack.setMuted(row.muted === true);
             this._setupGenEditAudioTrackControls(aTrack);
-            for (const row of audioRows) {
-                if (!row?.file) continue;
-                const startSec = Math.max(0, Number(row.edit_start_sec) || 0);
-                const dur = Math.max(0.05, Number(row.duration) || 0.05);
-                const srcOff = Math.max(0, Number(row.source_offset) || 0);
-                const url = this._audioUrl(row.file) || "";
-                const c = aTrack.addClip({
-                    name: (row.file || "").split(/[\\/]/).pop() || T("audio_track_name"),
-                    startTime: startSec,
-                    duration: dur,
-                    sourceOffset: srcOff,
-                    sourceDuration: Number.isFinite(Number(row.source_duration)) && row.source_duration > 0
-                        ? row.source_duration
-                        : Infinity,
-                    src: row.file,
-                    color: aTrack.color || "#6a9a6a",
-                });
-                if (c) {
-                    st.audioMap.set(c.id, row.id);
-                    c.el.dataset.audioId = row.id;
-                    c.el.classList.toggle("cat-te-clip-muted", aTrack.muted || row.muted === true);
-                    c.hasAudio = true;
-                    c.audioEnvelope.points = normalizeVolumePoints(row.volume_points);
-                    c.audioEnvelope.render();
-                    // Waveform optional — load async without blocking.
-                    if (url) {
-                        void this._fetchPeaks(url).then((r) => {
-                            if (!c.el?.isConnected) return;
-                            c.waveformPeaks = r.peaks?.[0] || null;
-                            c._audioBuffer = r.buffer || null;
-                            c.sourceDuration = r.duration || c.sourceDuration;
-                            if (typeof c._refreshWaveRow === "function") c._refreshWaveRow();
-                        }).catch(() => {});
-                    }
+            const startSec = Math.max(0, Number(row.edit_start_sec) || 0);
+            const dur = Math.max(0.05, Number(row.duration) || 0.05);
+            const srcOff = Math.max(0, Number(row.source_offset) || 0);
+            const url = this._audioUrl(row.file) || "";
+            const c = aTrack.addClip({
+                name: (row.file || "").split(/[\\/]/).pop() || T("audio_track_name"),
+                startTime: startSec,
+                duration: dur,
+                sourceOffset: srcOff,
+                sourceDuration: Number.isFinite(Number(row.source_duration)) && row.source_duration > 0
+                    ? row.source_duration
+                    : Infinity,
+                src: row.file,
+                color: aTrack.color || "#6a9a6a",
+            });
+            if (c) {
+                st.audioMap.set(c.id, row.id);
+                c.el.dataset.audioId = row.id;
+                c.el.classList.toggle("cat-te-clip-muted", aTrack.muted);
+                c.hasAudio = true;
+                c.audioEnvelope.points = normalizeVolumePoints(row.volume_points);
+                c.audioEnvelope.render();
+                // Waveform optional — load async without blocking.
+                if (url) {
+                    void this._fetchPeaks(url).then((r) => {
+                        if (!c.el?.isConnected) return;
+                        c.waveformPeaks = r.peaks?.[0] || null;
+                        c._audioBuffer = r.buffer || null;
+                        c.sourceDuration = r.duration || c.sourceDuration;
+                        if (typeof c._refreshWaveRow === "function") c._refreshWaveRow();
+                    }).catch(() => {});
                 }
             }
         }
@@ -8838,7 +8835,10 @@ export class CapTimelineEditorApp {
                     track.setMuted(!track.muted);
                     const muted = track.muted === true;
                     if (st?.audioDraft) {
-                        for (const row of st.audioDraft) row.muted = muted;
+                        const ids = new Set(track.clips.map(clip => st.audioMap.get(clip.id)));
+                        for (const row of st.audioDraft) {
+                            if (ids.has(row.id)) row.muted = muted;
+                        }
                     }
                     for (const clip of track.clips) {
                         clip.el.classList.toggle("cat-te-clip-muted", muted);
@@ -9403,9 +9403,8 @@ export class CapTimelineEditorApp {
         const token = (st._audioPlayToken = (st._audioPlayToken || 0) + 1);
 
         const jobs = [];
-        const audioTrackMuted = (tl.tracks || []).some((t) => t.type === "audio" && t.muted);
         for (const row of st.audioDraft || []) {
-            if (audioTrackMuted || row.muted === true || !row.file) continue;
+            if (row.muted === true || !row.file) continue;
             const start = Math.max(0, Number(row.edit_start_sec) || 0);
             const end = Math.min(clipDur, start + Math.max(0.05, Number(row.duration) || 0.05));
             if (end <= startPlayhead + 1e-6) continue;

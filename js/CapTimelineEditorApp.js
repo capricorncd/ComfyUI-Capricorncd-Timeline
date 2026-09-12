@@ -3986,7 +3986,7 @@ export class CapTimelineEditorApp {
                     <cap-tab-button variant="ghost" class="cat-te-ai-tab cat-te-ai-source-tab" data-source-tab="final">${T("full_prompt_tab")}</cap-tab-button>
                   </div>
                   <div class="cat-te-ai-source-editor">
-                    <textarea class="cat-te-ai-src-text"></textarea>
+                    <textarea class="cat-te-ai-src-text" autofocus></textarea>
                   </div>
                   <div class="cat-te-ai-resource-pane" hidden>
                     <cap-media-carousel class="cat-te-ai-resource-preview" previous-label="${T("prev_material")}" next-label="${T("next_material")}">

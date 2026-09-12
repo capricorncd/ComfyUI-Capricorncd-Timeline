@@ -55,6 +55,21 @@ try {
     parent.hidden = true; await tick();
     app._openDeleteConfirm('Delete?', () => {deleted=true;}); await tick();
     assert(document.activeElement===cancel, 'standalone delete confirmation also defaults to cancel');
-    document.querySelector('#result').textContent='PASS: nested/reopened/standalone deletion focuses Cancel; X focus ring and background ownership correct';
+    app._closeMediaDeleteModal(); await tick();
+    const promptStart = source.indexOf('<div class="cat-te-modal-backdrop cat-te-ai-optimize-modal"');
+    const promptMarkup = source.slice(promptStart, source.indexOf('<div class="cat-te-ai-resource-pane"', promptStart)) + '</div></div></div></div></div>';
+    overlay.insertAdjacentHTML('beforeend', new Function('T', 'iconHtml', 'return `' + promptMarkup + '`;')(key => key, iconHtml));
+    const promptModal = overlay.querySelector('.cat-te-ai-optimize-modal');
+    const promptInput = promptModal.querySelector('.cat-te-ai-src-text');
+    app._modalObserver.disconnect();
+    app._bindModalInteractions();
+    for (const nested of [false, true]) {
+        parent.hidden = !nested; await tick();
+        promptModal.hidden = false; await tick();
+        assert(document.activeElement===promptInput, 'prompt manager initially focuses its editor, including nested opening');
+        assert(!promptModal.querySelector('.cat-te-modal-close').shadowRoot.querySelector('button').matches(':focus-visible'), 'prompt-manager close is not highlighted');
+        promptModal.hidden = true; await tick();
+    }
+    document.querySelector('#result').textContent='PASS: confirmation focuses Cancel; prompt manager focuses editor on standalone/nested opening and reopen';
 } catch(error) {document.querySelector('#result').textContent='FAIL: '+error.stack;}
 </script>

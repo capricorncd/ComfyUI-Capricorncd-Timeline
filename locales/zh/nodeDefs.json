@@ -368,6 +368,14 @@
   "CAP_ComposeClipVideos": {
     "display_name": "多段视频合成",
     "inputs": {
+      "audio": {
+        "name": "音频",
+        "tooltip": "可选。从合成视频开头播放，过长裁剪、过短补静音。开启原视频音频时与其混音，否则仅使用此音频。"
+      },
+      "use_original_audio": {
+        "name": "使用原视频的音频",
+        "tooltip": "默认开启。关闭后忽略所有片段的原声；未接入音频时输出无声视频。"
+      },
       "data_json": {
         "name": "配置数据"
       },

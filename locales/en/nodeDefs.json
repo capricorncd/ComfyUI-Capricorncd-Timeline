@@ -368,6 +368,14 @@
   "CAP_ComposeClipVideos": {
     "display_name": "Compose Clip Videos",
     "inputs": {
+      "audio": {
+        "name": "Audio",
+        "tooltip": "Optional. Plays from the start, padded or trimmed to video length. Mixed with original audio when enabled, otherwise used alone."
+      },
+      "use_original_audio": {
+        "name": "Use Original Video Audio",
+        "tooltip": "Enabled by default. Disable to ignore source audio; without an audio input, exports a silent video."
+      },
       "data_json": {
         "name": "Data JSON"
       },

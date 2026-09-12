@@ -368,6 +368,14 @@
   "CAP_ComposeClipVideos": {
     "display_name": "複数動画を合成",
     "inputs": {
+      "audio": {
+        "name": "音声",
+        "tooltip": "任意。合成動画の先頭から再生し、長ければカット、短ければ無音で補います。元の音声が有効ならミックス、無効ならこの音声のみ使用します。"
+      },
+      "use_original_audio": {
+        "name": "元の動画の音声を使用",
+        "tooltip": "既定で有効。無効にすると元の音声を除外し、音声入力がなければ無音動画を出力します。"
+      },
       "data_json": {
         "name": "データ JSON"
       },

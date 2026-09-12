@@ -15,7 +15,7 @@ import folder_paths
 from .cap_i18n import get_last_known_lang, t as _t
 from .cap_data_json_parser import CAP_DataJsonClipParser
 from .cap_save_sidecar import build_sidecar_payload, clip_prompts_from_data_json, sidecar_path, write_sidecar
-from .cap_seq_to_video import _ffmpeg_path
+from .cap_seq_to_video import _ffmpeg_path, _write_audio_tmp
 from .h3_timing import timing_from_filename, trim_h3_video
 from .cap_video_metadata import embed_video_generation, read_video_generation
 
@@ -222,6 +222,15 @@ class CAP_ComposeClipVideos:
                     "tooltip": "Write a same-named JSON next to the composed video recording each clip's prompt, model, etc.",
                 }),
             },
+            "optional": {
+                "audio": ("AUDIO", {"tooltip": "Audio starting at the beginning of the composed video. Mixed with original audio when enabled; padded or trimmed to video length."}),
+                "use_original_audio": ("BOOLEAN", {
+                    "default": True,
+                    "label_on": "Use original audio",
+                    "label_off": "Ignore original audio",
+                    "tooltip": "Include audio from source videos. Disable to use only the optional audio input, or export a silent video when disconnected.",
+                }),
+            },
             "hidden": {
                 "prompt": "PROMPT",
                 "extra_pnginfo": "EXTRA_PNGINFO",
@@ -236,6 +245,7 @@ class CAP_ComposeClipVideos:
     DESCRIPTION = (
         "Compose data_json clip output_video files in list order into one MP4. "
         "Trim repeated motion context and explicit extends, preserving continuation tails. "
+        "Optionally mix an AUDIO input with the original sound, or replace it. "
         "When save_sidecar is true, write a same-name JSON next to the video."
     )
 
@@ -415,16 +425,38 @@ class CAP_ComposeClipVideos:
         if ss is not None and ss > 0:
             cmd += ["-ss", f"{ss:.6f}"]
         cmd += ["-i", _ffmpeg_path(src)]
+        source_audio = keep_audio and _probe_has_audio(src)
+        if keep_audio and not source_audio:
+            cmd += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
         if duration is not None and duration > 0:
             cmd += ["-t", f"{duration:.6f}"]
-        cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p"]
-        if keep_audio and _probe_has_audio(src):
-            cmd += ["-c:a", "aac", "-b:a", "192k"]
+        cmd += ["-map", "0:v:0", "-c:v", "libx264", "-pix_fmt", "yuv420p"]
+        if keep_audio:
+            cmd += ["-map", "0:a:0" if source_audio else "1:a:0",
+                    "-af", "aresample=48000,aformat=channel_layouts=stereo,apad",
+                    "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "-shortest"]
         else:
             cmd += ["-an"]
         cmd.append(_ffmpeg_path(dst))
         log.info("[CAP_ComposeClipVideos] normalize: %s", " ".join(cmd))
         _run_ffmpeg(cmd)
+
+    def _merge_audio(self, video_path: str, audio_path: str, output_path: str, keep_audio: bool) -> None:
+        provided = "[1:a:0]aresample=48000,aformat=channel_layouts=stereo"
+        if keep_audio:
+            filters = (
+                provided + "[provided];"
+                "[0:a:0][provided]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,"
+                "alimiter=limit=0.95:level=0:latency=1,apad[aout]"
+            )
+        else:
+            filters = provided + ",apad[aout]"
+        _run_ffmpeg([
+            "ffmpeg", "-y", "-i", _ffmpeg_path(video_path), "-i", _ffmpeg_path(audio_path),
+            "-filter_complex", filters, "-map", "0:v:0", "-map", "[aout]",
+            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+            "-shortest", "-movflags", "+faststart", _ffmpeg_path(output_path),
+        ])
 
     def _build_output_path(self, filename_prefix: str) -> tuple[str, str, str]:
         output_dir = os.path.abspath(folder_paths.get_output_directory())
@@ -451,6 +483,8 @@ class CAP_ComposeClipVideos:
         save_sidecar: bool = True,
         prompt=None,
         extra_pnginfo=None,
+        audio=None,
+        use_original_audio: bool = True,
     ):
         if not shutil.which("ffmpeg"):
             raise RuntimeError(_t("ffmpeg_not_found", get_last_known_lang()))
@@ -488,14 +522,19 @@ class CAP_ComposeClipVideos:
         if not sources:
             raise ValueError(_t("no_clips_to_compose", get_last_known_lang()))
 
-        keep_audio = all(_probe_has_audio(path) for _, _, path in sources)
+        keep_audio = bool(use_original_audio) and any(_probe_has_audio(path) for _, _, path in sources)
 
         output_filename, subfolder, output_path = self._build_output_path(filename_prefix)
         tmp_dir = tempfile.mkdtemp(prefix="cap_compose_clips_")
         concat_list = None
+        audio_tmp = None
         segment_paths: list[str] = []
 
         try:
+            if audio is not None:
+                audio_tmp = _write_audio_tmp(audio)
+                if not audio_tmp:
+                    raise ValueError("Compose Clip Videos: audio input is empty or invalid.")
             for order, (clip, index, src) in enumerate(sources):
                 if trim_extends and clip.get("playback_spans"):
                     for part, span in enumerate(clip["playback_spans"]):
@@ -534,22 +573,30 @@ class CAP_ComposeClipVideos:
                     escaped = _ffmpeg_path(path).replace("'", r"'\''")
                     wf.write(f"file '{escaped}'\n")
 
+            composed_path = os.path.join(tmp_dir, "composed.mp4") if audio_tmp else output_path
             cmd = [
                 "ffmpeg", "-y",
                 "-f", "concat",
                 "-safe", "0",
                 "-i", _ffmpeg_path(concat_list),
                 "-c", "copy",
-                _ffmpeg_path(output_path),
+                _ffmpeg_path(composed_path),
             ]
             log.info("[CAP_ComposeClipVideos] concat %d clips -> %s", len(segment_paths), output_path)
             _run_ffmpeg(cmd)
+            if audio_tmp:
+                self._merge_audio(composed_path, audio_tmp, output_path, keep_audio)
         finally:
+            if audio_tmp and os.path.exists(audio_tmp):
+                os.unlink(audio_tmp)
             if concat_list and os.path.exists(concat_list):
                 os.unlink(concat_list)
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
-        generation = {"schema": "capricorncd.video.generation.v1", "kind": "composition", "clips": []}
+        generation = {
+            "schema": "capricorncd.video.generation.v1", "kind": "composition", "clips": [],
+            "audio": {"use_original_audio": bool(use_original_audio), "audio_input": audio is not None},
+        }
         for clip, index, path in sources:
             original = read_video_generation(path)
             generation["clips"].append({

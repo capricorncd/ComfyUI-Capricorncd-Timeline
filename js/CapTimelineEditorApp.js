@@ -1,3 +1,4 @@
+import "./components/TabButton.js";
 import { AgentSettings } from "./editor/AgentSettings.js";
 import "./components/StatusMessage.js";
 import "./components/DropdownButton.js";
@@ -2828,13 +2829,14 @@ export class CapTimelineEditorApp {
         if (this.wmMarginLockBtn) {
             this.wmMarginLockBtn.innerHTML = iconHtml(locked ? "lock" : "lockOpen", 14);
             this.wmMarginLockBtn.classList.toggle("is-active", locked);
+            this.wmMarginLockBtn.setAttribute("aria-pressed", String(locked));
             this.wmMarginLockBtn.title = locked ? T("watermark_lock_locked_title") : T("watermark_lock_unlocked_title");
         }
     }
 
     _syncWatermarkPositionUi() {
         const pos = this._watermark.position;
-        this.wmPosButtons?.forEach((btn) => btn.classList.toggle("is-active", btn.dataset.pos === pos));
+        this.wmPosButtons?.forEach((btn) => btn.setAttribute("aria-pressed", String(btn.dataset.pos === pos)));
     }
 
     _syncWatermarkUiFromState() {
@@ -2865,7 +2867,7 @@ export class CapTimelineEditorApp {
         if (this.wmImageDeleteBtn) this.wmImageDeleteBtn.hidden = !wm.image.file;
         if (this.wmEnabledCb) this.wmEnabledCb.checked = wm.enabled !== false;
         const tab = this._wmActiveTab || (wm.image.file ? "image" : "text");
-        this.wmTabs?.forEach((btn) => btn.classList.toggle("is-active", btn.dataset.mode === tab));
+        this.wmTabs?.forEach((btn) => btn.setAttribute("aria-pressed", String(btn.dataset.mode === tab)));
         if (this.wmPanelText) this.wmPanelText.hidden = tab !== "text";
         if (this.wmPanelImage) this.wmPanelImage.hidden = tab !== "image";
         this._populateFontSelect();
@@ -3152,7 +3154,7 @@ export class CapTimelineEditorApp {
               </div>
               <div class="cat-te-media-grid"></div>
               <div class="cat-te-media-footer">
-                <button type="button" class="cat-te-btn cat-te-media-primary-action"></button>
+                <cap-button class="cat-te-media-primary-action"></cap-button>
               </div>
             </aside>
             <div class="cat-te-media-split" role="separator" aria-orientation="vertical" aria-label="${T("media_split_aria")}" title="${T("media_split_title")}"></div>
@@ -3202,16 +3204,16 @@ export class CapTimelineEditorApp {
                 <div class="cat-te-clip-info-body">
                   <div class="cat-te-clip-info-detail" hidden>
                     <div class="cat-te-clip-swiper">
-                      <button type="button" class="cat-te-clip-swiper-nav prev" title="${T("prev_material")}" hidden>‹</button>
+                      <cap-button shape="square" class="cat-te-clip-swiper-nav prev" title="${T("prev_material")}" hidden>‹</cap-button>
                       <div class="cat-te-clip-thumb-wrap">
                         <img class="cat-te-clip-thumb" alt="" />
                         <video class="cat-te-clip-thumb-video" muted playsinline hidden></video>
                         <div class="cat-te-clip-thumb-empty" hidden>${T("empty_clip")}</div>
                         <div class="cat-te-clip-thumb-subtitle" hidden>T</div>
-                        <button type="button" class="cat-te-clip-thumb-sort" title="${T("view_material_title")}" hidden>${iconHtml("squareArrowOutUpRight", 12)}</button>
-                        <button type="button" class="cat-te-clip-thumb-delete" title="${T("remove_from_clip_title")}" hidden>${iconHtml("trash", 12)}</button>
+                        <cap-button shape="square" size="small" class="cat-te-clip-thumb-sort" title="${T("view_material_title")}" hidden>${iconHtml("squareArrowOutUpRight", 12)}</cap-button>
+                        <cap-button variant="danger" shape="square" size="small" class="cat-te-clip-thumb-delete" title="${T("remove_from_clip_title")}" hidden>${iconHtml("trash", 12)}</cap-button>
                       </div>
-                      <button type="button" class="cat-te-clip-swiper-nav next" title="${T("next_material")}" hidden>›</button>
+                      <cap-button shape="square" class="cat-te-clip-swiper-nav next" title="${T("next_material")}" hidden>›</cap-button>
                       <span class="cat-te-clip-item-index"></span>
                     </div>
                     <div class="cat-te-clip-meta">
@@ -3347,13 +3349,13 @@ export class CapTimelineEditorApp {
                 <div class="cat-te-clip-setting-row cat-te-seed-row" title="${T("clip_seed_title")}">
                   <span>${T("clip_seed_label")}</span>
                   <input class="cat-te-clip-seed" type="number" min="-1" max="9007199254740991" step="1" value="-1" disabled />
-                  <button type="button" class="cat-te-btn cat-te-clip-seed-random" title="${T("randomize_seed_title")}" disabled>${iconHtml("refresh", 12)}</button>
+                  <cap-button shape="square" size="small" class="cat-te-clip-seed-random" title="${T("randomize_seed_title")}" disabled>${iconHtml("refresh", 12)}</cap-button>
                 </div>
               </div>
               <div class="cat-te-prompt-wrap">
                 <div class="cat-te-prompt-label-row">
                   <div class="cat-te-prompt-label">${T("final_composed_prompt_label")}</div>
-                  <button type="button" class="cat-te-ai-optimize-btn" title="${T("edit_prompt_title")}" disabled>${iconHtml("text", 12)}<span>${T("edit_btn")}</span></button>
+                  <cap-button variant="accent" size="small" class="cat-te-ai-optimize-btn" title="${T("edit_prompt_title")}" disabled>${iconHtml("text", 12)}<span>${T("edit_btn")}</span></cap-button>
                 </div>
                 <div class="cat-te-prompt-input-wrap cat-te-final-prompt-wrap">
                   <textarea class="cat-te-prompt-input cat-te-final-prompt" readonly placeholder="${T("final_composed_prompt_placeholder")}" disabled></textarea>
@@ -3362,7 +3364,7 @@ export class CapTimelineEditorApp {
               <div class="cat-te-clip-videos" hidden>
                 <div class="cat-te-clip-videos-header">
                   <span>${T("gen_video_label")}</span>
-                  <button type="button" class="cat-te-clip-videos-open" title="${T("preview_manage_title")}">${iconHtml("squareArrowOutUpRight", 12)}</button>
+                  <cap-button shape="square" size="small" class="cat-te-clip-videos-open" title="${T("preview_manage_title")}">${iconHtml("squareArrowOutUpRight", 12)}</cap-button>
                 </div>
                 <div class="cat-te-clip-videos-list"></div>
               </div>
@@ -3478,7 +3480,7 @@ export class CapTimelineEditorApp {
                   </span>
                 </label>
                 <div class="cat-te-sub-apply-row">
-                  <button type="button" class="cat-te-btn cat-te-sub-apply-all">${T("subtitle_apply_all_btn")}</button>
+                  <cap-button class="cat-te-sub-apply-all">${T("subtitle_apply_all_btn")}</cap-button>
                 </div>
               </div>
               <div class="cat-te-voiceover-panel" hidden>
@@ -3494,8 +3496,8 @@ export class CapTimelineEditorApp {
                   <div class="cat-te-clip-videos-header">
                     <span>${T("gen_audio_label")}</span>
                     <div class="cat-te-vo-audios-actions">
-                      <button type="button" class="cat-te-btn cat-te-vo-audio-add" title="${T("linked_generated_audios_title")}">${T("voiceover_add_audio_btn")}</button>
-                      <button type="button" class="cat-te-clip-videos-open cat-te-vo-audio-edit" title="${T("voiceover_edit_title")}">${iconHtml("squareArrowOutUpRight", 12)}</button>
+                      <cap-button class="cat-te-vo-audio-add" title="${T("linked_generated_audios_title")}">${T("voiceover_add_audio_btn")}</cap-button>
+                      <cap-button shape="square" size="small" class="cat-te-clip-videos-open cat-te-vo-audio-edit" title="${T("voiceover_edit_title")}">${iconHtml("squareArrowOutUpRight", 12)}</cap-button>
                     </div>
                   </div>
                   <div class="cat-te-vo-audios-list"></div>
@@ -3514,17 +3516,17 @@ export class CapTimelineEditorApp {
               <div class="cat-te-modal-header cat-te-media-preview-header">
                 <span class="cat-te-media-preview-title">${T("media_preview_title")}</span>
                 <div class="cat-te-media-preview-stars"></div>
-                <button type="button" class="cat-te-modal-close cat-te-media-preview-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-media-preview-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-media-preview-body">
-                <button type="button" class="cat-te-media-preview-nav prev" title="${T("prev_image_title")}" aria-label="${T("prev_image_aria")}">‹</button>
+                <cap-button shape="circle" size="large" class="cat-te-media-preview-nav prev" title="${T("prev_image_title")}" aria-label="${T("prev_image_aria")}">‹</cap-button>
                 <div class="cat-te-media-preview-stage"></div>
-                <button type="button" class="cat-te-media-preview-nav next" title="${T("next_image_title")}" aria-label="${T("next_image_aria")}">›</button>
+                <cap-button shape="circle" size="large" class="cat-te-media-preview-nav next" title="${T("next_image_title")}" aria-label="${T("next_image_aria")}">›</cap-button>
               </div>
               <div class="cat-te-media-preview-meta">
                 <div class="cat-te-media-info-tabs" role="tablist">
-                  <button type="button" class="cat-te-btn active" role="tab" aria-selected="true" data-media-tab="settings">${T("media_basic_settings")}</button>
-                  <button type="button" class="cat-te-btn" role="tab" aria-selected="false" data-media-tab="info">${T("media_file_info")}</button>
+                  <cap-tab-button  class="active" aria-selected="true" data-media-tab="settings">${T("media_basic_settings")}</cap-tab-button>
+                  <cap-tab-button  class="" aria-selected="false" data-media-tab="info">${T("media_file_info")}</cap-tab-button>
                 </div>
                 <div class="cat-te-media-settings-panel" role="tabpanel">
                   <div class="cat-te-media-preview-meta-grid">
@@ -3563,13 +3565,13 @@ export class CapTimelineEditorApp {
                 </div>
                 <div class="cat-te-media-info-panel" role="tabpanel" hidden></div>
                 <div class="cat-te-media-meta-actions">
-                  <button type="button" class="cat-te-btn cat-te-media-meta-open">${T("media_view_meta")}</button>
+                  <cap-button class="cat-te-media-meta-open">${T("media_view_meta")}</cap-button>
                 </div>
               </div>
               <div class="cat-te-media-preview-footer">
                 <span class="cat-te-media-preview-hint">${T("media_preview_hint")}</span>
                 <div class="cat-te-media-preview-actions">
-                  <button type="button" class="cat-te-btn cat-te-btn-primary cat-te-media-preview-insert">${T("insert_at_position_btn")}</button>
+                  <cap-button variant="primary" class="cat-te-media-preview-insert">${T("insert_at_position_btn")}</cap-button>
                 </div>
               </div>
             </div>
@@ -3578,7 +3580,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-raw-meta-dialog" role="dialog" aria-modal="true" aria-label="${T("media_raw_meta")}">
               <div class="cat-te-modal-header">
                 <span>${T("media_raw_meta")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-raw-meta-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-raw-meta-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <pre class="cat-te-raw-meta-text" tabindex="0"></pre>
             </div>
@@ -3587,7 +3589,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-clip-items-dialog">
               <div class="cat-te-modal-header">
                 <span class="cat-te-clip-items-title">${T("clip_items_title")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-clip-items-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-clip-items-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-clip-items-body"></div>
             </div>
@@ -3596,12 +3598,12 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-media-preview-dialog">
               <div class="cat-te-modal-header cat-te-media-preview-header">
                 <span class="cat-te-gen-video-title">${T("gen_video_label")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-gen-video-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-gen-video-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-media-preview-body cat-te-gen-video-body">
-                <button type="button" class="cat-te-media-preview-nav prev cat-te-gen-video-prev" title="${T("prev_short")}" aria-label="${T("prev_short")}">‹</button>
+                <cap-button shape="circle" size="large" class="cat-te-media-preview-nav prev cat-te-gen-video-prev" title="${T("prev_short")}" aria-label="${T("prev_short")}">‹</cap-button>
                 <div class="cat-te-media-preview-stage cat-te-gen-video-stage"></div>
-                <button type="button" class="cat-te-media-preview-nav next cat-te-gen-video-next" title="${T("next_short")}" aria-label="${T("next_short")}">›</button>
+                <cap-button shape="circle" size="large" class="cat-te-media-preview-nav next cat-te-gen-video-next" title="${T("next_short")}" aria-label="${T("next_short")}">›</cap-button>
               </div>
               <div class="cat-te-media-preview-meta cat-te-gen-video-meta">
                 <div class="cat-te-gen-video-generation"></div>
@@ -3617,7 +3619,7 @@ export class CapTimelineEditorApp {
                   <span>${T("note_label")}</span>
                   <textarea class="cat-te-gen-video-note" rows="3" placeholder="${T("video_note_placeholder")}"></textarea>
                 </label>
-                <button type="button" class="cat-te-btn cat-te-gen-video-delete">${T("delete_btn")}</button>
+                <cap-button class="cat-te-gen-video-delete">${T("delete_btn")}</cap-button>
               </div>
             </div>
           </div>
@@ -3625,7 +3627,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-gen-edit-dialog">
               <div class="cat-te-modal-header">
                 <span class="cat-te-gen-edit-title">${T("gen_edit_modal_title")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-gen-edit-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-gen-edit-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-gen-edit-body">
                 <div class="cat-te-gen-edit-left">
@@ -3643,7 +3645,7 @@ export class CapTimelineEditorApp {
                     <span>${T("desc_prompt_label")}</span>
                     <textarea class="cat-te-gen-edit-prompt" rows="8" placeholder="${T("gen_edit_prompt_placeholder")}"></textarea>
                   </label>
-                  <button type="button" class="cat-te-btn cat-te-gen-edit-dub" disabled title="${T("gen_edit_dub_todo_title")}">${T("gen_edit_dub_btn")}</button>
+                  <cap-button class="cat-te-gen-edit-dub" disabled title="${T("gen_edit_dub_todo_title")}">${T("gen_edit_dub_btn")}</cap-button>
                   <p class="cat-te-gen-edit-hint">${T("gen_edit_select_hint")}</p>
                 </div>
               </div>
@@ -3653,7 +3655,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-gen-edit-dialog cat-te-vo-edit-dialog">
               <div class="cat-te-modal-header">
                 <span class="cat-te-vo-edit-title">${T("voiceover_edit_modal_title")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-vo-edit-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-vo-edit-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-gen-edit-body">
                 <div class="cat-te-gen-edit-left cat-te-vo-edit-left">
@@ -3674,8 +3676,8 @@ export class CapTimelineEditorApp {
                 </div>
               </div>
               <div class="cat-te-gen-edit-footer">
-                <button type="button" class="cat-te-btn cat-te-vo-edit-cancel">${T("cancel_btn")}</button>
-                <button type="button" class="cat-te-btn cat-te-btn-primary cat-te-vo-edit-save">${T("save_btn")}</button>
+                <cap-button class="cat-te-vo-edit-cancel">${T("cancel_btn")}</cap-button>
+                <cap-button variant="primary" class="cat-te-vo-edit-save">${T("save_btn")}</cap-button>
               </div>
             </div>
           </div>
@@ -3698,7 +3700,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-compose-dialog">
               <div class="cat-te-modal-header">
                 <span>${T("compose_video_title")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-compose-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-compose-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-compose-body">
                 <div class="cat-te-compose-preview">
@@ -3754,8 +3756,8 @@ export class CapTimelineEditorApp {
                       <span>${T("watermark_heading")}</span>
                     </label>
                     <div class="cat-te-wm-tabs">
-                      <button type="button" class="cat-te-wm-tab cat-te-wm-tab-text" data-mode="text">${iconHtml("text", 12)}<span>${T("text_watermark_label")}</span></button>
-                      <button type="button" class="cat-te-wm-tab cat-te-wm-tab-image" data-mode="image">${iconHtml("image", 12)}<span>${T("image_watermark_label")}</span></button>
+                      <cap-button class="cat-te-wm-tab cat-te-wm-tab-text" data-mode="text">${iconHtml("text", 12)}<span>${T("text_watermark_label")}</span></cap-button>
+                      <cap-button class="cat-te-wm-tab cat-te-wm-tab-image" data-mode="image">${iconHtml("image", 12)}<span>${T("image_watermark_label")}</span></cap-button>
                     </div>
 
                     <div class="cat-te-wm-panel cat-te-wm-panel-text">
@@ -3787,8 +3789,8 @@ export class CapTimelineEditorApp {
                       <div class="cat-te-wm-image-row">
                         <div class="cat-te-wm-image-thumb"><img class="cat-te-wm-image-preview" alt="" hidden /></div>
                         <div class="cat-te-wm-image-actions">
-                          <button type="button" class="cat-te-btn cat-te-wm-image-upload">${T("upload_image_btn")}</button>
-                          <button type="button" class="cat-te-btn cat-te-wm-image-delete" hidden>${iconHtml("trash", 12)}<span>${T("delete_btn")}</span></button>
+                          <cap-button class="cat-te-wm-image-upload">${T("upload_image_btn")}</cap-button>
+                          <cap-button variant="danger" class="cat-te-wm-image-delete" hidden>${iconHtml("trash", 12)}<span>${T("delete_btn")}</span></cap-button>
                           <input class="cat-te-wm-image-file" type="file" accept="image/*" hidden />
                         </div>
                       </div>
@@ -3809,17 +3811,17 @@ export class CapTimelineEditorApp {
                       <span>${T("position_label")}</span>
                       <div class="cat-te-wm-pos-row">
                         <div class="cat-te-wm-pos-grid">
-                          <button type="button" class="cat-te-wm-pos" data-pos="top-left" title="${T("wm_pos_top_left")}"></button>
-                          <button type="button" class="cat-te-wm-pos" data-pos="top-center" title="${T("wm_pos_top_center")}"></button>
-                          <button type="button" class="cat-te-wm-pos" data-pos="top-right" title="${T("wm_pos_top_right")}"></button>
-                          <button type="button" class="cat-te-wm-pos" data-pos="center" title="${T("wm_pos_center")}"></button>
-                          <button type="button" class="cat-te-wm-pos" data-pos="bottom-left" title="${T("wm_pos_bottom_left")}"></button>
-                          <button type="button" class="cat-te-wm-pos" data-pos="bottom-center" title="${T("wm_pos_bottom_center")}"></button>
-                          <button type="button" class="cat-te-wm-pos" data-pos="bottom-right" title="${T("wm_pos_bottom_right")}"></button>
+                          <cap-button size="small" class="cat-te-wm-pos" data-pos="top-left" title="${T("wm_pos_top_left")}"></cap-button>
+                          <cap-button size="small" class="cat-te-wm-pos" data-pos="top-center" title="${T("wm_pos_top_center")}"></cap-button>
+                          <cap-button size="small" class="cat-te-wm-pos" data-pos="top-right" title="${T("wm_pos_top_right")}"></cap-button>
+                          <cap-button size="small" class="cat-te-wm-pos" data-pos="center" title="${T("wm_pos_center")}"></cap-button>
+                          <cap-button size="small" class="cat-te-wm-pos" data-pos="bottom-left" title="${T("wm_pos_bottom_left")}"></cap-button>
+                          <cap-button size="small" class="cat-te-wm-pos" data-pos="bottom-center" title="${T("wm_pos_bottom_center")}"></cap-button>
+                          <cap-button size="small" class="cat-te-wm-pos" data-pos="bottom-right" title="${T("wm_pos_bottom_right")}"></cap-button>
                         </div>
                         <div class="cat-te-wm-pos-random">
-                          <button type="button" class="cat-te-wm-pos-chip" data-pos="random-interval">${T("wm_pos_random_interval")}</button>
-                          <button type="button" class="cat-te-wm-pos-chip" data-pos="random-fixed">${T("wm_pos_random_fixed")}</button>
+                          <cap-button class="cat-te-wm-pos-chip" data-pos="random-interval">${T("wm_pos_random_interval")}</cap-button>
+                          <cap-button class="cat-te-wm-pos-chip" data-pos="random-fixed">${T("wm_pos_random_fixed")}</cap-button>
                         </div>
                       </div>
                     </div>
@@ -3831,7 +3833,7 @@ export class CapTimelineEditorApp {
                         <input class="cat-te-wm-margin cat-te-wm-margin-right" type="number" min="0" step="1" title="${T("margin_right_title")}" />
                         <input class="cat-te-wm-margin cat-te-wm-margin-bottom" type="number" min="0" step="1" title="${T("margin_bottom_title")}" />
                         <input class="cat-te-wm-margin cat-te-wm-margin-left" type="number" min="0" step="1" title="${T("margin_left_title")}" />
-                        <button type="button" class="cat-te-wm-margin-lock" title="${T("lock_margin_title")}">${iconHtml("lock", 14)}</button>
+                        <cap-button shape="square" class="cat-te-wm-margin-lock" title="${T("lock_margin_title")}">${iconHtml("lock", 14)}</cap-button>
                       </div>
                     </div>
                   </div>
@@ -3840,8 +3842,8 @@ export class CapTimelineEditorApp {
                 </div>
               </div>
               <div class="cat-te-compose-actions">
-                <button type="button" class="cat-te-btn cat-te-compose-cancel">${T("cancel_btn")}</button>
-                <button type="button" class="cat-te-btn cat-te-btn-primary cat-te-compose-run">${T("compose_start_btn")}</button>
+                <cap-button class="cat-te-compose-cancel">${T("cancel_btn")}</cap-button>
+                <cap-button variant="primary" class="cat-te-compose-run">${T("compose_start_btn")}</cap-button>
               </div>
             </div>
           </div>
@@ -3849,47 +3851,47 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-add-material-dialog">
               <div class="cat-te-modal-header">
                 <span class="cat-te-add-material-title">${T("add_material_title")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-add-material-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-add-material-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-add-material-preview"></div>
               <div class="cat-te-add-material-options">
                 <label><input class="cat-te-insert-after-add" type="checkbox" /> ${T("insert_to_timeline_label")}</label>
               </div>
               <div class="cat-te-add-material-actions">
-                <button type="button" class="cat-te-btn cat-te-btn-primary cat-te-add-material-confirm">${T("confirm_btn")}</button>
+                <cap-button variant="primary" class="cat-te-add-material-confirm">${T("confirm_btn")}</cap-button>
               </div>
             </div>
           </div>
           <div class="cat-te-modal-backdrop cat-te-ai-optimize-modal" hidden>
             <div class="cat-te-ai-optimize-shell">
-              <button type="button" class="cat-te-ai-optimize-nav prev" title="${T("ai_optimize_prev_clip_title")}" aria-label="${T("ai_optimize_prev_clip_title")}" disabled>${iconHtml("chevronLeft", 20)}</button>
+              <cap-button shape="circle" size="large" class="cat-te-ai-optimize-nav prev" title="${T("ai_optimize_prev_clip_title")}" aria-label="${T("ai_optimize_prev_clip_title")}" disabled>${iconHtml("chevronLeft", 20)}</cap-button>
               <div class="cat-te-modal cat-te-ai-optimize-dialog">
               <div class="cat-te-modal-header">
                 <span class="cat-te-ai-optimize-title">${T("prompt_manager_title")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-ai-optimize-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-ai-optimize-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-ai-optimize-body">
                 <div class="cat-te-ai-optimize-left">
-                  <div class="cat-te-ai-optimize-tabs">
-                    <button type="button" class="cat-te-ai-tab cat-te-ai-source-tab is-active" data-source-tab="clip">${T("clip_prompt_tab")}</button>
-                    <button type="button" class="cat-te-ai-tab cat-te-ai-source-tab" data-source-tab="prepend_prompt">${T("global_prepend_prompt_tab")}</button>
-                    <button type="button" class="cat-te-ai-tab cat-te-ai-source-tab" data-source-tab="append_prompt">${T("global_append_prompt_tab")}</button>
+                  <div class="cat-te-ai-optimize-tabs" role="tablist">
+                    <cap-tab-button variant="ghost" class="cat-te-ai-tab cat-te-ai-source-tab is-active" data-source-tab="clip">${T("clip_prompt_tab")}</cap-tab-button>
+                    <cap-tab-button variant="ghost" class="cat-te-ai-tab cat-te-ai-source-tab" data-source-tab="prepend_prompt">${T("global_prepend_prompt_tab")}</cap-tab-button>
+                    <cap-tab-button variant="ghost" class="cat-te-ai-tab cat-te-ai-source-tab" data-source-tab="append_prompt">${T("global_append_prompt_tab")}</cap-tab-button>
                   </div>
                   <textarea class="cat-te-ai-src-text"></textarea>
                 </div>
                 <div class="cat-te-ai-optimize-right">
-                  <div class="cat-te-ai-optimize-tabs cat-te-ai-right-tabs">
-                    <button type="button" class="cat-te-ai-tab cat-te-ai-right-tab is-active" data-right-tab="ai">${T("ai_optimize_tab")}</button>
-                    <button type="button" class="cat-te-ai-tab cat-te-ai-right-tab" data-right-tab="preview">${T("video_preview_tab")}</button>
+                  <div class="cat-te-ai-optimize-tabs cat-te-ai-right-tabs" role="tablist">
+                    <cap-tab-button variant="ghost" class="cat-te-ai-tab cat-te-ai-right-tab is-active" data-right-tab="ai">${T("ai_optimize_tab")}</cap-tab-button>
+                    <cap-tab-button variant="ghost" class="cat-te-ai-tab cat-te-ai-right-tab" data-right-tab="preview">${T("video_preview_tab")}</cap-tab-button>
                   </div>
                   <div class="cat-te-ai-right-pane cat-te-ai-right-ai" data-right-pane="ai">
                   <div class="cat-te-prompt-includes" aria-label="${T("prompt_includes_label")}">
                     <div class="cat-te-prompt-includes-label">${T("prompt_includes_label")}</div>
                     <div class="cat-te-prompt-includes-chips" role="group">
-                      <button type="button" class="cat-te-prompt-include-chip" data-include="prepend_prompt" title="${T("prompt_include_prepend_title")}">${T("prompt_include_prepend")}</button>
-                      <button type="button" class="cat-te-prompt-include-chip" data-include="resource" title="${T("prompt_include_media_title")}">${T("prompt_include_media")}</button>
-                      <button type="button" class="cat-te-prompt-include-chip" data-include="clip" title="${T("prompt_include_clip_title")}">${T("prompt_include_clip")}</button>
-                      <button type="button" class="cat-te-prompt-include-chip" data-include="append_prompt" title="${T("prompt_include_append_title")}">${T("prompt_include_append")}</button>
+                      <cap-button class="cat-te-prompt-include-chip" data-include="prepend_prompt" title="${T("prompt_include_prepend_title")}">${T("prompt_include_prepend")}</cap-button>
+                      <cap-button class="cat-te-prompt-include-chip" data-include="resource" title="${T("prompt_include_media_title")}">${T("prompt_include_media")}</cap-button>
+                      <cap-button class="cat-te-prompt-include-chip" data-include="clip" title="${T("prompt_include_clip_title")}">${T("prompt_include_clip")}</cap-button>
+                      <cap-button class="cat-te-prompt-include-chip" data-include="append_prompt" title="${T("prompt_include_append_title")}">${T("prompt_include_append")}</cap-button>
                     </div>
                   </div>
                   <div class="cat-te-ai-context">
@@ -3965,8 +3967,8 @@ export class CapTimelineEditorApp {
                   <div class="cat-te-ai-skill-head">
                     <span>Prompt Skill</span>
                     <div class="cat-te-ai-skill-actions">
-                      <button type="button" class="cat-te-btn cat-te-skill-pick-btn">${T("select_btn")}</button>
-                      <button type="button" class="cat-te-btn cat-te-skill-sync-btn" title="${T("sync_latest_skill_title")}">${iconHtml("refresh", 12)}<span>${T("update_btn")}</span></button>
+                      <cap-button class="cat-te-skill-pick-btn">${T("select_btn")}</cap-button>
+                      <cap-button class="cat-te-skill-sync-btn" title="${T("sync_latest_skill_title")}">${iconHtml("refresh", 12)}<span>${T("update_btn")}</span></cap-button>
                     </div>
                   </div>
                   <textarea class="cat-te-ai-skill" rows="3" placeholder="${T("skill_placeholder")}"></textarea>
@@ -3986,15 +3988,15 @@ export class CapTimelineEditorApp {
                         </span>
                       </span>
                       <div class="cat-te-model-preview-config-actions">
-                        <button type="button" class="cat-te-btn cat-te-model-preview-import">${T("import_preview_workflow_btn")}</button>
-                        <button type="button" class="cat-te-btn cat-te-model-preview-clear">${T("clear_btn")}</button>
+                        <cap-button class="cat-te-model-preview-import">${T("import_preview_workflow_btn")}</cap-button>
+                        <cap-button class="cat-te-model-preview-clear">${T("clear_btn")}</cap-button>
                       </div>
                     </div>
                     <label class="cat-te-modal-row">
                       <span>${T("clip_seed_label")}</span>
                       <span class="cat-te-model-preview-seed-controls">
                         <input class="cat-te-model-preview-seed" type="number" min="-1" step="1" value="-1" />
-                        <button type="button" class="cat-te-btn cat-te-model-preview-seed-random" title="${T("randomize_seed_title")}" aria-label="${T("randomize_seed_title")}">${iconHtml("refresh", 12)}</button>
+                        <cap-button shape="square" class="cat-te-model-preview-seed-random" title="${T("randomize_seed_title")}" aria-label="${T("randomize_seed_title")}">${iconHtml("refresh", 12)}</cap-button>
                       </span>
                     </label>
                     <label class="cat-te-modal-row">
@@ -4021,14 +4023,14 @@ export class CapTimelineEditorApp {
                   </div>
                   </div>
                   <div class="cat-te-ai-optimize-actions">
-                    <button type="button" class="cat-te-btn cat-te-btn-primary cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></button>
-                    <button type="button" class="cat-te-btn cat-te-ai-preview-run">${iconHtml("eye", 12)}<span>${T("preview_btn")}</span></button>
-                    <button type="button" class="cat-te-btn cat-te-ai-run">${iconHtml("play", 12)}<span>${T("run_and_close")}</span></button>
+                    <cap-button variant="primary" class="cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></cap-button>
+                    <cap-button class="cat-te-ai-preview-run">${iconHtml("eye", 12)}<span>${T("preview_btn")}</span></cap-button>
+                    <cap-button class="cat-te-ai-run">${iconHtml("play", 12)}<span>${T("run_and_close")}</span></cap-button>
                   </div>
                 </div>
               </div>
               </div>
-              <button type="button" class="cat-te-ai-optimize-nav next" title="${T("ai_optimize_next_clip_title")}" aria-label="${T("ai_optimize_next_clip_title")}" disabled>${iconHtml("chevronLeft", 20)}</button>
+              <cap-button shape="circle" size="large" class="cat-te-ai-optimize-nav next" title="${T("ai_optimize_next_clip_title")}" aria-label="${T("ai_optimize_next_clip_title")}" disabled>${iconHtml("chevronLeft", 20)}</cap-button>
             </div>
           </div>
           <div class="cat-te-modal-backdrop cat-te-skill-picker-modal" hidden>
@@ -4036,7 +4038,7 @@ export class CapTimelineEditorApp {
               <div class="cat-te-modal-header">
                 <span>${T("select_prompt_skill_title")}</span>
                 <input class="cat-te-skill-picker-filter" type="search" placeholder="${T("search_name_placeholder")}" />
-                <button type="button" class="cat-te-modal-close cat-te-skill-picker-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-skill-picker-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-skill-picker-body"></div>
             </div>
@@ -4045,13 +4047,13 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-rename-title">
               <div class="cat-te-modal-header">
                 <span id="cat-te-track-rename-title">${T("rename_track_title")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-track-rename-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-track-rename-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-modal-body">
                 <input class="cat-te-track-rename-input" type="text" maxlength="120" aria-label="${T("name_label")}" />
                 <div class="cat-te-confirm-actions">
-                  <button type="button" class="cat-te-btn cat-te-track-rename-cancel">${T("cancel_btn")}</button>
-                  <button type="button" class="cat-te-btn cat-te-btn-primary cat-te-track-rename-confirm">${T("confirm_btn")}</button>
+                  <cap-button class="cat-te-track-rename-cancel">${T("cancel_btn")}</cap-button>
+                  <cap-button variant="primary" class="cat-te-track-rename-confirm">${T("confirm_btn")}</cap-button>
                 </div>
               </div>
             </div>
@@ -4060,13 +4062,13 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-color-title">
               <div class="cat-te-modal-header">
                 <span id="cat-te-track-color-title">${T("track_color_title")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-track-color-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-track-color-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-modal-body">
                 <input class="cat-te-track-color-input" type="color" aria-label="${T("track_color_title")}" />
                 <div class="cat-te-confirm-actions">
-                  <button type="button" class="cat-te-btn cat-te-track-color-cancel">${T("cancel_btn")}</button>
-                  <button type="button" class="cat-te-btn cat-te-btn-primary cat-te-track-color-confirm">${T("confirm_btn")}</button>
+                  <cap-button class="cat-te-track-color-cancel">${T("cancel_btn")}</cap-button>
+                  <cap-button variant="primary" class="cat-te-track-color-confirm">${T("confirm_btn")}</cap-button>
                 </div>
               </div>
             </div>
@@ -4075,13 +4077,13 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-delete-title">
               <div class="cat-te-modal-header">
                 <span id="cat-te-track-delete-title">${T("delete_track_menu")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-track-delete-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-track-delete-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-modal-body">
                 <div class="cat-te-track-delete-message"></div>
                 <div class="cat-te-confirm-actions">
-                  <button type="button" class="cat-te-btn cat-te-track-delete-cancel">${T("cancel_btn")}</button>
-                  <button type="button" class="cat-te-btn cat-te-btn-danger cat-te-track-delete-confirm">${T("delete_btn")}</button>
+                  <cap-button class="cat-te-track-delete-cancel">${T("cancel_btn")}</cap-button>
+                  <cap-button variant="danger" class="cat-te-track-delete-confirm">${T("delete_btn")}</cap-button>
                 </div>
               </div>
             </div>
@@ -4090,13 +4092,13 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cat-te-media-delete-title">
               <div class="cat-te-modal-header">
                 <span id="cat-te-media-delete-title">${T("delete_asset_title")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-media-delete-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-media-delete-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-modal-body">
                 <div class="cat-te-media-delete-message"></div>
                 <div class="cat-te-confirm-actions">
-                  <button type="button" class="cat-te-btn cat-te-media-delete-cancel">${T("cancel_btn")}</button>
-                  <button type="button" class="cat-te-btn cat-te-btn-danger cat-te-media-delete-confirm">${T("delete_btn")}</button>
+                  <cap-button class="cat-te-media-delete-cancel">${T("cancel_btn")}</cap-button>
+                  <cap-button variant="danger" class="cat-te-media-delete-confirm">${T("delete_btn")}</cap-button>
                 </div>
               </div>
             </div>
@@ -4105,12 +4107,12 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cat-te-track-convert-title">
               <div class="cat-te-modal-header">
                 <span id="cat-te-track-convert-title">${T("convert_to_media_failed_title")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-track-convert-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-track-convert-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-modal-body">
                 <div class="cat-te-track-convert-message"></div>
                 <div class="cat-te-confirm-actions">
-                  <button type="button" class="cat-te-btn cat-te-btn-primary cat-te-track-convert-ok">${T("confirm_btn")}</button>
+                  <cap-button variant="primary" class="cat-te-track-convert-ok">${T("confirm_btn")}</cap-button>
                 </div>
               </div>
             </div>
@@ -4154,15 +4156,15 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-settings-dialog">
               <div class="cat-te-modal-header">
                 <span>${T("settings_title")}</span>
-                <button type="button" class="cat-te-modal-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+                <cap-button variant="danger" shape="square" class="cat-te-modal-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-modal-body cat-te-settings-layout">
                 <nav class="cat-te-settings-nav" aria-label="${T("settings_title")}">
-                  <button type="button" class="cat-te-btn is-active" data-settings-category="general" aria-pressed="true">${T("settings_general")}</button>
-                  <button type="button" class="cat-te-btn" data-settings-category="agents" aria-pressed="false">AI Agent</button>
-                  <button type="button" class="cat-te-btn" data-settings-category="bgm" aria-pressed="false">BGM</button>
-                  <button type="button" class="cat-te-btn" data-settings-category="voice" aria-pressed="false">${T("voice_service")}</button>
-                  <button type="button" class="cat-te-btn" data-settings-category="speech" aria-pressed="false">${T("speech_service")}</button>
+                  <cap-button class="is-active" data-settings-category="general" aria-pressed="true" align="start">${T("settings_general")}</cap-button>
+                  <cap-button data-settings-category="agents" aria-pressed="false" align="start">AI Agent</cap-button>
+                  <cap-button data-settings-category="bgm" aria-pressed="false" align="start">BGM</cap-button>
+                  <cap-button data-settings-category="voice" aria-pressed="false" align="start">${T("voice_service")}</cap-button>
+                  <cap-button data-settings-category="speech" aria-pressed="false" align="start">${T("speech_service")}</cap-button>
                 </nav>
                 <div class="cat-te-settings-content">
                 <div class="cat-te-settings-panel" data-settings-panel="general">
@@ -4186,7 +4188,7 @@ export class CapTimelineEditorApp {
                 <div class="cat-te-agent-settings cat-te-settings-panel" data-settings-panel="agents" hidden>
                   <div class="cat-te-agent-heading">
                     <span>AI Agent</span>
-                    <button type="button" class="cat-te-btn cat-te-agent-add">${T("add_btn")}</button>
+                    <cap-button class="cat-te-agent-add">${T("add_btn")}</cap-button>
                   </div>
                   <div class="cat-te-agent-list"></div>
                   <div class="cat-te-agent-form" hidden>
@@ -4196,10 +4198,10 @@ export class CapTimelineEditorApp {
                     <label><span>API Key</span><input class="cat-te-agent-key" type="password" autocomplete="new-password" placeholder="${T("enter_api_key")}" /></label>
                     <label class="cat-te-agent-enabled"><input type="checkbox" checked /><span>${T("enable_show_in_ai_optimize_label")}</span></label>
                     <div class="cat-te-agent-form-actions">
-                      <button type="button" class="cat-te-btn cat-te-agent-delete" hidden>${T("delete_btn")}</button>
+                      <cap-button class="cat-te-agent-delete" hidden>${T("delete_btn")}</cap-button>
                       <span></span>
-                      <button type="button" class="cat-te-btn cat-te-agent-cancel">${T("cancel_btn")}</button>
-                      <button type="button" class="cat-te-btn cat-te-btn-primary cat-te-agent-save">${T("save_btn")}</button>
+                      <cap-button class="cat-te-agent-cancel">${T("cancel_btn")}</cap-button>
+                      <cap-button variant="primary" class="cat-te-agent-save">${T("save_btn")}</cap-button>
                     </div>
                   </div>
                   <div class="cat-te-agent-note">${T("agent_note")}</div>
@@ -5480,9 +5482,10 @@ export class CapTimelineEditorApp {
      * non-interactive placeholder so the same-function icon in other rows
      * (lock/eye/mute) always lines up in the same column. */
     _makeTrackSlot(track, kind) {
-        const btn = document.createElement("button");
-        btn.type = "button";
+        const btn = document.createElement("cap-button");
         btn.className = "cat-te-track-btn";
+        btn.setAttribute("shape", "square");
+        btn.setAttribute("size", "small");
         if (kind === null) {
             btn.classList.add("placeholder");
             btn.disabled = true;
@@ -5493,6 +5496,7 @@ export class CapTimelineEditorApp {
             const render = () => {
                 btn.innerHTML = track.locked ? ICONS.lock : ICONS.lockOpen;
                 btn.classList.toggle("active", track.locked);
+                btn.setAttribute("aria-pressed", String(track.locked));
                 btn.title = track.locked ? T("unlock_track_title") : T("lock_track_title");
             };
             btn.addEventListener("click", e => {
@@ -5506,6 +5510,7 @@ export class CapTimelineEditorApp {
             const render = () => {
                 btn.innerHTML = track.visible ? ICONS.eye : ICONS.eyeOff;
                 btn.classList.toggle("active", !track.visible);
+                btn.setAttribute("aria-pressed", String(!track.visible));
             };
             btn.title = T("track_visibility_title");
             btn.addEventListener("click", e => {
@@ -5521,6 +5526,7 @@ export class CapTimelineEditorApp {
             const render = () => {
                 btn.innerHTML = track.muted ? ICONS.volumeOff : ICONS.volume;
                 btn.classList.toggle("active", track.muted);
+                btn.setAttribute("aria-pressed", String(track.muted));
                 const off = T("unmute_label");
                 const on = T("mute_label");
                 btn.title = track.muted ? off : on;
@@ -7833,38 +7839,45 @@ export class CapTimelineEditorApp {
             thumb.addEventListener("mouseenter", () => this._showOutputVideoHoverPreview(thumb, row.file));
             thumb.addEventListener("mouseleave", () => this._scheduleOutputVideoHoverHide());
 
-            const name = document.createElement("button");
-            name.type = "button";
+            const name = document.createElement("cap-button");
             name.className = "cat-te-clip-video-name";
+            name.setAttribute("variant", "ghost");
+            name.setAttribute("align", "start");
+            name.setAttribute("truncate", "");
             name.textContent = String(row.file || "").split(/[\\/]/).pop() || T("asset_fallback_name");
             name.title = row.file || "";
             name.addEventListener("click", () => this._openGenVideoModal(clip, index));
 
-            const mute = document.createElement("button");
-            mute.type = "button";
+            const mute = document.createElement("cap-button");
             mute.className = "cat-te-clip-video-mute";
+            mute.setAttribute("shape", "square");
+            mute.setAttribute("size", "small");
             const muted = row.muted === true;
             mute.innerHTML = muted ? ICONS.volumeOff : ICONS.volume;
             mute.classList.toggle("active", muted);
+            mute.setAttribute("aria-pressed", String(muted));
             mute.title = muted ? T("unmute_label") : T("mute_label");
             mute.addEventListener("click", (e) => {
                 e.stopPropagation();
                 this._setGeneratedVideoMuted(clip, row.id, !muted);
             });
 
-            const del = document.createElement("button");
-            del.type = "button";
+            const del = document.createElement("cap-button");
             del.className = "cat-te-clip-video-del";
+            del.setAttribute("variant", "danger");
+            del.setAttribute("shape", "square");
+            del.setAttribute("size", "small");
             del.title = T("delete_btn");
-            del.textContent = "×";
+            del.innerHTML = iconHtml("close", 12);
             del.addEventListener("click", (e) => {
                 e.stopPropagation();
                 this._deleteGeneratedVideo(clip, row.id);
             });
 
-            const insert = document.createElement("button");
-            insert.type = "button";
+            const insert = document.createElement("cap-button");
             insert.className = "cat-te-clip-video-insert";
+            insert.setAttribute("shape", "square");
+            insert.setAttribute("size", "small");
             insert.innerHTML = ICONS.pictureInPicture;
             insert.title = T("insert_at_position_btn");
             insert.setAttribute("aria-label", insert.title);
@@ -8070,9 +8083,7 @@ export class CapTimelineEditorApp {
             for (const item of seeds) {
                 const line = document.createElement("div");
                 line.textContent = `${item.node_id}: ${item.seed} `;
-                const button = document.createElement("button");
-                button.type = "button";
-                button.className = "cat-te-btn";
+                const button = document.createElement("cap-button");
                 button.textContent = T("video_seed_use_clip");
                 const seed = Number(item.seed);
                 button.disabled = !Number.isSafeInteger(seed) || seed < 0 || !!clip.track?.locked;
@@ -8605,13 +8616,15 @@ export class CapTimelineEditorApp {
         this._setupGenEditTrackDeleteMenu(track);
 
         const makeBtn = (kind) => {
-            const btn = document.createElement("button");
-            btn.type = "button";
+            const btn = document.createElement("cap-button");
             btn.className = "cat-te-track-btn";
+            btn.setAttribute("shape", "square");
+            btn.setAttribute("size", "small");
             if (kind === "lock") {
                 const render = () => {
                     btn.innerHTML = track.locked ? ICONS.lock : ICONS.lockOpen;
                     btn.classList.toggle("active", track.locked);
+                    btn.setAttribute("aria-pressed", String(track.locked));
                     btn.title = track.locked ? T("unlock_track_title") : T("lock_track_title");
                 };
                 btn.addEventListener("click", (e) => {
@@ -8624,6 +8637,7 @@ export class CapTimelineEditorApp {
                 const render = () => {
                     btn.innerHTML = track.visible ? ICONS.eye : ICONS.eyeOff;
                     btn.classList.toggle("active", !track.visible);
+                    btn.setAttribute("aria-pressed", String(!track.visible));
                     btn.title = T("track_visibility_title");
                 };
                 btn.addEventListener("click", (e) => {
@@ -8645,6 +8659,7 @@ export class CapTimelineEditorApp {
                 const render = () => {
                     btn.innerHTML = track.muted ? ICONS.volumeOff : ICONS.volume;
                     btn.classList.toggle("active", track.muted);
+                    btn.setAttribute("aria-pressed", String(track.muted));
                     btn.title = track.muted ? T("unmute_label") : T("mute_label");
                 };
                 btn.addEventListener("click", (e) => {
@@ -8678,9 +8693,10 @@ export class CapTimelineEditorApp {
         this._setupGenEditTrackDeleteMenu(track);
 
         const makeSlot = (kind) => {
-            const btn = document.createElement("button");
-            btn.type = "button";
+            const btn = document.createElement("cap-button");
             btn.className = "cat-te-track-btn";
+            btn.setAttribute("shape", "square");
+            btn.setAttribute("size", "small");
             if (kind === null) {
                 btn.classList.add("placeholder");
                 btn.disabled = true;
@@ -8691,6 +8707,7 @@ export class CapTimelineEditorApp {
                 const render = () => {
                     btn.innerHTML = track.locked ? ICONS.lock : ICONS.lockOpen;
                     btn.classList.toggle("active", track.locked);
+                    btn.setAttribute("aria-pressed", String(track.locked));
                     btn.title = track.locked ? T("unlock_track_title") : T("lock_track_title");
                 };
                 btn.addEventListener("click", (e) => {
@@ -8703,6 +8720,7 @@ export class CapTimelineEditorApp {
                 const render = () => {
                     btn.innerHTML = track.muted ? ICONS.volumeOff : ICONS.volume;
                     btn.classList.toggle("active", track.muted);
+                    btn.setAttribute("aria-pressed", String(track.muted));
                     btn.title = track.muted ? T("unmute_label") : T("mute_label");
                 };
                 btn.addEventListener("click", (e) => {
@@ -9443,9 +9461,10 @@ export class CapTimelineEditorApp {
                 host.classList.add("cat-te-prompt-copy-host");
             }
 
-            const btn = document.createElement("button");
-            btn.type = "button";
+            const btn = document.createElement("cap-button");
             btn.className = "cat-te-prompt-copy-btn";
+            btn.setAttribute("shape", "square");
+            btn.setAttribute("size", "small");
             btn.title = T("copy_prompt_title");
             btn.setAttribute("aria-label", T("copy_prompt_title"));
             btn.innerHTML = iconHtml("copy", 12);
@@ -9481,11 +9500,13 @@ export class CapTimelineEditorApp {
                 }
                 if (!ok) return;
                 btn.classList.add("is-copied");
+                btn.setAttribute("variant", "success");
                 btn.title = T("copy_prompt_done_title");
                 btn.innerHTML = iconHtml("check", 12);
                 clearTimeout(btn._copyResetTimer);
                 btn._copyResetTimer = setTimeout(() => {
                     btn.classList.remove("is-copied");
+                    btn.removeAttribute("variant");
                     btn.title = T("copy_prompt_title");
                     btn.innerHTML = iconHtml("copy", 12);
                 }, 1200);
@@ -9537,16 +9558,19 @@ export class CapTimelineEditorApp {
             icon.className = "cat-te-vo-audio-icon";
             icon.innerHTML = iconHtml("micVocal", 16) || "♫";
 
-            const name = document.createElement("button");
-            name.type = "button";
+            const name = document.createElement("cap-button");
             name.className = "cat-te-clip-video-name";
+            name.setAttribute("variant", "ghost");
+            name.setAttribute("align", "start");
+            name.setAttribute("truncate", "");
             name.textContent = String(row.file || "").split(/[\\/]/).pop() || T("asset_fallback_name");
             name.title = row.file || "";
             name.addEventListener("click", () => this._previewGeneratedAudio(clip, index));
 
-            const up = document.createElement("button");
-            up.type = "button";
+            const up = document.createElement("cap-button");
             up.className = "cat-te-vo-audio-move";
+            up.setAttribute("shape", "square");
+            up.setAttribute("size", "small");
             up.title = T("move_up_title");
             up.innerHTML = iconHtml("arrowUp", 12);
             up.disabled = index === 0;
@@ -9555,9 +9579,10 @@ export class CapTimelineEditorApp {
                 this._moveGeneratedAudio(clip, row.id, -1);
             });
 
-            const down = document.createElement("button");
-            down.type = "button";
+            const down = document.createElement("cap-button");
             down.className = "cat-te-vo-audio-move";
+            down.setAttribute("shape", "square");
+            down.setAttribute("size", "small");
             down.title = T("move_down_title");
             down.innerHTML = iconHtml("arrowDown", 12);
             down.disabled = index >= rows.length - 1;
@@ -9566,23 +9591,27 @@ export class CapTimelineEditorApp {
                 this._moveGeneratedAudio(clip, row.id, 1);
             });
 
-            const mute = document.createElement("button");
-            mute.type = "button";
+            const mute = document.createElement("cap-button");
             mute.className = "cat-te-clip-video-mute";
+            mute.setAttribute("shape", "square");
+            mute.setAttribute("size", "small");
             const muted = row.muted === true;
             mute.innerHTML = muted ? ICONS.volumeOff : ICONS.volume;
             mute.classList.toggle("active", muted);
+            mute.setAttribute("aria-pressed", String(muted));
             mute.title = muted ? T("unmute_label") : T("mute_label");
             mute.addEventListener("click", (e) => {
                 e.stopPropagation();
                 this._setGeneratedAudioMuted(clip, row.id, !muted);
             });
 
-            const del = document.createElement("button");
-            del.type = "button";
+            const del = document.createElement("cap-button");
             del.className = "cat-te-clip-video-del";
+            del.setAttribute("variant", "danger");
+            del.setAttribute("shape", "square");
+            del.setAttribute("size", "small");
             del.title = T("delete_btn");
-            del.textContent = "×";
+            del.innerHTML = iconHtml("close", 12);
             del.addEventListener("click", (e) => {
                 e.stopPropagation();
                 this._deleteGeneratedAudio(clip, row.id);
@@ -9879,13 +9908,15 @@ export class CapTimelineEditorApp {
         if (!actions) return;
         actions.replaceChildren();
         const makeBtn = (kind) => {
-            const btn = document.createElement("button");
-            btn.type = "button";
+            const btn = document.createElement("cap-button");
             btn.className = "cat-te-track-btn";
+            btn.setAttribute("shape", "square");
+            btn.setAttribute("size", "small");
             if (kind === "lock") {
                 const render = () => {
                     btn.innerHTML = track.locked ? ICONS.lock : ICONS.lockOpen;
                     btn.classList.toggle("active", track.locked);
+                    btn.setAttribute("aria-pressed", String(track.locked));
                     btn.title = track.locked ? T("unlock_track_title") : T("lock_track_title");
                 };
                 btn.addEventListener("click", (e) => {
@@ -9898,6 +9929,7 @@ export class CapTimelineEditorApp {
                 const render = () => {
                     btn.innerHTML = track.visible ? ICONS.eye : ICONS.eyeOff;
                     btn.classList.toggle("active", !track.visible);
+                    btn.setAttribute("aria-pressed", String(!track.visible));
                     btn.title = T("track_visibility_title");
                 };
                 btn.addEventListener("click", (e) => {
@@ -9914,6 +9946,7 @@ export class CapTimelineEditorApp {
                 const render = () => {
                     btn.innerHTML = track.muted ? ICONS.volumeOff : ICONS.volume;
                     btn.classList.toggle("active", track.muted);
+                    btn.setAttribute("aria-pressed", String(track.muted));
                     btn.title = track.muted ? T("unmute_label") : T("mute_label");
                 };
                 btn.addEventListener("click", (e) => {
@@ -10184,8 +10217,8 @@ export class CapTimelineEditorApp {
             return true;
         }
         if (e.key === "Tab") {
-            const fields = [...modal.querySelectorAll("button, input, select, textarea, a[href], [tabindex]")]
-                .filter((field) => !field.disabled && field.tabIndex >= 0 && field.getClientRects().length);
+            const fields = [...modal.querySelectorAll("button, cap-button, cap-tab-button, cap-dropdown-button, input, select, textarea, a[href], [tabindex]")]
+                .filter((field) => !field.disabled && (field.focusable ?? field.tabIndex >= 0) && field.getClientRects().length);
             const next = e.shiftKey ? fields.at(-1) : fields[0];
             if (!modal.contains(document.activeElement) || document.activeElement === (e.shiftKey ? fields[0] : fields.at(-1))) {
                 e.preventDefault();
@@ -10748,9 +10781,11 @@ export class CapTimelineEditorApp {
                 thumbWrap.addEventListener("mouseleave", () => this._scheduleOutputVideoHoverHide());
                 if (io) io.observe(thumb);
             }
-            const name = document.createElement("button");
-            name.type = "button";
+            const name = document.createElement("cap-button");
             name.className = "cat-te-output-video-name";
+            name.setAttribute("variant", "ghost");
+            name.setAttribute("align", "start");
+            name.setAttribute("truncate", "");
             name.textContent = file;
             name.title = file;
             name.disabled = added;
@@ -11303,7 +11338,7 @@ export class CapTimelineEditorApp {
         const actionBtn = this.mediaPrimaryActionBtn;
         if (actionBtn) {
             const selectedCount = this._mediaBatchSelected.size;
-            actionBtn.classList.toggle("cat-te-btn-danger", this._mediaBatchMode);
+            actionBtn.setAttribute("variant", this._mediaBatchMode ? "danger" : "neutral");
             actionBtn.innerHTML = this._mediaBatchMode
                 ? `${iconHtml("trash", 14)}<span>${selectedCount ? T("delete_selected_n_assets_title", { n: selectedCount }) : T("delete_btn")}</span>`
                 : `<span>${T("add_material_title")}</span>`;
@@ -15402,9 +15437,10 @@ export class CapTimelineEditorApp {
 
             const move = document.createElement("div");
             move.className = "cat-te-clip-item-move";
-            const up = document.createElement("button");
-            up.type = "button";
+            const up = document.createElement("cap-button");
             up.className = "cat-te-clip-item-move-btn";
+            up.setAttribute("shape", "square");
+            up.setAttribute("size", "small");
             up.title = T("move_up_title");
             up.innerHTML = iconHtml("arrowUp", 12);
             up.disabled = index === 0;
@@ -15412,9 +15448,10 @@ export class CapTimelineEditorApp {
                 e.stopPropagation();
                 this._moveClipItem(clip, index, -1);
             });
-            const down = document.createElement("button");
-            down.type = "button";
+            const down = document.createElement("cap-button");
             down.className = "cat-te-clip-item-move-btn";
+            down.setAttribute("shape", "square");
+            down.setAttribute("size", "small");
             down.title = T("move_down_title");
             down.innerHTML = iconHtml("arrowDown", 12);
             down.disabled = index === items.length - 1;
@@ -15455,9 +15492,11 @@ export class CapTimelineEditorApp {
             enableText.textContent = T("enable_label");
             enable.append(enableCb, enableText);
 
-            const del = document.createElement("button");
-            del.type = "button";
+            const del = document.createElement("cap-button");
             del.className = "cat-te-clip-item-delete";
+            del.setAttribute("variant", "danger");
+            del.setAttribute("shape", "square");
+            del.setAttribute("size", "small");
             del.title = T("delete_asset_title");
             del.innerHTML = iconHtml("trash", 12);
             del.addEventListener("click", (e) => {
@@ -16978,6 +17017,7 @@ export class CapTimelineEditorApp {
                     ? useAppend !== false
                     : selected.includes(key);
             chip.classList.toggle("is-active", enabled && active);
+            chip.setAttribute("aria-pressed", String(active));
         });
         this.promptIncludesHost?.classList.toggle("is-disabled", !enabled);
     }
@@ -17913,6 +17953,7 @@ export class CapTimelineEditorApp {
             this.aiOptimizeBtn.disabled = !busy && (!this._selClip || audio);
             this.aiOptimizeBtn.classList.toggle("is-loading", false);
             this.aiOptimizeBtn.classList.toggle("is-cancel", busy);
+            this.aiOptimizeBtn.setAttribute("variant", busy ? "danger" : "accent");
             const span = this.aiOptimizeBtn.querySelector("span");
             if (span) span.textContent = busy ? T("terminate_label") : T("edit_btn");
         }
@@ -17920,6 +17961,7 @@ export class CapTimelineEditorApp {
             this.aiGenerateBtn.disabled = false;
             this.aiGenerateBtn.classList.toggle("is-loading", false);
             this.aiGenerateBtn.classList.toggle("is-cancel", busy);
+            this.aiGenerateBtn.setAttribute("variant", busy ? "danger" : "primary");
             this.aiGenerateBtn.innerHTML = busy
                 ? `${iconHtml("sparkles", 12)}<span>${T("terminate_label")}</span>`
                 : `${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span>`;
@@ -18086,9 +18128,9 @@ export class CapTimelineEditorApp {
             const source = row.source === "official" ? T("skill_source_official") : T("skill_source_community");
             name.textContent = `${source} · ${row.title || row.name || row.id}`;
             name.title = row.summary || name.textContent;
-            const apply = document.createElement("button");
-            apply.type = "button";
-            apply.className = "cat-te-btn cat-te-btn-primary cat-te-skill-apply";
+            const apply = document.createElement("cap-button");
+            apply.className = "cat-te-skill-apply";
+            apply.setAttribute("variant", "primary");
             apply.dataset.skillId = row.id;
             apply.textContent = T("apply_btn");
             card.append(img, name, apply);

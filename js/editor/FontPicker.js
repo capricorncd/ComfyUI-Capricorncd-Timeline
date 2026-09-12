@@ -1,3 +1,4 @@
+import "../components/Button.js";
 import { t as T } from "../i18n/timeline_editor.js";
 
 export class FontPicker {
@@ -74,7 +75,7 @@ export class FontPicker {
         const items = [];
         const applyFontAt = (index, { commit = false } = {}) => {
             activeIndex = Math.max(0, Math.min(fonts.length - 1, index));
-            items.forEach((row, i) => row.classList.toggle("is-active", i === activeIndex));
+            items.forEach((row, i) => row.setAttribute("aria-pressed", String(i === activeIndex)));
             const row = items[activeIndex];
             row?.scrollIntoView({ block: "nearest" });
             const f = fonts[activeIndex];
@@ -88,10 +89,12 @@ export class FontPicker {
         };
 
         fonts.forEach((f, index) => {
-            const row = document.createElement("button");
-            row.type = "button";
+            const row = document.createElement("cap-button");
             row.className = "cat-te-font-picker-item";
-            if (index === activeIndex) row.classList.add("is-active");
+            row.setAttribute("variant", "ghost");
+            row.setAttribute("align", "start");
+            row.setAttribute("truncate", "");
+            row.setAttribute("aria-pressed", String(index === activeIndex));
             row.style.fontFamily = this._cssFontFamily(f.family);
             row.textContent = f.label;
             row.title = f.family;

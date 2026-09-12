@@ -62,15 +62,6 @@
     cursor: move;
 }
 
-.cap-ui-confirm-close {
-    border: 0;
-    background: transparent;
-    color: #aaa;
-    font-size: 20px;
-    line-height: 1;
-    cursor: pointer;
-}
-
 .cap-ui-confirm-message {
     padding: 18px 16px;
     max-height: 60vh;
@@ -131,18 +122,6 @@
 }
 
 .cap-ui-close {
-    border: none;
-    background: transparent;
-    color: #aaa;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border-radius: 4px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
     flex-shrink: 0;
     margin-left: 4px;
 }
@@ -151,11 +130,6 @@
     width: 16px;
     height: 16px;
     display: block;
-}
-
-.cap-ui-close:hover {
-    background: #333;
-    color: #fff;
 }
 
 .cap-ui-tabs {
@@ -176,26 +150,7 @@
 }
 
 .cap-ui-tab {
-    border: none;
-    background: transparent;
-    color: #999;
-    padding: 8px 14px;
-    border-radius: 6px 6px 0 0;
-    cursor: pointer;
-    font: inherit;
     margin-bottom: -1px;
-    border-bottom: 2px solid transparent;
-}
-
-.cap-ui-tab:hover {
-    color: #ddd;
-    background: #2a2a2a;
-}
-
-.cap-ui-tab.active {
-    color: #fff;
-    border-bottom-color: #6a9eff;
-    background: #2a2a2a;
 }
 
 .cap-ui-toolbar {
@@ -205,16 +160,6 @@
     margin-left: auto;
     padding: 0 0 8px;
     justify-content: flex-end;
-}
-
-.cap-ui-btn {
-    border: 1px solid #555;
-    background: #2a2a2a;
-    color: #ddd;
-    border-radius: 4px;
-    padding: 5px 10px;
-    cursor: pointer;
-    font: inherit;
 }
 
 /* Collapsed DOM widget fallback (before hoist). */
@@ -327,27 +272,6 @@
     padding: 8px 12px 12px;
 }
 
-.cap-ui-cat-tag {
-    border: 1px solid #555;
-    background: #2a2a2a;
-    color: #aaa;
-    border-radius: 999px;
-    padding: 3px 10px;
-    cursor: pointer;
-    font: 11px/1.2 system-ui, sans-serif;
-}
-
-.cap-ui-cat-tag:hover {
-    color: #ddd;
-    border-color: #777;
-}
-
-.cap-ui-cat-tag.active {
-    color: #fff;
-    border-color: #6a9eff;
-    background: #2d4a7a;
-}
-
 .cap-ui-history-stars {
     display: inline-flex;
     gap: 1px;
@@ -368,18 +292,6 @@
     flex-shrink: 0;
 }
 
-.cap-ui-star-btn {
-    border: none;
-    background: transparent;
-    color: #555;
-    padding: 0 1px;
-    cursor: pointer;
-    font-size: 12px;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-}
-
 .cap-ui-star-btn svg {
     display: block;
     width: 12px;
@@ -392,104 +304,8 @@
     height: 14px;
 }
 
-.cap-ui-star-btn.on {
-    color: #e6b422;
-}
-
-.cap-ui-star-btn.on svg {
+.cap-ui-star-btn[aria-pressed="true"] svg {
     fill: currentColor;
-}
-
-.cap-ui-star-btn:hover {
-    color: #f0d060;
-}
-
-.cap-ui-btn:disabled,
-.cap-ui-btn-primary:disabled,
-.cap-ui-btn-danger:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
-
-.cap-ui-btn:disabled:hover,
-.cap-ui-btn-primary:disabled:hover,
-.cap-ui-btn-danger:disabled:hover {
-    background: inherit;
-}
-
-.cap-ui-btn-primary {
-    border-color: #4a7fd4;
-    background: #2d4a7a;
-}
-
-.cap-ui-btn-primary:hover {
-    background: #355a94;
-}
-
-.cap-ui-btn-danger {
-    border-color: #8a3a3a;
-    color: #ffb0b0;
-}
-
-.cap-ui-btn-danger:hover {
-    background: #4a2020;
-}
-
-.cap-ui-icon-btn {
-    border: 1px solid #555;
-    background: #2a2a2a;
-    color: #ddd;
-    border-radius: 4px;
-    width: 26px;
-    height: 26px;
-    padding: 0;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 0;
-    flex-shrink: 0;
-}
-
-.cap-ui-icon-btn svg {
-    width: 14px;
-    height: 14px;
-    display: block;
-}
-
-.cap-ui-icon-btn:hover {
-    background: #353535;
-}
-
-.cap-ui-icon-btn.is-ok {
-    border-color: #3d8f5a;
-    color: #7dcea0;
-}
-
-.cap-ui-icon-btn-primary {
-    border-color: #4a7fd4;
-    background: #2d4a7a;
-    color: #dce9ff;
-}
-
-.cap-ui-icon-btn-primary:hover {
-    background: #355a94;
-}
-
-.cap-ui-icon-btn-danger {
-    border-color: #8a3a3a;
-    color: #ffb0b0;
-}
-
-.cap-ui-icon-btn-danger:hover {
-    background: #4a2020;
-}
-
-.cap-ui-icon-btn:disabled,
-.cap-ui-icon-btn-primary:disabled,
-.cap-ui-icon-btn-danger:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
 }
 
 .cap-ui-body {

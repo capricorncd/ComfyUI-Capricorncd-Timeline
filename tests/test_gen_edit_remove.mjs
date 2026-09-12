@@ -11,6 +11,7 @@ function method(name) {
 class Element {
   constructor() { this.handlers={}; this.children=[]; this.dataset={}; this.style={}; this.classList={toggle(){},add(){}}; }
   replaceChildren() { this.children=[]; }
+  setAttribute(name, value) { (this.attrs ??= {})[name] = String(value); }
   append(...children) { this.children.push(...children); }
   addEventListener(name,fn) { this.handlers[name]=fn; }
   querySelector() { return this.icon; }

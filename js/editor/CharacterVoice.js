@@ -1,3 +1,4 @@
+import "../components/Button.js";
 import { t as T } from "../i18n/timeline_editor.js";
 
 export class CharacterVoice {
@@ -8,9 +9,9 @@ export class CharacterVoice {
           <span>${T("voice_reference")}</span>
           <select aria-label="${T("voice_reference")}"></select>
           <div class="cat-te-model-preview-config-actions">
-            <button type="button" class="cat-te-btn" data-voice-action="bind">${T("voice_bind")}</button>
-            <button type="button" class="cat-te-btn" data-voice-action="import">${T("voice_import")}</button>
-            <button type="button" class="cat-te-btn" data-voice-action="unbind">${T("voice_unbind")}</button>
+            <cap-button  class="" data-voice-action="bind">${T("voice_bind")}</cap-button>
+            <cap-button  class="" data-voice-action="import">${T("voice_import")}</cap-button>
+            <cap-button  class="" data-voice-action="unbind">${T("voice_unbind")}</cap-button>
           </div>
           <audio controls preload="none" hidden></audio>
           <div class="cat-te-agent-note" role="status"></div>

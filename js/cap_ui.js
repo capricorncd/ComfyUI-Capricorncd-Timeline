@@ -1,3 +1,6 @@
+import "./components/Button.js";
+import { iconHtml } from "./cap_icons.js";
+
 /** Shared UI helpers: stylesheet loading, buttons. */
 
 export const EXT_PREFIX = "ComfyUI-Capricorncd-Timeline";
@@ -35,13 +38,9 @@ export function ensureCapUiCss() {
  * @param {{ variant?: "" | "primary" | "danger", title?: string, onClick?: () => void }} [opts]
  */
 export function mkUiBtn(label, { variant = "", title = "", onClick, needTarget = false } = {}) {
-    const b = document.createElement("button");
-    b.type = "button";
+    const b = document.createElement("cap-button");
     b.textContent = label;
-    const cls = ["cap-ui-btn"];
-    if (variant === "primary") cls.push("cap-ui-btn-primary");
-    else if (variant === "danger") cls.push("cap-ui-btn-danger");
-    b.className = cls.join(" ");
+    b.setAttribute("variant", variant);
     if (title) b.title = title;
     if (needTarget) b.dataset.capNeedTarget = "1";
     if (onClick) b.addEventListener("click", onClick);
@@ -53,13 +52,10 @@ export function mkUiBtn(label, { variant = "", title = "", onClick, needTarget =
  * @param {{ variant?: "" | "primary" | "danger", title?: string, onClick?: () => void, needTarget?: boolean }} [opts]
  */
 export function mkUiIconBtn(icon, { variant = "", title = "", onClick, needTarget = false } = {}) {
-    const b = document.createElement("button");
-    b.type = "button";
+    const b = document.createElement("cap-button");
     b.innerHTML = icon;
-    const cls = ["cap-ui-icon-btn"];
-    if (variant === "primary") cls.push("cap-ui-icon-btn-primary");
-    else if (variant === "danger") cls.push("cap-ui-icon-btn-danger");
-    b.className = cls.join(" ");
+    b.setAttribute("variant", variant);
+    b.setAttribute("shape", "square");
     if (title) b.title = title;
     if (needTarget) b.dataset.capNeedTarget = "1";
     if (onClick) b.addEventListener("click", onClick);
@@ -75,12 +71,12 @@ export function showCapConfirm(message, { title = "Confirm", confirmLabel = "OK"
           <div class="cap-ui-confirm-dialog" role="alertdialog" aria-modal="true">
             <div class="cap-ui-confirm-header">
               <strong></strong>
-              <button type="button" class="cap-ui-confirm-close" aria-label="${cancelLabel}">×</button>
+              <cap-button shape="square" variant="danger" class="cap-ui-confirm-close" aria-label="${cancelLabel}">${iconHtml("close", 16)}</cap-button>
             </div>
             <div class="cap-ui-confirm-message"></div>
             <div class="cap-ui-confirm-actions">
-              <button type="button" class="cap-ui-btn cap-ui-confirm-cancel"></button>
-              <button type="button" class="cap-ui-btn cap-ui-btn-danger cap-ui-confirm-ok"></button>
+              <cap-button class="cap-ui-confirm-cancel"></cap-button>
+              <cap-button variant="danger" class="cap-ui-confirm-ok"></cap-button>
             </div>
           </div>`;
         const dialog = overlay.querySelector(".cap-ui-confirm-dialog");
@@ -113,15 +109,14 @@ export function showCapConfirm(message, { title = "Confirm", confirmLabel = "OK"
         cancel.addEventListener("click", () => finish(false));
         ok.addEventListener("click", () => finish(true));
         if (alternateLabel) {
-            const alternate = document.createElement("button");
-            alternate.type = "button";
-            alternate.className = "cap-ui-btn cap-ui-confirm-alternate";
+            const alternate = document.createElement("cap-button");
+            alternate.className = "cap-ui-confirm-alternate";
             alternate.textContent = alternateLabel;
             alternate.addEventListener("click", () => finish("alternate"));
             ok.before(alternate);
         }
         header.addEventListener("pointerdown", (event) => {
-            if (event.button !== 0 || event.target.closest("button")) return;
+            if (event.button !== 0 || event.target.closest("button, cap-button")) return;
             const rect = dialog.getBoundingClientRect();
             const dx = event.clientX - rect.left;
             const dy = event.clientY - rect.top;

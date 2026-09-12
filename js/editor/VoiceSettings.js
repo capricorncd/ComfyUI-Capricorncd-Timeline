@@ -1,3 +1,4 @@
+import "../components/Button.js";
 import { api } from "../../../scripts/api.js";
 import { t as T } from "../i18n/timeline_editor.js";
 
@@ -14,7 +15,7 @@ export class VoiceSettings {
             <label><span>API Key</span><input data-voice="api_key" type="password" autocomplete="new-password" /></label>
             <label class="cat-te-agent-enabled"><input data-voice="clear_key" type="checkbox" /><span>${T("bgm_clear_key")}</span></label>
             <label><span>${T("voice_timeout")}</span><input data-voice="timeout_seconds" type="number" min="10" max="1800" step="1" value="300" /></label>
-            <button data-voice="save" type="button" class="cat-te-btn cat-te-btn-primary" disabled>${T("save_btn")}</button>
+            <cap-button variant="primary" data-voice="save" class="" disabled>${T("save_btn")}</cap-button>
           </div>
           <details><summary>${T("voice_contract")}</summary><pre class="cat-te-voice-contract"></pre></details>
           <div data-voice="status" role="status" class="cat-te-agent-note"></div>`;

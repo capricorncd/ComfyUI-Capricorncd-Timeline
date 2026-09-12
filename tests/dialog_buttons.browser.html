@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Dialog buttons regression</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<link rel="stylesheet" href="../js/cap_ui.css">
+<style>body { background: #101619; color: white; font-family: sans-serif; } #result { position: fixed; z-index: 999999; bottom: 0; background: #101619; } button { padding: 70px !important; background: red !important; }</style>
+<div id="fixture"></div><pre id="result">RUNNING</pre>
+<script type="importmap">
+{"imports":{"../../scripts/app.js":"data:text/javascript,export const app = {};"}}
+</script>
+<script type="module">
+import '../js/components/TabButton.js';
+import '../js/components/Dialog.js';
+import { iconHtml } from '../js/cap_icons.js';
+import { showCapConfirm } from '../js/cap_ui.js';
+import { FontPicker } from '../js/editor/FontPicker.js';
+const result = document.querySelector('#result');
+const assert = (ok, text) => { if (!ok) throw new Error(text); };
+try {
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const start = source.indexOf('<div class="cat-te-modal-backdrop cat-te-media-preview-modal"');
+    const end = source.indexOf('`;', start);
+    const fixture = document.querySelector('#fixture');
+    fixture.innerHTML = new Function('T', 'iconHtml', 'OUTPUT_VIDEOS_TIME_RANGES', 'return `' + source.slice(start, end) + '`;')(key => key, iconHtml, [{id:'1h', label:'1h'}]);
+    assert(!fixture.querySelector('button'), 'no native button left in dialog markup');
+    const buttons = [...fixture.querySelectorAll('cap-button, cap-tab-button')];
+    assert(buttons.length > 80, 'all dialog button families are covered');
+    for (const button of buttons) {
+        const native = button.shadowRoot?.querySelector('button');
+        assert(native, 'button upgraded: ' + button.className);
+        assert(native.type === 'button', 'no implicit form submission');
+        assert(getComputedStyle(native).paddingTop === '0px', 'hostile page CSS stays outside shadow');
+        assert(!button.classList.contains('cat-te-btn'), 'no duplicate legacy button chrome');
+        assert(getComputedStyle(button).borderTopWidth === '0px', 'no outer border: ' + button.className);
+        if (button.title && !button.textContent.trim()) assert(native.title || native.getAttribute('aria-label'), 'icon has accessible name');
+    }
+    const sidebar = document.createElement('div');
+    sidebar.style.width = '300px';
+    sidebar.className = 'cat-te-sub-apply-row';
+    fixture.append(sidebar);
+    for (const name of ['cat-te-sub-apply-all', 'cat-te-media-primary-action']) {
+        const line = source.split('\n').find(line => line.includes('<cap-button') && line.includes(name));
+        sidebar.insertAdjacentHTML('beforeend', new Function('T', 'return `' + line + '`;')(key => key));
+        const button = sidebar.querySelector('.' + name);
+        button.textContent ||= 'Add material';
+        assert(button.getBoundingClientRect().width === 300, name + ' keeps full-width layout');
+        assert(button.shadowRoot.querySelector('button').getBoundingClientRect().width === 300, name + ' entire row is clickable');
+        let actions = 0;
+        button.addEventListener('click', () => actions++);
+        button.click(); button.disabled = true; button.click();
+        assert(actions === 1, name + ' disabled state blocks activation');
+    }
+    sidebar.remove();
+    const modal = fixture.querySelector('.cat-te-ai-optimize-modal');
+    modal.hidden = false;
+    const tabs = [...modal.querySelectorAll('cap-tab-button')];
+    assert(tabs.length === 5, 'source and preview tabs retained');
+    const method = name => {
+        const at = source.indexOf('    ' + name + '(');
+        return new Function('SETTING_PROMPT_KEYS', 'normalizePromptIncludes', 'return ({' + source.slice(at, source.indexOf('\n    }', at) + 6) + '}).' + name)(['prepend_prompt', 'append_prompt'], v => v);
+    };
+    const app = { aiSourceTabs: tabs.slice(0, 3), _fillAiOptimizeSrc() {}, _setAiOptimizeBusy() {} };
+    method('_setAiOptimizeSrcTab').call(app, 'append_prompt');
+    assert(tabs[2].getAttribute('aria-selected') === 'true', 'actual tab update sets selection');
+    assert(tabs[2].shadowRoot.querySelector('button').getAttribute('role') === 'tab', 'native tab semantics');
+    tabs[2].tabIndex = -1;
+    assert(!tabs[2].focusable && tabs[2].shadowRoot.querySelector('button').tabIndex === -1, 'roving tabindex delegates');
+    tabs[2].tabIndex = 0;
+    tabs[2].focus();
+    assert(document.activeElement === tabs[2] && tabs[2].shadowRoot.activeElement, 'programmatic tab focus');
+    const selectedColor = getComputedStyle(tabs[2].shadowRoot.querySelector('button')).backgroundColor;
+    assert(selectedColor !== getComputedStyle(tabs[0].shadowRoot.querySelector('button')).backgroundColor, 'selection changes shared presentation');
+    const chips = [...modal.querySelectorAll('.cat-te-prompt-include-chip')];
+    method('_setPromptIncludesEnabled').call({promptIncludeChips: chips}, true, ['clip'], true, false);
+    assert(chips[0].getAttribute('aria-pressed') === 'true' && chips[3].getAttribute('aria-pressed') === 'false', 'actual prompt inclusion state');
+    const run = modal.querySelector('.cat-te-ai-run');
+    let clicks = 0;
+    run.addEventListener('click', e => { assert(e.target === run, 'events retarget to component'); clicks++; });
+    run.click(); run.disabled = true; run.click();
+    assert(clicks === 1 && !run.focusable, 'disabled action does not fire');
+    run.disabled = false; run.click(); assert(clicks === 2, 're-enabled action works');
+    modal.hidden = true;
+    const compose = fixture.querySelector('.cat-te-compose-modal'); compose.hidden = false;
+    for (const point of compose.querySelectorAll('.cat-te-wm-pos')) {
+        const native = point.shadowRoot.querySelector('button').getBoundingClientRect();
+        assert(native.width >= 20 && native.height === 22, 'watermark grid target is visible');
+        assert(getComputedStyle(point, '::after').pointerEvents === 'none', 'alignment dot cannot intercept click');
+    }
+    compose.hidden = true;
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;width:200px';
+    const name = document.createElement('cap-button'); name.className = 'cat-te-output-video-name';
+    name.setAttribute('truncate', ''); name.textContent = 'very-long-generated-video-name-'.repeat(12); row.append(name); fixture.append(row);
+    assert(row.scrollWidth <= 201, 'long file name truncates instead of widening row');
+    const select = document.createElement('select'); select.innerHTML = '<option>A</option><option>B</option>'; fixture.append(select);
+    const picker = new FontPicker(() => {}); picker.open(select);
+    const font = document.querySelector('.cat-te-font-picker-item'); assert(font.localName === 'cap-button', 'dynamic font entries use component');
+    font.click(); assert(!document.querySelector('.cat-te-font-picker'), 'font selection closes list');
+    const confirmation = showCapConfirm('Remove?', {alternateLabel:'Alternative'});
+    const confirm = document.querySelector('.cap-ui-confirm-dialog');
+    assert(!confirm.querySelector('button') && confirm.querySelectorAll('cap-button').length === 4, 'confirmation actions migrated');
+    confirm.querySelector('.cap-ui-confirm-alternate').click(); assert(await confirmation === 'alternate', 'alternate confirmation result preserved');
+    result.dataset.result = 'pass'; result.textContent = `PASS: ${buttons.length} dialog buttons; tabs, disabled, focus, layout and dynamic actions`;
+} catch (error) { result.dataset.result = 'fail'; result.textContent = error.stack; }
+</script>

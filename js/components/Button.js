@@ -1,10 +1,10 @@
 /** Shared native-button presentation and interaction. */
 export class Button extends HTMLElement {
-    static observedAttributes = ["disabled", "aria-haspopup", "aria-label", "aria-pressed"];
+    static observedAttributes = ["disabled", "aria-haspopup", "aria-label", "aria-pressed", "aria-selected", "aria-controls", "tabindex", "title"];
 
     constructor() {
         super();
-        const root = this.attachShadow({ mode: "open" });
+        const root = this.attachShadow({ mode: "open", delegatesFocus: true });
         root.innerHTML = `
             <style>
                 :host { display: inline-flex; vertical-align: middle; }
@@ -15,6 +15,8 @@ export class Button extends HTMLElement {
                     justify-content: center;
                     gap: 6px;
                     box-sizing: border-box;
+                    width: 100%;
+                    min-width: 0;
                     height: 28px;
                     padding: 0 10px;
                     border: 1px solid var(--cat-border-soft, #344950);
@@ -31,6 +33,16 @@ export class Button extends HTMLElement {
                 button:focus-visible { outline: 2px solid var(--cat-accent, #64d8c5); outline-offset: 2px; }
                 :host([shape="square"]) button { width: 28px; padding: 0; }
                 :host([shape="circle"]) button { width: 34px; height: 34px; padding: 0; border-radius: 50%; }
+                :host([size="small"]) button { height: 22px; padding: 0 6px; font-size: 11px; }
+                :host([size="small"][shape="square"]) button { width: 22px; padding: 0; }
+                :host([size="large"]) button { height: 44px; font-size: 16px; }
+                :host([size="large"][shape]) button { width: 44px; padding: 0; }
+                :host([align="start"]) button { justify-content: flex-start; text-align: left; }
+                :host([truncate]) { min-width: 0; }
+                :host([truncate]) slot { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                :host([variant="ghost"]) button { background: transparent; border-color: transparent; }
+                :host([variant="ghost"]) button:hover { background: rgba(255,255,255,0.08); }
+                :host([variant="success"]) button { color: #86efac; border-color: #3f7a55; background: rgba(34,84,54,0.55); }
                 :host([variant="accent"]) button {
                     background: rgba(100,216,197,0.15); border-color: rgba(100,216,197,0.35); color: var(--cat-accent, #64d8c5);
                 }
@@ -39,7 +51,8 @@ export class Button extends HTMLElement {
                 :host([variant="amber"]) button:hover { background: rgba(217,164,65,0.25); color: #f5d9a8; }
                 :host([variant="danger"]) button { color: #aaa; }
                 :host([variant="danger"]) button:hover { color: #fff; background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.45); }
-                :host([aria-pressed="true"]) button, :host([aria-pressed="true"]) button:hover {
+                :host([aria-pressed="true"]) button, :host([aria-pressed="true"]) button:hover,
+                :host([aria-selected="true"]) button, :host([aria-selected="true"]) button:hover {
                     background: rgba(74,158,255,0.18); border-color: rgba(74,158,255,0.45); color: #9ec5ff;
                 }
                 :host([variant="primary"]) button { background: var(--cat-action, #167970); border-color: transparent; color: #fff; }
@@ -58,6 +71,8 @@ export class Button extends HTMLElement {
 
     get disabled() { return this.hasAttribute("disabled"); }
     set disabled(value) { this.toggleAttribute("disabled", !!value); }
+    get tabIndex() { return this._button.tabIndex; }
+    set tabIndex(value) { this._button.tabIndex = value; }
 
     attributeChangedCallback(name) {
         if (name === "disabled") this._button.disabled = this.disabled;
@@ -67,6 +82,8 @@ export class Button extends HTMLElement {
 
     click() { this._button.click(); }
     focus(options) { this._button.focus(options); }
+
+    get focusable() { return !this.disabled && this._button.tabIndex >= 0; }
 }
 
 if (!customElements.get("cap-button")) {

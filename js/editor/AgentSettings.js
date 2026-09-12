@@ -1,3 +1,4 @@
+import "../components/Button.js";
 import { api } from "../../../scripts/api.js";
 import { t as T } from "../i18n/timeline_editor.js";
 
@@ -61,9 +62,7 @@ export class AgentSettings {
             const detail = document.createElement("span");
             detail.textContent = `${config.provider === "gemini" ? "Gemini" : "OpenAI"} · ${config.model}${config.enabled ? "" : T("agent_disabled_suffix")}`;
             text.append(title, detail);
-            const edit = document.createElement("button");
-            edit.type = "button";
-            edit.className = "cat-te-btn";
+            const edit = document.createElement("cap-button");
             edit.textContent = T("edit_btn");
             edit.addEventListener("click", () => this.edit(config));
             row.append(text, edit);

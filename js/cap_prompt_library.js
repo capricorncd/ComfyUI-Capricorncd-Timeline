@@ -1,3 +1,4 @@
+import "./components/TabButton.js";
 /** Shared History / Preset library for Rich Prompt Input. */
 
 import { app } from "../../scripts/app.js";
@@ -574,7 +575,7 @@ function enableDialogDrag(dialog, handle, root) {
 
     const onDown = (e) => {
         if (e.button !== 0) return;
-        if (e.target.closest("button, a, input, textarea, select")) return;
+        if (e.target.closest("button, cap-button, cap-tab-button, a, input, textarea, select")) return;
         dragging = true;
         const rect = dialog.getBoundingClientRect();
         ox = e.clientX - rect.left;
@@ -631,12 +632,11 @@ function renderFilterBar(host, kind, filters, activeId, onToggle) {
     const bar = document.createElement("div");
     bar.className = "cap-ui-cat-bar";
     for (const { id, label } of filters) {
-        const tag = document.createElement("button");
-        tag.type = "button";
+        const tag = document.createElement("cap-button");
         tag.className = "cap-ui-cat-tag";
         tag.textContent = label;
         tag.dataset.filterId = id;
-        if (activeId === id) tag.classList.add("active");
+        tag.setAttribute("aria-pressed", String(activeId === id));
         tag.addEventListener("click", () => {
             onToggle(id);
             const listBody = resolveListBody(host);
@@ -655,12 +655,13 @@ function renderStarFilterBar(host, kind) {
     wrap.className = "cap-ui-history-stars cap-ui-star-filter";
     const current = _modalStarFilter === "all" ? 0 : (parseInt(_modalStarFilter, 10) || 0);
     for (let i = 1; i <= 5; i++) {
-        const btn = document.createElement("button");
-        btn.type = "button";
+        const btn = document.createElement("cap-button");
         btn.className = "cap-ui-star-btn";
+        btn.setAttribute("shape", "square");
+        btn.setAttribute("size", "small");
         btn.innerHTML = iconHtml("star", 14);
         btn.title = t("star_title", { n: i });
-        if (i <= current) btn.classList.add("on");
+        btn.setAttribute("aria-pressed", String(i <= current));
         btn.addEventListener("click", () => {
             _modalStarFilter = _modalStarFilter === String(i) ? "all" : String(i);
             const listBody = resolveListBody(host);
@@ -695,12 +696,13 @@ function makeItemStars(item, kind, onChange) {
     wrap.className = "cap-ui-history-stars";
     const current = item.stars ?? 0;
     for (let i = 1; i <= 5; i++) {
-        const btn = document.createElement("button");
-        btn.type = "button";
+        const btn = document.createElement("cap-button");
         btn.className = "cap-ui-star-btn";
+        btn.setAttribute("shape", "square");
+        btn.setAttribute("size", "small");
         btn.innerHTML = iconHtml("star", 12);
         btn.title = t("star_title", { n: i });
-        if (i <= current) btn.classList.add("on");
+        btn.setAttribute("aria-pressed", String(i <= current));
         btn.addEventListener("click", (e) => {
             e.stopPropagation();
             const next = item.stars === i ? undefined : i;
@@ -1008,7 +1010,7 @@ function renderToolbar(toolbar, body, kind) {
 
 function setActiveTab(tabsEl, kind) {
     for (const btn of tabsEl.querySelectorAll(".cap-ui-tab")) {
-        btn.classList.toggle("active", btn.dataset.kind === kind);
+        btn.setAttribute("aria-selected", String(btn.dataset.kind === kind));
     }
 }
 
@@ -1020,12 +1022,12 @@ function buildModal(initialKind = "history") {
         <div class="cap-ui-hd cap-ui-drag">
           <h3 class="cap-ui-hd-title">${t("history_preset_header")}</h3>
           <span class="cap-ui-target-hint"></span>
-          <button type="button" class="cap-ui-close" title="${t("close_title")}">${iconHtml("close", 16)}</button>
+          <cap-button shape="square" variant="danger" class="cap-ui-close" title="${t("close_title")}">${iconHtml("close", 16)}</cap-button>
         </div>
         <div class="cap-ui-tabs">
-          <div class="cap-ui-tab-list">
-            <button type="button" class="cap-ui-tab" data-kind="history">${t("tab_history")}</button>
-            <button type="button" class="cap-ui-tab" data-kind="preset">${t("tab_preset")}</button>
+          <div class="cap-ui-tab-list" role="tablist">
+            <cap-tab-button variant="ghost" class="cap-ui-tab" data-kind="history">${t("tab_history")}</cap-tab-button>
+            <cap-tab-button variant="ghost" class="cap-ui-tab" data-kind="preset">${t("tab_preset")}</cap-tab-button>
           </div>
           <div class="cap-ui-toolbar"></div>
         </div>

@@ -23,7 +23,7 @@ export function bindDialogDrag(dialog, handle, target = dialog) {
         if (id !== undefined && handle.hasPointerCapture(id)) handle.releasePointerCapture(id);
     };
     const down = event => {
-        if (event.button !== 0 || event.target.closest("button, cap-button, cap-dropdown-button, input, select, textarea, a, [contenteditable='true']")) return;
+        if (event.button !== 0 || event.target.closest("button, cap-button, cap-tab-button, cap-dropdown-button, input, select, textarea, a, [contenteditable='true']")) return;
         event.preventDefault();
         const rect = target.getBoundingClientRect();
         drag = { id: event.pointerId, x: event.clientX - rect.left, y: event.clientY - rect.top };

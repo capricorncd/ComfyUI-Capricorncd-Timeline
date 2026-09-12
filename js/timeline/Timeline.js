@@ -357,7 +357,7 @@ export class Timeline extends EventEmitter {
   // ─── events ───────────────────────────────────────────────────────────────
 
   _focusFromPointer(e) {
-    if (e.button !== 0 || e.target.closest('button, cap-button, cap-dropdown-button, input, select, textarea, a[href], [contenteditable="true"]')) return;
+    if (e.button !== 0 || e.target.closest('button, cap-button, cap-tab-button, cap-dropdown-button, input, select, textarea, a[href], [contenteditable="true"]')) return;
     this._container.focus({ preventScroll: true });
   }
 
@@ -365,7 +365,7 @@ export class Timeline extends EventEmitter {
     this._container.addEventListener('pointerdown', (e) => this._focusFromPointer(e), true);
     this.scrollEl.addEventListener('mousedown', (e) => {
       if (e.button !== 0 || !(e.ctrlKey || e.metaKey)) return;
-      if (e.target.closest('button, input, select, textarea')) return;
+      if (e.target.closest('button, cap-button, cap-tab-button, cap-dropdown-button, input, select, textarea')) return;
       e.preventDefault();
       e.stopPropagation();
       this._boxSelect(e);
@@ -412,7 +412,7 @@ export class Timeline extends EventEmitter {
     this._onKey = (e) => {
       if (this._keyboardSuspended) return;
       if (e.target.closest?.('cap-dialog')) return;
-      if (e.target.closest?.('cap-button, cap-dropdown-button')) return;
+      if (e.target.closest?.('cap-button, cap-tab-button, cap-dropdown-button')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       switch (e.code) {
         case 'Space':

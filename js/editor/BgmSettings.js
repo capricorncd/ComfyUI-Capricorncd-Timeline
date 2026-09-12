@@ -1,3 +1,4 @@
+import "../components/Button.js";
 import { api } from "../../../scripts/api.js";
 import { t as T } from "../i18n/timeline_editor.js";
 
@@ -16,12 +17,12 @@ export class BgmSettings {
             <label><span>API Key</span><input data-bgm="api_key" type="password" autocomplete="new-password" /></label>
             <label class="cat-te-agent-enabled"><input data-bgm="clear_key" type="checkbox" /><span>${T("bgm_clear_key")}</span></label>
             <div data-bgm="workflow-row">
-              <button type="button" class="cat-te-btn" data-bgm="import">${T("bgm_import")}</button>
-              <button type="button" class="cat-te-btn" data-bgm="clear">${T("clear_btn")}</button>
+              <cap-button  class="" data-bgm="import">${T("bgm_import")}</cap-button>
+              <cap-button  class="" data-bgm="clear">${T("clear_btn")}</cap-button>
               <div data-bgm="workflow-name" class="cat-te-agent-note"></div>
               <input data-bgm="file" type="file" accept=".json,application/json" hidden />
             </div>
-            <div class="cat-te-agent-form-actions"><button type="button" class="cat-te-btn cat-te-btn-primary" data-bgm="save" disabled>${T("save_btn")}</button></div>
+            <div class="cat-te-agent-form-actions"><cap-button variant="primary" class="" data-bgm="save" disabled>${T("save_btn")}</cap-button></div>
           </div>
           <div data-bgm="status" class="cat-te-agent-note" role="status"></div>`;
         this.field = key => root.querySelector(`[data-bgm="${key}"]`);

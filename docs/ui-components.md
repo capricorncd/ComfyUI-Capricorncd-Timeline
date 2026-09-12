@@ -43,6 +43,12 @@ Use `dropdown.bindMenu(event => createMenu(event.currentTarget))` to enable hove
 
 Run `node tests/test_dropdown_button.mjs`; `tests/dropdown_button.browser.html` also checks actual styles, event retargeting and the add-track button's clone/rebind behavior in a browser.
 
+Editor dialogs (including dynamically built lists, track controls, font choices and confirmation actions) use the same buttons. `variant="ghost"` is for unobtrusive list actions; `variant="success"` shows brief successful actions such as copying. `size="small"` is 22 px tall, `size="large"` is 44 px; combine with `shape="square"` for icon controls. Use `align="start"` and `truncate` for long filenames, with width/flex constraints supplied by the list layout.
+
+`js/components/TabButton.js` defines `<cap-tab-button>`, reusing Button with native `role="tab"`. Its parent supplies `role="tablist"`; callers retain panel switching and arrow-key handling, and set `aria-selected`, `aria-controls` and `tabIndex` as appropriate. Use `aria-pressed` for toggle buttons instead of page-specific selected styles. Button forwards accessibility attributes, title and tab index to its native control; `focusable` lets legacy modal focus traps include enabled components without creating a second tab stop on the host.
+
+Run `node tests/test_dialog_buttons.mjs` for migration coverage, and open `tests/dialog_buttons.browser.html` for actual dialog markup, focus, disabled actions, tab/toggle states, watermark targets, dynamic font/confirmation actions and long-label layout checks.
+
 ## Dialog
 
 Use `js/components/Dialog.js` for new dialogs. `<cap-dialog>` owns an isolated native dialog, draggable header, shared button for Close, border, downward shadow, backdrop and scroll container. Export, voice conversion, subtitle speech/binding, batch subtitles, shortcuts and generated-media association use it. Legacy editor modals reuse its `bindDialogDrag()` helper and the same shadow/backdrop tokens while retaining their existing content and keyboard handling.

@@ -9,7 +9,7 @@ assert(start > 0 && markup.includes('cat-te-agent-save'), 'scan the complete dia
 assert(!nativeButton.test(markup), 'all static dialog buttons use components');
 for (const name of ['_showGenVideoGeneration', '_setupGenEditTrackControls', '_setupGenEditAudioTrackControls',
     '_attachPromptCopyButtons', '_setupVoiceoverEditTrackControls', '_renderOutputVideosPicker',
-    '_renderClipItemsModal', '_renderSkillPicker']) {
+    '_renderSkillPicker']) {
     const start = app.search(new RegExp('    (?:async )?' + name + '\\('));
     assert(start >= 0, name + ' exists');
     assert(!nativeButton.test(app.slice(start, app.indexOf('\n    }', start))), name + ' dynamic buttons use components');

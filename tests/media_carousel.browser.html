@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Media carousel regression</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>
+body { background: #18262b; color: white; margin: 20px; }
+#fixture { width: 680px; height: 760px; display: flex; }
+#sidebar { width: 300px; }
+</style>
+<div id="fixture"></div><div id="sidebar"></div><pre id="result">RUNNING</pre>
+<script type="module">
+import '../js/components/MediaCarousel.js';
+import '../js/components/TabButton.js';
+import { iconHtml } from '../js/cap_icons.js';
+const result = document.querySelector('#result');
+const assert = (ok, message) => { if (!ok) throw new Error(message); };
+try {
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const begin = source.indexOf('<div class="cat-te-ai-optimize-left">');
+    const end = source.indexOf('<div class="cat-te-ai-optimize-right">', begin);
+    assert(begin > 0 && end > begin, 'prompt layout located');
+    document.querySelector('#fixture').innerHTML = new Function('T', 'iconHtml', 'return `' + source.slice(begin, end) + '`;')(key => key, iconHtml);
+    const cb = source.indexOf('<cap-media-carousel class="cat-te-clip-swiper"');
+    const ce = source.indexOf('</cap-media-carousel>', cb) + '</cap-media-carousel>'.length;
+    document.querySelector('#sidebar').innerHTML = new Function('T', 'iconHtml', 'return `' + source.slice(cb, ce) + '`;')(key => key, iconHtml);
+    const byClass = name => document.querySelector('.' + name);
+    const method = name => {
+        const start = source.indexOf('    ' + name + '(');
+        assert(start > 0, name);
+        return new Function('T', 'SETTING_PROMPT_KEYS', 'setRichPromptValue', 'isVoiceoverTrackType', 'isSubtitleTrackType',
+            'return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '}).' + name)(
+            key => key, ['prepend_prompt', 'append_prompt'], (input, value) => { input.value = value; }, type => type === 'voiceover', type => type === 'subtitle');
+    };
+    const svg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="200"><rect width="120" height="200" fill="teal"/></svg>');
+    const rows = [
+        { id: 'a', file: 'portrait.png', kind: 'image', setting_description: '<img src=x onerror=alert(1)>\n# literal description', generation_prompt: 'DO NOT DISPLAY' },
+        { id: 'b', file: 'reference.mp4', kind: 'video', location: 'output', setting_description: 'Video description' },
+        { id: 'c', file: 'audio.wav', kind: 'audio', setting_description: '' },
+    ];
+    let items = rows;
+    const clip = { id: 'clip', track: { type: 'director', locked: false } };
+    const snapshots = [];
+    let saves = 0;
+    const editor = {
+        aiResourcePane: byClass('cat-te-ai-resource-pane'), aiResourceStage: byClass('cat-te-ai-resource-stage'),
+        aiResourceName: byClass('cat-te-ai-resource-name'), aiResourceDescription: byClass('cat-te-ai-resource-description'),
+        aiResourceCarousel: byClass('cat-te-ai-resource-preview'), aiSourceEditor: byClass('cat-te-ai-source-editor'),
+        aiSrcText: byClass('cat-te-ai-src-text'), aiSourceTabs: document.querySelectorAll('.cat-te-ai-source-tab'),
+        _aiOptimizeClipId: 'clip', _findClipById: () => clip, _clipPreviewMediaEntries: () => items,
+        _ensureClipMeta: () => ({items}), _clipItems: meta => meta.items, _clipPreviewIndex: new Map(),
+        _meta: { get: () => ({items}), set: (_, meta) => { items = meta.items; } },
+        _normalizeVisualMeta() {}, _syncClipPrimaryAppearance() {}, _scheduleProgramPreview() {},
+        _recordUndo() { snapshots.push(structuredClone(items)); }, _saveToWidgets() { saves++; },
+        _openDeleteConfirm(_, callback) { callback(); },
+        _findMediaById: id => rows.find(row => row.id === id), _findMedia: () => null, _mediaStatus: new Map(),
+        _assetFileUrl: (file, kind, location) => kind === 'image' ? svg : `/test-missing-${location}-${file}`,
+        _setAiOptimizeBusy() {}, _promptManagerValue: tab => `${tab} unchanged`,
+    };
+    for (const name of ['_clearAiResourcePreview', '_renderAiResource', '_setAiOptimizeSrcTab', '_fillAiOptimizeSrc', '_writePromptManagerValue',
+        '_configureClipResourceCarousel', '_bindClipResourceCarousel', '_refreshClipResourceViews', '_clipPreviewItemIndex', '_setClipPreviewItemIndex',
+        '_applyClipItemOrder', '_setClipItemEnabled', '_removeClipItem', '_removeClipItemNow']) editor[name] = method(name);
+    const c = editor.aiResourceCarousel;
+    editor._bindClipResourceCarousel(c, () => clip);
+    editor._setAiOptimizeSrcTab('resource');
+    assert(editor.aiSourceEditor.hidden && !editor.aiResourcePane.hidden, 'resource pane replaces editor');
+    assert(editor.aiSrcText.readOnly && editor.aiResourceDescription.readOnly, 'descriptions are read-only');
+    assert(editor.aiResourceDescription.value === rows[0].setting_description, 'raw description, not image generation prompt');
+    assert(!editor.aiResourcePane.querySelector('[onerror]'), 'description cannot create HTML');
+    assert(editor._writePromptManagerValue('resource', 'bad') === false, 'read-only tab cannot overwrite Clip prompt');
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    for (const width of [680, 360]) {
+        document.querySelector('#fixture').style.width = width + 'px';
+        const rect = c.getBoundingClientRect();
+        assert(Math.abs(rect.width / rect.height - 16 / 9) < .02, 'fixed 16:9 frame at each width');
+        for (const selector of ['.previous', '.next']) {
+            const button = c.shadowRoot.querySelector(selector).getBoundingClientRect();
+            assert(Math.abs(button.y + button.height / 2 - rect.y - rect.height / 2) < 1, 'centered arrows');
+        }
+        assert(editor.aiResourceDescription.getBoundingClientRect().top >= rect.bottom, 'description below preview');
+    }
+    c.shadowRoot.querySelector('.next').click();
+    const video = editor.aiResourceStage.querySelector('video');
+    assert(video && video.controls && video.paused && video.src.includes('output-reference.mp4'), 'video stays paused and uses output path');
+    assert(editor.aiResourceDescription.value === 'Video description', 'description follows selection');
+    c.step(1);
+    assert(!video.hasAttribute('src'), 'previous playback released');
+    assert(editor.aiResourceStage.querySelector('audio'), 'audio reference preview');
+    assert(editor.aiResourceDescription.placeholder === 'prompt_resource_no_description', 'empty description hint');
+    c.step(1); assert(c.index === 0, 'next wraps');
+    c.step(-1); assert(c.index === 2, 'previous wraps');
+    editor._setAiOptimizeSrcTab('append_prompt');
+    assert(editor.aiResourcePane.hidden && !editor.aiSourceEditor.hidden && !editor.aiSrcText.readOnly, 'editable tabs restored');
+    assert(!editor.aiResourceStage.children.length, 'tab switch releases media');
+    for (const count of [1, 0]) {
+        items = rows.slice(0, count);
+        editor._setAiOptimizeSrcTab('resource');
+        assert(c.shadowRoot.querySelector('.next').hidden, 'no arrows for zero/single resource');
+        assert(c.index === 0, 'selection clamped after item removal');
+        assert(c.shadowRoot.querySelector('.remove').hidden === (count === 0), 'empty preview hides remove');
+    }
+    assert(editor.aiResourceName.textContent === 'prompt_resource_empty', 'empty Clip hint');
+    const sidebar = byClass('cat-te-clip-swiper');
+    sidebar.setSelection(0, 2);
+    let selected = -1;
+    sidebar.addEventListener('media-change', e => { selected = e.detail.index; });
+    sidebar.shadowRoot.querySelector('.next').click();
+    assert(selected === 1 && sidebar.shadowRoot.querySelector('.count').textContent === '2/2', 'Clip sidebar shares navigation/count');
+    assert(!sidebar.querySelector('.cat-te-clip-thumb-sort'), 'separate sort modal removed');
+    items = rows.map(row => ({...row, enabled: true, useMediaPrompt: false}));
+    editor._setClipPreviewItemIndex(clip, 0);
+    editor._renderAiResource();
+    assert(c.mode === 'preview', 'default full-width preview');
+    const remove = c.shadowRoot.querySelector('.remove');
+    assert(!remove.hidden && !remove.disabled, 'preview exposes remove button');
+    const frame = c.getBoundingClientRect(), removeRect = remove.getBoundingClientRect();
+    assert(Math.abs(frame.right - removeRect.right - 6) < 1 && Math.abs(frame.bottom - removeRect.bottom - 6) < 1, 'remove is bottom-right');
+    assert(remove.getAttribute('aria-label') === 'remove_from_clip_title', 'remove is accessible');
+    c.shadowRoot.querySelector('.view').click();
+    const listRows = () => [...c.shadowRoot.querySelectorAll('.row')];
+    assert(c.mode === 'list' && listRows().length === 3, 'inline list toggle');
+    assert(remove.hidden, 'preview remove hidden in list');
+    assert(c.shadowRoot.querySelector('.stage').hidden, 'preview hidden in list');
+    listRows()[1].click();
+    assert(editor.aiResourceDescription.value === 'Video description', 'row selects description');
+    assert(!editor.aiResourceStage.querySelector('video'), 'list does not load full preview');
+    const dataTransfer = new DataTransfer();
+    listRows()[0].dispatchEvent(new DragEvent('dragstart', {bubbles: true, dataTransfer}));
+    listRows()[2].dispatchEvent(new DragEvent('dragover', {bubbles: true, cancelable: true, dataTransfer}));
+    listRows()[2].dispatchEvent(new DragEvent('drop', {bubbles: true, cancelable: true, dataTransfer}));
+    assert(items.map(i => i.id).join() === 'b,c,a', 'drag reorders references');
+    assert(c.index === 0 && editor.aiResourceDescription.value === 'Video description', 'reorder preserves selected resource');
+    assert(items.every(i => i.useMediaPrompt === false), 'reorder preserves prompt flags');
+    listRows()[0].querySelector('[data-action="toggle"]').click();
+    assert(items[0].enabled === false && listRows()[0].classList.contains('disabled'), 'disable reflected in UI and data');
+    listRows()[0].querySelector('[data-action="toggle"]').click();
+    assert(items[0].enabled === true, 'enable restored');
+    listRows()[2].querySelector('[data-action="delete"]').click();
+    assert(items.length === 2 && c.index === 0 && editor.aiResourceDescription.value === 'Video description', 'deleting another row keeps selection');
+    assert(rows.length === 3 && saves === 4 && snapshots.length === 4, 'edits save once, undo once, never delete library assets');
+    items = snapshots.pop(); editor._refreshClipResourceViews(clip);
+    assert(items.length === 3 && listRows().length === 3, 'undo can restore reference');
+    clip.track.locked = true; editor._renderAiResource();
+    assert(listRows().every(row => !row.draggable && row.querySelector('cap-button').disabled), 'locked track is read-only');
+    const before = JSON.stringify(items);
+    c.dispatchEvent(new CustomEvent('media-edit', {detail: {action: 'delete', index: 0}}));
+    assert(JSON.stringify(items) === before, 'lock enforced by app as well as UI');
+    listRows()[2].click(); assert(c.index === 2, 'locked track still browsable');
+    c.shadowRoot.querySelector('.view').click();
+    assert(c.mode === 'preview' && !c.shadowRoot.querySelector('.stage').hidden, 'return to full-width preview');
+    assert(remove.disabled, 'preview delete disabled on locked track');
+    clip.track.locked = false; editor._renderAiResource();
+    const removedId = items[c.index].id;
+    remove.click();
+    assert(!items.some(item => item.id === removedId), 'preview delete removes selected reference');
+    for (const name of ['_clipResourceDropTarget', '_canDropClipResource', '_updateMediaDragHover',
+        '_clearMediaDragVisuals', '_commitMediaDrop', '_insertItemIntoClip', '_bindMediaPointerDrag', '_makeMediaDragGhost']) editor[name] = method(name);
+    editor._timeline = {};
+    editor.clipSwiper = sidebar;
+    editor._selClip = clip;
+    editor._ensureMedia = (kind, file) => ({id: file, kind, file});
+    editor._renderMediaGrid = () => {};
+    editor._updateClipInfoPanel = () => editor._configureClipResourceCarousel(sidebar, clip, items, editor._clipPreviewItemIndex(clip, {items}));
+    editor._bindClipResourceCarousel(sidebar, () => clip);
+    editor._refreshClipResourceViews(clip);
+    const drop = (target, media) => {
+        const rect = target.getBoundingClientRect();
+        editor._commitMediaDrop(media, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    };
+    drop(sidebar, {file: 'added.png', kind: 'image'});
+    assert(items.at(-1).file === 'added.png' && sidebar.index === items.length - 1, 'sidebar drop appends and selects last');
+    drop(c, {file: 'added.mp4', kind: 'video'});
+    assert(items.at(-1).file === 'added.mp4' && c.index === items.length - 1, 'prompt preview uses same append path');
+    const length = items.length;
+    drop(c, {file: 'ignore.wav', kind: 'audio'});
+    assert(items.length === length, 'audio is not inserted as visual reference');
+    clip.track.locked = true;
+    drop(c, {file: 'locked.png', kind: 'image'});
+    assert(items.length === length, 'drop checks current track lock even before repaint');
+    clip.track.locked = false;
+    const sourceTile = document.createElement('div');
+    sourceTile.id = 'drag-source';
+    sourceTile.textContent = 'Drag library resource';
+    sourceTile.style.cssText = 'position:fixed;left:500px;top:80px;width:150px;height:60px;background:teal;user-select:none;';
+    document.body.append(sourceTile);
+    editor._bindMediaPointerDrag(sourceTile, 'image', 'pointer-added.png');
+    window.resourceDropTest = {
+        count: () => items.length, last: () => items.at(-1).file,
+        selected: () => c.index, editor,
+    };
+    editor._clearAiResourcePreview();
+    result.textContent = 'PASS: shared preview/list, responsive 16:9, descriptions, drag reorder, enable/delete, selection, undo snapshots, locks and playback cleanup';
+} catch (error) {
+    result.textContent = 'FAIL: ' + error.stack;
+    throw error;
+}
+</script>
+</html>

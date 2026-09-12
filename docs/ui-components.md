@@ -49,6 +49,18 @@ Editor dialogs (including dynamically built lists, track controls, font choices 
 
 Run `node tests/test_dialog_buttons.mjs` for migration coverage, and open `tests/dialog_buttons.browser.html` for actual dialog markup, focus, disabled actions, tab/toggle states, watermark targets, dynamic font/confirmation actions and long-label layout checks.
 
+## Media carousel
+
+`js/components/MediaCarousel.js` provides `<cap-media-carousel>` for Clip settings and Prompt Manager's read-only asset-description tab. It owns the 16:9 frame, vertically centered Lucide navigation buttons (using `cap-button`), wraparound switching and item counter. Call `setSelection(index, count)` without emitting a change; user navigation emits `media-change` with `detail.index`. Set localized `previous-label` / `next-label` attributes. Zero or one item hides navigation.
+
+The default slot holds caller-owned media. `setItems([{name, kind, url, enabled}], {index, editable, allowList, labels})` enables the top-right full-width/list switch. The default is preview mode; `setMode("list")` opens the scrollable list. List rows select on click/Enter/Space, drag vertically to reorder (or Alt+Up/Down), and use shared buttons to enable/disable or remove references. `media-edit` requests carry `action` (`reorder` with `from/to`, `toggle` or `delete` with `index`). `media-view-change` carries `mode`. Labels include `list`, `preview`, `enable`, `disable`, `remove`, `empty`.
+
+Full-width preview also exposes a bottom-right remove button for the selected reference, using the same `media-edit` delete request. Empty previews hide it; locked previews disable it. The `drop-active` attribute highlights a valid library-resource drop target.
+
+The component does not load project data or mutate references. The editor owns validation, track locks, confirmation, undo and saving; removal never deletes the library asset or disk file. Clip settings and Prompt Manager share the selected reference and editing path. Both accept image/video resources dragged from the library via the existing pointer-based drag path; insertion appends and selects the new reference, without changing Clip timing. Descriptions remain read-only below the preview/list; browsing alone never changes prompt inclusion. Prompt Manager releases full audio/video on selection change, list mode, tab change and close. The old separate sorting modal is removed.
+
+Serve the repository locally and open `tests/media_carousel.browser.html` for layout and interaction checks.
+
 ## Dialog
 
 Use `js/components/Dialog.js` for new dialogs. `<cap-dialog>` owns an isolated native dialog, draggable header, shared button for Close, border, downward shadow, backdrop and scroll container. Export, voice conversion, subtitle speech/binding, batch subtitles, shortcuts and generated-media association use it. Legacy editor modals reuse its `bindDialogDrag()` helper and the same shadow/backdrop tokens while retaining their existing content and keyboard handling.

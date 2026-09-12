@@ -2300,30 +2300,10 @@ body.cat-te-media-dnd-over-tl {
     padding: 4px 0 8px;
 }
 
-.cat-te-clip-swiper {
-    position: relative;
-    display: block;
-    width: 100%;
-}
-
-.cat-te-clip-swiper-nav {
-    position: absolute;
-    top: 50%;
-    z-index: 2;
-    transform: translateY(-50%);
-}
-.cat-te-clip-swiper-nav.prev {
-    left: 6px;
-}
-.cat-te-clip-swiper-nav.next {
-    right: 6px;
-}
-
 .cat-te-clip-thumb-wrap {
     position: relative;
     width: 100%;
-    aspect-ratio: 16 / 9;
-    height: auto;
+    height: 100%;
     border-radius: 6px;
     overflow: hidden;
     border: 1px solid var(--cat-border);
@@ -2374,23 +2354,6 @@ body.cat-te-media-dnd-over-tl {
     gap: 6px;
     min-width: 0;
 }
-
-.cat-te-clip-item-index {
-    display: flex;
-    align-items: center;
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    padding: 4px 6px;
-    font-family: "SF Mono", "Consolas", monospace;
-    font-size: 11px;
-    color: #fff;
-    background: rgba(0, 0, 0, 0.45);
-    opacity: 0.75;
-    pointer-events: none;
-    border-radius: 0 2px 0 0;
-}
-.cat-te-clip-item-index:empty { display: none; }
 
 .cat-te-clip-name {
     flex: 1;
@@ -2843,116 +2806,6 @@ body.cat-te-media-dnd-over-tl {
     font-size: 12px;
 }
 
-.cat-te-clip-items-dialog {
-    width: min(640px, 92vw);
-    max-height: 80vh;
-    display: flex;
-    flex-direction: column;
-}
-.cat-te-clip-items-body {
-    padding: 10px 12px;
-    overflow: auto;
-    min-height: 120px;
-    max-height: 52vh;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.cat-te-clip-items-empty {
-    color: var(--cat-muted);
-    font-size: 12px;
-    padding: 24px 8px;
-    text-align: center;
-}
-.cat-te-clip-item-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px;
-    border: 1px solid var(--cat-border);
-    border-radius: 6px;
-    background: var(--cat-raised);
-}
-.cat-te-clip-item-move {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    flex-shrink: 0;
-}
-.cat-te-clip-item-move-btn svg {
-    width: 12px;
-    height: 12px;
-    display: block;
-}
-.cat-te-clip-item-thumb {
-    height: 100px;
-    object-fit: cover;
-    border-radius: 4px;
-    background: var(--cat-bg);
-    flex-shrink: 0;
-}
-.cat-te-clip-item-name {
-    flex: 1;
-    min-width: 0;
-    color: #ddd;
-    font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.cat-te-clip-item-row.is-disabled {
-    opacity: 0.55;
-}
-.cat-te-clip-item-kind {
-    font-size: 10px;
-    color: var(--cat-muted);
-    flex-shrink: 0;
-}
-.cat-te-clip-item-enable {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-    font-size: 11px;
-    color: var(--cat-muted);
-    cursor: pointer;
-}
-.cat-te-clip-item-enable input {
-    margin: 0;
-    accent-color: var(--cat-accent);
-}
-.cat-te-clip-item-delete {
-    flex-shrink: 0;
-}
-.cat-te-clip-item-delete svg {
-    width: 12px;
-    height: 12px;
-    display: block;
-}
-
-.cat-te-clip-thumb-sort {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    z-index: 3;
-}
-.cat-te-clip-thumb-sort svg {
-    width: 12px;
-    height: 12px;
-    display: block;
-}
-
-.cat-te-clip-thumb-delete {
-    position: absolute;
-    bottom: 4px;
-    right: 4px;
-    z-index: 3;
-}
-.cat-te-clip-thumb-delete svg {
-    width: 12px;
-    height: 12px;
-    display: block;
-}
 
 .cat-te-clip-videos {
     flex-shrink: 0;
@@ -3504,6 +3357,45 @@ body.cat-te-media-dnd-over-tl {
     flex: 1 1 auto;
     min-height: 0;
 }
+.cat-te-ai-source-editor,
+.cat-te-ai-resource-pane {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.cat-te-ai-source-editor[hidden],
+.cat-te-ai-resource-pane[hidden] {
+    display: none;
+}
+.cat-te-ai-resource-pane {
+    gap: 8px;
+    overflow: auto;
+}
+.cat-te-ai-resource-stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cat-te-ai-resource-stage img,
+.cat-te-ai-resource-stage video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.cat-te-ai-resource-stage audio {
+    width: calc(100% - 80px);
+}
+.cat-te-ai-resource-name {
+    flex-shrink: 0;
+    overflow-wrap: anywhere;
+    color: var(--cat-muted);
+    font-size: 12px;
+}
+.cat-te-ai-resource-description {
+    flex: 1 0 100px;
+    min-height: 100px;
+}
 .cat-te-ai-optimize-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -3525,6 +3417,7 @@ body.cat-te-media-dnd-over-tl {
     display: none !important;
 }
 .cat-te-ai-src-text,
+.cat-te-ai-resource-description,
 .cat-te-ai-system,
 .cat-te-ai-skill,
 .cat-te-ai-result {

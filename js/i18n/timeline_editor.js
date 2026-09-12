@@ -2,6 +2,8 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        resource_list: "Resource list (drag to reorder)",
+        resource_full_preview: "Full-width preview",
         voice_service: "Voice conversion",
         speech_service: "Subtitle speech",
         speech_bind: "Bind character",
@@ -74,6 +76,8 @@ export const DICT = {
         media_generation_prompt: "Generation prompt",
         media_generation_prompt_placeholder: "Complete prompt used to generate this image…",
         media_asset_description: "Asset description",
+        prompt_resource_empty: "This Clip has no referenced assets.",
+        prompt_resource_no_description: "No description for this asset.",
         media_asset_description_placeholder: "Character, object, or scene setting description…",
         media_created_at: "Created",
         media_modified_at: "Modified",
@@ -687,6 +691,8 @@ export const DICT = {
         apply_skill_failed: "Failed to apply Skill: {msg}",
     },
     zh: {
+        resource_list: "素材列表（拖动排序）",
+        resource_full_preview: "100% 宽度预览",
         voice_service: "音色转换",
         speech_service: "字幕配音",
         speech_bind: "绑定角色",
@@ -759,6 +765,8 @@ export const DICT = {
         media_generation_prompt: "生成提示词",
         media_generation_prompt_placeholder: "生成该图片时使用的完整提示词…",
         media_asset_description: "素材描述",
+        prompt_resource_empty: "当前 Clip 没有引用素材。",
+        prompt_resource_no_description: "该素材暂无描述。",
         media_asset_description_placeholder: "人物、物品或场景的设定描述…",
         media_created_at: "创建时间",
         media_modified_at: "修改时间",
@@ -1364,6 +1372,8 @@ export const DICT = {
         apply_skill_failed: "应用 Skill 失败：{msg}",
     },
     ja: {
+        resource_list: "素材リスト（ドラッグで並べ替え）",
+        resource_full_preview: "幅100%でプレビュー",
         voice_service: "声質変換",
         speech_service: "字幕音声生成",
         speech_bind: "キャラクターを関連付け",
@@ -1436,6 +1446,8 @@ export const DICT = {
         media_generation_prompt: "生成プロンプト",
         media_generation_prompt_placeholder: "この画像の生成に使用した完全なプロンプト…",
         media_asset_description: "素材の説明",
+        prompt_resource_empty: "この Clip には参照素材がありません。",
+        prompt_resource_no_description: "この素材には説明がありません。",
         media_asset_description_placeholder: "人物・アイテム・シーンの設定説明…",
         media_created_at: "作成日時",
         media_modified_at: "更新日時",

@@ -1,14 +1,20 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
-const classes = ['sub-apply-all', 'media-primary-action', 'clip-swiper-nav', 'clip-thumb-sort',
-    'clip-thumb-delete', 'clip-seed-random', 'ai-optimize-btn', 'clip-videos-open', 'vo-audio-add', 'vo-audio-edit'];
+const classes = ['sub-apply-all', 'media-primary-action',
+    'clip-seed-random', 'ai-optimize-btn', 'clip-videos-open', 'vo-audio-add', 'vo-audio-edit'];
 for (const name of classes) {
     const tags = [...source.matchAll(/<([\w-]+)\b[^>]*class="([^"]*)"[^>]*>/g)]
         .filter(match => match[2].split(' ').includes('cat-te-' + name));
     assert(tags.length, name + ' exists');
     assert(tags.every(match => match[1] === 'cap-button'), name + ' uses shared button');
 }
+assert.match(source, /<cap-media-carousel class="cat-te-clip-swiper"/);
+const carousel = readFileSync(new URL('../js/components/MediaCarousel.js', import.meta.url), 'utf8');
+assert.match(carousel, /<cap-button shape="square" class="previous"/);
+assert.match(carousel, /<cap-button shape="square" class="next"/);
+assert.match(carousel, /<cap-button shape="square" size="small" class="view"/);
+assert.doesNotMatch(source, /_openClipItemsModal|cat-te-clip-thumb-sort/);
 assert.match(source, /actionBtn\.setAttribute\("variant", this\._mediaBatchMode \? "danger" : "neutral"\)/);
 assert.match(source, /actionBtn\.disabled = this\._mediaBatchMode && selectedCount === 0/);
 assert.match(source, /bind\(this.subApplyAllBtn, "click", \(\) => this\._applySubtitleStyleToAllUnlocked\(\)\)/);

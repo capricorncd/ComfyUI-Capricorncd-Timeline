@@ -1548,6 +1548,49 @@ export class CapTimelineEditorApp {
         this._applyTrackTypeOrder({ recordUndo: true, save: true });
     }
 
+    _clipsWithGeneratedVideoLinks() {
+        return this._allImageTracks().flatMap(track => track.clips)
+            .map(clip => ({ clip, meta: this._meta.get(clip.id) }))
+            .filter(({ meta }) => Array.isArray(meta?.generatedVideos) && meta.generatedVideos.length);
+    }
+
+    async _clearAllGeneratedVideoLinks() {
+        let targets = this._clipsWithGeneratedVideoLinks();
+        if (!targets.length) return;
+        const loadSeq = this._loadSeq;
+        const confirmed = await showCapConfirm(T("confirm_clear_generated_video_links", {
+            clips: targets.length,
+            videos: targets.reduce((count, { meta }) => count + meta.generatedVideos.length, 0),
+        }), {
+            title: T("clear_generated_video_links"),
+            confirmLabel: T("clear_links_btn"),
+            cancelLabel: T("cancel_btn"),
+        });
+        if (!confirmed || this._destroyed || loadSeq !== this._loadSeq) return;
+        targets = this._clipsWithGeneratedVideoLinks();
+        if (!targets.length) return;
+        this._recordUndo();
+        const ids = new Set(targets.map(({ clip }) => clip.id));
+        if (ids.has(this._genEditState?.clipId)) this._closeGenEditModal();
+        if (ids.has(this._genVideoState?.clipId)) this._closeGenVideoModal();
+        if (ids.has(this._resourceGenPreview?.clipId)) this._stopResourceGenProgramPreview();
+        this._hideOutputVideoHoverPreview();
+        for (const { meta } of targets) {
+            meta.generatedVideos = [];
+            if (meta.previewMode === "generated") meta.previewMode = "media";
+        }
+        for (const { clip } of targets) {
+            this._decorateClip(clip);
+            this._syncClipPrimaryAppearance(clip, { refreshVideo: true });
+        }
+        if (ids.has(this._selClip?.id)) this._updateClipInfoPanel(this._selClip);
+        if (ids.has(this._outputVideosClipId) && this._outputPickerKind === "video") this._renderOutputVideosPicker();
+        this._updateEditModeToolbar();
+        this._saveToWidgets();
+        this._scheduleProgramPreview();
+        if (this._timeline?._playing) this._startAudioPlayback();
+    }
+
     _trackTypeRank(track) {
         if (isSubtitleTrackType(track?.type)) return 0;
         if (isMediaTrackType(track?.type)) return 1;
@@ -16334,6 +16377,11 @@ export class CapTimelineEditorApp {
             const rect = e.currentTarget.getBoundingClientRect();
             return this._buildCtxMenu([
                 { label: T("reset_track_order"), fn: () => this._resetTrackOrder() },
+                {
+                    label: T("clear_generated_video_links"),
+                    disabled: !this._clipsWithGeneratedVideoLinks().length,
+                    fn: () => void this._clearAllGeneratedVideoLinks(),
+                },
                 { label: T("shortcuts_title"), fn: () => this.shortcutsDialog.showModal() },
             ], rect.left, rect.bottom + 4, { ignoreNextClick: false });
         });

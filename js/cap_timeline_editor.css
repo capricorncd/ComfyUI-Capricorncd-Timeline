@@ -1868,8 +1868,8 @@ body.cat-te-media-dnd-over-tl {
 
 .cat-te-video-muted-badge {
     position: absolute;
-    right: 10px;
-    bottom: 4px;
+    right: 8px;
+    bottom: 2px;
     z-index: 5;
     display: flex;
     padding: 3px;
@@ -1877,6 +1877,11 @@ body.cat-te-media-dnd-over-tl {
     background: rgba(0, 0, 0, 0.65);
     color: #fff;
     pointer-events: none;
+}
+
+.cat-te-video-muted-badge svg {
+    width: 10px;
+    height: 10px;
 }
 
 .cat-te-multi-selection-panel {

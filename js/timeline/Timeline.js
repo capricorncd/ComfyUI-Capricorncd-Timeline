@@ -411,6 +411,7 @@ export class Timeline extends EventEmitter {
     const consume = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.(); };
     this._onKey = (e) => {
       if (this._keyboardSuspended) return;
+      if (e.target.closest?.('cap-dialog')) return;
       if (e.target.closest?.('cap-button, cap-dropdown-button')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       switch (e.code) {

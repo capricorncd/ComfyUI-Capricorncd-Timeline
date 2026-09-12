@@ -97,9 +97,7 @@ for (const format of ['directory', 'zip']) {
     await f.app._runProjectExport({ format: 'zip' });
     f.generated.checked = false; f.dialog.listeners.input();
     assert.equal(f.app._exportRevealToken, null, 'checkbox edits reset successful export');
-    Object.assign(f.dialog.style, { position: 'fixed', left: '30px', top: '40px', margin: '0', right: 'auto', bottom: 'auto' });
     f.app._openExportDialog();
-    assert(Object.values(f.dialog.style).every(value => value === ''), 'reopen returns native dialog to centered positioning');
     assert.equal(f.dialog.open, true);
 }
 for (const failure of ['http', 'network', 'json']) {
@@ -122,6 +120,7 @@ for (const failure of ['http', 'network', 'json']) {
     const f = fixture(() => { calls++; return new Promise(resolve => { finish = resolve; }); });
     const pending = f.app._runProjectExport({ format: 'zip' });
     assert(f.controls.every(c => c.disabled));
+    assert.equal(f.dialog.closeDisabled, true, 'component close button disabled during export');
     let prevented = false;
     f.dialog.listeners.cancel({ preventDefault() { prevented = true; } });
     assert(prevented);
@@ -129,6 +128,7 @@ for (const failure of ['http', 'network', 'json']) {
     assert.equal(calls, 1);
     finish({ ok: true, json: async () => ({ ...success, missing: ['missing.png'] }) });
     await pending;
+    assert.equal(f.dialog.closeDisabled, false);
     assert.match(f.status.textContent, /missing.png/);
     assert(!(f.status.state === 'success'), 'missing assets retain a visible warning');
     assert((f.status.state === 'error'), 'incomplete exports use the error color');
@@ -138,21 +138,6 @@ for (const failure of ['http', 'network', 'json']) {
     f.app._projectExportSaved('old-token');
     await f.app._openExportDirectory();
     assert.match(f.status.textContent, /open_folder_failed.*Export expired/);
-}
-{
-    const handle = element({ setPointerCapture() {} });
-    const dialog = element({ tagName: 'DIALOG', querySelector: () => handle, getBoundingClientRect: () => ({ left: 100, top: 100, width: 460, height: 300 }) });
-    method('_bindModalDrag').call({}, dialog);
-    handle.listeners.pointerdown({ button: 0, target: { closest: () => null }, preventDefault() {}, clientX: 120, clientY: 120, pointerId: 1 });
-    handle.listeners.pointermove({ clientX: 320, clientY: 220 });
-    assert.equal(dialog.style.left, '300px');
-    assert.equal(dialog.style.top, '200px');
-    assert.equal(dialog.style.margin, '0', 'native dialog auto margins must be disabled during drag');
-    handle.listeners.pointermove({ clientX: 2000, clientY: -20 });
-    assert.equal(dialog.style.left, '532px'); assert.equal(dialog.style.top, '8px');
-    handle.listeners.lostpointercapture();
-    assert(!dialog.classList.contains('is-dragging'));
-    assert(!handle.listeners.pointermove);
 }
 assert(source.includes('this.wmTabs = this.composeModal.querySelectorAll'), 'export buttons must not become watermark controls');
 {

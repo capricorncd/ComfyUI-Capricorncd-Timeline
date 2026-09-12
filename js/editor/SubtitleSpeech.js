@@ -1,5 +1,6 @@
 import { api } from "../../../scripts/api.js";
 import { t as T } from "../i18n/timeline_editor.js";
+import "../components/Dialog.js";
 
 export function subtitleTiming(clip) {
     const start_ms = Math.round(clip.startTime * 1000);
@@ -10,11 +11,10 @@ export function subtitleTiming(clip) {
 export class SubtitleSpeech {
     constructor(app, host) {
         this.app = app;
-        this.dialog = document.createElement("dialog");
-        this.dialog.className = "cat-te-voice-dialog";
-        this.dialog.style.cssText = "width:760px;max-width:80vw;max-height:80vh;overflow:auto";
+        this.dialog = document.createElement("cap-dialog");
+        this.dialog.className = "cat-te-speech-dialog";
+        this.dialog.setAttribute("close-label", T("close_title"));
         host.append(this.dialog);
-        this.dialog.addEventListener("keydown", e => e.stopPropagation());
         this.dialog.addEventListener("cancel", e => { if (this.busy) e.preventDefault(); });
         this.dialog.addEventListener("close", () => this.stopAudio());
     }
@@ -28,7 +28,8 @@ export class SubtitleSpeech {
         const resources = app._projectResources;
         const valid = () => app._timeline === timeline && app._projectResources === resources && this.dialog.open && app._isNodeOnLiveGraph();
         app._timeline.pause();
-        this.dialog.innerHTML = `<div class="cat-te-modal-header"><span>${T(bindOnly ? "speech_bind" : "speech_convert")}</span></div><div class="cat-te-modal-body"><div class="speech-rows"></div><p role="status"></p><div class="cat-te-confirm-actions"><button class="cat-te-btn" data-action="settings">${T("voice_configure")}</button><button class="cat-te-btn" data-action="close">${T("close_title")}</button><button class="cat-te-btn cat-te-btn-primary" data-action="submit">${T(bindOnly ? "save_btn" : "speech_convert")}</button></div></div>`;
+        this.dialog.setAttribute("aria-label", T(bindOnly ? "speech_bind" : "speech_convert"));
+        this.dialog.innerHTML = `<span slot="title">${T(bindOnly ? "speech_bind" : "speech_convert")}</span><div class="cat-te-modal-body"><div class="speech-rows"></div><p role="status"></p><div class="cat-te-confirm-actions"><cap-button data-action="settings">${T("voice_configure")}</cap-button><cap-button data-action="close">${T("close_title")}</cap-button><cap-button variant="primary" data-action="submit">${T(bindOnly ? "save_btn" : "speech_convert")}</cap-button></div></div>`;
         const candidates = resources.filter(row => row.kind === "image" || row.kind === "video");
         const rows = clips.map(clip => {
             const meta = app._meta.get(clip.id);
@@ -72,8 +73,9 @@ export class SubtitleSpeech {
             const unchanged = row => valid() && app._meta.get(row.clip.id) === row.meta && !row.clip.track.locked
                 && row.meta.text === row.text && JSON.stringify(subtitleTiming(row.clip)) === JSON.stringify(row.timing);
             this.busy = true;
+            this.dialog.closeDisabled = true;
             this.stopAudio();
-            this.dialog.querySelectorAll("button, select, textarea").forEach(el => el.disabled = true);
+            this.dialog.querySelectorAll("cap-button, select, textarea").forEach(el => el.disabled = true);
             let completed = 0;
             try {
                 const requests = rows.map(row => {
@@ -110,7 +112,8 @@ export class SubtitleSpeech {
             } catch (error) { status.textContent = `${completed} / ${rows.length}: ${error.message}`; }
             finally {
                 this.busy = false;
-                this.dialog.querySelectorAll("button, select, textarea").forEach(el => el.disabled = false);
+                this.dialog.closeDisabled = false;
+                this.dialog.querySelectorAll("cap-button, select, textarea").forEach(el => el.disabled = false);
             }
         };
         this.dialog.showModal();

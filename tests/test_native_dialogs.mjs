@@ -5,7 +5,8 @@ function method(name) {
     const start = source.indexOf(`    ${name}(`);
     const end = source.indexOf('\n    }', start) + 6;
     assert(start >= 0);
-    return new Function(`return ({${source.slice(start, end)}}).${name}`)();
+    return new Function('bindDialogDrag', 'resetDialogPosition', `return ({${source.slice(start, end)}}).${name}`)(
+        () => () => {}, target => { target.style.left = ''; target.style.top = ''; });
 }
 let focused = 0;
 const shell = { style: {} };
@@ -22,22 +23,23 @@ const modal = {
     },
 };
 const native = { tagName: 'DIALOG', open: true, inert: true, querySelector: () => ({ addEventListener() {} }) };
+const component = { tagName: 'CAP-DIALOG', open: true, inert: true };
 const background = { tagName: 'DIV' };
 globalThis.document = { activeElement: null };
 globalThis.MutationObserver = class { constructor(fn) { this.fn = fn; } observe() {} };
 const app = {
     _overlay: {
-        children: [modal, native, background],
+        children: [modal, native, component, background],
         querySelectorAll: () => [modal],
         querySelector: () => native.open ? native : null,
         classList: { contains: () => true },
     },
     _timeline: {},
     exportDialog: native,
-    _bindModalDrag: method('_bindModalDrag'),
 };
 method('_bindModalInteractions').call(app);
 assert.equal(native.inert, false, 'nested native dialog must remain clickable');
+assert.equal(component.inert, false, 'component dialog must remain clickable above legacy modal');
 assert.equal(background.inert, true, 'background remains blocked');
 assert.equal(modal.inert, false);
 assert.equal(focused, 0, 'do not steal focus from the native dialog');

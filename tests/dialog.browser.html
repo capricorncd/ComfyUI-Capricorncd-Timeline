@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Dialog component test</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>
+    body { background: #101619; color: #e4edeb; font-family: sans-serif; }
+    #under { position: fixed; left: 10px; top: 10px; }
+    dialog { box-shadow: 0 0 60px cyan !important; padding: 90px !important; }
+    #result { position: fixed; bottom: 0; }
+</style>
+<cap-button id="under">Timeline</cap-button>
+<cap-dialog id="panel" class="cat-te-export-dialog" aria-label="Project export" close-label="关闭">
+    <span slot="title">Project export</span>
+    <div class="cat-te-modal-body">
+        <label>Directory <input id="path" value="D:/exports"></label>
+        <cap-button id="export" variant="primary">Export</cap-button>
+    </div>
+</cap-dialog>
+<cap-dialog id="nested" close-label="关闭"><span slot="title">Change voice</span><div class="cat-te-modal-body"><input></div></cap-dialog>
+<pre id="result">RUNNING</pre>
+<script type="module">
+import '../js/components/Dialog.js';
+const result = document.querySelector('#result');
+const assert = (ok, message) => { if (!ok) throw new Error(message); };
+const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+try {
+    const panel = document.querySelector('#panel'), nested = document.querySelector('#nested');
+    const under = document.querySelector('#under');
+    const dialog = panel.shadowRoot.querySelector('dialog');
+    const header = panel.shadowRoot.querySelector('header');
+    const close = panel.shadowRoot.querySelector('cap-button');
+    let closed = 0, actions = 0;
+    panel.addEventListener('close', () => closed++);
+    document.querySelector('#export').addEventListener('click', () => actions++);
+    under.focus(); panel.showModal();
+    assert(panel.open && dialog.matches(':modal') && panel.hasAttribute('modal'), 'showModal blocks background');
+    assert(document.elementFromPoint(12, 12) !== under, 'modal backdrop intercepts background hit testing');
+    assert(getComputedStyle(dialog).padding === '0px', 'page native-dialog styling does not leak in');
+    assert(getComputedStyle(dialog).boxShadow.includes('16px 40px -8px'), 'shared downward shadow, not outer glow');
+    assert(getComputedStyle(dialog, '::backdrop').backgroundColor === 'rgba(0, 0, 0, 0.55)', 'shared backdrop color');
+    assert(dialog.getBoundingClientRect().width <= innerWidth * .8 + 1, 'dialog limited to 80vw');
+    assert(close.getAttribute('aria-label') === '关闭', 'localized component close button');
+    assert(close.querySelector('svg').getAttribute('width') === '18' && close.querySelector('svg path').getAttribute('d') === 'M18 6 6 18', 'close uses Lucide X SVG');
+    document.querySelector('#export').click(); assert(actions === 1, 'slotted buttons keep business listeners');
+    const centered = dialog.getBoundingClientRect();
+    assert(Math.abs(centered.left - (innerWidth - centered.width) / 2) < 2, 'initially centered');
+    // Synthetic pointer events need a capture stub; coordinates and layout are real.
+    let capture;
+    header.setPointerCapture = id => { capture = id; };
+    header.hasPointerCapture = id => capture === id;
+    header.releasePointerCapture = () => { capture = null; };
+    header.dispatchEvent(new PointerEvent('pointerdown', { button: 0, pointerId: 1, clientX: centered.left + 20, clientY: centered.top + 20 }));
+    header.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 45, clientY: 55 }));
+    header.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
+    assert(Math.abs(dialog.getBoundingClientRect().left - 25) < 1 && Math.abs(dialog.getBoundingClientRect().top - 35) < 1, 'header drag moves native dialog');
+    panel.closeDisabled = true; close.click(); assert(panel.open, 'busy close button is disabled');
+    dialog.dispatchEvent(new Event('cancel', { cancelable: true })); assert(panel.open, 'busy Escape is blocked');
+    panel.closeDisabled = false;
+    const veto = event => event.preventDefault();
+    panel.addEventListener('cancel', veto); close.click(); assert(panel.open, 'caller can veto close');
+    panel.removeEventListener('cancel', veto);
+    nested.showModal();
+    assert(nested.open && panel.open, 'nested modal stays operable');
+    nested.shadowRoot.querySelector('cap-button').click(); await tick();
+    assert(!nested.open && panel.open, 'closing nested modal leaves parent open');
+    const didClose = new Promise(resolve => panel.addEventListener('close', resolve, { once: true }));
+    close.click(); await didClose; assert(!panel.open && closed === 1, 'one close event');
+    panel.show();
+    assert(panel.open && !dialog.matches(':modal') && !panel.hasAttribute('modal'), 'show opens non-modal video picker');
+    assert(document.elementFromPoint(12, 12) === under, 'no mask outside non-modal panel');
+    under.focus(); assert(document.activeElement === under, 'timeline remains focusable');
+    assert(Math.abs(dialog.getBoundingClientRect().left - centered.left) < 2, 'reopening recenters after drag');
+    document.querySelector('#path').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true, cancelable: true }));
+    assert(!panel.open, 'Escape inside floating content closes the panel');
+    panel.show();
+    const grip = panel.shadowRoot.querySelector('.resize-handle');
+    let resizeCapture;
+    grip.setPointerCapture = id => { resizeCapture = id; };
+    grip.hasPointerCapture = id => resizeCapture === id;
+    grip.releasePointerCapture = () => { resizeCapture = null; };
+    const beforeResize = dialog.getBoundingClientRect();
+    grip.dispatchEvent(new PointerEvent('pointerdown', { button: 0, pointerId: 2, clientX: beforeResize.right, clientY: beforeResize.bottom }));
+    grip.dispatchEvent(new PointerEvent('pointermove', { pointerId: 2, clientX: 4000, clientY: 4000 }));
+    let resized = dialog.getBoundingClientRect();
+    assert(resized.width <= innerWidth * .8 + 1 && resized.height <= innerHeight * .8 + 1, 'resize respects maximum size');
+    assert(resized.right <= innerWidth - 7 && resized.bottom <= innerHeight - 7, 'resize stays inside screen');
+    assert(Math.abs(resized.left - beforeResize.left) < 1 && Math.abs(resized.top - beforeResize.top) < 1, 'resize does not shift top-left');
+    grip.dispatchEvent(new PointerEvent('pointermove', { pointerId: 2, clientX: -1000, clientY: -1000 }));
+    grip.dispatchEvent(new PointerEvent('pointerup', { pointerId: 2 }));
+    resized = dialog.getBoundingClientRect();
+    assert(Math.abs(resized.width - Math.min(420, innerWidth * .8)) < 1 && Math.abs(resized.height - Math.min(320, innerHeight * .8)) < 1, 'export has its own minimum size');
+    assert(resizeCapture === null, 'resize releases pointer capture');
+    for (const [name, width, height] of [['voice',420,280], ['shortcuts',400,240], ['subtitle-batch',460,360], ['speech',560,360], ['output-videos',480,320]]) {
+        const sample = document.createElement('cap-dialog');
+        sample.className = name === 'output-videos' ? 'cat-te-output-videos-modal' : `cat-te-${name}-dialog`;
+        sample.innerHTML = '<span slot="title">Size test</span>';
+        document.body.append(sample); sample.show();
+        const box = sample.shadowRoot.querySelector('dialog');
+        box.style.width = '1px'; box.style.height = '1px';
+        const rect = box.getBoundingClientRect();
+        assert(Math.abs(rect.width - Math.min(width, innerWidth * .8)) < 1 && Math.abs(rect.height - Math.min(height, innerHeight * .8)) < 1, `${name} minimum size with viewport cap`);
+        sample.remove();
+    }
+    const tall = document.createElement('div'); tall.style.height = '1600px'; panel.append(tall);
+    assert(dialog.getBoundingClientRect().height <= innerHeight * .8 + 1, 'long content limited to 80vh');
+    const body = panel.shadowRoot.querySelector('.body');
+    assert(body.scrollHeight > body.clientHeight, 'body scrolls instead of losing header');
+    panel.close(); panel.showModal(); await tick(); assert(panel.open, 'late close event cannot close reopened dialog');
+    panel.remove(); await tick(); assert(!panel.open && capture === null, 'disconnect closes dialog and cleans drag');
+    result.textContent = 'PASS: drag/resize, per-dialog minimum and viewport maximum, Lucide X, centering, modal/non-modal, busy/Escape/close and scrolling';
+    result.dataset.result = 'pass';
+} catch (error) { result.textContent = 'FAIL: ' + error.message; result.dataset.result = 'fail'; }
+</script>
+</html>

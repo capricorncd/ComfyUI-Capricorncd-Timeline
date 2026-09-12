@@ -15,6 +15,8 @@
     --cat-action-hover: #15766d;
     --cat-selected: #21443e;
     --cat-amber: #e9b767;
+    --cap-dialog-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.65);
+    --cap-dialog-backdrop: rgba(0, 0, 0, 0.55);
 }
 
 .cat-te-noscroll { overflow: hidden !important; }
@@ -248,7 +250,7 @@ body.cat-te-row-resize * {
     position: fixed;
     inset: 0;
     z-index: 100010;
-    background: rgba(0, 0, 0, 0.55);
+    background: var(--cap-dialog-backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -256,8 +258,7 @@ body.cat-te-row-resize * {
 .cat-te-modal-backdrop[hidden] { display: none; }
 .cat-te-modal-backdrop { pointer-events: auto; }
 .cat-te-modal-header { cursor: move; touch-action: none; }
-.cat-te-modal.is-dragging,
-.cat-te-export-dialog.is-dragging { user-select: none; }
+.cat-te-modal.is-dragging { user-select: none; }
 
 .cat-te-modal {
     width: 320px;
@@ -265,7 +266,7 @@ body.cat-te-row-resize * {
     background: var(--cat-raised);
     border: 1px solid var(--cat-border);
     border-radius: 8px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    box-shadow: var(--cap-dialog-shadow);
     overflow: hidden;
 }
 
@@ -2798,23 +2799,11 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-prompt-include-chip:disabled {
     cursor: default;
 }
-.cat-te-voice-dialog,
-.cat-te-export-dialog,
-.cat-te-shortcuts-dialog {
-    width: 460px;
-    max-width: calc(100vw - 40px);
-    max-height: calc(100vh - 48px);
-    padding: 0;
-    border: 1px solid var(--cat-border);
-    border-radius: 8px;
-    background: var(--cat-surface);
-    color: var(--cat-text);
-    font-size: 13px;
-    line-height: 2;
-}
-.cat-te-voice-dialog::backdrop,
-.cat-te-export-dialog::backdrop,
-.cat-te-shortcuts-dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+.cat-te-export-dialog { --cap-dialog-min-width: 420px; --cap-dialog-min-height: 320px; }
+.cat-te-voice-dialog { --cap-dialog-min-width: 420px; --cap-dialog-min-height: 280px; }
+.cat-te-shortcuts-dialog { --cap-dialog-min-width: 400px; --cap-dialog-min-height: 240px; }
+.cat-te-subtitle-batch-dialog { --cap-dialog-min-width: 460px; --cap-dialog-min-height: 360px; }
+.cat-te-speech-dialog { --cap-dialog-width: 760px; --cap-dialog-min-width: 560px; --cap-dialog-min-height: 360px; }
 
 /* Launcher widget on the node */
 .cat-te-launcher {
@@ -3374,41 +3363,7 @@ body.cat-te-media-dnd-over-tl {
     align-self: flex-start;
 }
 
-.cat-te-output-videos-dialog {
-    width: min(560px, 92vw);
-    max-height: 80vh;
-    display: flex;
-    flex-direction: column;
-}
-
-/* Floating (no dimming mask): keep timeline/clips clickable underneath. */
-.cat-te-floating-panel.cat-te-output-videos-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 100010;
-    background: transparent;
-    display: flex;
-    pointer-events: none;
-    align-items: center;
-    justify-content: center;
-}
-.cat-te-floating-panel.cat-te-output-videos-modal.is-audio-picker {
-    background: rgba(0, 0, 0, 0.55);
-    pointer-events: auto;
-}
-.cat-te-floating-panel.cat-te-output-videos-modal[hidden] {
-    display: none !important;
-}
-.cat-te-floating-panel.cat-te-output-videos-modal .cat-te-output-videos-dialog {
-    pointer-events: auto;
-    width: min(560px, 92vw);
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
-}
-.cat-te-output-videos-drag {
-    cursor: move;
-    user-select: none;
-    gap: 8px;
-}
+.cat-te-output-videos-modal { --cap-dialog-width: 560px; --cap-dialog-min-width: 480px; --cap-dialog-min-height: 320px; }
 .cat-te-output-videos-title {
     flex: 1;
     min-width: 0;
@@ -3439,32 +3394,11 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-output-videos-auto-link {
     flex: 0 0 auto;
-    white-space: nowrap;
-    font-size: 11px;
-    padding: 6px 10px;
-}
-.cat-te-output-videos-auto-link.is-loading {
-    opacity: 0.6;
-    pointer-events: none;
 }
 .cat-te-output-videos-time-filter {
     display: flex;
     gap: 6px;
     margin-top: 8px;
-}
-.cat-te-output-videos-time-btn {
-    border: 1px solid var(--cat-border);
-    border-radius: 4px;
-    background: var(--cat-raised);
-    color: var(--cat-muted);
-    padding: 4px 10px;
-    font-size: 11px;
-    cursor: pointer;
-}
-.cat-te-output-videos-time-btn.is-active {
-    color: var(--cat-text);
-    border-color: var(--cat-accent);
-    background: rgba(100, 216, 197, 0.22);
 }
 .cat-te-output-videos-body {
     padding: 10px 12px;

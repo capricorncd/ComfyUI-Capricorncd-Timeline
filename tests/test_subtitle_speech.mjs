@@ -17,6 +17,7 @@ class Element {
     pause() {}
     load() {}
     removeAttribute() {}
+    setAttribute() {}
     showModal() { this.open = true; }
     close() { this.open = false; }
 }

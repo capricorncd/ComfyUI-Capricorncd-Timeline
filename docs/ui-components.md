@@ -42,3 +42,45 @@ Both components accept `textContent` for the label, `disabled` for availability,
 Use `dropdown.bindMenu(event => createMenu(event.currentTarget))` to enable hover opening. The callback creates and positions the menu and must return its DOM element. The dropdown keeps it open while the pointer is over either the button or the menu, with a 180 ms closing delay to cross the gap. Click/keyboard activation is also supported. Disabling or disconnecting the dropdown removes its menu. Menu contents, actions, placement and coordination with other menus remain caller-owned; opening a menu must not create undo history.
 
 Run `node tests/test_dropdown_button.mjs`; `tests/dropdown_button.browser.html` also checks actual styles, event retargeting and the add-track button's clone/rebind behavior in a browser.
+
+## Dialog
+
+Use `js/components/Dialog.js` for new dialogs. `<cap-dialog>` owns an isolated native dialog, draggable header, shared button for Close, border, downward shadow, backdrop and scroll container. Export, voice conversion, subtitle speech/binding, batch subtitles, shortcuts and generated-media association use it. Legacy editor modals reuse its `bindDialogDrag()` helper and the same shadow/backdrop tokens while retaining their existing content and keyboard handling.
+
+```html
+<cap-dialog aria-label="Export" close-label="Close">
+  <span slot="title">Export</span>
+  <div class="cat-te-modal-body">
+    <!-- Business controls stay in light DOM and use shared button components. -->
+  </div>
+</cap-dialog>
+```
+
+```js
+dialog.showModal();             // Native modality, backdrop and focus isolation.
+dialog.show();                  // Floating panel: no backdrop, background stays operable.
+dialog.closeDisabled = true;    // Disable Close and Escape while busy.
+dialog.closeDisabled = false;
+dialog.close();                 // Programmatic close; also works while busy.
+dialog.addEventListener("cancel", event => {
+    if (cannotClose) event.preventDefault();
+});
+dialog.addEventListener("close", stopAudition);
+```
+
+`open` is read-only; do not toggle `hidden` or the reflected `open`/`modal` attributes. `cancel` is the cancelable close request from Close or Escape; `close` reports completed closure. Close an open dialog before changing its modal mode. Each fresh open centers it. Pointer drag is limited to the title bar, excludes interactive controls, clamps to the viewport and releases capture/listeners on cancellation or removal.
+
+Configure width using `--cap-dialog-width` (default 460px). The component caps dimensions at 80vw/80vh and scrolls content without losing the header. `--cap-dialog-shadow` and `--cap-dialog-backdrop` are shared theme tokens; do not override native dialog styles from business CSS. The generated-video association panel uses `show()` and keeps the timeline selectable, allowing selection changes to retarget its contents. The generated-audio picker retains its previous blocking behavior with `showModal()`.
+
+Drag the bottom-right grip to resize. The top-left stays fixed, and resizing is limited by both 80vw/80vh and available viewport space. Size is retained while the component exists; reopening still recenters it. Set `--cap-dialog-min-width` and `--cap-dialog-min-height` in pixels (defaults 320 × 160); smaller viewports take precedence over these minimums. Close uses the shared [Lucide X](https://lucide.dev/icons/x) SVG at 18px.
+
+| Dialog | Minimum width × height (px) |
+| --- | --- |
+| Project export | 420 × 320 |
+| Voice conversion | 420 × 280 |
+| Shortcuts | 400 × 240 |
+| Batch subtitles | 460 × 360 |
+| Subtitle speech / character binding | 560 × 360 |
+| Generated video/audio association | 480 × 320 |
+
+Run `node tests/test_dialog.mjs` plus the existing native-dialog/export/speech tests. `tests/dialog.browser.html` verifies real layout, drag, shared shadow isolation, nested dialogs, busy-close veto, scroll bounds and background hit testing in non-modal mode.

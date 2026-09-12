@@ -19,6 +19,7 @@ import { parseTimecode, formatTimecode, frameIndexFromSecs, encodeClipTimingMs, 
 import { attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror } from "./rich_prompt.js";
 import { loadExtensionCss, showCapConfirm } from "./cap_ui.js";
 import { iconHtml } from "./cap_icons.js";
+import { bindDialogDrag, resetDialogPosition } from "./components/Dialog.js";
 import { t as T } from "./i18n/timeline_editor.js";
 
 /** Right-side empty margin as a fraction of the timeline viewport width. */
@@ -1455,9 +1456,6 @@ export class CapTimelineEditorApp {
 
     _openExportDialog() {
         if (!this._projectExportBusy) this._resetProjectExport();
-        for (const property of ["position", "left", "top", "margin", "right", "bottom"]) {
-            this.exportDialog.style[property] = "";
-        }
         this.exportDialog.showModal();
     }
 
@@ -2359,7 +2357,8 @@ export class CapTimelineEditorApp {
     async _runProjectExport({ format, includeWorkflow = true, includeGenerated = true }) {
         if (this._projectExportBusy) return;
         this._projectExportBusy = true;
-        const controls = this.exportDialog.querySelectorAll("input, button");
+        this.exportDialog.closeDisabled = true;
+        const controls = this.exportDialog.querySelectorAll("input, cap-button");
         controls.forEach(control => { control.disabled = true; });
         this._resetProjectExport();
         this._setExportStatus(T(format === "zip" ? "export_zip_packing" : "export_directory_saving"));
@@ -2388,6 +2387,7 @@ export class CapTimelineEditorApp {
             this._setExportStatus(T("export_failed", { msg: error instanceof Error ? `${error.name}: ${error.message}` : String(error) }), "error");
         } finally {
             this._projectExportBusy = false;
+            this.exportDialog.closeDisabled = false;
             controls.forEach(control => { control.disabled = false; });
         }
     }
@@ -3105,6 +3105,7 @@ export class CapTimelineEditorApp {
             this._playbackCtx = null;
         }
         this._modalObserver?.disconnect();
+        this._modalDragCleanups?.forEach(cleanup => cleanup());
         this._overlay?.remove();
         this._overlay = null;
         CapTimelineEditorApp._instances.delete(this);
@@ -3678,26 +3679,21 @@ export class CapTimelineEditorApp {
               </div>
             </div>
           </div>
-          <div class="cat-te-floating-panel cat-te-output-videos-modal" hidden>
-            <div class="cat-te-modal cat-te-output-videos-dialog">
-              <div class="cat-te-modal-header cat-te-output-videos-drag">
-                <span class="cat-te-output-videos-title">${T("linked_generated_videos_title")}</span>
-                <button type="button" class="cat-te-modal-close cat-te-output-videos-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
-              </div>
+          <cap-dialog class="cat-te-output-videos-modal" close-label="${T("close_title")}">
+              <span slot="title" class="cat-te-output-videos-title">${T("linked_generated_videos_title")}</span>
               <div class="cat-te-output-videos-toolbar">
                 <div class="cat-te-output-videos-toolbar-row">
                   <input class="cat-te-output-videos-filter" type="search" placeholder="${T("filter_filename_placeholder")}" />
-                  <button type="button" class="cat-te-btn cat-te-output-videos-auto-link" title="${T("auto_associate_videos_title")}">${T("auto_associate_videos_btn")}</button>
+                  <cap-button class="cat-te-output-videos-auto-link" title="${T("auto_associate_videos_title")}">${T("auto_associate_videos_btn")}</cap-button>
                 </div>
                 <div class="cat-te-output-videos-time-filter">
                   ${OUTPUT_VIDEOS_TIME_RANGES.map((r) => `
-                    <button type="button" class="cat-te-output-videos-time-btn${r.id === "1h" ? " is-active" : ""}" data-range="${r.id}">${r.label}</button>
+                    <cap-button class="cat-te-output-videos-time-btn${r.id === "1h" ? " is-active" : ""}" aria-pressed="${r.id === "1h"}" data-range="${r.id}">${r.label}</cap-button>
                   `).join("")}
                 </div>
               </div>
               <div class="cat-te-output-videos-body"></div>
-            </div>
-          </div>
+          </cap-dialog>
           <div class="cat-te-modal-backdrop cat-te-compose-modal" hidden>
             <div class="cat-te-modal cat-te-compose-dialog">
               <div class="cat-te-modal-header">
@@ -4119,28 +4115,22 @@ export class CapTimelineEditorApp {
               </div>
             </div>
           </div>
-          <dialog class="cat-te-voice-dialog" aria-label="${T("voice_convert")}">
-            <div class="cat-te-modal-header">
-              <span>${T("voice_convert")}</span>
-              <button type="button" class="cat-te-modal-close" aria-label="${T("close_title")}">${iconHtml("close", 16)}</button>
-            </div>
+          <cap-dialog class="cat-te-voice-dialog" aria-label="${T("voice_convert")}" close-label="${T("close_title")}">
+            <span slot="title">${T("voice_convert")}</span>
             <div class="cat-te-modal-body">
               <div class="cat-te-voice-source"></div>
               <label class="cat-te-modal-row"><span>${T("voice_character")}</span><select class="cat-te-voice-character"></select></label>
               <audio class="cat-te-voice-audition" controls preload="none" hidden></audio>
               <div>${T("voice_setup_required")}</div>
-              <div class="cat-te-confirm-actions"><button type="button" class="cat-te-btn cat-te-voice-configure">${T("voice_configure")}</button></div>
+              <div class="cat-te-confirm-actions"><cap-button class="cat-te-voice-configure">${T("voice_configure")}</cap-button></div>
             </div>
-          </dialog>
-          <dialog class="cat-te-export-dialog" aria-label="${T("export_title")}">
-            <div class="cat-te-modal-header">
-              <span>${T("export_title")}</span>
-              <button type="button" class="cat-te-modal-close" aria-label="${T("close_title")}">${iconHtml("close", 16)}</button>
-            </div>
+          </cap-dialog>
+          <cap-dialog class="cat-te-export-dialog" aria-label="${T("export_title")}" close-label="${T("close_title")}">
+            <span slot="title">${T("export_title")}</span>
             <div class="cat-te-modal-body">
               <div class="cat-te-wm-tabs cat-te-export-formats">
-                <button type="button" class="cat-te-wm-tab is-active" data-format="directory" aria-pressed="true">${T("export_files")}</button>
-                <button type="button" class="cat-te-wm-tab" data-format="zip" aria-pressed="false">ZIP</button>
+                <cap-button class="is-active" data-format="directory" aria-pressed="true">${T("export_files")}</cap-button>
+                <cap-button data-format="zip" aria-pressed="false">ZIP</cap-button>
               </div>
               <label class="cat-te-compose-field cat-te-export-path">
                 <span>${T("export_directory_label")}
@@ -4153,16 +4143,13 @@ export class CapTimelineEditorApp {
               <label class="cat-te-modal-check-row"><input class="cat-te-export-workflow" type="checkbox" checked /><span>${T("export_workflow")}</span></label>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-generated" type="checkbox" checked /><span>${T("export_generated")}</span></label>
               <cap-status-message class="cat-te-export-status" hidden></cap-status-message>
-              <div class="cat-te-confirm-actions"><button type="button" class="cat-te-btn cat-te-btn-primary cat-te-export-start">${T("export_title")}</button></div>
+              <div class="cat-te-confirm-actions"><cap-button variant="primary" class="cat-te-export-start">${T("export_title")}</cap-button></div>
             </div>
-          </dialog>
-          <dialog class="cat-te-shortcuts-dialog" aria-label="${T("shortcuts_title")}">
-            <div class="cat-te-modal-header">
-              <span>${T("shortcuts_title")}</span>
-              <button type="button" class="cat-te-modal-close" title="${T("close_title")}" aria-label="${T("close_title")}">${iconHtml("close", 16)}</button>
-            </div>
+          </cap-dialog>
+          <cap-dialog class="cat-te-shortcuts-dialog" aria-label="${T("shortcuts_title")}" close-label="${T("close_title")}">
+            <span slot="title">${T("shortcuts_title")}</span>
             <div class="cat-te-modal-body">${T("shortcuts_html")}</div>
-          </dialog>
+          </cap-dialog>
           <div class="cat-te-modal-backdrop cat-te-settings-modal" hidden>
             <div class="cat-te-modal cat-te-settings-dialog">
               <div class="cat-te-modal-header">
@@ -4499,8 +4486,6 @@ export class CapTimelineEditorApp {
 
         this.settingsModal = el.querySelector(".cat-te-settings-modal");
         this.voiceDialog = el.querySelector(".cat-te-voice-dialog");
-        this.voiceDialog.querySelector(".cat-te-modal-close").addEventListener("click", () => this.voiceDialog.close());
-        this.voiceDialog.addEventListener("keydown", e => e.stopPropagation());
         this.voiceDialog.addEventListener("close", () => {
             const audio = this.voiceDialog.querySelector("audio");
             audio.pause();
@@ -4514,13 +4499,9 @@ export class CapTimelineEditorApp {
         });
         this.voiceDialog.querySelector("select").addEventListener("change", () => this._updateVoiceAudition());
         this.exportDialog = el.querySelector(".cat-te-export-dialog");
-        this.exportDialog.querySelector(".cat-te-modal-close").addEventListener("click", () => {
-            if (!this._projectExportBusy) this.exportDialog.close();
-        });
         this.exportDialog.addEventListener("cancel", e => {
             if (this._projectExportBusy) e.preventDefault();
         });
-        this.exportDialog.addEventListener("keydown", (e) => e.stopPropagation());
         this.exportDialog.querySelectorAll("[data-format]").forEach(button => {
             button.addEventListener("click", () => {
                 if (this._projectExportBusy || button.classList.contains("is-active")) return;
@@ -4548,8 +4529,6 @@ export class CapTimelineEditorApp {
             void this._runProjectExport({ format, ...options });
         });
         this.shortcutsDialog = el.querySelector(".cat-te-shortcuts-dialog");
-        this.shortcutsDialog.querySelector("button").addEventListener("click", () => this.shortcutsDialog.close());
-        this.shortcutsDialog.addEventListener("keydown", (e) => e.stopPropagation());
         this.autosaveIntervalInput = el.querySelector(".cat-te-autosave-interval");
         this.promptFontSizeInput = el.querySelector(".cat-te-prompt-font-size");
         this.useClipVideoFilenameCb = el.querySelector(".cat-te-use-clip-video-filename");
@@ -4911,13 +4890,16 @@ export class CapTimelineEditorApp {
             input.addEventListener("blur", () => { this._voPromptUndoArmed = false; });
             input.addEventListener("input", () => this._onVoiceoverPromptInput());
         }
-        el.querySelector(".cat-te-output-videos-close")?.addEventListener("click", () => this._closeOutputVideosPicker());
+        this.outputVideosModal.addEventListener("close", () => this._closeOutputVideosPicker());
         this.outputVideosFilter?.addEventListener("input", () => this._renderOutputVideosPicker());
         this.outputVideosAutoLinkBtn?.addEventListener("click", () => void this._autoAssociateOutputMedia());
         this.outputVideosTimeButtons?.forEach((btn) => {
             btn.addEventListener("click", () => {
                 this._outputVideosTimeRange = btn.dataset.range;
-                this.outputVideosTimeButtons.forEach((b) => b.classList.toggle("is-active", b === btn));
+                this.outputVideosTimeButtons.forEach(b => {
+                    b.classList.toggle("is-active", b === btn);
+                    b.setAttribute("aria-pressed", String(b === btn));
+                });
                 this._renderOutputVideosPicker();
             });
         });
@@ -5036,7 +5018,7 @@ export class CapTimelineEditorApp {
                     e.stopPropagation();
                     return;
                 }
-                if (this.outputVideosModal && !this.outputVideosModal.hidden) {
+                if (this.outputVideosModal?.open) {
                     this._closeOutputVideosPicker();
                     e.stopPropagation();
                     return;
@@ -10077,17 +10059,23 @@ export class CapTimelineEditorApp {
 
     async _openOutputMediaPicker(clip, kind = "video") {
         if (!this.outputVideosModal || !this._isOutputPickerClip(clip, kind)) return;
-        const alreadyOpen = !this.outputVideosModal.hidden;
+        const alreadyOpen = this.outputVideosModal.open;
         const kindChanged = this._outputPickerKind !== kind;
         this._outputPickerKind = kind;
         this._outputVideosClipId = clip.id;
         this._syncOutputPickerChrome();
         this._syncOutputVideosPickerTitle(clip);
         if (!alreadyOpen || kindChanged) {
-            this.outputVideosModal.hidden = false;
+            if (alreadyOpen) this.outputVideosModal.close();
+            if (kind === "audio") this.outputVideosModal.showModal();
+            else this.outputVideosModal.show();
             if (this.outputVideosFilter) this.outputVideosFilter.value = "";
             this._outputVideosTimeRange = OUTPUT_VIDEOS_TIME_RANGES[0].id;
-            this.outputVideosTimeButtons?.forEach((b) => b.classList.toggle("is-active", b.dataset.range === this._outputVideosTimeRange));
+            this.outputVideosTimeButtons?.forEach(b => {
+                const active = b.dataset.range === this._outputVideosTimeRange;
+                b.classList.toggle("is-active", active);
+                b.setAttribute("aria-pressed", String(active));
+            });
             if (this.outputVideosBody) this.outputVideosBody.textContent = T("loading_ellipsis");
             const endpoint = kind === "audio"
                 ? "/audio_keyframe_timeline/output_audios"
@@ -10106,7 +10094,7 @@ export class CapTimelineEditorApp {
     }
 
     _retargetOutputVideosPickerFromSelection() {
-        if (!this.outputVideosModal || this.outputVideosModal.hidden) return;
+        if (!this.outputVideosModal?.open) return;
         const clip = this._selClip;
         if (!this._isOutputPickerClip(clip)) return;
         if (this._outputVideosClipId === clip.id) {
@@ -10120,7 +10108,6 @@ export class CapTimelineEditorApp {
 
     _syncOutputPickerChrome() {
         const isAudio = this._outputPickerKind === "audio";
-        this.outputVideosModal?.classList.toggle("is-audio-picker", isAudio);
         if (this.outputVideosAutoLinkBtn) {
             this.outputVideosAutoLinkBtn.textContent = isAudio
                 ? T("auto_associate_audios_btn")
@@ -10142,7 +10129,9 @@ export class CapTimelineEditorApp {
     }
 
     _bindModalInteractions() {
-        const modals = [...this._overlay.querySelectorAll(":scope > .cat-te-modal-backdrop, :scope > .cat-te-floating-panel")];
+        this._modalDragCleanups?.forEach(cleanup => cleanup());
+        this._modalDragCleanups = [];
+        const modals = [...this._overlay.querySelectorAll(":scope > .cat-te-modal-backdrop")];
         this._openModals = [];
         const sync = () => {
             const previous = this._blockingModal;
@@ -10150,20 +10139,17 @@ export class CapTimelineEditorApp {
             for (const modal of modals) {
                 if (modal.hidden || this._openModals.includes(modal)) continue;
                 const dialog = modal.querySelector(".cat-te-ai-optimize-shell, .cat-te-modal");
-                dialog.style.position = "";
-                dialog.style.left = "";
-                dialog.style.top = "";
+                resetDialogPosition(dialog);
                 this._openModals.push(modal);
             }
-            const blocking = this._openModals.filter((modal) => modal !== this.outputVideosModal || modal.classList.contains("is-audio-picker"));
+            const blocking = this._openModals;
             this._blockingModal = blocking.at(-1) || null;
             for (const modal of this._openModals) {
-                modal.style.zIndex = String(modal === this.outputVideosModal && !modal.classList.contains("is-audio-picker")
-                    ? 100009 : 100010 + blocking.indexOf(modal));
+                modal.style.zIndex = String(100010 + blocking.indexOf(modal));
             }
-            for (const child of this._overlay.children) child.inert = child.tagName !== "DIALOG" && !!this._blockingModal && child !== this._blockingModal;
+            for (const child of this._overlay.children) child.inert = !["DIALOG", "CAP-DIALOG"].includes(child.tagName) && !!this._blockingModal && child !== this._blockingModal;
             if (this._timeline) this._timeline._keyboardSuspended = !!this._blockingModal;
-            if (previous !== this._blockingModal && !this._overlay.querySelector("dialog[open]")) {
+            if (previous !== this._blockingModal && !this._overlay.querySelector("dialog[open], cap-dialog[open][modal]")) {
                 if (this._blockingModal) {
                     if (!this._blockingModal.contains(document.activeElement)) this._blockingModal.querySelector(".cat-te-modal-close")?.focus();
                 } else if (previous) this._overlay.focus();
@@ -10181,45 +10167,14 @@ export class CapTimelineEditorApp {
             this._modalObserver.observe(modal, { attributes: true, attributeFilter: ["hidden", "class"], attributeOldValue: true });
             const dialog = modal.querySelector(".cat-te-modal");
             const dragTarget = dialog.closest(".cat-te-ai-optimize-shell") || dialog;
-            this._bindModalDrag(dialog, dragTarget);
+            this._modalDragCleanups.push(bindDialogDrag(dialog, dialog.querySelector(".cat-te-modal-header"), dragTarget));
         }
-        this._bindModalDrag(this.exportDialog);
         sync();
-    }
-
-    _bindModalDrag(dialog, dragTarget = dialog) {
-        const handle = dialog.querySelector(".cat-te-modal-header");
-        handle.addEventListener("pointerdown", (e) => {
-            if (e.button !== 0 || e.target.closest("button, input, select, textarea, a, [contenteditable='true']")) return;
-            e.preventDefault();
-            const rect = dragTarget.getBoundingClientRect();
-            const ox = e.clientX - rect.left;
-            const oy = e.clientY - rect.top;
-            handle.setPointerCapture(e.pointerId);
-            dialog.classList.add("is-dragging");
-            const move = (event) => {
-                if (dragTarget.tagName === "DIALOG") {
-                    dragTarget.style.margin = "0";
-                    dragTarget.style.right = "auto";
-                    dragTarget.style.bottom = "auto";
-                }
-                dragTarget.style.position = "fixed";
-                dragTarget.style.left = `${Math.max(8, Math.min(window.innerWidth - rect.width - 8, event.clientX - ox))}px`;
-                dragTarget.style.top = `${Math.max(8, Math.min(window.innerHeight - rect.height - 8, event.clientY - oy))}px`;
-            };
-            const end = () => {
-                dialog.classList.remove("is-dragging");
-                handle.removeEventListener("pointermove", move);
-                handle.removeEventListener("lostpointercapture", end);
-            };
-            handle.addEventListener("pointermove", move);
-            handle.addEventListener("lostpointercapture", end);
-        });
     }
 
     handleModalKey(e) {
         // Native modal dialogs own focus and Escape; do not dispatch to a modal underneath.
-        if (this._overlay?.querySelector("dialog[open]")) return true;
+        if (this._overlay?.querySelector("dialog[open], cap-dialog[open][modal]")) return true;
         const modal = this._blockingModal;
         if (!modal || !this._overlay?.classList.contains("open")) return false;
         if (e.key === "Escape") {
@@ -10255,8 +10210,7 @@ export class CapTimelineEditorApp {
         this._outputVideosThumbIo?.disconnect();
         this._outputVideosThumbIo = null;
         if (this.outputVideosModal) {
-            this.outputVideosModal.hidden = true;
-            this.outputVideosModal.classList.remove("is-audio-picker");
+            this.outputVideosModal.close();
         }
         this.outputVideosBody?.replaceChildren();
         this._syncOutputPickerChrome();
@@ -10306,13 +10260,12 @@ export class CapTimelineEditorApp {
      * was missed (e.g. switched workflows while generating).
      */
     async _autoAssociateOutputMedia() {
-        if (!this.outputVideosModal || this.outputVideosModal.hidden) return;
+        if (!this.outputVideosModal?.open) return;
         const isAudio = this._outputPickerKind === "audio";
         const btn = this.outputVideosAutoLinkBtn;
         if (btn?.disabled) return;
         if (btn) {
             btn.disabled = true;
-            btn.classList.add("is-loading");
         }
         try {
             const endpoint = isAudio
@@ -10371,7 +10324,6 @@ export class CapTimelineEditorApp {
         } finally {
             if (btn) {
                 btn.disabled = false;
-                btn.classList.remove("is-loading");
             }
         }
     }
@@ -11953,19 +11905,20 @@ export class CapTimelineEditorApp {
         if (!isSubtitleTrackType(track?.type) || track.locked) return;
         this._subtitleBatchDialog?.close();
         this._timeline.pause();
-        const dialog = document.createElement("dialog");
+        const dialog = document.createElement("cap-dialog");
         this._subtitleBatchDialog = dialog;
-        dialog.className = "cat-te-voice-dialog";
+        dialog.className = "cat-te-subtitle-batch-dialog";
         dialog.setAttribute("aria-label", T("subtitle_batch_insert"));
-        dialog.innerHTML = `<div class="cat-te-modal-header"><span>${T("subtitle_batch_insert")}</span></div>
+        dialog.setAttribute("close-label", T("close_title"));
+        dialog.innerHTML = `<span slot="title">${T("subtitle_batch_insert")}</span>
             <div class="cat-te-modal-body">
                 <label class="cat-te-clip-setting-row"><span>${T("subtitle_batch_sync")}</span><select data-action="sync-track"></select></label>
                 <p data-batch-hint>${T("subtitle_batch_hint")}</p>
                 <textarea rows="10" autofocus style="width:100%;box-sizing:border-box" aria-label="${T("subtitle_batch_insert")}"></textarea>
                 <p role="status" aria-live="polite"></p>
                 <div class="cat-te-confirm-actions">
-                    <button class="cat-te-btn" data-action="cancel">${T("cancel_btn")}</button>
-                    <button class="cat-te-btn cat-te-btn-primary" data-action="insert">${T("confirm_btn")}</button>
+                    <cap-button data-action="cancel">${T("cancel_btn")}</cap-button>
+                    <cap-button variant="primary" data-action="insert">${T("confirm_btn")}</cap-button>
                 </div>
             </div>`;
         const syncTrack = dialog.querySelector('[data-action="sync-track"]');
@@ -14272,6 +14225,8 @@ export class CapTimelineEditorApp {
             || this.exportDialog?.open
             || this.voiceDialog?.open
             || this._subtitleSpeech?.dialog.open
+            || this._subtitleBatchDialog?.open
+            || (this.outputVideosModal?.open && this._outputPickerKind === "audio")
             || (this.aiOptimizeModal && !this.aiOptimizeModal.hidden)
             || (this.skillPickerModal && !this.skillPickerModal.hidden),
         );

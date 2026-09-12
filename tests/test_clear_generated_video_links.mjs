@@ -30,6 +30,8 @@ function fixture() {
         _allImageTracks() { return this._timeline.tracks.filter(track => track.type === 'image'); },
         _clipsWithGeneratedVideoLinks: method('_clipsWithGeneratedVideoLinks'),
         _clearAllGeneratedVideoLinks: method('_clearAllGeneratedVideoLinks'),
+        _clearGeneratedVideoLinks: method('_clearGeneratedVideoLinks'),
+        _clearClipGeneratedVideoLinks: method('_clearClipGeneratedVideoLinks'),
         _genEditState: {clipId:'0'}, _genVideoState: {clipId:'1'}, _resourceGenPreview: {clipId:'2'},
         _outputVideosClipId:'0', _outputPickerKind:'video',
         _closeGenEditModal() { this.editClosed = true; },
@@ -91,6 +93,52 @@ for (const change of [app => app._loadSeq++, app => app._destroyed = true]) {
 }
 assert.match(source, /label: T\("clear_generated_video_links"\),\s+disabled: !this\._clipsWithGeneratedVideoLinks\(\)\.length/);
 assert.match(source, /fn: \(\) => void this\._clearAllGeneratedVideoLinks\(\)/);
+function singleFixture() {
+    const app = fixture();
+    app._timeline.tracks.forEach(track => track.clips.forEach(clip => { clip.track = track; }));
+    app._decorateClip = clip => assert.equal(app._meta.get(clip.id).generatedVideos.length, 0);
+    return app;
+}
+{
+    const app = singleFixture(), clip = app._timeline.tracks[0].clips[0];
+    const before = structuredClone([...app._meta]);
+    await app._clearClipGeneratedVideoLinks(clip);
+    assert.deepEqual(asks[0].message, {key:'confirm_clear_clip_video_links', name:'0', videos:2});
+    for (const [id, meta] of before) {
+        assert.deepEqual(app._meta.get(id), id === '0' ? {...meta, generatedVideos:[], previewMode:'media'} : meta, 'only right-clicked director Clip changes');
+    }
+    assert(app.editClosed && app.panelUpdated && app.pickerUpdated && app.audioRestarted);
+    assert(!app.videoClosed && !app.hoverStopped, 'other Clips keep their preview state');
+    assert.equal(app.undos, 1); assert.equal(app.saves, 1);
+    assert.equal(clip.startTime, 0); assert.equal(clip.duration, 5); assert.equal(app._timeline.currentTime, 4.25);
+    const cleared = structuredClone([...app._meta]);
+    await app.history.undo(); assert.deepEqual([...app._meta], before);
+    await app.history.redo(); assert.deepEqual([...app._meta], cleared);
+    await app._clearClipGeneratedVideoLinks(clip); assert.equal(asks.length, 1, 'empty Clip is a no-op');
+}
+for (const change of [
+    () => false,
+    app => { app._loadSeq++; return true; },
+    app => { app._destroyed = true; return true; },
+    (app, clip) => { clip.track.locked = true; return true; },
+    (app, clip) => { clip.track.clips = []; return true; },
+]) {
+    const app = singleFixture(), clip = app._timeline.tracks[0].clips[0];
+    const before = structuredClone([...app._meta]);
+    answer = () => change(app, clip);
+    await app._clearClipGeneratedVideoLinks(clip);
+    assert.deepEqual([...app._meta], before, 'cancelled/stale/locked/removed target is untouched');
+    assert(!app.history.canUndo && !app.saves);
+}
+{
+    const app = singleFixture();
+    for (const i of [1, 3, 4, 5]) await app._clearClipGeneratedVideoLinks(app._timeline.tracks[i].clips[0]);
+    assert.equal(asks.length, 0, 'locked director and non-director Clips are rejected');
+    assert(!app.saves);
+}
+assert.match(source, /label: T\("clear_clip_video_links"\), danger: true, disabled: !this\._clipGeneratedVideos\(m\)\.length/);
+assert.match(source, /fn: \(\) => void this\._clearClipGeneratedVideoLinks\(clip\)/);
 const translations = readFileSync(new URL('../js/i18n/timeline_editor.js', import.meta.url), 'utf8');
 assert.equal((translations.match(/confirm_clear_generated_video_links:/g) || []).length, 3);
+assert.equal((translations.match(/confirm_clear_clip_video_links:/g) || []).length, 3);
 console.log('Clear generated links: all director clips, no media/audio/timing changes, confirmation, undo/redo, stale project and preview cleanup passed');

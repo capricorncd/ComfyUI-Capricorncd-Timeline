@@ -63,6 +63,7 @@ Open the editor from the node launcher (fullscreen shell). Edits sync back into 
 ### Clip context menu (visual)
 
 - Run, AI optimize prompt, disable / disable others, rename, view materials, add generated video
+- Director Clips offer **Clear Linked Videos**: after confirmation, remove all video links from that Clip only (including disabled links), without deleting files or changing timing. Ctrl+Z restores the links; locked tracks cannot use this action.
 - When the clip is in **generated-video preview** mode: **Mute / Unmute** for the active generated video
 - Copy / Paste; **Delete** shown in red
 

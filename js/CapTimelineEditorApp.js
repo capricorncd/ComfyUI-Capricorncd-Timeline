@@ -1622,6 +1622,28 @@ export class CapTimelineEditorApp {
         if (!confirmed || this._destroyed || loadSeq !== this._loadSeq) return;
         targets = this._clipsWithGeneratedVideoLinks();
         if (!targets.length) return;
+        this._clearGeneratedVideoLinks(targets);
+    }
+
+    async _clearClipGeneratedVideoLinks(clip) {
+        if (!clip || clip.track.locked) return;
+        let target = this._clipsWithGeneratedVideoLinks().find(item => item.clip === clip);
+        if (!target) return;
+        const loadSeq = this._loadSeq;
+        const confirmed = await showCapConfirm(T("confirm_clear_clip_video_links", {
+            name: clip.name || clip.id,
+            videos: target.meta.generatedVideos.length,
+        }), {
+            title: T("clear_clip_video_links"),
+            confirmLabel: T("clear_links_btn"),
+            cancelLabel: T("cancel_btn"),
+        });
+        if (!confirmed || this._destroyed || loadSeq !== this._loadSeq || clip.track.locked) return;
+        target = this._clipsWithGeneratedVideoLinks().find(item => item.clip === clip);
+        if (target) this._clearGeneratedVideoLinks([target]);
+    }
+
+    _clearGeneratedVideoLinks(targets) {
         this._recordUndo();
         const ids = new Set(targets.map(({ clip }) => clip.id));
         if (ids.has(this._genEditState?.clipId)) this._closeGenEditModal();
@@ -14987,6 +15009,8 @@ export class CapTimelineEditorApp {
                 { label: T("menu_disable_others_assets_shortcut"), fn: () => this._disableOthers(clip) },
                 { label: T("menu_set_title"), fn: () => this._renameClip(clip) },
                 { label: T("linked_generated_videos_title"), fn: () => void this._openOutputVideosPicker(clip) },
+                { label: T("clear_clip_video_links"), danger: true, disabled: !this._clipGeneratedVideos(m).length,
+                    fn: () => void this._clearClipGeneratedVideoLinks(clip) },
                 { label: T("menu_separate_audio"), fn: () => void this._separateClipAudio(clip) },
             );
             if (this._clipGeneratedVideos(m).length) {
@@ -16306,7 +16330,6 @@ export class CapTimelineEditorApp {
         moreBtn.bindMenu(e => {
             const rect = e.currentTarget.getBoundingClientRect();
             return this._buildCtxMenu([
-                { label: T("new_project"), disabled: !this._canCreateProject(), fn: () => void this._newProject() },
                 { label: T("reset_track_order"), fn: () => this._resetTrackOrder() },
                 {
                     label: T("clear_generated_video_links"),
@@ -16314,6 +16337,7 @@ export class CapTimelineEditorApp {
                     fn: () => void this._clearAllGeneratedVideoLinks(),
                 },
                 { label: T("shortcuts_title"), fn: () => this.shortcutsDialog.showModal() },
+                { label: T("new_project"), disabled: !this._canCreateProject(), fn: () => void this._newProject() },
             ], rect.left, rect.bottom + 4, { ignoreNextClick: false });
         });
         tl.toolbarEl.appendChild(moreBtn);

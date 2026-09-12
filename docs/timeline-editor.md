@@ -70,6 +70,10 @@ Open the editor from the node launcher (fullscreen shell). Edits sync back into 
 
 ### AI optimize prompt
 
+The last left-side tab, **Full Prompt**, is read-only and shows the same composed text used for generation: enabled global prefix → enabled asset descriptions → Clip prompt → enabled global append. It follows the inclusion controls and removes `#` comment lines; nothing is written back to the Clip prompt.
+
+Rich prompt fields: with no text selected, **Ctrl+C** copies the current logical line; pasting that line with no selection inserts it below the current line. Text copied from a selection or another application pastes at the cursor. Pasting over a selection replaces it normally. Plain-text Prompt Skill fields are unchanged.
+
 - The modal's left side provides editable tabs for the current Clip prompt, global Prepend prompt, and global Append prompt. AI generation still writes only the Clip prompt.
 - **Asset description** shows a fixed 16:9 preview above the selected asset's read-only description. Clip settings and this tab share full-width preview/list modes: use the top-right icon to switch, then drag list rows to reorder, enable/disable or remove Clip references inline. Full-width preview has a bottom-right remove icon. Drag an image/video from the library onto either preview to append and select it, just like dropping onto a Clip. Selection follows the same asset after reordering. Removal supports timeline undo and does not delete source files; locked tracks allow browsing only. Browsing does not change prompt inclusion or Agent input selections.
 - The right side provides AI Optimize and Video Preview tabs. Preview-workflow import, clearing, Clip seed, preview resolution (MP), and load status are configured in Video Preview instead of the editor Settings dialog. Clicking the bottom Preview button switches to Video Preview before the preview workflow starts.

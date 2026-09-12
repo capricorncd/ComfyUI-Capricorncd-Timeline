@@ -1,4 +1,6 @@
-/** Shared rich prompt editor: Ctrl+/ comment toggle + syntax mirror. */
+/** Shared rich prompt editor: line clipboard shortcuts, comments and syntax mirror. */
+
+const LINE_CLIPBOARD_TYPE = "application/x-cap-rich-prompt-line";
 
 export function escapeHtml(t) {
     return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -213,6 +215,7 @@ export function ensureRichPromptMirror(ta, mode = "overlay") {
 }
 
 export function toggleComment(ta) {
+    if (ta.readOnly || ta.disabled) return;
     const text = ta.value;
     const selStart = ta.selectionStart;
     const selEnd = ta.selectionEnd;
@@ -243,6 +246,10 @@ export function toggleComment(ta) {
 
 function removeRichPromptListeners(ta) {
     if (!ta) return;
+    if (ta._capRichOnCopy) {
+        ta.removeEventListener("copy", ta._capRichOnCopy, true);
+        ta._capRichOnCopy = null;
+    }
     if (ta._capRichOnInput) {
         ta.removeEventListener("input", ta._capRichOnInput);
         ta._capRichOnInput = null;
@@ -278,16 +285,36 @@ function bindRichPromptListeners(ta) {
         ta._capMirror.scrollTop = ta.scrollTop;
         ta._capMirror.scrollLeft = ta.scrollLeft;
     };
+    const onCopy = (e) => {
+        if (!ta.classList.contains("cap-rich-active") || ta.selectionStart !== ta.selectionEnd || !e.clipboardData) return;
+        const cursor = ta.selectionStart;
+        const start = cursor === 0 ? 0 : ta.value.lastIndexOf("\n", cursor - 1) + 1;
+        const next = ta.value.indexOf("\n", cursor);
+        const end = next < 0 ? ta.value.length : next;
+        e.clipboardData.setData("text/plain", ta.value.slice(start, end) + "\n");
+        e.clipboardData.setData(LINE_CLIPBOARD_TYPE, "1");
+        e.preventDefault();
+        e.stopImmediatePropagation();
+    };
     const onPaste = (e) => {
+        if (ta.readOnly || ta.disabled) return;
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation?.();
         if (ta._capRichPasting) return;
         ta._capRichPasting = true;
         try {
-            const txt = (e.clipboardData || window.clipboardData)?.getData("text/plain") ?? "";
-            const s = ta.selectionStart;
-            const end = ta.selectionEnd;
+            const clipboard = e.clipboardData || window.clipboardData;
+            let txt = clipboard?.getData("text/plain") ?? "";
+            if (!txt) return;
+            txt = txt.replace(/\r\n?/g, "\n");
+            let s = ta.selectionStart;
+            let end = ta.selectionEnd;
+            if (s === end && ta.classList.contains("cap-rich-active") && clipboard.getData(LINE_CLIPBOARD_TYPE) === "1") {
+                const next = ta.value.indexOf("\n", s);
+                s = end = next < 0 ? ta.value.length : next;
+                txt = "\n" + txt.replace(/\n$/, "");
+            }
             ta.value = ta.value.slice(0, s) + txt + ta.value.slice(end);
             ta.setSelectionRange(s + txt.length, s + txt.length);
             syncPromptWidgetFromTextarea(ta);
@@ -298,11 +325,13 @@ function bindRichPromptListeners(ta) {
     };
 
     ta._capRichOnInput = onInput;
+    ta._capRichOnCopy = onCopy;
     ta._capRichOnScroll = onScroll;
     ta._capRichOnPaste = onPaste;
     ta._capRichOnChange = onInput;
     ta._capRichOnBlur = onInput;
     ta.addEventListener("input", onInput);
+    ta.addEventListener("copy", onCopy, true);
     ta.addEventListener("scroll", onScroll);
     ta.addEventListener("paste", onPaste, true);
     ta.addEventListener("change", onInput);

@@ -3983,6 +3983,7 @@ export class CapTimelineEditorApp {
                     <cap-tab-button variant="ghost" class="cat-te-ai-tab cat-te-ai-source-tab" data-source-tab="resource">${T("media_asset_description")}</cap-tab-button>
                     <cap-tab-button variant="ghost" class="cat-te-ai-tab cat-te-ai-source-tab" data-source-tab="prepend_prompt">${T("global_prepend_prompt_tab")}</cap-tab-button>
                     <cap-tab-button variant="ghost" class="cat-te-ai-tab cat-te-ai-source-tab" data-source-tab="append_prompt">${T("global_append_prompt_tab")}</cap-tab-button>
+                    <cap-tab-button variant="ghost" class="cat-te-ai-tab cat-te-ai-source-tab" data-source-tab="final">${T("full_prompt_tab")}</cap-tab-button>
                   </div>
                   <div class="cat-te-ai-source-editor">
                     <textarea class="cat-te-ai-src-text"></textarea>
@@ -17563,19 +17564,20 @@ export class CapTimelineEditorApp {
     }
 
     _refreshFinalPromptDisplay(clip = this._selClip, meta = null) {
-        if (!this.promptInput) return;
-        this.promptInput.value = this._composeFinalPrompt(clip, meta);
+        if (this.promptInput) this.promptInput.value = this._composeFinalPrompt(clip, meta);
+        if (this._aiOptimizeSrc === "final") this._fillAiOptimizeSrc();
     }
 
     _promptManagerValue(tab, clip) {
         if (!clip) return "";
+        if (tab === "final") return this._composeFinalPrompt(clip);
         if (SETTING_PROMPT_KEYS.includes(tab)) return this._readSettingPrompt(tab);
         const meta = this._ensureClipMeta(clip);
         return String(meta.prompt || "");
     }
 
     _writePromptManagerValue(tab, text, { recordUndo = true } = {}) {
-        if (tab === "resource") return false;
+        if (tab === "resource" || tab === "final") return false;
         const clip = this._findClipById(this._aiOptimizeClipId) || this._selClip;
         if (!clip) return false;
         if (recordUndo) this._recordUndo();
@@ -17828,7 +17830,7 @@ export class CapTimelineEditorApp {
     }
 
     _setAiOptimizeSrcTab(tab = "clip") {
-        const next = tab === "resource" || SETTING_PROMPT_KEYS.includes(tab) ? tab : "clip";
+        const next = tab === "resource" || tab === "final" || SETTING_PROMPT_KEYS.includes(tab) ? tab : "clip";
         this._aiOptimizeSrc = next;
         this.aiSourceTabs?.forEach((button) => {
             const active = button.dataset.sourceTab === next;
@@ -17836,7 +17838,7 @@ export class CapTimelineEditorApp {
             button.setAttribute("aria-selected", active ? "true" : "false");
         });
         if (this.aiSrcText) {
-            this.aiSrcText.readOnly = next === "resource";
+            this.aiSrcText.readOnly = next === "resource" || next === "final";
             this.aiSrcText.classList.remove("is-readonly");
             this.aiSrcText.title = "";
         }

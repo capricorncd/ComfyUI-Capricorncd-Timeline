@@ -1,0 +1,96 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Rich prompt line clipboard</title>
+<div><textarea id="prompt" style="width:300px;height:180px"></textarea></div>
+<textarea id="skill" aria-label="Prompt Skill"></textarea>
+<pre id="result">RUNNING</pre>
+<script type="module">
+import { attachRichPromptHandler, detachRichPromptHandler, setRichPromptValue, syncRichPromptEnabled } from '../js/rich_prompt.js';
+const assert = (ok, message) => { if (!ok) throw Error(message); };
+try {
+    const ta = document.querySelector('#prompt');
+    attachRichPromptHandler(ta);
+    ta._capBoundWidget = {value: ''};
+    let inputs = 0;
+    ta.addEventListener('input', () => inputs++);
+    const set = (text, start, end = start) => {
+        setRichPromptValue(ta, text);
+        ta.focus(); ta.setSelectionRange(start, end);
+    };
+    const clipboard = (type, text, target = ta) => {
+        const data = text instanceof DataTransfer ? text : new DataTransfer();
+        if (typeof text === 'string') data.setData('text/plain', text);
+        const event = new ClipboardEvent(type, {clipboardData: data, bubbles: true, cancelable: true});
+        target.dispatchEvent(event);
+        return { event, data };
+    };
+    for (const [text, cursor, copied, pasted] of [
+        ['first\nsecond', 2, 'first\n', 'first\nfirst\nsecond'],
+        ['first\nsecond', 8, 'second\n', 'first\nsecond\nsecond'],
+        ['first\nsecond', 5, 'first\n', 'first\nfirst\nsecond'],
+        ['\nsecond', 0, '\n', '\n\nsecond'],
+        ['first\n', 6, '\n', 'first\n\n'],
+        ['', 0, '\n', '\n'],
+        ['  # 中文😀\nnext', 5, '  # 中文😀\n', '  # 中文😀\n  # 中文😀\nnext'],
+    ]) {
+        set(text, cursor);
+        const copy = clipboard('copy');
+        assert(copy.event.defaultPrevented && copy.data.getData('text/plain') === copied, 'copy full logical line including indentation');
+        assert(ta.value === text && ta.selectionStart === cursor, 'copy leaves content/cursor untouched');
+        const before = inputs;
+        clipboard('paste', copy.data);
+        assert(ta.value === pasted, 'paste below current line: ' + JSON.stringify(text));
+        assert(inputs === before + 1 && ta._capBoundWidget.value === pasted, 'one input event updates bound widget');
+        assert(ta._capMirror.textContent.includes(pasted), 'mirror updates');
+    }
+    set('A\nB', 0);
+    clipboard('paste', 'X\r\nY\r\n');
+    assert(ta.value === 'X\nY\nA\nB', 'external multiline text pastes at cursor with normalized CRLF');
+    clipboard('paste', 'Z');
+    assert(ta.value === 'X\nY\nZA\nB', 'ordinary repeated paste stays at cursor');
+    set('A\nB', 0, 1);
+    assert(!clipboard('copy').event.defaultPrevented, 'selected-text copy remains native');
+    ta.setSelectionRange(3, 3);
+    clipboard('paste', 'A');
+    assert(ta.value === 'A\nBA', 'selected-text copy followed by collapsed-cursor paste is inline');
+    set('A\nB', 0, 1);
+    clipboard('paste', 'replace');
+    assert(ta.value === 'replace\nB', 'selected-text paste replaces selection in place');
+    set('keep', 0, 4);
+    const before = inputs;
+    clipboard('paste');
+    assert(ta.value === 'keep' && inputs === before, 'non-text clipboard does not delete selection');
+    ta.readOnly = true;
+    clipboard('paste', 'blocked');
+    assert(ta.value === 'keep', 'readonly content cannot be pasted over');
+    ta.dispatchEvent(new KeyboardEvent('keydown', { key: '/', code: 'Slash', ctrlKey: true, bubbles: true, cancelable: true }));
+    assert(ta.value === 'keep', 'readonly full prompt cannot be changed by comment shortcut');
+    ta.readOnly = false;
+    set('abc', 1);
+    syncRichPromptEnabled(ta, false);
+    assert(!clipboard('copy').event.defaultPrevented, 'disabled rich mode keeps normal copy');
+    clipboard('paste', 'X');
+    assert(ta.value === 'aXbc', 'disabled rich mode keeps caret paste');
+    const skill = document.querySelector('#skill');
+    assert(!clipboard('copy', undefined, skill).event.defaultPrevented && !clipboard('paste', 'plain', skill).event.defaultPrevented, 'plain Prompt Skill is unaffected');
+    attachRichPromptHandler(ta); attachRichPromptHandler(ta);
+    set('one\ntwo', 0);
+    const count = inputs;
+    clipboard('paste', 'new');
+    assert(inputs === count + 1 && ta.value === 'newone\ntwo', 'rebind does not duplicate handlers');
+    set('source\nrest', 1);
+    const lineData = clipboard('copy').data;
+    set('target\ntail', 2);
+    clipboard('paste', lineData);
+    assert(ta.value === 'target\nsource\ntail', 'line-copy marker survives changing editor content');
+    set('target\ntail', 0, 6);
+    clipboard('paste', lineData);
+    assert(ta.value === 'source\n\ntail', 'selection replacement takes priority over line-copy marker');
+    detachRichPromptHandler(ta);
+    assert(!clipboard('copy').event.defaultPrevented && !clipboard('paste', 'plain').event.defaultPrevented, 'detach removes clipboard handlers');
+    attachRichPromptHandler(ta); set('first\nsecond', 2);
+    document.querySelector('#result').textContent = 'PASS: line copy/paste, blanks, Unicode, CRLF, selections, readonly, plain inputs, widget/mirror sync and cleanup';
+} catch (error) {
+    document.querySelector('#result').textContent = 'FAIL: ' + error.stack;
+}
+</script>

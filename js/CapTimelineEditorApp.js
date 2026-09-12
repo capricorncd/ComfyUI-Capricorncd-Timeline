@@ -1,5 +1,6 @@
 import { AgentSettings } from "./editor/AgentSettings.js";
 import "./components/StatusMessage.js";
+import "./components/DropdownButton.js";
 import { FontCatalog } from "./editor/FontCatalog.js";
 import { TimelineHistory } from "./editor/TimelineHistory.js";
 import { FontPicker } from "./editor/FontPicker.js";
@@ -1446,10 +1447,10 @@ export class CapTimelineEditorApp {
 
     _showImportMenu(e) {
         const r = e.currentTarget.getBoundingClientRect();
-        this._buildCtxMenu([
+        return this._buildCtxMenu([
             { label: T("import_from_directory"), fn: () => void this._importFromDirectory() },
             { label: T("import_from_zip"), fn: () => this._chooseZipImport() },
-        ], r.left, r.bottom + 4);
+        ], r.left, r.bottom + 4, { ignoreNextClick: false });
     }
 
     _openExportDialog() {
@@ -1531,7 +1532,7 @@ export class CapTimelineEditorApp {
     _showRunMenu(e) {
         e.stopPropagation();
         const r = e.currentTarget.getBoundingClientRect();
-        this._buildCtxMenu([
+        return this._buildCtxMenu([
             { label: T("run_all_clips_menu"), fn: () => void this._runAllActiveClipsDownstream() },
             { label: T("run_selected_clips_menu"), fn: () => void this._runSelectedClipsDownstream() },
             { label: T("run_track_left_menu"), fn: () => void this._runSelectedTrackSide("left") },
@@ -1605,13 +1606,17 @@ export class CapTimelineEditorApp {
 
     _showAddTrackMenu(e) {
         const r = e.currentTarget.getBoundingClientRect();
-        this._buildCtxMenu([
-            { label: T("subtitle_track_menu"), fn: () => this._addUserTrack("text") },
-            { label: T("media_track_menu"), fn: () => this._addUserTrack("video") },
-            { label: T("director_track_menu"), fn: () => this._addUserTrack("image") },
-            { label: T("voiceover_track_menu"), fn: () => this._addUserTrack("voiceover") },
-            { label: T("audio_track_menu"), fn: () => this._addUserTrack("audio") },
-        ], r.left, r.bottom + 4);
+        const addTrack = type => {
+            this._recordUndo();
+            this._addUserTrack(type);
+        };
+        return this._buildCtxMenu([
+            { label: T("subtitle_track_menu"), fn: () => addTrack("text") },
+            { label: T("media_track_menu"), fn: () => addTrack("video") },
+            { label: T("director_track_menu"), fn: () => addTrack("image") },
+            { label: T("voiceover_track_menu"), fn: () => addTrack("voiceover") },
+            { label: T("audio_track_menu"), fn: () => addTrack("audio") },
+        ], r.left, r.bottom + 4, { ignoreNextClick: false });
     }
 
     _showTrackTypeMenu(track, anchor) {
@@ -3128,11 +3133,11 @@ export class CapTimelineEditorApp {
               <button type="button" class="cat-te-brand-project" title="${T("edit_project_name_title")}">${T("untitled_project")}</button>
             </div>
             <div class="cat-te-header-spacer"></div>
-            <button type="button" class="cat-te-btn cat-te-import">${T("import_btn_caret")}</button>
-            <button type="button" class="cat-te-btn cat-te-export">${T("export_title")}</button>
-            <button type="button" class="cat-te-btn cat-te-compose-open">${T("compose_video_menu")}</button>
-            <button type="button" class="cat-te-btn cat-te-settings">${T("settings_btn")}</button>
-            <button type="button" class="cat-te-btn cat-te-header-close" title="${T("close_title")}">${iconHtml("close", 16)}</button>
+            <cap-dropdown-button class="cat-te-import">${T("import_btn_label")}</cap-dropdown-button>
+            <cap-button class="cat-te-export">${T("export_title")}</cap-button>
+            <cap-button class="cat-te-compose-open">${T("compose_video_menu")}</cap-button>
+            <cap-button class="cat-te-settings">${T("settings_btn")}</cap-button>
+            <cap-button class="cat-te-header-close" variant="danger" title="${T("close_title")}" aria-label="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
             <input class="cat-te-import-zip" type="file" accept=".zip,application/zip" hidden />
           </header>
           <div class="cat-te-main">
@@ -4561,7 +4566,7 @@ export class CapTimelineEditorApp {
         this._subtitleSpeech = new SubtitleSpeech(this, el);
         this._characterVoice = new CharacterVoice(this, el.querySelector(".cat-te-character-voice"));
         this.importZipInput = el.querySelector(".cat-te-import-zip");
-        el.querySelector(".cat-te-import").addEventListener("click", (e) => this._showImportMenu(e));
+        el.querySelector(".cat-te-import").bindMenu(e => this._showImportMenu(e));
         el.querySelector(".cat-te-export").addEventListener("click", () => this._openExportDialog());
         el.querySelector(".cat-te-compose-open").addEventListener("click", () => void this._composeGeneratedVideosExport());
         this.importZipInput.addEventListener("change", (e) => void this._importProjectZip(e));
@@ -6593,11 +6598,12 @@ export class CapTimelineEditorApp {
             const active = this._allGeneratedPreviewActive();
             const hasTargets = this._clipsWithEnabledGeneratedVideo().length > 0;
             modeBtn.disabled = !hasTargets;
-            modeBtn.classList.toggle("is-active", active);
+            modeBtn.setAttribute("aria-pressed", String(active));
             modeBtn.innerHTML = iconHtml(active ? "videoOff" : "video", 14);
             modeBtn.title = active
                 ? T("edit_mode_back_to_resource_title")
                 : T("edit_mode_switch_to_generated_title");
+            modeBtn.setAttribute("aria-label", modeBtn.title);
         }
     }
 
@@ -11860,11 +11866,11 @@ export class CapTimelineEditorApp {
 
     _showInsertClipMenu(e) {
         const r = e.currentTarget.getBoundingClientRect();
-        this._buildCtxMenu([
+        return this._buildCtxMenu([
             { label: T("insert_director_clip_menu"), fn: () => this._insertPackageAtTime(this._timeline?.currentTime ?? 0) },
             { label: T("insert_voiceover_clip_menu"), fn: () => this._insertVoiceoverAtTime(this._timeline?.currentTime ?? 0) },
             { label: T("insert_subtitle_clip_menu"), fn: () => this._insertSubtitleAtTime(this._timeline?.currentTime ?? 0) },
-        ], r.left, r.bottom + 4);
+        ], r.left, r.bottom + 4, { ignoreNextClick: false });
     }
 
     /**
@@ -16298,20 +16304,19 @@ export class CapTimelineEditorApp {
         if (!tl) return;
         this.footerPlayback.replaceChildren(tl.playbackControlsEl);
 
-        const packageBtn = document.createElement("button");
-        packageBtn.type = "button";
-        packageBtn.className = "tl-btn tl-btn-add-package";
+        const packageBtn = document.createElement("cap-dropdown-button");
+        packageBtn.className = "tl-btn-add-package";
+        packageBtn.setAttribute("variant", "amber");
         packageBtn.title = T("insert_empty_clip_title");
         packageBtn.textContent = T("insert_clip_btn");
-        packageBtn.addEventListener("click", (e) => {
-            this._showInsertClipMenu(e);
-        });
+        packageBtn.bindMenu(e => this._showInsertClipMenu(e));
         tl.toolbarEl.appendChild(packageBtn);
         this.insertClipBtn = packageBtn;
 
-        this.editModeBtn = document.createElement("button");
-        this.editModeBtn.type = "button";
-        this.editModeBtn.className = "tl-btn tl-btn-edit-mode tl-btn-all-gen-preview";
+        this.editModeBtn = document.createElement("cap-button");
+        this.editModeBtn.className = "tl-btn-edit-mode tl-btn-all-gen-preview";
+        this.editModeBtn.setAttribute("variant", "accent");
+        this.editModeBtn.setAttribute("shape", "square");
         this.editModeBtn.addEventListener("click", () => {
             this._toggleAllGeneratedPreview();
         });
@@ -16319,45 +16324,38 @@ export class CapTimelineEditorApp {
         // Keep old alias so lingering call sites still refresh the toolbar.
         this.allGenPreviewBtn = this.editModeBtn;
 
-        this.runMenuBtn = document.createElement("button");
-        this.runMenuBtn.type = "button";
-        this.runMenuBtn.className = "tl-btn tl-btn-run-menu";
-        this.runMenuBtn.textContent = T("run_btn_caret");
+        this.runMenuBtn = document.createElement("cap-dropdown-button");
+        this.runMenuBtn.className = "tl-btn-run-menu";
+        this.runMenuBtn.textContent = T("run_btn_label");
         this.runMenuBtn.title = T("run_menu_title");
-        this.runMenuBtn.addEventListener("click", (e) => {
-            this._showRunMenu(e);
-        });
+        this.runMenuBtn.bindMenu(e => this._showRunMenu(e));
         tl.toolbarEl.appendChild(this.runMenuBtn);
         tl.toolbarEl.appendChild(this.editModeBtn);
-        const moreBtn = document.createElement("button");
-        moreBtn.type = "button";
-        moreBtn.className = "tl-btn";
+        const moreBtn = document.createElement("cap-dropdown-button");
+        moreBtn.className = "tl-btn-more";
         moreBtn.innerHTML = iconHtml("ellipsisVertical", 16);
         moreBtn.title = T("timeline_more");
         moreBtn.setAttribute("aria-label", moreBtn.title);
-        moreBtn.setAttribute("aria-haspopup", "menu");
-        moreBtn.addEventListener("click", (e) => {
+        moreBtn.bindMenu(e => {
             const rect = e.currentTarget.getBoundingClientRect();
-            this._buildCtxMenu([
+            return this._buildCtxMenu([
                 { label: T("reset_track_order"), fn: () => this._resetTrackOrder() },
                 { label: T("shortcuts_title"), fn: () => this.shortcutsDialog.showModal() },
-            ], rect.left, rect.bottom + 4);
+            ], rect.left, rect.bottom + 4, { ignoreNextClick: false });
         });
         tl.toolbarEl.appendChild(moreBtn);
         this._updateEditModeToolbar();
 
         // Timeline undo/redo: Ctrl/Cmd+Z/Y are intercepted in handleShortcutKey
         // (capture on window) so ComfyUI graph-undo cannot close this editor.
-        this.undoBtn = document.createElement("button");
-        this.undoBtn.type = "button";
-        this.undoBtn.className = "tl-btn tl-btn-history";
+        this.undoBtn = document.createElement("cap-button");
+        this.undoBtn.className = "tl-btn-history";
         this.undoBtn.title = T("undo_title");
         this.undoBtn.textContent = T("undo_btn_label");
         this.undoBtn.addEventListener("click", () => this.undo());
 
-        this.redoBtn = document.createElement("button");
-        this.redoBtn.type = "button";
-        this.redoBtn.className = "tl-btn tl-btn-history";
+        this.redoBtn = document.createElement("cap-button");
+        this.redoBtn.className = "tl-btn-history";
         this.redoBtn.title = T("redo_title");
         this.redoBtn.textContent = T("redo_btn_label");
         this.redoBtn.addEventListener("click", () => this.redo());
@@ -16370,12 +16368,7 @@ export class CapTimelineEditorApp {
         if (addTrackBtn) {
             const neu = addTrackBtn.cloneNode(true);
             addTrackBtn.replaceWith(neu);
-            neu.addEventListener("click", (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                this._recordUndo();
-                this._showAddTrackMenu(e);
-            });
+            neu.bindMenu(e => this._showAddTrackMenu(e));
         }
 
         tl._tracksEl?.addEventListener("dblclick", (e) => {

@@ -1,4 +1,5 @@
 import { EventEmitter } from './EventEmitter.js';
+import '../components/DropdownButton.js';
 import { bindDragSession, clamp, formatTime as _formatTime, TRACK_TYPES, trackTypeLabel } from './utils.js';
 import { iconHtml } from '../cap_icons.js';
 import { Track } from './Track.js';
@@ -238,16 +239,22 @@ export class Timeline extends EventEmitter {
     this.playbackControlsEl = el('div', 'tl-playback-controls');
 
     // Play/Pause
-    this._playBtn = el('button', 'tl-btn tl-btn-play');
+    this._playBtn = el('cap-button', 'tl-btn-play');
+    this._playBtn.setAttribute('shape', 'circle');
+    this._playBtn.setAttribute('variant', 'primary');
+    this._playBtn.setAttribute('aria-pressed', 'false');
     this._playBtn.innerHTML = icon('play');
     this._playBtn.title = 'Play / Pause  (Space)';
+    this._playBtn.setAttribute('aria-label', this._playBtn.title);
     this._playBtn.addEventListener('click', () => this.togglePlay());
     this.playbackControlsEl.appendChild(this._playBtn);
 
     // Stop (return to 0)
-    this._stopBtn = el('button', 'tl-btn tl-btn-icon');
+    this._stopBtn = el('cap-button', 'tl-btn-stop');
+    this._stopBtn.setAttribute('shape', 'square');
     this._stopBtn.innerHTML = icon('stop');
     this._stopBtn.title = 'Stop';
+    this._stopBtn.setAttribute('aria-label', this._stopBtn.title);
     this._stopBtn.addEventListener('click', () => { this.pause(); this.setCurrentTime(0); });
     this.playbackControlsEl.appendChild(this._stopBtn);
 
@@ -268,9 +275,11 @@ export class Timeline extends EventEmitter {
     // Zoom controls
     const zoomGroup = el('div', 'tl-zoom-group');
 
-    const zoomOut = el('button', 'tl-btn tl-btn-icon');
+    const zoomOut = el('cap-button', 'tl-btn-zoom-out');
+    zoomOut.setAttribute('shape', 'square');
     zoomOut.textContent = '−';
     zoomOut.title = 'Zoom Out  (Ctrl −)';
+    zoomOut.setAttribute('aria-label', zoomOut.title);
     zoomOut.addEventListener('click', () => this.setZoom(this._zoom / 1.5));
 
     this._zoomSlider = el('input');
@@ -288,16 +297,19 @@ export class Timeline extends EventEmitter {
     this._zoomLabel = el('span', 'tl-zoom-label');
     this._zoomLabel.textContent = '1.0×';
 
-    const zoomIn = el('button', 'tl-btn tl-btn-icon');
+    const zoomIn = el('cap-button', 'tl-btn-zoom-in');
+    zoomIn.setAttribute('shape', 'square');
     zoomIn.textContent = '+';
     zoomIn.title = 'Zoom In  (Ctrl +)';
+    zoomIn.setAttribute('aria-label', zoomIn.title);
     zoomIn.addEventListener('click', () => this.setZoom(this._zoom * 1.5));
 
     zoomGroup.append(zoomOut, this._zoomSlider, this._zoomLabel, zoomIn);
     this.toolbarEl.appendChild(zoomGroup);
 
     // Add track button in toolbar
-    const addBtn = el('button', 'tl-btn tl-btn-add-track');
+    const addBtn = el('cap-dropdown-button', 'tl-btn-add-track');
+    addBtn.setAttribute('variant', 'accent');
     addBtn.textContent = i18nT('add_track');
     addBtn.title = i18nT('add_track_title');
     addBtn.addEventListener('click', () => this._showAddTrackMenu(addBtn));
@@ -345,7 +357,7 @@ export class Timeline extends EventEmitter {
   // ─── events ───────────────────────────────────────────────────────────────
 
   _focusFromPointer(e) {
-    if (e.button !== 0 || e.target.closest('button, input, select, textarea, a[href], [contenteditable="true"]')) return;
+    if (e.button !== 0 || e.target.closest('button, cap-button, cap-dropdown-button, input, select, textarea, a[href], [contenteditable="true"]')) return;
     this._container.focus({ preventScroll: true });
   }
 
@@ -399,6 +411,7 @@ export class Timeline extends EventEmitter {
     const consume = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.(); };
     this._onKey = (e) => {
       if (this._keyboardSuspended) return;
+      if (e.target.closest?.('cap-button, cap-dropdown-button')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       switch (e.code) {
         case 'Space':
@@ -901,7 +914,7 @@ export class Timeline extends EventEmitter {
     this._playing = true;
     this._lastTs = performance.now();
     this._playBtn.innerHTML = icon('pause');
-    this._playBtn.classList.add('is-playing');
+    this._playBtn.setAttribute('aria-pressed', 'true');
     this._tick();
     this.emit('play', {});
   }
@@ -911,7 +924,7 @@ export class Timeline extends EventEmitter {
     this._playing = false;
     if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
     this._playBtn.innerHTML = icon('play');
-    this._playBtn.classList.remove('is-playing');
+    this._playBtn.setAttribute('aria-pressed', 'false');
     this.emit('pause', {});
   }
 

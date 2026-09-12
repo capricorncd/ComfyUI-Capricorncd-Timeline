@@ -22,3 +22,23 @@ status.setStatus("");                      // hide and clear
 Messages are plain text; newlines and long paths are supported. Shadow DOM owns the background, border, typography, state colors and polite live-region semantics. Theme variables `--cat-text`, `--cat-raised` and `--cat-border` are inherited, with standalone defaults. Callers may set outside spacing or width, but should not duplicate status styles or manipulate internal markup.
 
 Run `node tests/test_status_message.mjs` for behavior tests. Serve the repository locally and open `tests/status_message.browser.html` for native-browser rendering and style-isolation checks.
+
+## Button and dropdown button
+
+All new buttons must use these components. Native `<button>` creation and button presentation styles belong only inside shared components, not in business UI modules. Extend a component for missing behavior; specialized tabs or radio groups should compose the shared button while retaining their semantics. Existing specialized controls can be migrated when their owning UI is changed.
+
+`js/components/Button.js` defines `<cap-button>`, a reusable ordinary button. It owns the native button, shared sizing, spacing, variants, border, hover, focus and disabled presentation. It has no dropdown indicator.
+
+Import `js/components/DropdownButton.js` and use `<cap-dropdown-button>` for menu triggers. It imports and composes `<cap-button>`, adding only the triangle and menu semantics. Track, Insert Clip, Run and the header Import button share this component. Header Export, Compose Video, Settings and Close use `<cap-button>`.
+
+The timeline toolbar also uses these components for generated-video mode, More (hover menu), Undo/Redo, zoom and playback controls. Mode selection uses `aria-pressed`; playback retains its round shape and red playing state. Replaced `.tl-btn` presentation rules are removed from the timeline stylesheet.
+
+```html
+<cap-dropdown-button variant="accent" title="Add a track">+ Track</cap-dropdown-button>
+```
+
+Both components accept `textContent` for the label, `disabled` for availability, and `focus()` / `click()` for native-button behavior. Variants are `accent`, `amber`, `danger` (red hover for Close), `primary` (solid action), or the default neutral style. `<cap-button shape="square">` is 28 px square; `shape="circle"` is 34 px round. `aria-pressed="true"` marks selection (blue, or red for primary playback). Icon-only buttons, including dropdowns, must provide `aria-label`, which is forwarded to the native button. Dropdown labels must not include a caret. Timeline keyboard handlers leave focused component buttons to the native button.
+
+Use `dropdown.bindMenu(event => createMenu(event.currentTarget))` to enable hover opening. The callback creates and positions the menu and must return its DOM element. The dropdown keeps it open while the pointer is over either the button or the menu, with a 180 ms closing delay to cross the gap. Click/keyboard activation is also supported. Disabling or disconnecting the dropdown removes its menu. Menu contents, actions, placement and coordination with other menus remain caller-owned; opening a menu must not create undo history.
+
+Run `node tests/test_dropdown_button.mjs`; `tests/dropdown_button.browser.html` also checks actual styles, event retargeting and the add-track button's clone/rebind behavior in a browser.

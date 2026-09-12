@@ -140,14 +140,7 @@ body.cat-te-row-resize * {
 
 .cat-te-header-spacer { flex: 1; }
 
-.cat-te-header-close {
-    color: #aaa;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
 .cat-te-header-close svg { display: block; }
-.cat-te-header-close:hover { color: #fff; background: rgba(255, 80, 80, 0.2); border-color: rgba(255, 80, 80, 0.45); }
 
 .cat-te-trim {
     display: flex;

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>DropdownButton browser test</title>
+<style>
+    body { background: #192428; color: #e2e8f0; font-family: sans-serif; }
+    #toolbar { display: flex; gap: 6px; }
+    button { padding: 50px !important; border: 20px solid red !important; }
+</style>
+<div id="toolbar">
+    <cap-dropdown-button variant="accent">+ 轨道</cap-dropdown-button>
+    <cap-dropdown-button variant="amber">+ 插入Clip</cap-dropdown-button>
+    <cap-dropdown-button>运行</cap-dropdown-button>
+</div>
+<pre id="result">RUNNING</pre>
+<!-- Supply only ComfyUI's locale boundary for the standalone Timeline test. -->
+<script type="importmap">
+{"imports":{"../../scripts/app.js":"data:text/javascript,export const app = {};"}}
+</script>
+<script type="module">
+    import '../js/components/DropdownButton.js';
+    import { Timeline } from '../js/timeline/Timeline.js';
+    const result = document.querySelector('#result');
+    try {
+        const assert = (value, message) => { if (!value) throw new Error(message); };
+        const triggers = [...document.querySelectorAll('cap-dropdown-button')];
+        const shapes = triggers.map(trigger => {
+            const base = trigger.shadowRoot.querySelector('cap-button');
+            const button = base.shadowRoot.querySelector('button');
+            const css = getComputedStyle(button);
+            const caret = trigger.shadowRoot.querySelector('.caret');
+            assert(css.height === '28px' && css.paddingLeft === '10px', 'button geometry is isolated from page styles');
+            assert(getComputedStyle(caret).borderTopWidth === '4px', 'every trigger has the same triangle');
+            assert(button.getAttribute('aria-haspopup') === 'menu', 'native menu trigger semantics');
+            let clicks = 0;
+            trigger.addEventListener('click', event => {
+                clicks++;
+                assert(event.currentTarget === trigger && event.target === trigger, 'menu callback anchors to component');
+                assert(event.currentTarget.getBoundingClientRect().width > 0, 'menu positioning has a real anchor');
+            });
+            trigger.click(); assert(clicks === 1, 'one click opens one menu');
+            trigger.disabled = true;
+            trigger.click(); button.click(); assert(clicks === 1, 'disabled triggers cannot activate');
+            assert(button.disabled && getComputedStyle(button).opacity === '0.35', 'disabled appearance is shared across variants');
+            trigger.disabled = false;
+            trigger.focus();
+            assert(document.activeElement === trigger && trigger.shadowRoot.activeElement === base && base.shadowRoot.activeElement === button, 'focus reaches the nested native button');
+            return [css.height, css.padding, css.gap, css.borderRadius].join('|');
+        });
+        assert(new Set(shapes).size === 1, 'all three triggers share geometry');
+        const basic = document.createElement('cap-button');
+        basic.textContent = 'Ordinary action';
+        document.body.append(basic);
+        assert(!basic.shadowRoot.querySelector('.caret'), 'ordinary button has no dropdown triangle');
+        assert(getComputedStyle(basic.shadowRoot.querySelector('button')).height === '28px', 'ordinary and dropdown buttons share sizing');
+        let actions = 0;
+        basic.addEventListener('click', () => actions++);
+        basic.click(); basic.disabled = true; basic.click();
+        assert(actions === 1, 'ordinary button shares native disabled behavior');
+        const close = document.createElement('cap-button');
+        close.setAttribute('variant', 'danger');
+        close.setAttribute('aria-label', 'Close');
+        close.innerHTML = '<svg width="16" height="16" aria-hidden="true"><path d="M4 4L12 12M12 4L4 12" stroke="currentColor"/></svg>';
+        document.body.append(close);
+        const closeNative = close.shadowRoot.querySelector('button');
+        assert(closeNative.getAttribute('aria-label') === 'Close', 'icon-only close has an accessible native label');
+        assert(getComputedStyle(closeNative).height === '28px', 'close shares header button height');
+        close.focus();
+        assert(document.activeElement === close && close.shadowRoot.activeElement === closeNative, 'header action focus reaches native button');
+        close.disabled = true;
+        assert(getComputedStyle(closeNative).opacity === '0.35', 'danger variant respects disabled appearance');
+        const clone = triggers[0].cloneNode(true);
+        triggers[0].replaceWith(clone);
+        assert(clone.textContent === '+ 轨道', 'add-track listener replacement preserves label');
+        assert(clone.shadowRoot.querySelectorAll('.caret').length === 1, 'cloned trigger has exactly one triangle');
+        clone.textContent = 'New label';
+        assert(clone.shadowRoot.querySelectorAll('.caret').length === 1, 'label updates cannot delete the caret');
+        let menu, opens = 0;
+        clone.bindMenu(event => {
+            assert(event.currentTarget === clone, 'hover uses the same menu anchor as click');
+            opens++;
+            menu = document.createElement('div');
+            menu.textContent = 'Menu item';
+            document.body.append(menu);
+            return menu;
+        });
+        const enter = target => target.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+        const leave = target => target.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+        const wait = () => new Promise(resolve => setTimeout(resolve, 230));
+        enter(clone); assert(opens === 1 && menu.isConnected, 'hover opens menu');
+        clone.click(); assert(opens === 1, 'click does not reopen the same hover menu');
+        leave(clone); enter(menu); await wait();
+        assert(menu.isConnected, 'pointer can cross into popup without dismissal');
+        leave(menu); await wait(); assert(!menu.isConnected, 'leaving both regions closes popup');
+        enter(clone); clone.disabled = true; assert(!menu.isConnected, 'disabling trigger closes popup');
+        clone.disabled = false; enter(clone); clone.remove(); assert(!menu.isConnected, 'removing trigger cleans up popup');
+        const mode = document.createElement('cap-button');
+        mode.setAttribute('variant', 'accent');
+        mode.setAttribute('shape', 'square');
+        mode.setAttribute('aria-pressed', 'true');
+        document.body.append(mode);
+        const modeNative = mode.shadowRoot.querySelector('button');
+        assert(getComputedStyle(modeNative).width === '28px', 'mode icon has compact square geometry');
+        assert(modeNative.getAttribute('aria-pressed') === 'true' && getComputedStyle(modeNative).color === 'rgb(158, 197, 255)', 'selected mode has accessible and visible state');
+        mode.disabled = true;
+        assert(getComputedStyle(modeNative).opacity === '0.35' && getComputedStyle(modeNative).color !== 'rgb(158, 197, 255)', 'disabled overrides selected state');
+        triggers[2].setAttribute('aria-label', 'More');
+        assert(triggers[2].shadowRoot.querySelector('cap-button').shadowRoot.querySelector('button').getAttribute('aria-label') === 'More', 'icon dropdown label reaches native button');
+        const container = document.createElement('div');
+        document.body.append(container);
+        const timeline = new Timeline(container, { duration: 10 });
+        try {
+            const play = timeline._playBtn;
+            const playNative = play.shadowRoot.querySelector('button');
+            // Assert settled state styles independently of headless animation timing.
+            playNative.style.transition = 'none';
+            assert(getComputedStyle(playNative).width === '34px' && getComputedStyle(playNative).borderRadius === '50%', 'playback keeps circular geometry');
+            play.click();
+            assert(timeline._playing && playNative.getAttribute('aria-pressed') === 'true', 'play starts timeline and marks state');
+            assert(getComputedStyle(playNative).backgroundColor === 'rgb(255, 68, 102)', 'playing state is red: ' + getComputedStyle(playNative).backgroundColor);
+            play.disabled = true;
+            assert(getComputedStyle(playNative).opacity === '0.35' && getComputedStyle(playNative).backgroundColor !== 'rgb(255, 68, 102)', 'disabled primary overrides playing style');
+            play.disabled = false;
+            play.click(); assert(!timeline._playing && playNative.getAttribute('aria-pressed') === 'false', 'second click pauses');
+            timeline.setCurrentTime(3);
+            timeline._stopBtn.click(); assert(timeline.currentTime === 0, 'stop still resets seek');
+            const zoom = timeline._zoom;
+            timeline.toolbarEl.querySelector('.tl-btn-zoom-in').click(); assert(timeline._zoom > zoom, 'zoom in works');
+            timeline.toolbarEl.querySelector('.tl-btn-zoom-out').click(); assert(Math.abs(timeline._zoom - zoom) < 1e-6, 'zoom out works');
+            play.focus();
+            const space = new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true, composed: true, cancelable: true });
+            playNative.dispatchEvent(space);
+            assert(!space.defaultPrevented && !timeline._playing, 'timeline does not swallow native button keyboard activation');
+        } finally { timeline.destroy(); container.remove(); }
+        result.textContent = 'PASS: dropdown hover, toolbar/playback actions, selected/disabled states, labels, geometry, focus and style isolation';
+        result.dataset.result = 'pass';
+    } catch (error) {
+        result.textContent = 'FAIL: ' + error.message;
+        result.dataset.result = 'fail';
+    }
+</script>
+</html>

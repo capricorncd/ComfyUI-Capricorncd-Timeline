@@ -60,47 +60,6 @@
 
 .tl-spacer { flex: 1; }
 
-.tl-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid var(--tl-border);
-  border-radius: var(--tl-radius);
-  color: var(--tl-text);
-  cursor: pointer;
-  font-size: 12px;
-  height: 28px;
-  padding: 0 10px;
-  transition: background 0.12s, border-color 0.12s;
-  white-space: nowrap;
-}
-
-.tl-btn:hover {
-  background: rgba(255,255,255,0.12);
-  border-color: rgba(255,255,255,0.15);
-}
-
-.tl-btn-icon {
-  width: 28px;
-  padding: 0;
-}
-
-.tl-btn-play {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--tl-accent);
-  border-color: transparent;
-  color: #fff;
-  font-size: 13px;
-}
-
-.tl-btn-play:hover { background: var(--tl-accent-hover); }
-.tl-btn-play.is-playing { background: var(--tl-red); }
-.tl-btn-play.is-playing:hover { background: #ff6680; }
-
 .tl-time-display {
   font-family: "SF Mono", "Fira Mono", "Consolas", monospace;
   font-size: 13px;
@@ -154,77 +113,6 @@
   min-width: 34px;
   text-align: center;
   font-family: "SF Mono", monospace;
-}
-
-.tl-btn-add-track {
-  background: rgba(100, 216, 197, 0.15);
-  border-color: rgba(100, 216, 197, 0.35);
-  color: var(--cat-accent);
-}
-.tl-btn-add-track:hover {
-  background: rgba(100, 216, 197, 0.25);
-  color: var(--cat-accent-soft);
-}
-
-.tl-btn-add-package {
-  background: rgba(217, 164, 65, 0.15);
-  border-color: rgba(217, 164, 65, 0.4);
-  color: #e8c483;
-}
-.tl-btn-add-package:hover {
-  background: rgba(217, 164, 65, 0.25);
-  color: #f5d9a8;
-}
-
-.tl-btn-all-gen-preview {
-  background: rgba(61, 214, 140, 0.12);
-  border-color: rgba(61, 214, 140, 0.35);
-  color: #7eebb5;
-}
-.tl-btn-all-gen-preview:hover {
-  background: rgba(61, 214, 140, 0.22);
-  color: #a6f0cb;
-}
-.tl-btn-all-gen-preview.is-active {
-  background: rgba(74, 158, 255, 0.18);
-  border-color: rgba(74, 158, 255, 0.45);
-  color: #9ec5ff;
-}
-.tl-btn-all-gen-preview:disabled {
-  opacity: 0.35;
-  cursor: default;
-  background: rgba(255,255,255,0.06);
-  color: var(--tl-text-muted);
-  border-color: var(--tl-border);
-}
-.tl-btn-all-gen-preview:disabled:hover {
-  background: rgba(255,255,255,0.06);
-  color: var(--tl-text-muted);
-}
-
-.tl-btn-add-package:disabled,
-.tl-btn-run-menu:disabled {
-  opacity: 0.35;
-  cursor: default;
-  background: rgba(255,255,255,0.06);
-  color: var(--tl-text-muted);
-  border-color: var(--tl-border);
-}
-.tl-btn-add-package:disabled:hover,
-.tl-btn-run-menu:disabled:hover {
-  background: rgba(255,255,255,0.06);
-  color: var(--tl-text-muted);
-}
-
-.tl-btn-history:disabled {
-  opacity: 0.35;
-  cursor: default;
-  background: rgba(255,255,255,0.06);
-  color: var(--tl-text-muted);
-}
-.tl-btn-history:disabled:hover {
-  background: rgba(255,255,255,0.06);
-  color: var(--tl-text-muted);
 }
 
 /* ── Add-track dropdown menu ──────────────────────────────── */

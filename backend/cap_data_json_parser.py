@@ -538,11 +538,12 @@ class CAP_DataJsonClipParser:
                          global_prompt: str = "", style_prompt: str = "",
                          non_diegetic_music: str = "", negative_prompt: str = "",
                          prompt_concat_order=None, prepend_prompt: str | None = None,
-                         append_prompt: str | None = None) -> str:
+                         append_prompt: str | None = None, previous_output_video: str = "") -> str:
         """Self-contained clip JSON: images/videos with absolute paths + embedded materials."""
         out = copy.deepcopy(clip) if isinstance(clip, dict) else {}
         # Carry project-level fields so clip_json alone is enough for MiniMaxH3 etc.
         out["fps"] = float(fps)
+        out["previous_output_video"] = str(previous_output_video or "").strip().replace("\\", "/")
         if prepend_prompt is not None or append_prompt is not None:
             out["prepend_prompt"] = prepend_prompt if isinstance(prepend_prompt, str) else ""
             out["append_prompt"] = append_prompt if isinstance(append_prompt, str) else ""
@@ -745,6 +746,7 @@ class CAP_DataJsonClipParser:
             prompt_concat_order=prompt_concat_order,
             prepend_prompt=prepend_prompt,
             append_prompt=append_prompt,
+            previous_output_video=clips[index - 1].get("output_video", "") if 0 < index < len(clips) and isinstance(clips[index - 1], dict) else "",
         )
         output_video = str(clip.get("output_video") or "").strip().replace("\\", "/")
 

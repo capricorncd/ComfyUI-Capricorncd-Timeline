@@ -108,7 +108,7 @@ def _context_latent_usable(latent, width: int, height: int) -> bool:
         src_h = int(video.shape[3]) * 16
         if src_w != int(width) or src_h != int(height):
             _LOG.warning(
-                "Cap MiniMaxH3: context_latent is %dx%d, clip is %dx%d; skipping motion context.",
+                "Cap MiniMaxH3: context_latent is %dx%d, clip is %dx%d; trying previous output video.",
                 src_w, src_h, width, height,
             )
             return False
@@ -118,7 +118,7 @@ def _context_latent_usable(latent, width: int, height: int) -> bool:
         return False
 
 
-def _prev_clip_output_video_path(data_json: str, index: int) -> str:
+def _prev_clip_output_video_path(data_json: str, index: int, previous_output_video: str = "") -> str:
     """Resolve previous runtime clip's CapTimelineEditor output_video under output/."""
     try:
         data = json.loads(data_json or "{}")
@@ -127,12 +127,11 @@ def _prev_clip_output_video_path(data_json: str, index: int) -> str:
     if not isinstance(data, dict):
         return ""
     clips = data.get("clips")
-    if not isinstance(clips, list) or index < 1 or index >= len(clips):
-        return ""
-    prev = clips[index - 1]
-    if not isinstance(prev, dict):
-        return ""
-    rel = str(prev.get("output_video") or "").strip().replace("\\", "/")
+    rel = str(previous_output_video or "").strip().replace("\\", "/")
+    if not rel and isinstance(clips, list) and 0 < index < len(clips):
+        prev = clips[index - 1]
+        if isinstance(prev, dict):
+            rel = str(prev.get("output_video") or "").strip().replace("\\", "/")
     if not rel:
         return ""
     path = _resolve_output_file(rel)
@@ -230,7 +229,7 @@ class CAP_MiniMaxH3ReferenceToVideo:
     DESCRIPTION = (
         "MiniMax H3 Reference to Video using a Timeline Editor clip from data_json+index, "
         "or a self-contained clip_json (when set, data_json and index are ignored for the "
-        "clip body; data_json+index are still used to find the previous clip's output_video). "
+        "clip body; previous_output_video in clip_json or data_json+index locates the previous video). "
         "Clip images map to ref_image, videos to ref_video (+ soundtrack), "
         "and clip audios to ref_audio. Frame count and prompt come from the clip. "
         "Also outputs clip stills, video frames, mixed clip audio, and output_video "
@@ -426,7 +425,7 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 use_context = True
                 use_latent_ctx = True
             else:
-                prev_path = _prev_clip_output_video_path(data_json, int(index))
+                prev_path = _prev_clip_output_video_path(data_json, int(index), clip_row.get("previous_output_video", ""))
                 if prev_path:
                     context_frames, context_audio = _load_motion_context_from_video(prev_path, pin)
                     if context_frames is not None:
@@ -437,7 +436,7 @@ class CAP_MiniMaxH3ReferenceToVideo:
                             prev_path, pin,
                         )
                 if not use_context and timing:
-                    raise ValueError("Cap MiniMaxH3: planned continuation is missing its previous latent/video. Run the preceding Save Latent clip first.")
+                    raise ValueError("Cap MiniMaxH3: planned continuation needs a same-resolution latent or the previous output video. Run the preceding clip with video output enabled; for clip_json workflows, run Data Json Clip Parser again to include the previous video path.")
                 if not use_context:
                     _LOG.info(
                         "Cap MiniMaxH3: h3_motion_context_length=%d (pin=%d) but no usable "

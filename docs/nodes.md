@@ -19,6 +19,7 @@
 | **Compose Clip Videos** | Concatenates per-clip MP4s into one timeline video; optional same-name JSON sidecar | [→](compose-clip-videos.md) · [中文](zh/compose-clip-videos.md) |
 | **Join Strings** | Joins a variable number of string/int/float inputs; newline, comma, `_`, `-`, `/`, none, or custom separator | [→](join-strings.md) · [中文](zh/join-strings.md) |
 | **Clear Directory** | Deletes selected media files in a directory; supports Recycle Bin on Windows | [→](clear-directory.md) · [中文](zh/clear-directory.md) |
+| **工作流完成后强制关机 (Windows)** | Connected trigger with optional numeric/string matching; forced Windows shutdown after successful execution and an empty queue | [中文](zh/windows-shutdown.md) |
 | **Size Settings** | Size preset / scale / lock aspect / orientation → `width`, `height`, `count`, `fps` | [→](size-settings.md) · [中文](zh/size-settings.md) |
 | **Size From Megapixels** | Input width + height + target megapixels → aligned output width and height | [→](size-settings.md#size-from-megapixels) · [中文](zh/size-settings.md#按百万像素计算尺寸) |
 | **Format JSON** | Pretty-print a JSON string in the graph UI | [→](format-json.md) · [中文](zh/format-json.md) |

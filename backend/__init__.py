@@ -58,6 +58,10 @@ from .cap_clear_directory import (
     NODE_CLASS_MAPPINGS as _CCD_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _CCD_NAMES,
 )
+from .cap_windows_shutdown import (
+    NODE_CLASS_MAPPINGS as _CWS_CLASS,
+    NODE_DISPLAY_NAME_MAPPINGS as _CWS_NAMES,
+)
 from .cap_size_settings import (
     NODE_CLASS_MAPPINGS as _CSS_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _CSS_NAMES,
@@ -116,6 +120,7 @@ NODE_CLASS_MAPPINGS = {
     **_CIB_CLASS,
     **_CLD_CLASS,
     **_CCD_CLASS,
+    **_CWS_CLASS,
     **_CSS_CLASS,
     **_CFJ_CLASS,
     "CAP_ShowAnything": CAP_ShowAnything,
@@ -139,6 +144,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **_CIB_NAMES,
     **_CLD_NAMES,
     **_CCD_NAMES,
+    **_CWS_NAMES,
     **_CSS_NAMES,
     **_CFJ_NAMES,
     "CAP_ShowAnything": "Show Anything",

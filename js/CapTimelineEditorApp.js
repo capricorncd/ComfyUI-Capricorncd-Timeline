@@ -6581,16 +6581,24 @@ export class CapTimelineEditorApp {
             if (!h3TimingFromFilename(row.file) || row.h3_trim_applied) continue;
             await this._ensureGenVideoDuration(row);
             if (this._destroyed || loadSeq !== this._loadSeq) return false;
+            let trimError = null;
             try {
                 if (!applyH3VideoTrim(row)) continue;
             } catch (error) {
-                row.enabled = false;
-                row.note = error.message;
-                row.h3_trim_applied = true;
+                trimError = error.message;
             }
             const current = meta.generatedVideos?.find((item) => item.id === row.id);
             if (current && !current.h3_trim_applied) {
-                Object.assign(current, row);
+                Object.assign(current, {
+                    duration_sec: row.duration_sec,
+                    trim_in_sec: row.trim_in_sec,
+                    trim_out_sec: row.trim_out_sec,
+                    h3_trim_applied: true,
+                });
+                if (trimError) {
+                    current.enabled = false;
+                    current.note = trimError;
+                }
                 changed = true;
             }
         }
@@ -6599,8 +6607,14 @@ export class CapTimelineEditorApp {
             const previous = ordered[i], next = ordered[i + 1];
             const priorMeta = this._ensureClipMeta(previous), nextMeta = next && this._ensureClipMeta(next);
             const adjacent = next && Math.abs(previous.endTime - next.startTime) <= 0.001 && !priorMeta.disabled && !nextMeta.disabled;
-            const linked = replaceH3ContextTail(this._clipGeneratedVideos(priorMeta), adjacent ? this._clipGeneratedVideos(nextMeta) : [], previous.duration);
+            const priorRows = this._clipGeneratedVideos(priorMeta);
+            const linked = replaceH3ContextTail(priorRows, adjacent ? this._clipGeneratedVideos(nextMeta) : [], previous.duration);
             if (JSON.stringify(linked) !== JSON.stringify(priorMeta.generatedVideos || [])) {
+                const linkedIds = new Set(linked.map(row => row.id));
+                const replacedContextIds = new Set(priorRows.filter(row => row.h3_context_from && !linkedIds.has(row.id)).map(row => row.id));
+                for (const audio of priorMeta.genEditAudios || []) {
+                    if (replacedContextIds.has(audio.from_gen_id)) audio.muted = true;
+                }
                 priorMeta.generatedVideos = linked;
                 changed = true;
             }
@@ -8209,13 +8223,17 @@ export class CapTimelineEditorApp {
         }
         if (!added.length) return false;
         if (recordUndo) this._recordUndo();
+        // Files are newest-first. Context splice rows are rebuilt separately below.
+        added.forEach((row, index) => { row.enabled = index === 0; });
+        rows.forEach(row => { row.enabled = false; });
+        for (const audio of m.genEditAudios || []) audio.muted = true;
         m.generatedVideos = [...added, ...rows];
         this._ensureResourceDuration(clip, m);
         this._meta.set(clip.id, m);
         this._decorateClip(clip);
         if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
         if (this._genVideoState?.clipId === clip.id) this._showGenVideoAt(this._genVideoState.index || 0);
-            if (this._timeline && this._timelineReady) {
+        if (this._timeline && this._timelineReady) {
             this._saveToWidgets();
             if (this._historyReady) {
                 this._openedProjectJson = JSON.stringify(this._buildProject());
@@ -8224,13 +8242,29 @@ export class CapTimelineEditorApp {
             this._syncClipPrimaryAppearance(clip, { refreshVideo: true });
             this._updateEditModeToolbar();
             this._scheduleProgramPreview();
+            if (this._timeline._playing) this._startAudioPlayback();
         } else {
             this._persistGeneratedVideosToProjectJson(clip.id, added.map((row) => row.file));
         }
         void this._resolveH3VideoTiming(clip).then(() => {
             if (this._timeline && this._timelineReady) {
+                const st = this._genEditState;
+                const editingClip = st && this._findClipById(st.clipId);
+                if (editingClip && editingClip.track === clip.track) {
+                    const time = st.timeline?.currentTime || 0;
+                    const playing = st.timeline?._playing;
+                    const editedMeta = this._ensureClipMeta(editingClip);
+                    st.draft = this._clipGeneratedVideos(editedMeta).map(row => this._cloneGenVideoDraft(row));
+                    st.audioDraft = this._normalizeGenEditAudioDraft(editedMeta.genEditAudios);
+                    this._buildGenEditTimeline();
+                    st.timeline?.setCurrentTime(time);
+                    this._syncGenEditInspector();
+                    this._scheduleGenEditPreview();
+                    if (playing) st.timeline?.play();
+                }
                 this._saveToWidgets();
                 this._scheduleProgramPreview();
+                if (this._timeline._playing) this._startAudioPlayback();
             }
         });
         for (const row of added) {
@@ -19261,6 +19295,9 @@ export class CapTimelineEditorApp {
         }
         if (!added.length) return false;
 
+        added.forEach((row, index) => { row.enabled = index === 0; });
+        existing.forEach(row => { row.enabled = false; });
+        for (const audio of target.gen_edit_audios || []) audio.muted = true;
         target.generated_videos = [...added, ...existing];
         this._writeProjectJson(JSON.stringify(project));
         return true;

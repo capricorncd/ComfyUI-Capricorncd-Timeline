@@ -57,7 +57,10 @@ export function replaceH3ContextTail(previousRows, nextRows, previousDuration) {
     previous.h3_context_original_out = previous.trim_out_sec;
     previous.trim_out_sec = end - overlap;
     const prefix = Math.max(0, previous.trim_out_sec - (a.raw - b.context) / a.fps);
-    rows.unshift({ ...next, id: `context_${previous.id}_${next.id}`, h3_context_from: next.id,
+    const contextId = `context_${previous.id}_${next.id}`;
+    const existing = previousRows.find(row => row.id === contextId);
+    rows.unshift({ ...next, id: contextId, h3_context_from: next.id,
+        enabled: (existing || next).enabled !== false, muted: (existing || next).muted === true,
         trim_in_sec: prefix, trim_out_sec: prefix + overlap,
         edit_start_sec: (previous.edit_start_sec || 0) + previous.trim_out_sec - previous.trim_in_sec });
     return rows;

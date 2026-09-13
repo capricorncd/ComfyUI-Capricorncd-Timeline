@@ -1,4 +1,11 @@
-/** Shared SVG icons for Capricorncd Timeline (no external assets). */
+/*!
+ * Shared SVG icons for Capricorncd Timeline (no external assets).
+ * Includes icons from Lucide (https://lucide.dev), licensed under ISC:
+ * Copyright (c) 2026 Lucide Icons and Contributors.
+ * Feather-derived icons are licensed under MIT:
+ * Copyright (c) 2013-present Cole Bemis.
+ * Full copyright and permission notices: ./LICENSE.lucide.
+ */
 
 export const SVG_ATTRS =
     'viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';

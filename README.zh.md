@@ -78,3 +78,5 @@ git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline
 ## 许可证
 
 [MIT](LICENSE)
+
+`js/cap_icons.js` 中包含 [Lucide](https://lucide.dev/icons) 图标（ISC）及源自 Feather 的图标（MIT）。完整版权与许可声明见 [第三方图标许可证](js/LICENSE.lucide)。

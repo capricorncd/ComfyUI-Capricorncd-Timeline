@@ -62,6 +62,8 @@ try {
     e._setAiOptimizeRightTab('preview');
     assert(!modal.querySelector('[data-right-pane="preview"]').hidden, 'preview tab visible');
     assert(!e.workflowStopBtn.hidden && !e.workflowStopBtn.disabled, 'scoped stop is available');
+    assert(e.workflowStopBtn.getAttribute('variant') === 'danger', 'stop uses shared delete-button styling');
+    assert(getComputedStyle(e.workflowStopBtn.shadowRoot.querySelector('button')).color === 'rgb(255, 128, 128)', 'enabled stop text is red');
     assert(e.aiPreviewBtn.disabled, 'separate preview cannot overlap monitored run');
     const details = modal.querySelector('details');
     assert(!details.open && e.aiPreviewBtn.closest('details') === details, 'separate workflow collapsed and opt-in');

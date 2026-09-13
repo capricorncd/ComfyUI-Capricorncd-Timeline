@@ -49,8 +49,8 @@ export class Button extends HTMLElement {
                 :host([variant="accent"]) button:hover { background: rgba(100,216,197,0.25); color: var(--cat-accent-soft, #a4e5dc); }
                 :host([variant="amber"]) button { background: rgba(217,164,65,0.15); border-color: rgba(217,164,65,0.4); color: #e8c483; }
                 :host([variant="amber"]) button:hover { background: rgba(217,164,65,0.25); color: #f5d9a8; }
-                :host([variant="danger"]) button { color: #aaa; }
-                :host([variant="danger"]) button:hover { color: #fff; background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.45); }
+                :host([variant="danger"]) button { color: #ff8080; }
+                :host([variant="danger"]) button:hover { color: #ffaaaa; background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.45); }
                 :host([aria-pressed="true"]) button, :host([aria-pressed="true"]) button:hover,
                 :host([aria-selected="true"]) button, :host([aria-selected="true"]) button:hover {
                     background: rgba(74,158,255,0.18); border-color: rgba(74,158,255,0.45); color: #9ec5ff;

@@ -4286,7 +4286,7 @@ export class CapTimelineEditorApp {
               </div>
               <footer class="cat-te-modal-footer cat-te-ai-optimize-actions">
                 <cap-button class="cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></cap-button>
-                <cap-button class="cat-te-workflow-stop" hidden>${iconHtml("stop", 12)}<span>${T("workflow_stop")}</span></cap-button>
+                <cap-button variant="danger" class="cat-te-workflow-stop" hidden>${iconHtml("stop", 12)}<span>${T("workflow_stop")}</span></cap-button>
                 <cap-button variant="primary" class="cat-te-ai-run">${iconHtml("play", 12)}<span>${T("workflow_run_queue")}</span></cap-button>
               </footer>
               </div>

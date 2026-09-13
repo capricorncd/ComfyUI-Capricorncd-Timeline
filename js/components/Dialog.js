@@ -157,7 +157,7 @@ export class Dialog extends HTMLElement {
                 .is-dragging, .is-resizing { user-select: none; }
             </style>
             <dialog aria-labelledby="title">
-                <header><slot id="title" name="title"></slot><cap-button shape="square" variant="danger" aria-label="Close" title="Close">${iconHtml("close", 18)}</cap-button></header>
+                <header><slot id="title" name="title"></slot><cap-button shape="square" variant="neutral" aria-label="Close" title="Close">${iconHtml("close", 18)}</cap-button></header>
                 <div class="body"><slot></slot></div>
                 <footer hidden><slot name="footer"></slot></footer>
                 <cap-dialog-resize-handle class="resize-handle" aria-hidden="true"></cap-dialog-resize-handle>

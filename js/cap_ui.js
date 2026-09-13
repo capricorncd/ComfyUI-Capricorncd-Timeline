@@ -71,7 +71,7 @@ export function showCapConfirm(message, { title = "Confirm", confirmLabel = "OK"
           <div class="cap-ui-confirm-dialog" role="alertdialog" aria-modal="true">
             <div class="cap-ui-confirm-header">
               <strong></strong>
-              <cap-button shape="square" variant="danger" class="cap-ui-confirm-close" aria-label="${cancelLabel}">${iconHtml("close", 16)}</cap-button>
+              <cap-button shape="square" variant="neutral" class="cap-ui-confirm-close" aria-label="${cancelLabel}">${iconHtml("close", 16)}</cap-button>
             </div>
             <div class="cap-ui-confirm-message"></div>
             <div class="cap-ui-confirm-actions">

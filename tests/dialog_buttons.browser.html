@@ -25,6 +25,14 @@ try {
     fixture.innerHTML = new Function('T', 'iconHtml', 'OUTPUT_VIDEOS_TIME_RANGES', 'return `' + source.slice(start, end) + '`;')(key => key, iconHtml, [{id:'1h', label:'1h'}]);
     assert(!fixture.querySelector('button'), 'no native button left in dialog markup');
     const buttons = [...fixture.querySelectorAll('cap-button, cap-tab-button')];
+    const closeButtons = [...fixture.querySelectorAll('.cat-te-modal-close'),
+        ...[...fixture.querySelectorAll('cap-dialog')].map(dialog => dialog.shadowRoot.querySelector('header cap-button'))];
+    assert(closeButtons.length > 15, 'legacy and shared-dialog close buttons are covered');
+    for (const close of closeButtons) {
+        assert(close.getAttribute('variant') === 'neutral', 'Close is not a destructive action');
+        assert(getComputedStyle(close.shadowRoot.querySelector('button')).color !== 'rgb(255, 128, 128)', 'Close icon is not red');
+    }
+    assert(fixture.querySelector('.cat-te-workflow-stop').getAttribute('variant') === 'danger', 'Stop task remains a danger button');
     assert(buttons.length > 80, 'all dialog button families are covered');
     for (const button of buttons) {
         const native = button.shadowRoot?.querySelector('button');
@@ -54,22 +62,23 @@ try {
     sidebar.remove();
     const modal = fixture.querySelector('.cat-te-ai-optimize-modal');
     modal.hidden = false;
-    const tabs = [...modal.querySelectorAll('cap-tab-button')];
-    assert(tabs.length === 5, 'source and preview tabs retained');
+    const tabs = [...modal.querySelectorAll('cap-tab-button[data-source-tab]')];
+    const appendTab = tabs.find(tab => tab.dataset.sourceTab === 'append_prompt');
+    assert(appendTab && modal.querySelectorAll('cap-tab-button[data-right-tab]').length === 2, 'source and preview tabs retained');
     const method = name => {
         const at = source.indexOf('    ' + name + '(');
         return new Function('SETTING_PROMPT_KEYS', 'normalizePromptIncludes', 'return ({' + source.slice(at, source.indexOf('\n    }', at) + 6) + '}).' + name)(['prepend_prompt', 'append_prompt'], v => v);
     };
-    const app = { aiSourceTabs: tabs.slice(0, 3), _fillAiOptimizeSrc() {}, _setAiOptimizeBusy() {} };
+    const app = { aiSourceTabs: tabs, _fillAiOptimizeSrc() {}, _clearAiResourcePreview() {}, _setAiOptimizeBusy() {} };
     method('_setAiOptimizeSrcTab').call(app, 'append_prompt');
-    assert(tabs[2].getAttribute('aria-selected') === 'true', 'actual tab update sets selection');
-    assert(tabs[2].shadowRoot.querySelector('button').getAttribute('role') === 'tab', 'native tab semantics');
-    tabs[2].tabIndex = -1;
-    assert(!tabs[2].focusable && tabs[2].shadowRoot.querySelector('button').tabIndex === -1, 'roving tabindex delegates');
-    tabs[2].tabIndex = 0;
-    tabs[2].focus();
-    assert(document.activeElement === tabs[2] && tabs[2].shadowRoot.activeElement, 'programmatic tab focus');
-    const selectedColor = getComputedStyle(tabs[2].shadowRoot.querySelector('button')).backgroundColor;
+    assert(appendTab.getAttribute('aria-selected') === 'true', 'actual tab update sets selection');
+    assert(appendTab.shadowRoot.querySelector('button').getAttribute('role') === 'tab', 'native tab semantics');
+    appendTab.tabIndex = -1;
+    assert(!appendTab.focusable && appendTab.shadowRoot.querySelector('button').tabIndex === -1, 'roving tabindex delegates');
+    appendTab.tabIndex = 0;
+    appendTab.focus();
+    assert(document.activeElement === appendTab && appendTab.shadowRoot.activeElement, 'programmatic tab focus');
+    const selectedColor = getComputedStyle(appendTab.shadowRoot.querySelector('button')).backgroundColor;
     assert(selectedColor !== getComputedStyle(tabs[0].shadowRoot.querySelector('button')).backgroundColor, 'selection changes shared presentation');
     const chips = [...modal.querySelectorAll('.cat-te-prompt-include-chip')];
     method('_setPromptIncludesEnabled').call({promptIncludeChips: chips}, true, ['clip'], true, false);
@@ -81,13 +90,13 @@ try {
     assert(clicks === 1 && !run.focusable, 'disabled action does not fire');
     run.disabled = false; run.click(); assert(clicks === 2, 're-enabled action works');
     modal.hidden = true;
-    const compose = fixture.querySelector('.cat-te-compose-modal'); compose.hidden = false;
+    const compose = fixture.querySelector('.cat-te-compose-modal'); compose.showModal();
     for (const point of compose.querySelectorAll('.cat-te-wm-pos')) {
         const native = point.shadowRoot.querySelector('button').getBoundingClientRect();
         assert(native.width >= 20 && native.height === 22, 'watermark grid target is visible');
         assert(getComputedStyle(point, '::after').pointerEvents === 'none', 'alignment dot cannot intercept click');
     }
-    compose.hidden = true;
+    compose.close();
     const row = document.createElement('div'); row.style.cssText = 'display:flex;width:200px';
     const name = document.createElement('cap-button'); name.className = 'cat-te-output-video-name';
     name.setAttribute('truncate', ''); name.textContent = 'very-long-generated-video-name-'.repeat(12); row.append(name); fixture.append(row);

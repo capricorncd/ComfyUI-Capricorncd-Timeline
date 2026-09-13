@@ -3378,7 +3378,7 @@ export class CapTimelineEditorApp {
             <cap-button class="cat-te-export">${T("export_title")}</cap-button>
             <cap-button class="cat-te-compose-open">${T("compose_video_menu")}</cap-button>
             <cap-button class="cat-te-settings">${T("settings_btn")}</cap-button>
-            <cap-button class="cat-te-header-close" variant="danger" title="${T("close_title")}" aria-label="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+            <cap-button class="cat-te-header-close" variant="neutral" title="${T("close_title")}" aria-label="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
             <input class="cat-te-import-zip" type="file" accept=".zip,application/zip" hidden />
           </header>
           <div class="cat-te-main">
@@ -3749,7 +3749,7 @@ export class CapTimelineEditorApp {
               <div class="cat-te-modal-header cat-te-media-preview-header">
                 <span class="cat-te-media-preview-title">${T("media_preview_title")}</span>
                 <div class="cat-te-media-preview-stars"></div>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-media-preview-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-media-preview-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-media-preview-body">
                 <cap-button shape="circle" size="large" class="cat-te-media-preview-nav prev" title="${T("prev_image_title")}" aria-label="${T("prev_image_aria")}">${iconHtml("chevronLeft", 24)}</cap-button>
@@ -3815,7 +3815,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-raw-meta-dialog" role="dialog" aria-modal="true" aria-label="${T("media_raw_meta")}">
               <div class="cat-te-modal-header">
                 <span>${T("media_raw_meta")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-raw-meta-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-raw-meta-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <pre class="cat-te-raw-meta-text" tabindex="0"></pre>
             </div>
@@ -3824,7 +3824,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-media-preview-dialog">
               <div class="cat-te-modal-header cat-te-media-preview-header">
                 <span class="cat-te-gen-video-title">${T("gen_video_label")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-gen-video-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-gen-video-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-media-preview-body cat-te-gen-video-body">
                 <cap-button shape="circle" size="large" class="cat-te-media-preview-nav prev cat-te-gen-video-prev" title="${T("prev_short")}" aria-label="${T("prev_short")}">‹</cap-button>
@@ -3853,7 +3853,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-gen-edit-dialog">
               <div class="cat-te-modal-header">
                 <span class="cat-te-gen-edit-title">${T("gen_edit_modal_title")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-gen-edit-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-gen-edit-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-gen-edit-body">
                 <div class="cat-te-gen-edit-left">
@@ -3881,7 +3881,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-gen-edit-dialog cat-te-vo-edit-dialog">
               <div class="cat-te-modal-header">
                 <span class="cat-te-vo-edit-title">${T("voiceover_edit_modal_title")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-vo-edit-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-vo-edit-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-gen-edit-body">
                 <div class="cat-te-gen-edit-left cat-te-vo-edit-left">
@@ -4089,7 +4089,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-add-material-dialog">
               <div class="cat-te-modal-header">
                 <span class="cat-te-add-material-title">${T("add_material_title")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-add-material-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-add-material-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-add-material-body">
                 <div class="cat-te-add-material-preview"></div>
@@ -4108,7 +4108,7 @@ export class CapTimelineEditorApp {
               <div class="cat-te-modal cat-te-ai-optimize-dialog">
               <div class="cat-te-modal-header">
                 <span class="cat-te-ai-optimize-title">${T("prompt_manager_title")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-ai-optimize-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-ai-optimize-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-ai-optimize-body">
                 <div class="cat-te-ai-optimize-left">
@@ -4298,7 +4298,7 @@ export class CapTimelineEditorApp {
               <div class="cat-te-modal-header">
                 <span>${T("select_prompt_skill_title")}</span>
                 <input class="cat-te-skill-picker-filter" type="search" placeholder="${T("search_name_placeholder")}" />
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-skill-picker-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-skill-picker-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-skill-picker-body"></div>
             </div>
@@ -4307,7 +4307,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-rename-title">
               <div class="cat-te-modal-header">
                 <span id="cat-te-track-rename-title">${T("rename_track_title")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-track-rename-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-track-rename-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-modal-body">
                 <input class="cat-te-track-rename-input" type="text" maxlength="120" aria-label="${T("name_label")}" />
@@ -4322,7 +4322,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-color-title">
               <div class="cat-te-modal-header">
                 <span id="cat-te-track-color-title">${T("track_color_title")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-track-color-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-track-color-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-modal-body">
                 <input class="cat-te-track-color-input" type="color" aria-label="${T("track_color_title")}" />
@@ -4337,7 +4337,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-delete-title">
               <div class="cat-te-modal-header">
                 <span id="cat-te-track-delete-title">${T("delete_track_menu")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-track-delete-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-track-delete-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-modal-body">
                 <div class="cat-te-track-delete-message"></div>
@@ -4352,7 +4352,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cat-te-media-delete-title">
               <div class="cat-te-modal-header">
                 <span id="cat-te-media-delete-title">${T("delete_asset_title")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-media-delete-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-media-delete-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-modal-body">
                 <div class="cat-te-media-delete-message"></div>
@@ -4367,7 +4367,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cat-te-track-convert-title">
               <div class="cat-te-modal-header">
                 <span id="cat-te-track-convert-title">${T("convert_to_media_failed_title")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-track-convert-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-track-convert-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-modal-body">
                 <div class="cat-te-track-convert-message"></div>
@@ -4416,7 +4416,7 @@ export class CapTimelineEditorApp {
             <div class="cat-te-modal cat-te-settings-dialog">
               <div class="cat-te-modal-header">
                 <span>${T("settings_title")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+                <cap-button variant="neutral" shape="square" class="cat-te-modal-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-modal-body cat-te-settings-layout">
                 <nav class="cat-te-settings-nav" aria-label="${T("settings_title")}">

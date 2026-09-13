@@ -1022,7 +1022,7 @@ function buildModal(initialKind = "history") {
         <div class="cap-ui-hd cap-ui-drag">
           <h3 class="cap-ui-hd-title">${t("history_preset_header")}</h3>
           <span class="cap-ui-target-hint"></span>
-          <cap-button shape="square" variant="danger" class="cap-ui-close" title="${t("close_title")}">${iconHtml("close", 16)}</cap-button>
+          <cap-button shape="square" variant="neutral" class="cap-ui-close" title="${t("close_title")}">${iconHtml("close", 16)}</cap-button>
         </div>
         <div class="cap-ui-tabs">
           <div class="cap-ui-tab-list" role="tablist">

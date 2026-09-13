@@ -38,6 +38,18 @@ try {
     };
     for (const name of ['_workflowQueueBusy', '_syncWorkflowRunButton', '_setAiOptimizeRightTab', '_showWorkflowPreview', '_renderModelPreview', '_syncPreviewSeedButton', '_previewSeedForClip']) e[name] = method(name);
     e._syncWorkflowRunButton();
+    e._syncAiPromptContextControls = () => {};
+    e._syncAiPromptTargetControls = () => {};
+    e._syncAiOptimizeNavButtons = () => {};
+    e._setAiOptimizeBusy = method('_setAiOptimizeBusy');
+    e._setAiOptimizeBusy(false);
+    assert(e.aiGenerateBtn.getAttribute('variant') === 'neutral', 'opening the modal keeps prompt generation secondary');
+    e._setAiOptimizeBusy(true);
+    assert(e.aiGenerateBtn.getAttribute('variant') === 'danger', 'prompt generation retains cancel styling');
+    e._setAiOptimizeBusy(false);
+    assert(e.aiGenerateBtn.getAttribute('variant') === 'neutral', 'finishing or cancelling restores secondary styling');
+    assert(e.aiRunBtn.getAttribute('variant') === 'primary', 'workflow run remains the primary action');
+    assert(getComputedStyle(e.aiGenerateBtn.shadowRoot.querySelector('button')).backgroundColor !== getComputedStyle(e.aiRunBtn.shadowRoot.querySelector('button')).backgroundColor, 'rendered button colors differ after state updates');
     assert(e.aiRunBtn.textContent.includes('运行与预览'), 'idle label');
     e._workflowQueueRemaining = 1; e._syncWorkflowRunButton();
     assert(e.aiRunBtn.textContent.includes('加入运行队列'), 'busy label');

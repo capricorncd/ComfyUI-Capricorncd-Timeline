@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { previewSeedValue, workflowPreviewSeed } from '../js/editor/PreviewSeed.js';
 
 const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
+assert.match(source, /<cap-button variant="primary" class="cat-te-ai-run">/);
+assert.match(source, /<cap-button class="cat-te-ai-generate">/);
 const normalizeStart = source.indexOf('function normalizeOutputVideoPath(');
 const normalizeOutputVideoPath = new Function('OUTPUT_VIDEO_EXT',
     `return ${source.slice(normalizeStart, source.indexOf('\n}', normalizeStart) + 2)}`)(/\.(mp4|webm|mov|mkv|avi|m4v)$/i);

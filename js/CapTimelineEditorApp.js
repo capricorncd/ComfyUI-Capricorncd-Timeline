@@ -4285,9 +4285,9 @@ export class CapTimelineEditorApp {
                 </div>
               </div>
               <footer class="cat-te-modal-footer cat-te-ai-optimize-actions">
-                <cap-button variant="primary" class="cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></cap-button>
+                <cap-button class="cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></cap-button>
                 <cap-button class="cat-te-workflow-stop" hidden>${iconHtml("stop", 12)}<span>${T("workflow_stop")}</span></cap-button>
-                <cap-button class="cat-te-ai-run">${iconHtml("play", 12)}<span>${T("workflow_run_queue")}</span></cap-button>
+                <cap-button variant="primary" class="cat-te-ai-run">${iconHtml("play", 12)}<span>${T("workflow_run_queue")}</span></cap-button>
               </footer>
               </div>
               <cap-button shape="circle" size="large" class="cat-te-ai-optimize-nav next" title="${T("ai_optimize_next_clip_title")}" aria-label="${T("ai_optimize_next_clip_title")}" disabled>${iconHtml("chevronLeft", 20)}</cap-button>
@@ -18610,7 +18610,7 @@ export class CapTimelineEditorApp {
             this.aiGenerateBtn.disabled = false;
             this.aiGenerateBtn.classList.toggle("is-loading", false);
             this.aiGenerateBtn.classList.toggle("is-cancel", busy);
-            this.aiGenerateBtn.setAttribute("variant", busy ? "danger" : "primary");
+            this.aiGenerateBtn.setAttribute("variant", busy ? "danger" : "neutral");
             this.aiGenerateBtn.innerHTML = busy
                 ? `${iconHtml("sparkles", 12)}<span>${T("terminate_label")}</span>`
                 : `${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span>`;

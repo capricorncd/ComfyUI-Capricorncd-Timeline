@@ -1,3 +1,7 @@
+# Copyright (c) 2026 capricorncd
+# SPDX-License-Identifier: MIT
+# See ../LICENSE for the full license text.
+
 """Compose Timeline Editor director output, media, subtitles and audio into one MP4."""
 
 from __future__ import annotations

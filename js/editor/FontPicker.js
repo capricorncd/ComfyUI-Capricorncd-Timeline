@@ -1,3 +1,9 @@
+/*!
+ * Copyright (c) 2026 capricorncd
+ * SPDX-License-Identifier: MIT
+ * See ../../LICENSE for the full license text.
+ */
+
 import "../components/Button.js";
 import { t as T } from "../i18n/timeline_editor.js";
 

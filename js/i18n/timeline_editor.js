@@ -1,3 +1,9 @@
+/*!
+ * Copyright (c) 2026 capricorncd
+ * SPDX-License-Identifier: MIT
+ * See ../../LICENSE for the full license text.
+ */
+
 import { makeT } from "../cap_i18n.js";
 
 export const DICT = {

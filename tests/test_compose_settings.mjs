@@ -1,3 +1,9 @@
+/*!
+ * Copyright (c) 2026 capricorncd
+ * SPDX-License-Identifier: MIT
+ * See ../LICENSE for the full license text.
+ */
+
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 

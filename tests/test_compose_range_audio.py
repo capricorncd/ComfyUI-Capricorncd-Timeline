@@ -1,3 +1,7 @@
+# Copyright (c) 2026 capricorncd
+# SPDX-License-Identifier: MIT
+# See ../LICENSE for the full license text.
+
 import ast
 import json
 import math

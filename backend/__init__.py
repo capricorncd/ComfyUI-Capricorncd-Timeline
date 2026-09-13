@@ -1,3 +1,7 @@
+# Copyright (c) 2026 capricorncd
+# SPDX-License-Identifier: MIT
+# See ../LICENSE for the full license text.
+
 import asyncio
 import base64
 import logging

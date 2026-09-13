@@ -1,3 +1,9 @@
+/*!
+ * Copyright (c) 2026 capricorncd
+ * SPDX-License-Identifier: MIT
+ * See ../../LICENSE for the full license text.
+ */
+
 import "./Button.js";
 import { iconHtml } from "../cap_icons.js";
 import { formatTimecode } from "../timecode.js";

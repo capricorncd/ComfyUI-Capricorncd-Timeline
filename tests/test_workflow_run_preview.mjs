@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { previewSeedValue, workflowPreviewSeed } from '../js/editor/PreviewSeed.js';
 
 const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
 const normalizeStart = source.indexOf('function normalizeOutputVideoPath(');
@@ -156,7 +157,8 @@ const job = {clipId: 'selected', projectJson: '{"settings":{}}', workflowPreview
 const Editor = {_clipRunJobs: [job], _clipRunEditor: e};
 const hookStart = source.indexOf('    static _installClipRunJobHook(');
 const hookSource = source.slice(hookStart, source.indexOf('\n    }', hookStart) + 6).replace('static ', '');
-new Function('app', 'api', 'CapTimelineEditorApp', 'return ({' + hookSource + '})._installClipRunJobHook')(app, api, Editor)();
+new Function('app', 'api', 'CapTimelineEditorApp', 'previewSeedValue', 'workflowPreviewSeed',
+    'return ({' + hookSource + '})._installClipRunJobHook')(app, api, Editor, previewSeedValue, workflowPreviewSeed)();
 assert.equal(await app.graphToPrompt(), graphResult);
 assert.equal(session.output, graphResult.output);
 assert.deepEqual([...session.nodeIds], ['6:1'], 'qualified subgraph node IDs are captured');
@@ -198,6 +200,7 @@ const media = {
     removeAttribute() { this.src = ''; }, pause() {}, load() {}, play() { return Promise.resolve(); },
 };
 const previewRenderer = {aiPreviewPanel: {}, aiPreviewStatus: {}, aiPreviewVideo: media};
+previewRenderer._syncPreviewSeedButton = () => {};
 const render = method('_renderModelPreview');
 render.call(previewRenderer, {url: '/step1', mime: 'video/mp4'}, 'first');
 const firstError = media.onerror;

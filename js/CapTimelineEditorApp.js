@@ -5,6 +5,7 @@ import { AgentSettings } from "./editor/AgentSettings.js";
 import "./components/StatusMessage.js";
 import "./components/DropdownButton.js";
 import { FontCatalog } from "./editor/FontCatalog.js";
+import { previewSeedValue, workflowPreviewSeed } from "./editor/PreviewSeed.js";
 import { TimelineHistory } from "./editor/TimelineHistory.js";
 import { FontPicker } from "./editor/FontPicker.js";
 import { stripH3Timing, h3TimingFromFilename, applyH3VideoTrim, restoreH3ClipTiming, replaceH3ContextTail } from "./editor/H3Timing.js";
@@ -2258,9 +2259,23 @@ export class CapTimelineEditorApp {
             try {
                 const result = await orig.apply(this, args);
                 if (job?.workflowPreview && editor?._workflowPreview === job.workflowPreview) {
+                    // Serialize hooks may flush editor widgets. Change only the final API
+                    // snapshot, so randomizing a preview never changes the saved project.
+                    for (const node of Object.values(result.output || {})) {
+                        if (node.class_type !== "CAP_TimelineEditor" || typeof node.inputs?.project_json !== "string") continue;
+                        const project = JSON.parse(node.inputs.project_json);
+                        const ids = project.settings?.runtime_only_clip_ids;
+                        if (ids?.length !== 1 || String(ids[0]) !== String(job.clipId)) continue;
+                        const row = project.tracks?.flatMap(t => t.clips || []).find(c => String(c.id) === String(job.clipId));
+                        if (row && previewSeedValue(row.seed) === null) {
+                            row.seed = editor._randomClipSeed();
+                            node.inputs.project_json = JSON.stringify(project);
+                        }
+                    }
                     job.workflowPreview.output = result.output;
                     job.workflowPreview.nodeIds = new Set(Object.entries(result.output || {})
                         .filter(([, node]) => node.class_type === "ModelPreviewOverrideKJ").map(([id]) => id));
+                    job.workflowPreview.seed = workflowPreviewSeed(result.output || {}, String(job.clipId), job.workflowPreview.nodeIds);
                     previewRequests.set(result.output, {editor, session: job.workflowPreview});
                 }
                 return result;
@@ -4214,6 +4229,7 @@ export class CapTimelineEditorApp {
                     <span class="cat-te-model-preview-seed-controls">
                       <input class="cat-te-model-preview-seed" type="number" min="-1" step="1" value="-1" />
                       <cap-button shape="square" class="cat-te-model-preview-seed-random" title="${T("randomize_seed_title")}" aria-label="${T("randomize_seed_title")}">${iconHtml("refresh", 12)}</cap-button>
+                      <cap-button class="cat-te-model-preview-seed-use" disabled title="${T("preview_seed_hint")}">${T("preview_seed_use")}</cap-button>
                     </span>
                   </label>
                   <details class="cat-te-model-preview-settings">
@@ -4779,6 +4795,7 @@ export class CapTimelineEditorApp {
         this.promptFontSizeInput = el.querySelector(".cat-te-prompt-font-size");
         this.useClipVideoFilenameCb = el.querySelector(".cat-te-use-clip-video-filename");
         this.modelPreviewSeedInput = el.querySelector(".cat-te-model-preview-seed");
+        this.modelPreviewSeedUseBtn = el.querySelector(".cat-te-model-preview-seed-use");
         this.modelPreviewMegapixelsInput = el.querySelector(".cat-te-model-preview-megapixels");
         this.modelPreviewFileInput = el.querySelector(".cat-te-model-preview-file");
         this.modelPreviewConfigName = el.querySelector(".cat-te-model-preview-config-name");
@@ -4917,6 +4934,7 @@ export class CapTimelineEditorApp {
             this.modelPreviewSeedInput.value = String(this._randomClipSeed());
             this.modelPreviewSeedInput.dispatchEvent(new Event("change", { bubbles: true }));
         });
+        this.modelPreviewSeedUseBtn?.addEventListener("click", () => this._usePreviewSeed());
         this.modelPreviewSeedInput?.addEventListener("change", () => {
             const clip = this._findClipById(this._aiOptimizeClipId);
             if (!clip) return;
@@ -7434,7 +7452,40 @@ export class CapTimelineEditorApp {
         if (session) void api.fetchApi(`/audio_keyframe_timeline/preview_image/${session.imageId}`, {method: "DELETE"}).catch(() => {});
     }
 
+    _previewSeedForClip() {
+        const clip = this._findClipById(this._aiOptimizeClipId);
+        if (!clip || clip.track?.locked) return null;
+        const session = this._workflowPreview;
+        if (session) {
+            return session.clipId === String(clip.id) && session.promptId && session.entry
+                ? previewSeedValue(session.seed) : null;
+        }
+        const entry = this._modelPreviewEntry;
+        if (entry?.clipId !== String(clip.id)) return null;
+        return previewSeedValue(entry.seed ?? this._standalonePreviewSeed);
+    }
+
+    _syncPreviewSeedButton() {
+        const button = this.modelPreviewSeedUseBtn;
+        if (!button) return;
+        const seed = this._previewSeedForClip();
+        button.disabled = seed === null;
+        button.title = T("preview_seed_hint") + (seed === null ? "" : `\nSeed: ${seed}`);
+    }
+
+    _usePreviewSeed() {
+        const seed = this._previewSeedForClip();
+        if (seed === null) return;
+        const clip = this._findClipById(this._aiOptimizeClipId);
+        this._recordUndo();
+        this._ensureClipMeta(clip).seed = seed;
+        this.modelPreviewSeedInput.value = String(seed);
+        if (this._selClip?.id === clip.id && this.clipSeedInput) this.clipSeedInput.value = String(seed);
+        this._saveToWidgets();
+    }
+
     _renderModelPreview(entry = this._modelPreviewEntry, status = "") {
+        this._syncPreviewSeedButton();
         if (!this.aiPreviewPanel) return;
         this.aiPreviewPanel.hidden = false;
         if (this.aiPreviewStatus) this.aiPreviewStatus.textContent = status;
@@ -7589,14 +7640,7 @@ export class CapTimelineEditorApp {
             return;
         }
         const meta = this._ensureClipMeta(clip);
-        if (this._normalizeClipSeed(meta.seed) < 0) {
-            meta.seed = this._randomClipSeed();
-            this._meta.set(clip.id, meta);
-            if (this._selClip?.id === clip.id && this.clipSeedInput) {
-                this.clipSeedInput.value = String(meta.seed);
-            }
-            this._saveToWidgets();
-        }
+        const seed = previewSeedValue(meta.seed) ?? this._randomClipSeed();
         const files = this._clipAiOptimizeFiles(clip);
         if (this.modelPreviewSeedInput) this.modelPreviewSeedInput.value = String(meta.seed);
         const previewProject = this._buildProject();
@@ -7605,7 +7649,7 @@ export class CapTimelineEditorApp {
         const projectHeight = Math.max(1, Number(previewSettings.height) || Number(this._w("height")?.value) || PY_SCALAR_DEFAULTS.height);
         const values = {
             prompt: this._composeFinalPrompt(clip, meta),
-            seed: meta.seed,
+            seed,
             duration: Number(clip.duration) || 0,
             context: this._clampH3MotionContextLength(meta.h3MotionContextLength),
             width: projectWidth,
@@ -7678,6 +7722,7 @@ export class CapTimelineEditorApp {
         const requestPromptId = crypto.randomUUID();
         this._modelPreviewClipId = String(clip.id);
         this._modelPreviewPromptId = requestPromptId;
+        this._standalonePreviewSeed = seed;
         this._modelPreviewEntry = null;
         this._syncModelPreviewButton();
         this._renderModelPreview(null, T("model_preview_queueing"));
@@ -7762,7 +7807,7 @@ export class CapTimelineEditorApp {
             clipId,
             step: 0,
             total: 0,
-            seed: Number(d.seed),
+            seed: previewSeedValue(d.seed),
             final: true,
         };
         this._renderModelPreview(this._modelPreviewEntry, T("model_preview_receiving"));
@@ -18412,6 +18457,7 @@ export class CapTimelineEditorApp {
         this._cancelAiOptimize();
         const meta = this._ensureClipMeta(clip);
         this._aiOptimizeClipId = clip.id;
+        this._syncPreviewSeedButton();
         this._syncWorkflowRunButton();
         void this._refreshWorkflowQueue();
         if (this.aiOptimizeTitle) {

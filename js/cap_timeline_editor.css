@@ -431,6 +431,8 @@ body.cat-te-row-resize * {
 .cat-te-model-preview-seed-controls {
     display: inline-flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 6px;
 }
 .cat-te-model-preview-config-name {

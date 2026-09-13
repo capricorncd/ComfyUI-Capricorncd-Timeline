@@ -5303,7 +5303,6 @@ export class CapTimelineEditorApp {
                 if (this._removeCtxMenu()) { e.stopPropagation(); return; }
                 if (this._closeMediaFilterPanel()) { e.stopPropagation(); return; }
                 e.stopPropagation();
-                this.close();
             }
         });
 

@@ -11927,9 +11927,8 @@ export class CapTimelineEditorApp {
         tagRow.append(tagTitle, tagGroup);
         panel.appendChild(tagRow);
 
-        const clearBtn = document.createElement("button");
-        clearBtn.type = "button";
-        clearBtn.className = "cat-te-btn cat-te-media-filter-clear";
+        const clearBtn = document.createElement("cap-button");
+        clearBtn.className = "cat-te-media-filter-clear";
         clearBtn.textContent = T("clear_all_filters_btn");
         clearBtn.disabled = this._activeMediaFilterCount() === 0;
         clearBtn.addEventListener("click", () => this._clearMediaFilters());

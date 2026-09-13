@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
+const clearStart = source.indexOf('        const clearBtn =', source.indexOf('    _openMediaFilterPanel('));
+const clearButton = source.slice(clearStart, source.indexOf('        panel.appendChild(clearBtn);', clearStart));
+assert(clearStart > 0);
+assert.match(clearButton, /document\.createElement\("cap-button"\)/);
+assert.match(clearButton, /className = "cat-te-media-filter-clear"/);
+assert.match(clearButton, /clearBtn\.disabled = this\._activeMediaFilterCount\(\) === 0/);
+assert.match(clearButton, /this\._clearMediaFilters\(\)/);
 const classes = ['sub-apply-all', 'media-primary-action',
     'clip-seed-random', 'ai-optimize-btn', 'clip-videos-open', 'vo-audio-add', 'vo-audio-edit'];
 for (const name of classes) {

@@ -46,6 +46,7 @@ seek.call(seekApp, entry, entry.wantTime);
 assert.equal(video.currentTime, 2);
 seekApp._timeline._playing = true;
 entry.seeking = false;
+entry._hasDrawn = true;
 seek.call(seekApp, entry, 2.1);
 assert(!entry.seeking, 'normal playback must still freewheel');
 
@@ -77,6 +78,47 @@ nextVideo.readyState = 2;
 nextEntry.ready = true;
 sync.call(seekApp, nextEntry, 5.02);
 assert(nextEntry.seeking);
+
+// A slow first seek must display its completed frame before chasing the clock.
+nextEntry.seeking = false;
+nextVideo.seeking = false;
+const decodedTime = nextVideo.currentTime;
+sync.call(seekApp, nextEntry, decodedTime + 2);
+assert(!nextEntry.seeking, 'slow activation must not immediately seek again before its first draw');
+assert(canDraw(nextEntry), 'single visible clip can finally commit its decoded frame');
+nextEntry._hasDrawn = true;
+sync.call(seekApp, nextEntry, decodedTime + 2);
+assert(nextEntry.seeking, 'correct large drift after the recovered frame was drawn');
+assert.equal(nextEntry._hasDrawn, false, 'every new seek waits for one completed draw');
+
+// The watchdog recovers missing events, not slow seeks that are still decoding.
+const nativeTimeout = globalThis.setTimeout, nativeClearTimeout = globalThis.clearTimeout;
+let watchdog, writes = 0, scheduled = 0, position = 2.417;
+try {
+    globalThis.setTimeout = callback => { watchdog = callback; return 1; };
+    globalThis.clearTimeout = () => {};
+    const watchVideo = {seeking:true, readyState:1,
+        get currentTime() { return position; },
+        set currentTime(value) { writes++; position = value; }};
+    const watched = {el:watchVideo, seeking:true, wantTime:4.5, _hasDrawn:false};
+    const watcher = {_isGenEditModalOpen:()=>false,
+        _clearPreviewSeekWatch:method('_clearPreviewSeekWatch'),
+        _armPreviewSeekWatch:method('_armPreviewSeekWatch'),
+        _scheduleProgramPreview:()=>scheduled++};
+    watcher._armPreviewSeekWatch(watched);
+    watchdog(); watchdog(); watchdog();
+    assert.equal(writes, 0, 'watchdog must not restart a slow browser seek');
+    assert(watched.seeking);
+    watchVideo.seeking = false;
+    watchVideo.readyState = 2;
+    watchdog();
+    assert(!watched.seeking && watched.ready, 'missing seeked event is recovered');
+    assert.equal(writes, 0, 'recovered frame is not discarded by retargeting');
+    assert.equal(scheduled, 1);
+} finally {
+    globalThis.setTimeout = nativeTimeout;
+    globalThis.clearTimeout = nativeClearTimeout;
+}
 
 const commits = [];
 const visible = {setTransform(){}, fillRect(){commits.push('black');}, drawImage(){commits.push('frame');}};

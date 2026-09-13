@@ -16136,18 +16136,14 @@ export class CapTimelineEditorApp {
         entry._seekTimer = setTimeout(() => {
             entry._seekTimer = 0;
             if (!entry.seeking) return;
-            entry.seeking = false;
             const v = entry.el;
-            const want = entry.wantTime || 0;
-            if (v && Math.abs((v.currentTime || 0) - want) > 0.08) {
-                try {
-                    entry.seeking = true;
-                    v.currentTime = want;
-                    this._armPreviewSeekWatch(entry);
-                } catch {
-                    entry.seeking = false;
-                }
+            // Slow decoders are still working; retargeting here restarts the seek.
+            if (v?.seeking) {
+                this._armPreviewSeekWatch(entry);
+                return;
             }
+            entry.seeking = false;
+            entry.ready = !!v && v.readyState >= 2;
             if (this._isGenEditModalOpen()) this._scheduleGenEditPreview();
             else this._scheduleProgramPreview();
         }, 450);
@@ -16166,6 +16162,7 @@ export class CapTimelineEditorApp {
                 // Nudge the decoder after background/GPU contention drops frames.
                 entry.seeking = true;
                 v.currentTime = want;
+                entry._hasDrawn = false;
                 this._armPreviewSeekWatch(entry);
             } catch {
                 entry.seeking = false;
@@ -16317,7 +16314,7 @@ export class CapTimelineEditorApp {
         const clamped = dur != null && dur > 0 ? Math.min(t, Math.max(0, dur - 0.001)) : t;
         entry.wantTime = clamped;
         if (!entry.ready && v.readyState < 1) return;
-        if (entry.seeking) return;
+        if (entry.seeking || v.seeking) return;
         const playing = this._isGenEditModalOpen()
             ? !!(this._genEditState?.timeline?._playing)
             : !!this._timeline?._playing;
@@ -16330,6 +16327,7 @@ export class CapTimelineEditorApp {
         this._armPreviewSeekWatch(entry);
         try {
             v.currentTime = clamped;
+            entry._hasDrawn = false;
         } catch {
             entry.seeking = false;
             this._clearPreviewSeekWatch(entry);
@@ -16356,7 +16354,7 @@ export class CapTimelineEditorApp {
             const drift = Math.abs((v.currentTime || 0) - clamped);
             // Once positioned, allow the decoder to deliver its first frame before
             // correcting small drift; otherwise each render tick starts another seek.
-            const needSync = !entry._playSynced || drift > 1.0;
+            const needSync = !entry._playSynced || (entry._hasDrawn && drift > 1.0);
             if (needSync) {
                 this._seekPreviewVideo(entry, clamped, { force: !entry._playSynced });
                 entry._playSynced = v.readyState >= 1;

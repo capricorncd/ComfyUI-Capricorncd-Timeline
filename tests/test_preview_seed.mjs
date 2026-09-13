@@ -28,6 +28,26 @@ assert.equal(resolve(), null, 'different pass seeds cannot be reproduced as one 
 graph.second.inputs.seed = 123;
 assert.equal(resolve(), 123);
 delete graph.second;
+graph.upscale = {class_type: 'SamplerCustomAdvanced', inputs: {
+    noise: ['noise', 0], guider: ['guider', 0], latent_image: ['sample', 0],
+}};
+graph.audioModel = {class_type: 'H3FrozenVideoCache', inputs: {model: ['audioLoader', 0]}};
+graph.audio = {class_type: 'H3AudioRefineSampler', inputs: {
+    model: ['audioModel', 0], latent: ['upscale', 0], positive: ['h3', 0], seed: 456,
+}};
+assert.equal(resolve(), 123, 'two video passes sharing RandomNoise ignore a separate audio-model seed');
+graph.audio.inputs.seed = ['dynamicAudioSeed', 0];
+assert.equal(resolve(), 123, 'unknown seed on a separate model does not invalidate video preview');
+graph.audioModel.inputs.model = ['preview', 0];
+assert.equal(resolve(), null, 'unknown seed on the actual preview model still prevents copying');
+graph.audio.inputs.seed = 456;
+assert.equal(resolve(), null, 'different seeds on the preview model remain ambiguous');
+graph.audio.inputs.seed = 123;
+assert.equal(resolve(), 123);
+graph.audioModel.inputs.model = ['audioLoader', 0];
+graph.otherGuider = {class_type: 'BasicGuider', inputs: {model: ['audioModel', 0], conditioning: ['sample', 0]}};
+graph.unrelated = {class_type: 'SamplerCustomAdvanced', inputs: {noise: ['unknown', 0], guider: ['otherGuider', 0]}};
+assert.equal(resolve(), 123, 'conditioning dependencies cannot attach an unrelated sampler to preview');
 assert.equal(workflowPreviewSeed(graph, 'other', new Set(['preview'])), null);
 for (const value of [null, undefined, '', true, -1, 1.5, Infinity, '18446744073709551615']) assert.equal(previewSeedValue(value), null);
 

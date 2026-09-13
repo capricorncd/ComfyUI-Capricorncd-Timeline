@@ -37,11 +37,15 @@ export function workflowPreviewSeed(graph, clipId, previewNodeIds) {
         }
         return null;
     }
-    function ancestors(id, seen = new Set()) {
+    function modelAncestors(id, seen = new Set()) {
         if (seen.has(id) || !graph[id]) return seen;
         seen.add(id);
-        for (const value of Object.values(graph[id].inputs || {})) {
-            if (linked(value)) ancestors(String(value[0]), seen);
+        // Sharing a latent/conditioning input does not mean sharing the preview
+        // model: an independent audio-refine pass can consume the video result.
+        for (const [name, value] of Object.entries(graph[id].inputs || {})) {
+            if ((name === "guider" || /^model(?:_?\d+)?$/.test(name)) && linked(value)) {
+                modelAncestors(String(value[0]), seen);
+            }
         }
         return seen;
     }
@@ -49,7 +53,7 @@ export function workflowPreviewSeed(graph, clipId, previewNodeIds) {
     for (const [id, node] of Object.entries(graph)) {
         const inputs = node.inputs || {};
         if (!/Sampler/.test(node.class_type) || !("noise" in inputs || "seed" in inputs || "noise_seed" in inputs)) continue;
-        const upstream = ancestors(id);
+        const upstream = modelAncestors(id);
         if (![...previewNodeIds].some(key => upstream.has(key))) continue;
         if ("noise" in inputs) {
             const noise = nodeAt(inputs.noise);

@@ -97,6 +97,7 @@ The legacy media-preview dialog reuses `cap-dialog-resize-handle` and `bindDialo
 | Dialog | Minimum width × height (px) |
 | --- | --- |
 | Project export | 420 × 320 |
+| Compose export | 640 × 420 |
 | Voice conversion | 420 × 280 |
 | Shortcuts | 400 × 240 |
 | Batch subtitles | 460 × 360 |
@@ -104,3 +105,7 @@ The legacy media-preview dialog reuses `cap-dialog-resize-handle` and `bindDialo
 | Generated video/audio association | 480 × 320 |
 
 Run `node tests/test_dialog.mjs` plus the existing native-dialog/export/speech tests. `tests/dialog.browser.html` verifies real layout, drag, shared shadow isolation, nested dialogs, busy-close veto, scroll bounds and background hit testing in non-modal mode.
+
+## Export range
+
+`js/components/ExportRange.js` provides `<cap-export-range>`. Call `configure(totalFrames, fps, labels)` and `update(currentFrame, playing)`; `exportRange` returns frame boundaries with an exclusive end, or `null` for the full timeline. The component emits `toggleplay`, `seek` and `rangechange`; seek/range events contain `detail.frame`. Playback and export remain owned by the editor. `tests/export_range.browser.html` checks frame stepping, range limits, playback stopping, independent output selection and preview layout.

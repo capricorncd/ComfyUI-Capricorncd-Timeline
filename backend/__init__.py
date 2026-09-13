@@ -679,6 +679,10 @@ def _register_routes():
                 watermark=watermark if isinstance(watermark, dict) else None,
                 output_resolution=output_resolution,
                 export_quality=str(payload.get("export_quality") or "maximum"),
+                export_range=payload.get("export_range"),
+                export_video=payload.get("export_video", True),
+                export_audio=payload.get("export_audio", False),
+                audio_format=str(payload.get("audio_format") or "wav"),
             )
             return web.json_response({
                 "ok": True,
@@ -692,6 +696,8 @@ def _register_routes():
                 "fps": meta.get("fps"),
                 "encoding_mode": meta.get("encoding_mode"),
                 "fallback_reason": meta.get("fallback_reason"),
+                "outputs": [{"filename": item["filename"], "subfolder": item["subfolder"]}
+                            for item in meta["outputs"]],
             })
         except ValueError as exc:
             return web.json_response({"error": str(exc)}, status=400)

@@ -121,6 +121,9 @@ def _collect_plan(
         enabled = track.get("enabled", True) is not False
         if not enabled:
             continue
+        for clip in _as_list(track.get("clips")):
+            if isinstance(clip, dict) and clip.get("enabled", True) is not False:
+                end_ms = max(end_ms, _ms(clip.get("start_ms")) + _ms(clip.get("duration_ms")))
 
         if track_type in ("subtitle", "text"):
             if track.get("visible", True) is False:
@@ -305,8 +308,6 @@ def _collect_plan(
         seg["duration_sec"] = (end_frame - start_frame) / fps
         seg["source_in_sec"] = round(seg["source_in_sec"] * fps) / fps
     video_segs = [seg for seg in video_segs if seg["duration_sec"] > 0]
-    if not video_segs:
-        raise ValueError(_t("no_generated_videos_to_compose", get_last_known_lang()))
 
     width, height = _compose_size(width, height, output_resolution)
 
@@ -612,7 +613,15 @@ def compose_timeline_project(
     watermark: dict | None = None,
     output_resolution: str = "project",
     export_quality: str = "maximum",
+    export_range: dict | None = None,
+    export_video: bool = True,
+    audio_output_path: str | None = None,
+    audio_format: str = "wav",
 ) -> dict:
+    if not export_video and not audio_output_path:
+        raise ValueError("Select video or audio for export")
+    if audio_format not in ("mp3", "wav"):
+        raise ValueError(f"Unsupported audio format: {audio_format}")
     if not shutil.which("ffmpeg"):
         raise RuntimeError(_t("ffmpeg_not_found", get_last_known_lang()))
     if not isinstance(project, dict):
@@ -630,15 +639,30 @@ def compose_timeline_project(
     render_scale = height / max(16, int(_as_dict(project.get("settings")).get("height") or 768))
     fps = plan["fps"]
     total = plan["total_sec"]
+    range_start_frame = 0
+    range_end_frame = max(1, round(total * fps))
+    if export_range is not None:
+        if not isinstance(export_range, dict):
+            raise ValueError("Invalid export range")
+        range_start_frame = export_range.get("start_frame")
+        range_end_frame = export_range.get("end_frame")
+        if (type(range_start_frame) is not int or type(range_end_frame) is not int
+                or not 0 <= range_start_frame < range_end_frame <= max(1, round(total * fps))):
+            raise ValueError("Export range must contain at least one frame within the timeline")
+    range_start = range_start_frame / fps
+    range_end = range_end_frame / fps
+    duration = (range_end_frame - range_start_frame) / fps
     # The plan is already ordered bottom to top for both parent and subtracks.
     video_segs = list(plan["video_segs"])
     audio_segs = plan["audio_segs"]
     subtitle_segs = plan["subtitle_segs"]
+    if not video_segs and not audio_segs and not subtitle_segs:
+        raise ValueError(_t("no_generated_videos_to_compose", get_last_known_lang()))
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)) or ".", exist_ok=True)
 
-    fallback_reason = ""
-    if export_quality == "auto":
+    fallback_reason = "range_or_audio_export" if export_video and export_quality == "auto" and (export_range is not None or audio_output_path) else ""
+    if export_video and not audio_output_path and export_range is None and export_quality == "auto":
         segments, fallback_reason = stream_copy_plan(plan, _resolve_watermark_mode(_as_dict(watermark)) != "none")
         if segments:
             copy_segments(segments, output_path, _run_ffmpeg)
@@ -653,102 +677,108 @@ def compose_timeline_project(
         "-f", "lavfi",
         "-i", f"color=c=black:s={width}x{height}:d={total:.6f}:r={fps}",
     ]
+    if not export_video:
+        video_segs = [seg for seg in video_segs if seg.get("kind") != "image" and not seg["muted"]]
+        cmd = ["ffmpeg", "-y", "-hide_banner"]
     for seg in video_segs:
         if seg.get("kind") == "image":
             cmd += ["-loop", "1", "-t", f"{seg['duration_sec']:.6f}", "-i", _ffmpeg_path(seg["path"])]
         else:
             cmd += ["-i", _ffmpeg_path(seg["path"])]
-    audio_input_offset = 1 + len(video_segs)
+    video_input_offset = 1 if export_video else 0
+    audio_input_offset = video_input_offset + len(video_segs)
     for seg in audio_segs:
         cmd += ["-i", _ffmpeg_path(seg["path"])]
 
-    watermark_input_index = audio_input_offset + len(audio_segs)
-    wm_input_args, wm_filters, video_out_label, wm_cleanup_path = _build_watermark_filters(
-        watermark, width, height, total, watermark_input_index, render_scale,
-    )
-    cmd += wm_input_args
-    subtitle_input_index = watermark_input_index + (1 if wm_input_args else 0)
     subtitle_paths: list[str] = []
-    for seg in subtitle_segs:
-        path = _render_subtitle_png(seg["text"], seg["style"])
-        subtitle_paths.append(path)
-        cmd += ["-loop", "1", "-i", _ffmpeg_path(path)]
-
     filters: list[str] = []
-    for i, seg in enumerate(video_segs):
-        idx = i + 1
-        start = float(seg["start_sec"])
-        dur = float(seg["duration_sec"])
-        start_frame = round(start * fps)
-        count = round(dur * fps)
-        source_frame = round(seg["source_in_sec"] * fps)
-        rate = seg.get("playback_rate", 1.0)
-        speed_filter = (f"setpts=(PTS-STARTPTS)/{rate},fps={fps},"
-                        f"tpad=stop_mode=clone:stop_duration={1 / fps:.9f},trim=end_frame={count},") if rate != 1 else ""
-        timing_filter = (
-            f"fps={fps},trim=start_frame={source_frame}:end_frame={source_frame + round(count * rate)},"
-            f"{speed_filter}"
-            f"settb=expr=1/{fps},setpts=N+{start_frame},"
+    wm_cleanup_path = None
+    if export_video:
+        watermark_input_index = audio_input_offset + len(audio_segs)
+        wm_input_args, wm_filters, video_out_label, wm_cleanup_path = _build_watermark_filters(
+            watermark, width, height, total, watermark_input_index, render_scale,
         )
-        if seg.get("layer") == "media" or seg.get("kind") == "image":
-            scaled_width = max(1, round(width * seg.get("scale", 1)))
-            scaled_height = max(1, round(height * seg.get("scale", 1)))
-            filters.append(
-                f"[{idx}:v]{timing_filter}"
-                f"format=rgba,scale={scaled_width}:{scaled_height}:force_original_aspect_ratio=decrease,"
-                f"setsar=1,"
-                f"format=rgba,colorchannelmixer=aa={seg.get('opacity', 1.0):.6f}[v{i}]"
-            )
-        else:
-            filters.append(
-                f"[{idx}:v]{timing_filter}"
-                f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
-                f"format=yuv420p[v{i}]"
-            )
+        cmd += wm_input_args
+        subtitle_input_index = watermark_input_index + (1 if wm_input_args else 0)
+        for seg in subtitle_segs:
+            path = _render_subtitle_png(seg["text"], seg["style"])
+            subtitle_paths.append(path)
+            cmd += ["-loop", "1", "-i", _ffmpeg_path(path)]
 
-    prev = "0:v"
-    for i, seg in enumerate(video_segs):
-        out = f"ov{i}"
-        # Test between frame centers so overlay's time-base rounding cannot leave a gap.
-        start_frame = round(seg["start_sec"] * fps)
-        end_frame = round(seg["end_sec"] * fps)
-        enable = f"gte(t\\,{(start_frame - 0.5) / fps:.9f})*lt(t\\,{(end_frame - 0.5) / fps:.9f})"
-        x = f"(W-w)/2+W*{seg.get('offset_x', 0):.6f}"
-        y = f"(H-h)/2+H*{seg.get('offset_y', 0):.6f}"
-        filters.append(
-            f"[{prev}][v{i}]overlay=x='{x}':y='{y}':eof_action=pass:repeatlast=0:enable='{enable}'[{out}]"
-        )
-        prev = out
-    filters.append(f"[{prev}]format=yuv420p[vout]")
-    filters += wm_filters
-    for i, seg in enumerate(subtitle_segs):
-        style = seg["style"]
-        align = str(style.get("align") or "center").lower()
-        v_align = str(style.get("v_align") or "bottom").lower()
-        offset_x = float(style.get("offset_x", 0) or 0) / 100.0
-        offset_y = float(style.get("offset_y", 0) or 0) / 100.0
-        pad = round(width * 0.04)
-        x_base = str(pad) if align == "left" else f"main_w-overlay_w-{pad}" if align == "right" else "(main_w-overlay_w)/2"
-        y_base = str(pad) if v_align == "top" else "(main_h-overlay_h)/2" if v_align in ("center", "middle") else f"main_h-overlay_h-{pad}"
-        x = f"({x_base})+main_w*{offset_x:.6f}"
-        y_sign = "-" if v_align not in ("top", "center", "middle") else "+"
-        y = f"({y_base}){y_sign}main_h*{offset_y:.6f}"
-        out = f"vsub{i}"
-        filters.append(
-            f"[{subtitle_input_index + i}:v]scale=iw*{render_scale:.9f}:ih*{render_scale:.9f}[subscaled{i}]"
-        )
-        filters.append(
-            f"[{video_out_label}][subscaled{i}]overlay=x={x}:y={y}:eof_action=pass:"
-            f"enable='{_escape_enable(seg['start_sec'], seg['end_sec'])}'[{out}]"
-        )
-        video_out_label = out
+        for i, seg in enumerate(video_segs):
+            idx = i + 1
+            start = float(seg["start_sec"])
+            dur = float(seg["duration_sec"])
+            start_frame = round(start * fps)
+            count = round(dur * fps)
+            source_frame = round(seg["source_in_sec"] * fps)
+            rate = seg.get("playback_rate", 1.0)
+            speed_filter = (f"setpts=(PTS-STARTPTS)/{rate},fps={fps},"
+                            f"tpad=stop_mode=clone:stop_duration={1 / fps:.9f},trim=end_frame={count},") if rate != 1 else ""
+            timing_filter = (
+                f"fps={fps},trim=start_frame={source_frame}:end_frame={source_frame + round(count * rate)},"
+                f"{speed_filter}"
+                f"settb=expr=1/{fps},setpts=N+{start_frame},"
+            )
+            if seg.get("layer") == "media" or seg.get("kind") == "image":
+                scaled_width = max(1, round(width * seg.get("scale", 1)))
+                scaled_height = max(1, round(height * seg.get("scale", 1)))
+                filters.append(
+                    f"[{idx}:v]{timing_filter}"
+                    f"format=rgba,scale={scaled_width}:{scaled_height}:force_original_aspect_ratio=decrease,"
+                    f"setsar=1,"
+                    f"format=rgba,colorchannelmixer=aa={seg.get('opacity', 1.0):.6f}[v{i}]"
+                )
+            else:
+                filters.append(
+                    f"[{idx}:v]{timing_filter}"
+                    f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                    f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
+                    f"format=yuv420p[v{i}]"
+                )
+
+        prev = "0:v"
+        for i, seg in enumerate(video_segs):
+            out = f"ov{i}"
+            # Test between frame centers so overlay's time-base rounding cannot leave a gap.
+            start_frame = round(seg["start_sec"] * fps)
+            end_frame = round(seg["end_sec"] * fps)
+            enable = f"gte(t\\,{(start_frame - 0.5) / fps:.9f})*lt(t\\,{(end_frame - 0.5) / fps:.9f})"
+            x = f"(W-w)/2+W*{seg.get('offset_x', 0):.6f}"
+            y = f"(H-h)/2+H*{seg.get('offset_y', 0):.6f}"
+            filters.append(
+                f"[{prev}][v{i}]overlay=x='{x}':y='{y}':eof_action=pass:repeatlast=0:enable='{enable}'[{out}]"
+            )
+            prev = out
+        filters.append(f"[{prev}]format=yuv420p[vout]")
+        filters += wm_filters
+        for i, seg in enumerate(subtitle_segs):
+            style = seg["style"]
+            align = str(style.get("align") or "center").lower()
+            v_align = str(style.get("v_align") or "bottom").lower()
+            offset_x = float(style.get("offset_x", 0) or 0) / 100.0
+            offset_y = float(style.get("offset_y", 0) or 0) / 100.0
+            pad = round(width * 0.04)
+            x_base = str(pad) if align == "left" else f"main_w-overlay_w-{pad}" if align == "right" else "(main_w-overlay_w)/2"
+            y_base = str(pad) if v_align == "top" else "(main_h-overlay_h)/2" if v_align in ("center", "middle") else f"main_h-overlay_h-{pad}"
+            x = f"({x_base})+main_w*{offset_x:.6f}"
+            y_sign = "-" if v_align not in ("top", "center", "middle") else "+"
+            y = f"({y_base}){y_sign}main_h*{offset_y:.6f}"
+            out = f"vsub{i}"
+            filters.append(
+                f"[{subtitle_input_index + i}:v]scale=iw*{render_scale:.9f}:ih*{render_scale:.9f}[subscaled{i}]"
+            )
+            filters.append(
+                f"[{video_out_label}][subscaled{i}]overlay=x={x}:y={y}:eof_action=pass:"
+                f"enable='{_escape_enable(seg['start_sec'], seg['end_sec'])}'[{out}]"
+            )
+            video_out_label = out
 
     amix_labels: list[str] = []
     for i, seg in enumerate(video_segs):
         if seg["muted"] or seg.get("kind") == "image":
             continue
-        idx = i + 1
+        idx = i + video_input_offset
         if not _probe_has_audio(seg["path"]):
             continue
         delay_ms = max(0, int(round(seg["start_sec"] * 1000)))
@@ -781,35 +811,46 @@ def compose_timeline_project(
         filters.append(chain)
         amix_labels.append(label)
 
-    map_args: list[str] = ["-map", f"[{video_out_label}]"]
+    video_args = []
+    audio_args = []
+    if export_video:
+        filters.append(f"[{video_out_label}]trim=start_frame={range_start_frame}:end_frame={range_end_frame},setpts=PTS-STARTPTS[vexport]")
+        video_args = ["-map", "[vexport]"]
     if amix_labels:
-        if len(amix_labels) == 1:
-            a_map = f"[{amix_labels[0]}]"
-        else:
-            joined = "".join(f"[{name}]" for name in amix_labels)
-            filters.append(
-                f"{joined}amix=inputs={len(amix_labels)}:duration=longest:normalize=0[aout]"
-            )
-            a_map = "[aout]"
-        map_args += ["-map", a_map, "-c:a", "aac", "-b:a", "192k"]
-    else:
-        map_args.append("-an")
+        joined = "".join(f"[{name}]" for name in amix_labels)
+        filters.append(
+            f"{joined}amix=inputs={len(amix_labels)}:duration=longest:normalize=0,"
+            f"apad,atrim=start={range_start:.9f}:end={range_end:.9f},asetpts=PTS-STARTPTS[aexport]"
+        )
+    elif audio_output_path:
+        filters.append(f"anullsrc=r=48000:cl=stereo,atrim=duration={duration:.9f}[aexport]")
+    if amix_labels or audio_output_path:
+        audio_label = "aexport"
+        if export_video and audio_output_path:
+            filters.append("[aexport]asplit=2[avideo][afile]")
+            audio_label = "afile"
+        if export_video:
+            video_args += ["-map", "[avideo]" if audio_output_path else "[aexport]", "-c:a", "aac", "-b:a", "192k"]
+        if audio_output_path:
+            audio_args = ["-map", f"[{audio_label}]", "-vn"]
+            audio_args += ["-c:a", "libmp3lame", "-b:a", "320k"] if audio_format == "mp3" else ["-c:a", "pcm_s16le"]
+            audio_args += ["-ar", "48000", "-ac", "2", "-t", f"{duration:.9f}", _ffmpeg_path(audio_output_path)]
+    elif export_video:
+        video_args.append("-an")
 
     filter_fd, filter_path = tempfile.mkstemp(suffix=".txt", prefix="cap_ffmpeg_filters_")
     with os.fdopen(filter_fd, "w", encoding="utf-8", newline="\n") as stream:
         stream.write(";".join(filters))
 
-    cmd += [
-        "-filter_complex_script", _ffmpeg_path(filter_path),
-        *map_args,
-        "-c:v", "libx264",
-        "-crf", str(quality_crf[export_quality]), "-preset", "medium",
-        "-pix_fmt", "yuv420p",
-        "-r", str(fps),
-        "-t", f"{total:.6f}",
-        "-movflags", "+faststart",
-        _ffmpeg_path(output_path),
-    ]
+    cmd += ["-filter_complex_script", _ffmpeg_path(filter_path)]
+    if export_video:
+        cmd += [
+            *video_args, "-c:v", "libx264",
+            "-crf", str(quality_crf[export_quality]), "-preset", "medium",
+            "-pix_fmt", "yuv420p", "-r", str(fps), "-t", f"{duration:.9f}",
+            "-movflags", "+faststart", _ffmpeg_path(output_path),
+        ]
+    cmd += audio_args
     log.info(
         "[compose_timeline] %d video + %d audio -> %s",
         len(video_segs),
@@ -831,7 +872,7 @@ def compose_timeline_project(
         "width": width,
         "height": height,
         "fps": fps,
-        "duration_sec": total,
+        "duration_sec": duration,
         "video_count": len(video_segs),
         "audio_count": len(audio_segs) + sum(1 for s in video_segs if not s["muted"]),
         "subtitle_count": len(subtitle_segs),
@@ -865,8 +906,11 @@ def resolve_compose_output_path(
     filename_prefix: str,
     project_name: str,
     filename: str | None = None,
+    extension: str = "mp4",
 ) -> tuple[str, str, str]:
     """Return (output_filename, subfolder_ui, absolute_path) under ComfyUI output."""
+    if extension not in ("mp4", "mp3", "wav"):
+        raise ValueError(f"Unsupported export format: {extension}")
     output_dir = os.path.abspath(folder_paths.get_output_directory())
     raw = str(filename_prefix or "").strip().replace("\\", "/") or DEFAULT_COMPOSE_PREFIX
     # Prefix is relative to output (folder path). Trailing slash optional.
@@ -875,11 +919,10 @@ def resolve_compose_output_path(
     leaf = str(filename or "").strip().replace("\\", "/")
     leaf = os.path.basename(leaf)
     if leaf:
-        if not leaf.lower().endswith(".mp4"):
-            leaf += ".mp4"
+        leaf = re.sub(r"\.(mp4|mp3|wav)$", "", leaf, flags=re.I) + f".{extension}"
         leaf = re.sub(r'[<>:"|?*\x00-\x1f]', "_", leaf).strip(" .")
     if not leaf:
-        leaf = build_compose_filename(project_name)
+        leaf = os.path.splitext(build_compose_filename(project_name))[0] + f".{extension}"
 
     full_folder = output_dir if not subfolder else os.path.join(output_dir, *subfolder.split("/"))
     full_folder = _safe_under_output(full_folder)
@@ -897,22 +940,32 @@ def compose_to_output(
     watermark: dict | None = None,
     output_resolution: str = "project",
     export_quality: str = "maximum",
+    export_range: dict | None = None,
+    export_video: bool = True,
+    export_audio: bool = False,
+    audio_format: str = "wav",
 ) -> dict:
+    if type(export_video) is not bool or type(export_audio) is not bool:
+        raise ValueError("Video and audio selections must be booleans")
+    if not export_video and not export_audio:
+        raise ValueError("Select video or audio for export")
+    if audio_format not in ("mp3", "wav"):
+        raise ValueError(f"Unsupported audio format: {audio_format}")
     project_name = _as_dict(project).get("name") or "Untitled Project"
-    leaf, subfolder, output_path = resolve_compose_output_path(
-        filename_prefix or DEFAULT_COMPOSE_PREFIX,
-        project_name,
-        filename,
-    )
-    # ffmpeg writes straight to the final path under ComfyUI output.
+    outputs = []
+    for extension in (["mp4"] if export_video else []) + ([audio_format] if export_audio else []):
+        leaf, subfolder, path = resolve_compose_output_path(
+            filename_prefix or DEFAULT_COMPOSE_PREFIX, project_name, filename, extension,
+        )
+        outputs.append({"filename": leaf, "subfolder": subfolder, "output_path": path})
+    primary = outputs[0]
     meta = compose_timeline_project(
-        project,
-        output_path,
-        watermark=watermark,
-        output_resolution=output_resolution,
-        export_quality=export_quality,
+        project, primary["output_path"], watermark=watermark,
+        output_resolution=output_resolution, export_quality=export_quality,
+        export_range=export_range, export_video=export_video,
+        audio_output_path=outputs[-1]["output_path"] if export_audio else None,
+        audio_format=audio_format,
     )
-    meta["filename"] = leaf
-    meta["subfolder"] = subfolder
-    meta["output_path"] = output_path
+    meta.update(primary)
+    meta["outputs"] = outputs
     return meta

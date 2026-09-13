@@ -3064,11 +3064,13 @@ body.cat-te-media-dnd-over-tl {
     vertical-align: top;
 }
 
+.cat-te-compose-modal {
+    --cap-dialog-width: 80vw;
+    --cap-dialog-min-width: 640px;
+    --cap-dialog-min-height: 420px;
+}
 .cat-te-compose-dialog {
-    width: 80vw;
-    height: 80vh;
-    max-width: 80vw;
-    max-height: 80vh;
+    height: calc(80vh - 62px);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -3083,6 +3085,8 @@ body.cat-te-media-dnd-over-tl {
     flex: 1;
     min-width: 0;
     display: flex;
+    flex-direction: column;
+    gap: 10px;
     border-right: 1px solid var(--cat-border);
     padding: 12px;
 }
@@ -3118,6 +3122,35 @@ body.cat-te-media-dnd-over-tl {
     flex-direction: column;
     gap: 12px;
 }
+.cat-te-compose-section > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    list-style: none;
+    cursor: pointer;
+    color: var(--cat-text);
+}
+.cat-te-compose-section > summary::marker { content: ""; }
+.cat-te-compose-section > summary::-webkit-details-marker { display: none; }
+.cat-te-compose-section > summary > label {
+    display: inline-flex;
+}
+.cat-te-compose-chevron {
+    display: flex;
+    flex-shrink: 0;
+    color: var(--cat-muted);
+}
+.cat-te-compose-section[open] > summary > .cat-te-compose-chevron { transform: rotate(90deg); }
+.cat-te-compose-video-fields, .cat-te-compose-audio-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 12px;
+}
+.cat-te-compose-video-fields[inert] { opacity: 0.45; }
+.cat-te-compose-audio-section { border-top: 1px solid var(--cat-border); padding-top: 12px; }
+.cat-te-compose-audio-hint { color: var(--cat-muted); font-size: 11px; }
 .cat-te-compose-field {
     display: flex;
     flex-direction: column;

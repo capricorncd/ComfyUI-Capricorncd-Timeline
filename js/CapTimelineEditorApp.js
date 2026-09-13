@@ -1,4 +1,5 @@
 import "./components/TabButton.js";
+import "./components/ExportRange.js";
 import "./components/MediaCarousel.js";
 import { AgentSettings } from "./editor/AgentSettings.js";
 import "./components/StatusMessage.js";
@@ -2602,8 +2603,9 @@ export class CapTimelineEditorApp {
         const pad = (n) => String(n).padStart(2, "0");
         const tag = `${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}`
             + `_${pad(stamp.getHours())}${pad(stamp.getMinutes())}${pad(stamp.getSeconds())}`;
-        const name = filename ? filename.replace(/(?:_\d{8}_\d{6})?\.mp4$/i, "") : this._safeProjectFilename();
-        return `${name}_${tag}.mp4`;
+        const name = filename ? filename.replace(/(?:_\d{8}_\d{6})?\.(mp4|mp3|wav)$/i, "") : this._safeProjectFilename();
+        const extension = this.composeVideoCheck?.checked !== false ? "mp4" : this.composeAudioFormat?.value || "wav";
+        return `${name}_${tag}.${extension}`;
     }
 
     _composeExportSettings() {
@@ -2613,10 +2615,23 @@ export class CapTimelineEditorApp {
             output_resolution: this.composeResolutionSelect?.value || "project",
             export_quality: this.composeQualitySelect?.value || "maximum",
             watermark: this._watermark,
+            export_video: this.composeVideoCheck?.checked !== false,
+            export_audio: this.composeAudioCheck?.checked === true,
+            audio_format: this.composeAudioFormat?.value || "wav",
+            export_range: this.composeRange?.exportRange ?? null,
         };
     }
 
     _onComposeSettingsChange() {
+        if (this.composeRunBtn) this.composeRunBtn.disabled = this._composeBusy
+            || (this.composeVideoCheck?.checked === false && !this.composeAudioCheck?.checked)
+            || this.composeRange?.totalFrames === 0;
+        if (this.composeAudioFormat) this.composeAudioFormat.disabled = !this.composeAudioCheck.checked;
+        if (this.composeVideoFields) this.composeVideoFields.inert = !this.composeVideoCheck.checked;
+        if (this.composeFilenameInput && this.composeVideoCheck) {
+            const extension = this.composeVideoCheck.checked ? "mp4" : this.composeAudioFormat.value;
+            this.composeFilenameInput.value = this.composeFilenameInput.value.replace(/\.(mp4|mp3|wav)$/i, `.${extension}`);
+        }
         if (!this._composeDone || this._composeBusy) return;
         const settings = this._composeExportSettings();
         if (JSON.stringify(settings) === JSON.stringify(this._composeSubmittedSettings)) return;
@@ -2648,7 +2663,19 @@ export class CapTimelineEditorApp {
         this._wmActiveTab = this._watermark.image.file ? "image" : "text";
         this._syncWatermarkUiFromState();
         void this._fontCatalog.load();
-        this.composeModal.hidden = false;
+        this._timeline?.pause();
+        this._composeOriginalTime = this._timeline?.currentTime ?? 0;
+        const project = this._buildProject();
+        const endMs = Math.max(0, ...(project.tracks || []).filter(track => track.enabled !== false)
+            .flatMap(track => (track.clips || []).filter(clip => clip.enabled !== false)
+                .map(clip => Number(clip.start_ms || 0) + Number(clip.duration_ms || 0))));
+        this.composeRange.configure(Math.round(endMs / 1000 * this.getFps()), this.getFps(), {
+            start: T("compose_range_start"), end: T("compose_range_end"), current: T("compose_range_current"),
+            play: T("compose_range_play"), pause: T("compose_range_pause"), hint: T("compose_range_hint"),
+        });
+        this._timeline?.setCurrentTime(0);
+        this.composeModal.showModal();
+        this._onComposeSettingsChange();
         this._scheduleComposePreview();
     }
 
@@ -2656,7 +2683,37 @@ export class CapTimelineEditorApp {
         if (this._composeBusy && !force) return;
         this._composeBusy = false;
         if (this.composeRunBtn) this.composeRunBtn.disabled = false;
-        if (this.composeModal) this.composeModal.hidden = true;
+        this.composeModal?.close();
+    }
+
+    _endComposePreview() {
+        this._fontPicker?.close();
+        this._composeOffscreen = null;
+        this._timeline?.pause();
+        if (this._composePreviewRaf) cancelAnimationFrame(this._composePreviewRaf);
+        this._composePreviewRaf = 0;
+        if (this._composeOriginalTime != null) this._timeline?.setCurrentTime(this._composeOriginalTime);
+        this._composeOriginalTime = null;
+    }
+
+    _seekComposePreview(frame) {
+        this._timeline?.pause();
+        this._timeline?.setCurrentTime(frame / this.getFps());
+        this._scheduleComposePreview();
+    }
+
+    _toggleComposePlayback() {
+        const tl = this._timeline;
+        const range = this.composeRange;
+        if (!tl || !range.totalFrames) return;
+        if (tl._playing) tl.pause();
+        else {
+            if (tl.currentTime < range.startFrame / range.fps || tl.currentTime >= (range.endFrame - 1) / range.fps) {
+                tl.setCurrentTime(range.startFrame / range.fps);
+            }
+            tl.play();
+        }
+        this._scheduleComposePreview();
     }
 
     _setComposeStatus(text, { error = false, ok = false } = {}) {
@@ -2664,22 +2721,27 @@ export class CapTimelineEditorApp {
     }
 
     async _runComposeVideoExport() {
-        if (this._composeBusy || !this.composeModal) return;
+        if (this._composeBusy || !this.composeModal
+            || (this.composeVideoCheck?.checked === false && !this.composeAudioCheck?.checked)
+            || this.composeRange?.totalFrames === 0) return;
         let filenamePrefix = String(this.composePrefixInput?.value || "").trim() || "cap_timeline_compose/";
         filenamePrefix = filenamePrefix.replace(/\\/g, "/");
         if (this.composePrefixInput) this.composePrefixInput.value = filenamePrefix;
 
         let filename = String(this.composeFilenameInput?.value || "").trim();
         if (!filename) filename = this._composeDefaultFilename();
-        if (!filename.toLowerCase().endsWith(".mp4")) filename += ".mp4";
+        const extension = this.composeVideoCheck?.checked !== false ? "mp4" : this.composeAudioFormat?.value || "wav";
+        filename = filename.replace(/\.(mp4|mp3|wav)$/i, "") + `.${extension}`;
         filename = filename.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/[. ]+$/g, "");
-        if (!filename.toLowerCase().endsWith(".mp4")) filename += ".mp4";
+        if (!filename.toLowerCase().endsWith(`.${extension}`)) filename += `.${extension}`;
         if (this.composeFilenameInput) this.composeFilenameInput.value = filename;
 
+        this._timeline?.pause();
         this._saveToWidgets();
         const project = this._buildProject();
         this._composeSubmittedSettings = JSON.parse(JSON.stringify(this._composeExportSettings()));
         this._composeBusy = true;
+        this.composeModal.closeDisabled = true;
         if (this.composeRunBtn) this.composeRunBtn.disabled = true;
         this._setComposeStatus(T("composing_please_wait"));
         try {
@@ -2696,13 +2758,15 @@ export class CapTimelineEditorApp {
 
             const outName = data.filename || filename;
             const sub = String(data.subfolder || "").replace(/^\/+|\/+$/g, "");
-            const rel = sub ? `${sub}/${outName}` : outName;
+            const rel = (data.outputs || [{ filename: outName, subfolder: sub }])
+                .map(item => item.subfolder ? `${item.subfolder}/${item.filename}` : item.filename).join("\n");
             this._lastComposeOutput = { filename: outName, subfolder: sub };
             this._composeDone = true;
             if (this.composeRunBtn) this.composeRunBtn.textContent = T("open_folder_btn");
             const encoding = data.encoding_mode === "copy" ? T("compose_used_copy")
                 : data.fallback_reason ? T("compose_used_fallback") : T("compose_used_encode");
-            this._setComposeStatus(T("saved_to_output", { rel }) + "\n" + encoding, { ok: true });
+            this._setComposeStatus(T("saved_to_output", { rel })
+                + (this._composeSubmittedSettings.export_video ? "\n" + encoding : ""), { ok: true });
         } catch (error) {
             if (error?.name === "AbortError") {
                 this._setComposeStatus("");
@@ -2711,6 +2775,7 @@ export class CapTimelineEditorApp {
             this._setComposeStatus(error instanceof Error ? error.message : String(error), { error: true });
         } finally {
             this._composeBusy = false;
+            this.composeModal.closeDisabled = false;
             if (this.composeRunBtn) this.composeRunBtn.disabled = false;
             this._onComposeSettingsChange();
         }
@@ -3001,11 +3066,18 @@ export class CapTimelineEditorApp {
     }
 
     _scheduleComposePreview() {
-        if (!this.composePreviewCanvas) return;
+        if (!this.composePreviewCanvas || !this.composeModal?.open) return;
         if (this._composePreviewRaf) return;
         this._composePreviewRaf = requestAnimationFrame(() => {
             this._composePreviewRaf = 0;
+            const range = this.composeRange;
+            if (this._timeline?._playing && this._timeline.currentTime >= range.endFrame / range.fps) {
+                this._timeline.pause();
+                this._timeline.setCurrentTime(Math.max(range.startFrame, range.endFrame - 1) / range.fps);
+            }
+            range.update(Math.round((this._timeline?.currentTime ?? 0) * range.fps), !!this._timeline?._playing);
             this._renderComposePreview();
+            if (this._timeline?._playing) this._scheduleComposePreview();
         });
     }
 
@@ -3127,19 +3199,34 @@ export class CapTimelineEditorApp {
     }
 
     _renderComposePreview() {
+        if (!this.composeModal?.open) return;
         const layout = this._layoutComposePreviewCanvas();
         const canvas = this.composePreviewCanvas;
         if (!layout || !canvas) return;
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
         const { canvasW: cw, canvasH: ch } = layout;
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.fillStyle = "#000";
-        ctx.fillRect(0, 0, cw, ch);
+        let off = this._composeOffscreen;
+        if (!off || off.width !== cw || off.height !== ch) {
+            off = document.createElement("canvas");
+            off.width = cw;
+            off.height = ch;
+            this._composeOffscreen = off;
+        }
+        const draw = off.getContext("2d");
+        if (!draw) return;
+        draw.setTransform(1, 0, 0, 1, 0, 0);
+        draw.fillStyle = "#000";
+        draw.fillRect(0, 0, cw, ch);
         const t = this._timeline?.currentTime ?? 0;
-        this._drawPreviewLayersOnce(ctx, cw, ch, t);
-        this._drawSubtitleOverlays(ctx, cw, ch, t);
-        this._drawWatermarkOnCanvas(ctx, cw, ch);
+        const layers = this._collectPreviewLayers(t);
+        const ready = this._drawPreviewLayersOnce(draw, cw, ch, t, { layers });
+        // Seeking decoders leave the last complete frame on screen.
+        if (layers.length && !ready) return;
+        this._drawSubtitleOverlays(draw, cw, ch, t);
+        this._drawWatermarkOnCanvas(draw, cw, ch);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(off, 0, 0);
     }
 
     _chooseZipImport() {
@@ -3204,6 +3291,8 @@ export class CapTimelineEditorApp {
     destroy() {
         if (this._destroyed) return;
         this._clearWorkflowPreview();
+        this._composeResizeObserver?.disconnect();
+        this._endComposePreview();
         this._stopModelPreviewAudio();
         // Save BEFORE marking destroyed — `_saveToWidgets` bails on `_destroyed`,
         // and tab-switch teardown (beforeConfigureGraph) used to skip the flush.
@@ -3812,17 +3901,15 @@ export class CapTimelineEditorApp {
               </div>
               <div class="cat-te-output-videos-body"></div>
           </cap-dialog>
-          <div class="cat-te-modal-backdrop cat-te-compose-modal" hidden>
-            <div class="cat-te-modal cat-te-compose-dialog">
-              <div class="cat-te-modal-header">
-                <span>${T("compose_video_title")}</span>
-                <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-compose-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
-              </div>
+          <cap-dialog class="cat-te-compose-modal" close-label="${T("close_title")}">
+            <span slot="title">${T("compose_video_title")}</span>
+            <div class="cat-te-compose-dialog">
               <div class="cat-te-compose-body">
                 <div class="cat-te-compose-preview">
                   <div class="cat-te-compose-preview-stage">
                     <canvas class="cat-te-compose-preview-canvas"></canvas>
                   </div>
+                  <cap-export-range class="cat-te-compose-range"></cap-export-range>
                 </div>
                 <div class="cat-te-compose-settings">
                   <div class="cat-te-compose-field">
@@ -3841,6 +3928,9 @@ export class CapTimelineEditorApp {
                     <span>${T("filename_label")}</span>
                     <input class="cat-te-compose-filename" type="text" />
                   </label>
+                  <details class="cat-te-compose-section cat-te-compose-video-section" open>
+                    <summary><label class="cat-te-compose-check"><input class="cat-te-compose-video-enabled" type="checkbox" checked /><span>${T("compose_video_section")}</span></label><span class="cat-te-compose-chevron" aria-hidden="true">${iconHtml("chevronRight", 16)}</span></summary>
+                    <div class="cat-te-compose-video-fields">
                   <label class="cat-te-compose-field">
                     <span>${T("compose_resolution_label")}</span>
                     <select class="cat-te-compose-resolution">
@@ -3954,6 +4044,17 @@ export class CapTimelineEditorApp {
                     </div>
                   </div>
 
+                    </div>
+                  </details>
+                  <details class="cat-te-compose-section cat-te-compose-audio-section" open>
+                    <summary><label class="cat-te-compose-check"><input class="cat-te-compose-audio-enabled" type="checkbox" /><span>${T("compose_audio_section")}</span></label><span class="cat-te-compose-chevron" aria-hidden="true">${iconHtml("chevronRight", 16)}</span></summary>
+                    <div class="cat-te-compose-audio-fields">
+                    <label class="cat-te-compose-field"><span>${T("compose_audio_format")}</span>
+                      <select class="cat-te-compose-audio-format" disabled><option value="wav">WAV</option><option value="mp3">MP3</option></select>
+                    </label>
+                    <span class="cat-te-compose-audio-hint">${T("compose_audio_help")}</span>
+                    </div>
+                  </details>
                   <cap-status-message class="cat-te-compose-status" hidden></cap-status-message>
                 </div>
               </div>
@@ -3962,7 +4063,7 @@ export class CapTimelineEditorApp {
                 <cap-button variant="primary" class="cat-te-compose-run">${T("compose_start_btn")}</cap-button>
               </div>
             </div>
-          </div>
+          </cap-dialog>
           <div class="cat-te-modal-backdrop cat-te-add-material-modal" hidden>
             <div class="cat-te-modal cat-te-add-material-dialog">
               <div class="cat-te-modal-header">
@@ -4530,6 +4631,11 @@ export class CapTimelineEditorApp {
         this.outputVideosTimeButtons = el.querySelectorAll(".cat-te-output-videos-time-btn");
         this.outputVideosTitle = el.querySelector(".cat-te-output-videos-title");
         this.composeModal = el.querySelector(".cat-te-compose-modal");
+        this.composeRange = el.querySelector(".cat-te-compose-range");
+        this.composeVideoCheck = el.querySelector(".cat-te-compose-video-enabled");
+        this.composeVideoFields = el.querySelector(".cat-te-compose-video-fields");
+        this.composeAudioCheck = el.querySelector(".cat-te-compose-audio-enabled");
+        this.composeAudioFormat = el.querySelector(".cat-te-compose-audio-format");
         this.composePrefixInput = el.querySelector(".cat-te-compose-prefix");
         this.composeFilenameInput = el.querySelector(".cat-te-compose-filename");
         this.composeResolutionSelect = el.querySelector(".cat-te-compose-resolution");
@@ -5032,12 +5138,20 @@ export class CapTimelineEditorApp {
             if (this.clipVideosList?.contains(this._outputVideoHoverAnchor)) this._hideOutputVideoHoverPreview();
         }, { capture: true, passive: true });
         this._bindModalInteractions();
-        el.querySelector(".cat-te-compose-close")?.addEventListener("click", () => this._closeComposeModal());
         el.querySelector(".cat-te-compose-cancel")?.addEventListener("click", () => this._closeComposeModal());
         this.composeRunBtn?.addEventListener("click", () => {
             if (this._composeDone) { void this._revealComposeOutput(); return; }
             void this._runComposeVideoExport();
         });
+        this.composeRange.addEventListener("toggleplay", () => this._toggleComposePlayback());
+        this.composeRange.addEventListener("seek", event => this._seekComposePreview(event.detail.frame));
+        this.composeRange.addEventListener("rangechange", event => {
+            this._seekComposePreview(event.detail.frame);
+            this._onComposeSettingsChange();
+        });
+        this.composeModal.addEventListener("close", () => this._endComposePreview());
+        this._composeResizeObserver = new ResizeObserver(() => this._scheduleComposePreview());
+        this._composeResizeObserver.observe(this.composePreviewStage);
         this._bindWatermarkUi();
         for (const event of ["input", "change", "click"]) {
             this.composeModal?.addEventListener(event, () => this._onComposeSettingsChange());
@@ -16061,6 +16175,7 @@ export class CapTimelineEditorApp {
     }
 
     _scheduleProgramPreview() {
+        this._scheduleComposePreview();
         if (!this.programCanvas || !this._overlay?.classList.contains("open")) return;
         // Gen-edit owns the shared preview decoders while its modal is open.
         if (this._isGenEditModalOpen()) return;

@@ -93,3 +93,43 @@ for (const name of ['_onWatermarkImagePicked','_removeWatermarkImageNow']) {
     assert.match(method(name).toString(), /this\._onComposeSettingsChange\(\)/, 'async watermark changes invalidate export');
 }
 console.log('Compose settings: parameter edits, timestamp, custom names, async edits and repeat export passed');
+
+for (const [video, audio, disabled] of [[false, false, true], [true, false, false], [false, true, false], [true, true, false]]) {
+    const app = fixture();
+    app.composeVideoCheck = {checked:video};
+    app.composeAudioCheck = {checked:audio};
+    app.composeAudioFormat = {value:'mp3',disabled:true};
+    app.composeVideoFields = {};
+    app._onComposeSettingsChange();
+    assert.equal(app.composeRunBtn.disabled, disabled);
+    assert.equal(app.composeAudioFormat.disabled, !audio);
+    assert.equal(app.composeVideoFields.inert, !video);
+    const settings = app._composeExportSettings();
+    assert.equal(settings.export_video, video);
+    assert.equal(settings.export_audio, audio);
+    assert.equal(settings.audio_format, 'mp3');
+}
+{
+    const app = fixture();
+    app.composeVideoCheck = {checked:false};
+    app.composeAudioCheck = {checked:false};
+    const run=method('_runComposeVideoExport',()=>assert.fail('empty selection must not submit'));
+    await run.call(app);
+    app.composeAudioCheck.checked=true;
+    app.composeAudioFormat={value:'wav'};
+    app.composeFilenameInput.value='Audio.mp4';
+    let payload;
+    const success=method('_runComposeVideoExport',async(url,options)=>{
+        payload=JSON.parse(options.body);
+        return {ok:true,json:async()=>({filename:payload.filename})};
+    });
+    await success.call(app);
+    assert.equal(payload.filename,'Audio.wav');
+    assert.equal(payload.export_audio,true);
+    assert.equal(payload.export_video,false);
+    app.composeRange={exportRange:{start_frame:1,end_frame:24},totalFrames:48};
+    app._onComposeSettingsChange();
+    assert.equal(app._composeDone,false,'range changes invalidate exported output');
+    assert.deepEqual(app._composeExportSettings().export_range,{start_frame:1,end_frame:24});
+}
+console.log('Independent video/audio selections, formats, empty selection and range changes passed');

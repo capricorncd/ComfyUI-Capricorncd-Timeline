@@ -117,9 +117,11 @@ In **Trim Video**, remove a video association with the track's trash button or i
 ## Compose export settings
 
 - The dialog occupies at most 80vw × 80vh, with scrolling settings.
+- Drag the triangles below the preview to choose the export range. Focus either triangle or the playhead and press Left/Right to move one project frame. The out point is exclusive; at least one frame is required. **Play range** stops at the out point. Closing restores the original timeline playhead.
+- **Video** is checked by default; its resolution, quality and watermark settings collapse together. **Audio** separately exports WAV (48 kHz stereo PCM) or MP3 (320 kbps). Selecting both writes two files with the same range and name stem; selecting neither disables export. Video always includes unmuted timeline audio, regardless of the separate Audio checkbox.
 - Resolution defaults to **Project settings size**. 720P, 1080P and 2K (1440P) preserve the project aspect ratio with a short side of 720, 1080 or 1440 pixels; encoder dimensions are even. Subtitles and watermarks scale with the canvas.
 - Quality defaults to **Maximum (H.264 CRF 16)**, which is still lossy. High (18), Standard (23) and Direct join preferred are available; the ⓘ beside Export quality shows the explanation on hover.
-- Direct joining requires compatible streams, contiguous clips and safe cut points. Audio mixing, overlays, scaling or incompatible cuts fall back to CRF 18; the completion message reports whether copying or re-encoding was used.
+- Direct joining requires compatible streams, contiguous clips and safe cut points. Range selection, a separate audio export, audio mixing, overlays, scaling or incompatible cuts fall back to CRF 18; the completion message reports whether copying or re-encoding was used.
 - Control all audio inclusion on the timeline through mute/enable settings.
 - The checkbox before **Watermark** is enabled by default. Turning it off skips text and image watermarks in preview/export without deleting their settings. Font lists begin with **System font**; explicitly selected fonts remain unchanged.
 

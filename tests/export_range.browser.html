@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh"><meta charset="utf-8"><title>合成导出：区间与音频测试</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>body { background:#101619; color:#e4edeb; font-family:sans-serif; } #result { position:fixed; bottom:0; } .cat-te-overlay { display:block; } </style>
+<div class="cat-te-overlay open"></div><pre id="result">RUNNING</pre>
+<script type="module">
+import '../js/components/ExportRange.js';
+import '../js/components/Dialog.js';
+import '../js/components/StatusMessage.js';
+import { iconHtml } from '../js/cap_icons.js';
+const result = document.querySelector('#result');
+const assert = (ok, message) => { if (!ok) throw new Error(message); };
+const tick = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+try {
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const i18n = await (await fetch('../js/i18n/timeline_editor.js')).text();
+    const T = key => {
+        const matches = [...i18n.matchAll(new RegExp('\\b' + key + ': "([^"\\n]*)"', 'g'))];
+        return matches[1]?.[1] || matches[0]?.[1] || key;
+    };
+    const start = source.indexOf('<cap-dialog class="cat-te-compose-modal"');
+    const end = source.indexOf('</cap-dialog>', start) + '</cap-dialog>'.length;
+    document.querySelector('.cat-te-overlay').innerHTML = new Function('T', 'iconHtml', 'return `' + source.slice(start, end) + '`')(T, iconHtml);
+    const app = { _composeBusy:false, _composeDone:false, _composePreviewRaf:0,
+        _watermark:{image:{file:''},mode:'none'}, _fontCatalog:{load(){}}, getFps:()=>24,
+        _safeProjectFilename:()=> 'Export test', _clampWatermarkMargin(){}, _syncWatermarkUiFromState(){},
+        _buildProject:()=>({tracks:[{clips:[{start_ms:0,duration_ms:10000}]}]}),
+        getPreviewSize:()=>({w:864,h:480}),
+        _collectPreviewLayers(){return this.previewEmpty ? [] : [{}];},
+        _drawPreviewLayersOnce(ctx,w,h,t) {if(this.previewEmpty)return false;ctx.fillStyle=this.previewColor || '#244440';ctx.fillRect(0,0,w,h);ctx.fillStyle='#e4edeb';ctx.font='24px sans-serif';ctx.fillText('Preview · '+t.toFixed(3)+' s',24,48);return this.previewReady !== false;},
+        _drawSubtitleOverlays(){}, _drawWatermarkOnCanvas(){},
+    };
+    for (const [name, selector] of Object.entries({composeModal:'.cat-te-compose-modal',composeRange:'.cat-te-compose-range',
+        composeVideoCheck:'.cat-te-compose-video-enabled',composeVideoFields:'.cat-te-compose-video-fields',
+        composeAudioCheck:'.cat-te-compose-audio-enabled',composeAudioFormat:'.cat-te-compose-audio-format',
+        composePrefixInput:'.cat-te-compose-prefix',composeFilenameInput:'.cat-te-compose-filename',
+        composeResolutionSelect:'.cat-te-compose-resolution',composeQualitySelect:'.cat-te-compose-quality',
+        composeRunBtn:'.cat-te-compose-run',composeStatus:'.cat-te-compose-status',
+        composePreviewCanvas:'.cat-te-compose-preview-canvas',composePreviewStage:'.cat-te-compose-preview-stage'})) app[name]=document.querySelector(selector);
+    for (const name of ['_composeDefaultFilename','_composeExportSettings','_onComposeSettingsChange','_openComposeModal',
+        '_closeComposeModal','_endComposePreview','_seekComposePreview','_toggleComposePlayback','_setComposeStatus',
+        '_scheduleComposePreview','_layoutComposePreviewCanvas','_renderComposePreview']) {
+        const a=source.indexOf('    '+name+'('), b=source.indexOf('\n    }',a)+6;
+        app[name]=new Function('T','return ({'+source.slice(a,b)+'}).'+name)(T);
+    }
+    let timer;
+    app._timeline={currentTime:3,_playing:false,setCurrentTime(t){this.currentTime=t;},
+        pause(){this._playing=false;cancelAnimationFrame(timer);},
+        play(){this._playing=true;let last=performance.now();const step=now=>{this.currentTime+=(now-last)/1000;last=now;if(this._playing)timer=requestAnimationFrame(step);};timer=requestAnimationFrame(step);}};
+    const range=app.composeRange;
+    range.addEventListener('toggleplay',()=>app._toggleComposePlayback());
+    range.addEventListener('seek',e=>app._seekComposePreview(e.detail.frame));
+    range.addEventListener('rangechange',e=>{app._seekComposePreview(e.detail.frame);app._onComposeSettingsChange();});
+    for(const event of ['input','change','click'])app.composeModal.addEventListener(event,()=>app._onComposeSettingsChange());
+    app.composeModal.addEventListener('close',()=>app._endComposePreview());
+    document.querySelector('.cat-te-compose-cancel').addEventListener('click',()=>app._closeComposeModal());
+    app._openComposeModal(); await tick();
+    assert(range.totalFrames===240 && range.exportRange===null,'full timeline defaults');
+    const pixel=()=>Array.from(app.composePreviewCanvas.getContext('2d').getImageData(4,4,1,1).data).join(',');
+    const firstPixel=pixel();
+    app.previewReady=false;app.previewColor='#ff0000';
+    app._timeline.currentTime=1;app._renderComposePreview();
+    assert(pixel()===firstPixel,'pending seek retains complete frame instead of black or partial layers');
+    app._timeline.currentTime=2;app._renderComposePreview();
+    assert(pixel()===firstPixel,'repeated drag updates retain last complete frame');
+    app.previewReady=true;app._renderComposePreview();
+    assert(pixel()==='255,0,0,255','decoded target frame replaces old frame');
+    app.previewEmpty=true;app._renderComposePreview();
+    assert(pixel()==='0,0,0,255','genuine timeline gaps clear old frame');
+    app.previewEmpty=false;app.previewColor='#244440';app._renderComposePreview();
+
+    const left=range.shadowRoot.querySelector('.start'),right=range.shadowRoot.querySelector('.end');
+    left.focus();left.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
+    assert(getComputedStyle(left,'::after').borderTopColor==='rgb(255, 179, 0)' && getComputedStyle(left,'::after').filter==='none','selected triangle is vivid amber without glow');
+    assert(range.startFrame===1 && app._timeline.currentTime===1/24,'left arrow handle frame step');
+    right.focus();right.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));
+    assert(range.endFrame===239 && app._timeline.currentTime===238/24,'out point excludes next frame');
+    range._move('start',238);range._move('end',0);
+    assert(range.startFrame===238 && range.endFrame===239,'range cannot cross or become empty');
+    range._move('start',24);range._move('end',72);
+    app._timeline.currentTime=3.1;app._timeline._playing=true;app._scheduleComposePreview();await tick();
+    assert(!app._timeline._playing && app._timeline.currentTime===71/24,'playback stops at range boundary');
+    app.composeVideoCheck.click();
+    assert(app.composeRunBtn.disabled,'no outputs disables export');
+    app.composeAudioCheck.click();
+    assert(!app.composeRunBtn.disabled && !app.composeAudioFormat.disabled,'audio only export enabled');
+    assert(app._composeExportSettings().export_video===false && app._composeExportSettings().export_audio===true,'independent export flags');
+    app.composeVideoCheck.click();
+    assert(app._composeExportSettings().export_video && app._composeExportSettings().export_audio,'both outputs supported');
+    app.composeAudioCheck.click();
+    assert(app._composeExportSettings().export_video && !app._composeExportSettings().export_audio,'video only keeps independent audio off');
+    const rect=app.composePreviewCanvas.getBoundingClientRect(),stage=app.composePreviewStage.getBoundingClientRect();
+    assert(rect.width<=stage.width+1 && rect.height<=stage.height+1,'preview fits stage');
+    const fontSource=await (await fetch('../js/editor/FontPicker.js')).text();
+    const FontPicker=new Function('T',fontSource.replace(/^import .*;$/gm,'').replace('export class FontPicker','class FontPicker')+'; return FontPicker;')(T);
+    const fontSelect=document.querySelector('.cat-te-wm-font-family');
+    app._fontPicker=new FontPicker(()=>{});
+    app._fontPicker.fill(fontSelect,[{family:'Arial',label:'Arial'}],'');
+    app._fontPicker.bind(fontSelect);
+    fontSelect.scrollIntoView({block:'center'});
+    app._fontPicker.open(fontSelect);
+    assert(app.composeModal.contains(document.querySelector('.cat-te-font-picker')),'font picker stays within modal layer');
+    app._fontPicker.close();
+    document.querySelector('.cat-te-compose-settings').scrollTop=0;
+    range._move('start',0);range._move('end',240);app._seekComposePreview(0);
+    result.textContent='PASS: frame steps, boundaries, range playback stop, output selection, preview layout, modal font picker, seek frame retention, solid selected triangle';
+} catch(error) {result.textContent='FAIL: '+error.stack;throw error;}
+</script></html>

@@ -141,7 +141,7 @@ export class FontPicker {
         this._onKey = onKey;
         window.addEventListener("keydown", onKey, true);
 
-        (select.closest(".cat-te-overlay") || document.body).appendChild(menu);
+        (select.closest("cap-dialog") || select.closest(".cat-te-overlay") || document.body).appendChild(menu);
         const mr = menu.getBoundingClientRect();
         if (mr.right > window.innerWidth) {
             menu.style.left = `${Math.max(8, window.innerWidth - mr.width - 8)}px`;

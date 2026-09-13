@@ -766,18 +766,21 @@ export class Timeline extends EventEmitter {
       y: ev.clientY - rect.top + this.scrollEl.scrollTop });
     const start = point(e);
     const candidates = this.tracks.filter(t => !t.locked).flatMap(t => t.clips);
-    const initial = new Set(this.getSelectedClips().filter(c => !c.track.locked).map(c => c.id));
     const box = document.createElement('div');
     box.className = 'tl-selection-box';
     let active = false;
     const update = ev => {
       const end = point(ev);
       if (!active && Math.hypot(end.x - start.x, end.y - start.y) < 4) return;
-      if (!active) { active = true; this._contentEl.appendChild(box); }
+      if (!active) {
+        active = true;
+        this.selectClip(null);
+        this._contentEl.appendChild(box);
+      }
       const left = Math.min(start.x, end.x), top = Math.min(start.y, end.y);
       const right = Math.max(start.x, end.x), bottom = Math.max(start.y, end.y);
       Object.assign(box.style, { left: `${left}px`, top: `${top}px`, width: `${right-left}px`, height: `${bottom-top}px` });
-      const ids = new Set(candidates.filter(c => !c.track.locked && initial.has(c.id)).map(c => c.id));
+      const ids = new Set();
       for (const c of candidates) {
         if (c.track.locked) continue;
         const r = c.el.getBoundingClientRect();

@@ -14,8 +14,8 @@
     <span slot="title">Project export</span>
     <div class="cat-te-modal-body">
         <label>Directory <input id="path" value="D:/exports"></label>
-        <cap-button id="export" variant="primary">Export</cap-button>
     </div>
+    <div slot="footer" class="cat-te-confirm-actions"><cap-button id="export" variant="primary">Export</cap-button></div>
 </cap-dialog>
 <cap-dialog id="nested" close-label="关闭"><span slot="title">Change voice</span><div class="cat-te-modal-body"><input></div></cap-dialog>
 <pre id="result">RUNNING</pre>
@@ -34,6 +34,7 @@ try {
     panel.addEventListener('close', () => closed++);
     document.querySelector('#export').addEventListener('click', () => actions++);
     under.focus(); panel.showModal();
+    await tick();
     assert(panel.open && dialog.matches(':modal') && panel.hasAttribute('modal'), 'showModal blocks background');
     assert(document.elementFromPoint(12, 12) !== under, 'modal backdrop intercepts background hit testing');
     assert(getComputedStyle(dialog).padding === '0px', 'page native-dialog styling does not leak in');
@@ -61,6 +62,7 @@ try {
     panel.addEventListener('cancel', veto); close.click(); assert(panel.open, 'caller can veto close');
     panel.removeEventListener('cancel', veto);
     nested.showModal();
+    assert(nested.shadowRoot.querySelector('footer').hidden, 'no actions means no footer');
     assert(nested.open && panel.open, 'nested modal stays operable');
     nested.shadowRoot.querySelector('cap-button').click(); await tick();
     assert(!nested.open && panel.open, 'closing nested modal leaves parent open');
@@ -106,6 +108,18 @@ try {
     assert(dialog.getBoundingClientRect().height <= innerHeight * .8 + 1, 'long content limited to 80vh');
     const body = panel.shadowRoot.querySelector('.body');
     assert(body.scrollHeight > body.clientHeight, 'body scrolls instead of losing header');
+    const footer = panel.shadowRoot.querySelector('footer');
+    const footerTop = footer.getBoundingClientRect().top, headerTop = header.getBoundingClientRect().top;
+    body.scrollTop = body.scrollHeight; await tick();
+    assert(body.scrollTop > 0, 'body really scrolled');
+    assert(footer.getBoundingClientRect().top === footerTop && header.getBoundingClientRect().top === headerTop, 'header and footer stay fixed when body scrolls');
+    const buttonRect = document.querySelector('#export').getBoundingClientRect();
+    assert(buttonRect.top >= footerTop && buttonRect.bottom <= dialog.getBoundingClientRect().bottom, 'export button remains inside visible footer');
+    const actionsSlot = panel.querySelector('[slot="footer"]');
+    actionsSlot.remove(); await tick();
+    assert(footer.hidden, 'removing global actions hides the empty footer');
+    panel.append(actionsSlot); await tick();
+    assert(!footer.hidden, 'adding actions restores footer');
     panel.close(); panel.showModal(); await tick(); assert(panel.open, 'late close event cannot close reopened dialog');
     panel.remove(); await tick(); assert(!panel.open && capture === null, 'disconnect closes dialog and cleans drag');
     result.textContent = 'PASS: drag/resize, per-dialog minimum and viewport maximum, Lucide X, centering, modal/non-modal, busy/Escape/close and scrolling';

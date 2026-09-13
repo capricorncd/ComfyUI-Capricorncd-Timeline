@@ -4058,10 +4058,10 @@ export class CapTimelineEditorApp {
                   <cap-status-message class="cat-te-compose-status" hidden></cap-status-message>
                 </div>
               </div>
-              <div class="cat-te-compose-actions">
-                <cap-button class="cat-te-compose-cancel">${T("cancel_btn")}</cap-button>
-                <cap-button variant="primary" class="cat-te-compose-run">${T("compose_start_btn")}</cap-button>
-              </div>
+            </div>
+            <div slot="footer" class="cat-te-compose-actions">
+              <cap-button class="cat-te-compose-cancel">${T("cancel_btn")}</cap-button>
+              <cap-button variant="primary" class="cat-te-compose-run">${T("compose_start_btn")}</cap-button>
             </div>
           </cap-dialog>
           <div class="cat-te-modal-backdrop cat-te-add-material-modal" hidden>
@@ -4070,13 +4070,15 @@ export class CapTimelineEditorApp {
                 <span class="cat-te-add-material-title">${T("add_material_title")}</span>
                 <cap-button variant="danger" shape="square" class="cat-te-modal-close cat-te-add-material-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
-              <div class="cat-te-add-material-preview"></div>
-              <div class="cat-te-add-material-options">
-                <label><input class="cat-te-insert-after-add" type="checkbox" /> ${T("insert_to_timeline_label")}</label>
+              <div class="cat-te-add-material-body">
+                <div class="cat-te-add-material-preview"></div>
+                <div class="cat-te-add-material-options">
+                  <label><input class="cat-te-insert-after-add" type="checkbox" /> ${T("insert_to_timeline_label")}</label>
+                </div>
               </div>
-              <div class="cat-te-add-material-actions">
+              <footer class="cat-te-modal-footer cat-te-add-material-actions">
                 <cap-button variant="primary" class="cat-te-add-material-confirm">${T("confirm_btn")}</cap-button>
-              </div>
+              </footer>
             </div>
           </div>
           <div class="cat-te-modal-backdrop cat-te-ai-optimize-modal" hidden>
@@ -4258,13 +4260,13 @@ export class CapTimelineEditorApp {
                     </label>
                   </div>
                   </div>
-                  <div class="cat-te-ai-optimize-actions">
-                    <cap-button variant="primary" class="cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></cap-button>
-                    <cap-button class="cat-te-workflow-stop" hidden>${iconHtml("stop", 12)}<span>${T("workflow_stop")}</span></cap-button>
-                    <cap-button class="cat-te-ai-run">${iconHtml("play", 12)}<span>${T("workflow_run_queue")}</span></cap-button>
-                  </div>
                 </div>
               </div>
+              <footer class="cat-te-modal-footer cat-te-ai-optimize-actions">
+                <cap-button variant="primary" class="cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></cap-button>
+                <cap-button class="cat-te-workflow-stop" hidden>${iconHtml("stop", 12)}<span>${T("workflow_stop")}</span></cap-button>
+                <cap-button class="cat-te-ai-run">${iconHtml("play", 12)}<span>${T("workflow_run_queue")}</span></cap-button>
+              </footer>
               </div>
               <cap-button shape="circle" size="large" class="cat-te-ai-optimize-nav next" title="${T("ai_optimize_next_clip_title")}" aria-label="${T("ai_optimize_next_clip_title")}" disabled>${iconHtml("chevronLeft", 20)}</cap-button>
             </div>
@@ -4287,11 +4289,11 @@ export class CapTimelineEditorApp {
               </div>
               <div class="cat-te-modal-body">
                 <input class="cat-te-track-rename-input" type="text" maxlength="120" aria-label="${T("name_label")}" />
-                <div class="cat-te-confirm-actions">
-                  <cap-button class="cat-te-track-rename-cancel">${T("cancel_btn")}</cap-button>
-                  <cap-button variant="primary" class="cat-te-track-rename-confirm">${T("confirm_btn")}</cap-button>
-                </div>
               </div>
+              <footer class="cat-te-modal-footer cat-te-confirm-actions">
+                <cap-button class="cat-te-track-rename-cancel">${T("cancel_btn")}</cap-button>
+                <cap-button variant="primary" class="cat-te-track-rename-confirm">${T("confirm_btn")}</cap-button>
+              </footer>
             </div>
           </div>
           <div class="cat-te-modal-backdrop cat-te-track-color-modal" hidden>
@@ -4302,11 +4304,11 @@ export class CapTimelineEditorApp {
               </div>
               <div class="cat-te-modal-body">
                 <input class="cat-te-track-color-input" type="color" aria-label="${T("track_color_title")}" />
-                <div class="cat-te-confirm-actions">
-                  <cap-button class="cat-te-track-color-cancel">${T("cancel_btn")}</cap-button>
-                  <cap-button variant="primary" class="cat-te-track-color-confirm">${T("confirm_btn")}</cap-button>
-                </div>
               </div>
+              <footer class="cat-te-modal-footer cat-te-confirm-actions">
+                <cap-button class="cat-te-track-color-cancel">${T("cancel_btn")}</cap-button>
+                <cap-button variant="primary" class="cat-te-track-color-confirm">${T("confirm_btn")}</cap-button>
+              </footer>
             </div>
           </div>
           <div class="cat-te-modal-backdrop cat-te-track-delete-modal" hidden>
@@ -4317,11 +4319,11 @@ export class CapTimelineEditorApp {
               </div>
               <div class="cat-te-modal-body">
                 <div class="cat-te-track-delete-message"></div>
-                <div class="cat-te-confirm-actions">
-                  <cap-button class="cat-te-track-delete-cancel">${T("cancel_btn")}</cap-button>
-                  <cap-button variant="danger" class="cat-te-track-delete-confirm">${T("delete_btn")}</cap-button>
-                </div>
               </div>
+              <footer class="cat-te-modal-footer cat-te-confirm-actions">
+                <cap-button class="cat-te-track-delete-cancel">${T("cancel_btn")}</cap-button>
+                <cap-button variant="danger" class="cat-te-track-delete-confirm">${T("delete_btn")}</cap-button>
+              </footer>
             </div>
           </div>
           <div class="cat-te-modal-backdrop cat-te-media-delete-modal" hidden>
@@ -4332,11 +4334,11 @@ export class CapTimelineEditorApp {
               </div>
               <div class="cat-te-modal-body">
                 <div class="cat-te-media-delete-message"></div>
-                <div class="cat-te-confirm-actions">
-                  <cap-button class="cat-te-media-delete-cancel" autofocus>${T("cancel_btn")}</cap-button>
-                  <cap-button variant="danger" class="cat-te-media-delete-confirm">${T("delete_btn")}</cap-button>
-                </div>
               </div>
+              <footer class="cat-te-modal-footer cat-te-confirm-actions">
+                <cap-button class="cat-te-media-delete-cancel" autofocus>${T("cancel_btn")}</cap-button>
+                <cap-button variant="danger" class="cat-te-media-delete-confirm">${T("delete_btn")}</cap-button>
+              </footer>
             </div>
           </div>
           <div class="cat-te-modal-backdrop cat-te-track-convert-modal" hidden>
@@ -4347,10 +4349,10 @@ export class CapTimelineEditorApp {
               </div>
               <div class="cat-te-modal-body">
                 <div class="cat-te-track-convert-message"></div>
-                <div class="cat-te-confirm-actions">
-                  <cap-button variant="primary" class="cat-te-track-convert-ok">${T("confirm_btn")}</cap-button>
-                </div>
               </div>
+              <footer class="cat-te-modal-footer cat-te-confirm-actions">
+                <cap-button variant="primary" class="cat-te-track-convert-ok">${T("confirm_btn")}</cap-button>
+              </footer>
             </div>
           </div>
           <cap-dialog class="cat-te-voice-dialog" aria-label="${T("voice_convert")}" close-label="${T("close_title")}">
@@ -4360,8 +4362,8 @@ export class CapTimelineEditorApp {
               <label class="cat-te-modal-row"><span>${T("voice_character")}</span><select class="cat-te-voice-character"></select></label>
               <audio class="cat-te-voice-audition" controls preload="none" hidden></audio>
               <div>${T("voice_setup_required")}</div>
-              <div class="cat-te-confirm-actions"><cap-button class="cat-te-voice-configure">${T("voice_configure")}</cap-button></div>
             </div>
+            <div slot="footer" class="cat-te-confirm-actions"><cap-button class="cat-te-voice-configure">${T("voice_configure")}</cap-button></div>
           </cap-dialog>
           <cap-dialog class="cat-te-export-dialog" aria-label="${T("export_title")}" close-label="${T("close_title")}">
             <span slot="title">${T("export_title")}</span>
@@ -4381,8 +4383,8 @@ export class CapTimelineEditorApp {
               <label class="cat-te-modal-check-row"><input class="cat-te-export-workflow" type="checkbox" checked /><span>${T("export_workflow")}</span></label>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-generated" type="checkbox" checked /><span>${T("export_generated")}</span></label>
               <cap-status-message class="cat-te-export-status" hidden></cap-status-message>
-              <div class="cat-te-confirm-actions"><cap-button variant="primary" class="cat-te-export-start">${T("export_title")}</cap-button></div>
             </div>
+            <div slot="footer" class="cat-te-confirm-actions"><cap-button variant="primary" class="cat-te-export-start">${T("export_title")}</cap-button></div>
           </cap-dialog>
           <cap-dialog class="cat-te-shortcuts-dialog" aria-label="${T("shortcuts_title")}" close-label="${T("close_title")}">
             <span slot="title">${T("shortcuts_title")}</span>
@@ -12420,10 +12422,10 @@ export class CapTimelineEditorApp {
                 <p data-batch-hint>${T("subtitle_batch_hint")}</p>
                 <textarea rows="10" autofocus style="width:100%;box-sizing:border-box" aria-label="${T("subtitle_batch_insert")}"></textarea>
                 <p role="status" aria-live="polite"></p>
-                <div class="cat-te-confirm-actions">
-                    <cap-button data-action="cancel">${T("cancel_btn")}</cap-button>
-                    <cap-button variant="primary" data-action="insert">${T("confirm_btn")}</cap-button>
-                </div>
+            </div>
+            <div slot="footer" class="cat-te-confirm-actions">
+                <cap-button data-action="cancel">${T("cancel_btn")}</cap-button>
+                <cap-button variant="primary" data-action="insert">${T("confirm_btn")}</cap-button>
             </div>`;
         const syncTrack = dialog.querySelector('[data-action="sync-track"]');
         syncTrack.add(new Option(T("subtitle_batch_no_sync"), ""));

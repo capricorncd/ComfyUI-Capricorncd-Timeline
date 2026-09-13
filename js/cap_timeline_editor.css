@@ -249,8 +249,11 @@ body.cat-te-row-resize * {
 .cat-te-modal.is-dragging { user-select: none; }
 
 .cat-te-modal {
+    display: flex;
+    flex-direction: column;
     width: 320px;
     max-width: calc(100vw - 40px);
+    max-height: 80vh;
     background: var(--cat-raised);
     border: 1px solid var(--cat-border);
     border-radius: 8px;
@@ -260,6 +263,7 @@ body.cat-te-row-resize * {
 
 .cat-te-modal-header {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     justify-content: space-between;
     padding: 12px 14px;
@@ -278,6 +282,17 @@ body.cat-te-row-resize * {
     flex-direction: column;
     gap: 14px;
 }
+.cat-te-modal > .cat-te-modal-body,
+.cat-te-add-material-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+.cat-te-modal-footer {
+    flex-shrink: 0;
+    padding: 10px 14px 14px;
+    border-top: 1px solid var(--cat-border);
+}
 
 .cat-te-confirm-dialog { width: 420px; }
 .cat-te-track-delete-message,
@@ -289,6 +304,7 @@ body.cat-te-row-resize * {
 }
 .cat-te-confirm-actions {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 10px;
 }
@@ -667,10 +683,7 @@ body.cat-te-row-resize * {
     display: flex;
     align-items: stretch;
     justify-content: center;
-    min-height: 220px;
-    max-height: 58vh;
     padding: 14px;
-    overflow: auto;
     background: var(--cat-bg);
 }
 .cat-te-add-material-list {
@@ -716,10 +729,9 @@ body.cat-te-row-resize * {
 .cat-te-add-material-preview img,
 .cat-te-add-material-preview video { max-width: 100%; max-height: 52vh; }
 .cat-te-add-material-preview audio { width: min(620px, 100%); }
-.cat-te-add-material-options,
-.cat-te-add-material-actions { display: flex; align-items: center; gap: 18px; padding: 12px 14px; }
+.cat-te-add-material-options { display: flex; align-items: center; gap: 18px; padding: 12px 14px; }
 .cat-te-add-material-options { color: #ccc; font-size: 12px; }
-.cat-te-add-material-actions { justify-content: flex-end; border-top: 1px solid var(--cat-border-soft); }
+.cat-te-add-material-actions { display: flex; justify-content: flex-end; }
 
 .cat-te-lang-select {
     background: var(--cat-border-soft);
@@ -1788,6 +1800,7 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-gen-edit-footer {
     display: flex;
+    flex-shrink: 0;
     justify-content: flex-end;
     gap: 8px;
     padding: 10px 14px 14px;
@@ -3066,11 +3079,13 @@ body.cat-te-media-dnd-over-tl {
 
 .cat-te-compose-modal {
     --cap-dialog-width: 80vw;
+    --cap-dialog-height: 80vh;
     --cap-dialog-min-width: 640px;
     --cap-dialog-min-height: 420px;
 }
 .cat-te-compose-dialog {
-    height: calc(80vh - 62px);
+    flex: 1;
+    min-height: 0;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -3201,8 +3216,6 @@ body.cat-te-media-dnd-over-tl {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    padding: 10px 14px 14px;
-    border-top: 1px solid var(--cat-border);
     flex-shrink: 0;
 }
 

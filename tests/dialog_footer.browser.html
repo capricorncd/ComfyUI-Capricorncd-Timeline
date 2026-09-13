@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Dialog footers</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>body { background:#101619; color:white; } #result { position:fixed; bottom:0; }</style>
+<div id="fixture"></div><pre id="result">RUNNING</pre>
+<script type="module">
+import '../js/components/Dialog.js';
+import '../js/components/TabButton.js';
+import { iconHtml } from '../js/cap_icons.js';
+const assert = (ok, message) => { if (!ok) throw Error(message); };
+const tick = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+try {
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const fixture = document.querySelector('#fixture');
+    const start = source.indexOf('<div class="cat-te-modal-backdrop cat-te-media-preview-modal"');
+    fixture.innerHTML = new Function('T', 'iconHtml', 'OUTPUT_VIDEOS_TIME_RANGES',
+        'return `' + source.slice(start, source.indexOf('`;', start)) + '`')(
+        key => key, iconHtml, [{id:'1h',label:'1h'}]);
+    const checkScroll = async (dialog, scroller, footer, name) => {
+        const tall = document.createElement('div');
+        tall.style.cssText = 'height:1800px;flex-shrink:0';
+        scroller.append(tall);
+        await tick();
+        const bounds = dialog.getBoundingClientRect();
+        const before = footer.getBoundingClientRect();
+        assert(before.top >= bounds.top && before.bottom <= bounds.bottom, name + ': footer fits dialog');
+        scroller.scrollTop = scroller.scrollHeight;
+        await tick();
+        assert(scroller.scrollTop > 0, name + ': content scrolls');
+        assert(Math.abs(footer.getBoundingClientRect().top - before.top) < 1, name + ': footer does not scroll');
+        tall.remove();
+    };
+    for (const name of ['export','voice','compose']) {
+        const host = fixture.querySelector(name === 'compose' ? '.cat-te-compose-modal' : '.cat-te-' + name + '-dialog');
+        host.showModal(); await tick();
+        const dialog = host.shadowRoot.querySelector('dialog');
+        dialog.style.height = '440px';
+        const actions = host.querySelector('[slot="footer"]');
+        assert(actions?.parentElement === host, name + ': actions are direct footer slot');
+        const scroller = name === 'compose' ? host.querySelector('.cat-te-compose-settings') : host.shadowRoot.querySelector('.body');
+        await checkScroll(dialog, scroller, host.shadowRoot.querySelector('footer'), name);
+        host.close(); await tick();
+    }
+    for (const name of ['track-rename','track-color','track-delete','media-delete','track-convert','add-material']) {
+        const backdrop = fixture.querySelector('.cat-te-' + name + '-modal');
+        backdrop.hidden = false;
+        const dialog = backdrop.querySelector('.cat-te-modal');
+        dialog.style.height = '320px';
+        const footer = dialog.querySelector(':scope > footer');
+        assert(footer?.querySelector('cap-button'), name + ': global actions outside body');
+        await checkScroll(dialog, dialog.querySelector('.cat-te-modal-body, .cat-te-add-material-body'), footer, name);
+        backdrop.hidden = true;
+    }
+    const manager = fixture.querySelector('.cat-te-ai-optimize-modal');
+    manager.hidden = false;
+    const panel = manager.querySelector('.cat-te-ai-optimize-dialog');
+    const footer = panel.querySelector(':scope > footer');
+    assert(footer?.contains(manager.querySelector('.cat-te-ai-run')), 'prompt manager run is in global footer');
+    assert(!manager.querySelector('.cat-te-ai-optimize-body').contains(footer), 'prompt manager footer is outside both columns');
+    await tick();
+    assert(footer.getBoundingClientRect().bottom <= panel.getBoundingClientRect().bottom, 'prompt manager footer fits');
+    manager.hidden = true;
+    for (const name of ['shortcuts','output-videos']) {
+        const host = fixture.querySelector(name === 'shortcuts' ? '.cat-te-shortcuts-dialog' : '.cat-te-output-videos-modal');
+        assert(host.shadowRoot.querySelector('footer').hidden, name + ': no empty footer');
+    }
+    document.querySelector('#result').textContent = 'PASS: production export/compose/voice, legacy confirmations/add material, prompt manager and no-action dialog footers';
+} catch (error) {
+    document.querySelector('#result').textContent = 'FAIL: ' + error.message;
+}
+</script></html>

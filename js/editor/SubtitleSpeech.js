@@ -29,7 +29,7 @@ export class SubtitleSpeech {
         const valid = () => app._timeline === timeline && app._projectResources === resources && this.dialog.open && app._isNodeOnLiveGraph();
         app._timeline.pause();
         this.dialog.setAttribute("aria-label", T(bindOnly ? "speech_bind" : "speech_convert"));
-        this.dialog.innerHTML = `<span slot="title">${T(bindOnly ? "speech_bind" : "speech_convert")}</span><div class="cat-te-modal-body"><div class="speech-rows"></div><p role="status"></p><div class="cat-te-confirm-actions"><cap-button data-action="settings">${T("voice_configure")}</cap-button><cap-button data-action="close">${T("close_title")}</cap-button><cap-button variant="primary" data-action="submit">${T(bindOnly ? "save_btn" : "speech_convert")}</cap-button></div></div>`;
+        this.dialog.innerHTML = `<span slot="title">${T(bindOnly ? "speech_bind" : "speech_convert")}</span><div class="cat-te-modal-body"><div class="speech-rows"></div><p role="status"></p></div><div slot="footer" class="cat-te-confirm-actions"><cap-button data-action="settings">${T("voice_configure")}</cap-button><cap-button data-action="close">${T("close_title")}</cap-button><cap-button variant="primary" data-action="submit">${T(bindOnly ? "save_btn" : "speech_convert")}</cap-button></div>`;
         const candidates = resources.filter(row => row.kind === "image" || row.kind === "video");
         const rows = clips.map(clip => {
             const meta = app._meta.get(clip.id);

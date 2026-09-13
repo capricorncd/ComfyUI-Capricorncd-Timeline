@@ -129,6 +129,7 @@ export class Dialog extends HTMLElement {
                 dialog {
                     position: fixed; inset: 0; margin: auto; padding: 0;
                     width: var(--cap-dialog-width, 460px); max-width: 80vw; max-height: 80vh;
+                    height: var(--cap-dialog-height, auto);
                     min-width: min(var(--cap-dialog-min-width, 320px), 80vw);
                     min-height: min(var(--cap-dialog-min-height, 160px), 80vh);
                     box-sizing: border-box; overflow: hidden;
@@ -148,15 +149,24 @@ export class Dialog extends HTMLElement {
                 }
                 slot[name="title"] { min-width: 0; overflow-wrap: anywhere; }
                 header > cap-button { flex-shrink: 0; }
-                .body { flex: 1; min-height: 0; overflow: auto; }
+                .body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
+                .body > slot { display: contents; }
+                ::slotted(*) { flex-shrink: 0; }
+                footer { flex-shrink: 0; padding: 10px 14px 14px; border-top: 1px solid var(--cat-border, #34464b); }
+                footer[hidden] { display: none; }
                 .is-dragging, .is-resizing { user-select: none; }
             </style>
             <dialog aria-labelledby="title">
                 <header><slot id="title" name="title"></slot><cap-button shape="square" variant="danger" aria-label="Close" title="Close">${iconHtml("close", 18)}</cap-button></header>
                 <div class="body"><slot></slot></div>
+                <footer hidden><slot name="footer"></slot></footer>
                 <cap-dialog-resize-handle class="resize-handle" aria-hidden="true"></cap-dialog-resize-handle>
             </dialog>`;
         this._dialog = root.querySelector("dialog");
+        const footerSlot = root.querySelector('slot[name="footer"]');
+        footerSlot.addEventListener("slotchange", () => {
+            footerSlot.parentElement.hidden = footerSlot.assignedElements().length === 0;
+        });
         this._closeButton = root.querySelector("cap-button");
         this._closeButton.addEventListener("click", () => this.requestClose());
         this._dialog.addEventListener("cancel", event => {

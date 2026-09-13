@@ -71,6 +71,10 @@ Use `js/components/Dialog.js` for new dialogs. `<cap-dialog>` owns an isolated n
   <div class="cat-te-modal-body">
     <!-- Business controls stay in light DOM and use shared button components. -->
   </div>
+  <div slot="footer" class="cat-te-confirm-actions">
+    <cap-button>Cancel</cap-button>
+    <cap-button variant="primary">Export</cap-button>
+  </div>
 </cap-dialog>
 ```
 
@@ -90,6 +94,8 @@ dialog.addEventListener("close", stopAudition);
 
 Configure width using `--cap-dialog-width` (default 460px). The component caps dimensions at 80vw/80vh and scrolls content without losing the header. `--cap-dialog-shadow` and `--cap-dialog-backdrop` are shared theme tokens; do not override native dialog styles from business CSS. The generated-video association panel uses `show()` and keeps the timeline selectable, allowing selection changes to retarget its contents. The generated-audio picker retains its previous blocking behavior with `showModal()`.
 
+Global actions (confirm, cancel, export, run) belong in a direct child with `slot="footer"`. The component pins the header and footer while the body scrolls, including after resizing. Omit the footer slot for dialogs without global actions; an empty footer is hidden automatically. Keep contextual form actions beside their fields. Legacy modals use the same separate body/footer structure. Set `--cap-dialog-height` when a dialog should fill a fixed height (Compose uses 80vh); otherwise height follows its contents.
+
 Drag the bottom-right grip to resize. The top-left stays fixed, and resizing is limited by both 80vw/80vh and available viewport space. Size is retained while the component exists; reopening still recenters it. Set `--cap-dialog-min-width` and `--cap-dialog-min-height` in pixels (defaults 320 × 160); smaller viewports take precedence over these minimums. Close uses the shared [Lucide X](https://lucide.dev/icons/x) SVG at 18px.
 
 The legacy media-preview dialog reuses `cap-dialog-resize-handle` and `bindDialogResize`, with a 640 × 360 minimum and the same 80vw/80vh maximum. Keep resize-grip styling in `Dialog.js`; do not duplicate it in editor CSS.
@@ -104,7 +110,7 @@ The legacy media-preview dialog reuses `cap-dialog-resize-handle` and `bindDialo
 | Subtitle speech / character binding | 560 × 360 |
 | Generated video/audio association | 480 × 320 |
 
-Run `node tests/test_dialog.mjs` plus the existing native-dialog/export/speech tests. `tests/dialog.browser.html` verifies real layout, drag, shared shadow isolation, nested dialogs, busy-close veto, scroll bounds and background hit testing in non-modal mode.
+Run `node tests/test_dialog.mjs` plus the existing native-dialog/export/speech tests. `tests/dialog.browser.html` verifies real layout, drag, shared shadow isolation, nested dialogs, busy-close veto, scroll bounds and background hit testing in non-modal mode. `tests/dialog_footer.browser.html` checks fixed footers against the actual editor dialog templates, including long content, short windows and dialogs without global actions.
 
 ## Export range
 

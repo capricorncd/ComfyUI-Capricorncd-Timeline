@@ -489,6 +489,37 @@
       }
     }
   },
+  "CAP_SizeFromMegapixels": {
+    "display_name": "メガピクセルからサイズ計算",
+    "inputs": {
+      "width": {
+        "name": "入力幅"
+      },
+      "height": {
+        "name": "入力高さ"
+      },
+      "megapixels": {
+        "name": "メガピクセル"
+      },
+      "multiple": {
+        "name": "整列の倍数"
+      }
+    },
+    "outputs": {
+      "width": {
+        "name": "幅"
+      },
+      "height": {
+        "name": "高さ"
+      },
+      "megapixels": {
+        "name": "メガピクセル"
+      },
+      "multiple": {
+        "name": "整列の倍数"
+      }
+    }
+  },
   "CAP_SizeSettings": {
     "display_name": "サイズ設定",
     "inputs": {

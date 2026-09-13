@@ -489,6 +489,37 @@
       }
     }
   },
+  "CAP_SizeFromMegapixels": {
+    "display_name": "Size From Megapixels",
+    "inputs": {
+      "width": {
+        "name": "Input Width"
+      },
+      "height": {
+        "name": "Input Height"
+      },
+      "megapixels": {
+        "name": "Megapixels"
+      },
+      "multiple": {
+        "name": "Multiple"
+      }
+    },
+    "outputs": {
+      "width": {
+        "name": "Width"
+      },
+      "height": {
+        "name": "Height"
+      },
+      "megapixels": {
+        "name": "Megapixels"
+      },
+      "multiple": {
+        "name": "Multiple"
+      }
+    }
+  },
   "CAP_SizeSettings": {
     "display_name": "Size Settings",
     "inputs": {

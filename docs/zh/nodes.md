@@ -20,5 +20,6 @@
 | **Join Strings** | 拼接可变数量的字符串/数值；换行、逗号、`_`、`-`、`/`、空拼接或自定义分隔符 | [→](join-strings.md) |
 | **Clear Directory** | 删除目录中选定类型的媒体文件；Windows 支持回收站 | [→](clear-directory.md) |
 | **Size Settings** | 尺寸预设 / 倍数 / 锁定比例 / 方向 → `width`、`height`、`count`、`fps` | [→](size-settings.md) |
+| **Size From Megapixels** | 输入宽、高和目标百万像素 → 对齐后的输出宽、高 | [→](size-settings.md#按百万像素计算尺寸) |
 | **Format JSON** | 在画布上格式化显示 JSON 字符串 | [→](format-json.md) |
 | **Show Anything** | 展示任意值；刷新后保留；可选格式化 JSON | [→](show-anything.md) |

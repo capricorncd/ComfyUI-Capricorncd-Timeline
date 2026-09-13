@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 SIZE_PRESETS = (
     "704x1280 (11:20)",
     "720x1280 (9:16)",
@@ -137,10 +139,56 @@ class CAP_SizeSettings:
         )
 
 
+class CAP_SizeFromMegapixels:
+    DOC_SLUG = "size-settings"
+    DESCRIPTION = (
+        "Calculate output dimensions from input width, height and target megapixels. "
+        "Uses 1024 x 1024 pixels per MP, like Resolution Selector. "
+        "Rounding to the selected multiple may slightly change the aspect ratio."
+    )
+    OUTPUT_TOOLTIPS = {
+        "width": "Calculated width aligned to the selected multiple",
+        "height": "Calculated height aligned to the selected multiple",
+        "megapixels": "Configured target megapixels, not the rounded output pixel area",
+        "multiple": "Configured alignment multiple",
+    }
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "width": ("INT", {"forceInput": True, "default": 1920, "min": 1, "max": 16384, "step": 1,
+                             "tooltip": "Connect an INT width output from the project size or an integer node"}),
+            "height": ("INT", {"forceInput": True, "default": 1080, "min": 1, "max": 16384, "step": 1,
+                              "tooltip": "Connect an INT height output from the project size or an integer node"}),
+            "megapixels": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 16.0, "step": 0.01,
+                                    "tooltip": "Target pixel area: 1 MP = 1024 x 1024 pixels, before alignment"}),
+            "multiple": ("INT", {"default": 32, "min": 8, "max": 128, "step": 4,
+                                "tooltip": "Round each output dimension to the nearest multiple; use the model's required alignment"}),
+        }}
+
+    RETURN_TYPES = ("INT", "INT", "FLOAT", "INT")
+    RETURN_NAMES = ("width", "height", "megapixels", "multiple")
+    FUNCTION = "execute"
+    CATEGORY = "Capricorncd"
+
+    def execute(self, width: int, height: int, megapixels: float, multiple: int = 32):
+        if width <= 0 or height <= 0 or multiple <= 0 or not math.isfinite(megapixels) or megapixels <= 0:
+            raise ValueError("Width, height, megapixels and multiple must be positive finite numbers.")
+        scale = math.sqrt(megapixels * 1024 * 1024 / (width * height))
+        return (
+            max(multiple, round(width * scale / multiple) * multiple),
+            max(multiple, round(height * scale / multiple) * multiple),
+            float(megapixels),
+            int(multiple),
+        )
+
+
 NODE_CLASS_MAPPINGS = {
     "CAP_SizeSettings": CAP_SizeSettings,
+    "CAP_SizeFromMegapixels": CAP_SizeFromMegapixels,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "CAP_SizeSettings": "Size Settings",
+    "CAP_SizeFromMegapixels": "Size From Megapixels",
 }

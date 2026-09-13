@@ -489,6 +489,37 @@
       }
     }
   },
+  "CAP_SizeFromMegapixels": {
+    "display_name": "按百万像素计算尺寸",
+    "inputs": {
+      "width": {
+        "name": "输入宽度"
+      },
+      "height": {
+        "name": "输入高度"
+      },
+      "megapixels": {
+        "name": "百万像素"
+      },
+      "multiple": {
+        "name": "对齐倍数"
+      }
+    },
+    "outputs": {
+      "width": {
+        "name": "宽度"
+      },
+      "height": {
+        "name": "高度"
+      },
+      "megapixels": {
+        "name": "百万像素"
+      },
+      "multiple": {
+        "name": "对齐倍数"
+      }
+    }
+  },
   "CAP_SizeSettings": {
     "display_name": "尺寸设置",
     "inputs": {

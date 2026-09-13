@@ -20,5 +20,6 @@
 | **Join Strings** | Joins a variable number of string/int/float inputs; newline, comma, `_`, `-`, `/`, none, or custom separator | [→](join-strings.md) · [中文](zh/join-strings.md) |
 | **Clear Directory** | Deletes selected media files in a directory; supports Recycle Bin on Windows | [→](clear-directory.md) · [中文](zh/clear-directory.md) |
 | **Size Settings** | Size preset / scale / lock aspect / orientation → `width`, `height`, `count`, `fps` | [→](size-settings.md) · [中文](zh/size-settings.md) |
+| **Size From Megapixels** | Input width + height + target megapixels → aligned output width and height | [→](size-settings.md#size-from-megapixels) · [中文](zh/size-settings.md#按百万像素计算尺寸) |
 | **Format JSON** | Pretty-print a JSON string in the graph UI | [→](format-json.md) · [中文](zh/format-json.md) |
 | **Show Anything** | Show any value on the node; persists across refresh; optional Format JSON | [→](show-anything.md) · [中文](zh/show-anything.md) |

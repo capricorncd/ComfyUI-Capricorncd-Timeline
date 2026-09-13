@@ -39,3 +39,15 @@ Output width, height, count, and fps (float + int) from size presets, scale, ori
 - 开启 **锁定比例** 时，改宽度会按比例更新高度（改高度同理）。
 - **纵向** 保持预设宽高；**横向** 交换宽高（1:1 无变化）。
 - 可将 `width` / `height` / `fps` 接到 **Timeline Editor** 或其他需要画布尺寸与帧率的节点。
+
+## 按百万像素计算尺寸
+
+**节点：** `CAP_SizeFromMegapixels`（Size From Megapixels）· **分类：** `Capricorncd`
+
+宽度 `width`、高度 `height` 直接显示为 INT 连接接口，接入上游整数输出后，设置 `megapixels`（默认 1.0），输出计算后的整数宽、高。手动设置尺寸可连接整数节点；STRING 输出需要先转换为 INT。不需要选择宽高比预设。该节点只计算尺寸，不处理图片或视频像素。
+
+与 ComfyUI 的 Resolution Selector 一致，目标像素面积为 `megapixels × 1024 × 1024`。宽高按相同比例缩放后，分别四舍五入到 `multiple` 的整数倍（默认 32，可按其他模型要求调整），因此实际比例和像素总量可能略有偏差。支持放大与缩小。
+
+示例：输入 `1920 × 1080`，`megapixels = 0.2`，`multiple = 32` → 输出 `608 × 352`。
+
+输出顺序：`width`（INT）、`height`（INT）、`megapixels`（FLOAT）、`multiple`（INT）。后两项输出节点当前设置值；百万像素是目标值，不是取整后尺寸的实际像素面积。可将 `multiple` 连接到放大节点的 `align`。

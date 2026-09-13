@@ -1,3 +1,9 @@
+/*!
+ * Copyright (c) 2026 capricorncd
+ * SPDX-License-Identifier: MIT
+ * See ../LICENSE for the full license text.
+ */
+
 import "./components/TabButton.js";
 import "./components/ExportRange.js";
 import "./components/MediaCarousel.js";
@@ -3943,8 +3949,8 @@ export class CapTimelineEditorApp {
                     <span>${T("filename_label")}</span>
                     <input class="cat-te-compose-filename" type="text" />
                   </label>
-                  <details class="cat-te-compose-section cat-te-compose-video-section" open>
-                    <summary><label class="cat-te-compose-check"><input class="cat-te-compose-video-enabled" type="checkbox" checked /><span>${T("compose_video_section")}</span></label><span class="cat-te-compose-chevron" aria-hidden="true">${iconHtml("chevronRight", 16)}</span></summary>
+                  <details class="cat-te-disclosure cat-te-compose-video-section" open>
+                    <summary><label class="cat-te-compose-check"><input class="cat-te-compose-video-enabled" type="checkbox" checked /><span>${T("compose_video_section")}</span></label><span class="cat-te-disclosure-chevron" aria-hidden="true">${iconHtml("chevronRight", 16)}</span></summary>
                     <div class="cat-te-compose-video-fields">
                   <label class="cat-te-compose-field">
                     <span>${T("compose_resolution_label")}</span>
@@ -4061,8 +4067,8 @@ export class CapTimelineEditorApp {
 
                     </div>
                   </details>
-                  <details class="cat-te-compose-section cat-te-compose-audio-section" open>
-                    <summary><label class="cat-te-compose-check"><input class="cat-te-compose-audio-enabled" type="checkbox" /><span>${T("compose_audio_section")}</span></label><span class="cat-te-compose-chevron" aria-hidden="true">${iconHtml("chevronRight", 16)}</span></summary>
+                  <details class="cat-te-disclosure cat-te-compose-audio-section" open>
+                    <summary><label class="cat-te-compose-check"><input class="cat-te-compose-audio-enabled" type="checkbox" /><span>${T("compose_audio_section")}</span></label><span class="cat-te-disclosure-chevron" aria-hidden="true">${iconHtml("chevronRight", 16)}</span></summary>
                     <div class="cat-te-compose-audio-fields">
                     <label class="cat-te-compose-field"><span>${T("compose_audio_format")}</span>
                       <select class="cat-te-compose-audio-format" disabled><option value="wav">WAV</option><option value="mp3">MP3</option></select>
@@ -4232,8 +4238,8 @@ export class CapTimelineEditorApp {
                       <cap-button class="cat-te-model-preview-seed-use" disabled title="${T("preview_seed_hint")}">${T("preview_seed_use")}</cap-button>
                     </span>
                   </label>
-                  <details class="cat-te-model-preview-settings">
-                    <summary>${T("standalone_preview_title")}</summary>
+                  <details class="cat-te-disclosure cat-te-model-preview-settings">
+                    <summary><span>${T("standalone_preview_title")}</span><span class="cat-te-disclosure-chevron" aria-hidden="true">${iconHtml("chevronRight", 16)}</span></summary>
                     <div class="cat-te-agent-heading">
                       <span class="cat-te-ai-field-label">
                         ${T("model_preview_settings_title")}

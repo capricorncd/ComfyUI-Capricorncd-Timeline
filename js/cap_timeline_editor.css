@@ -1,3 +1,9 @@
+/*!
+ * Copyright (c) 2026 capricorncd
+ * SPDX-License-Identifier: MIT
+ * See ../LICENSE for the full license text.
+ */
+
 /* Fullscreen timeline editor shell (CAP_TimelineEditor) */
 
 :root {
@@ -417,12 +423,8 @@ body.cat-te-row-resize * {
     border-top: 1px solid var(--cat-border);
     padding-top: 14px;
 }
-.cat-te-model-preview-settings > summary {
-    color: var(--cat-text);
-    font-size: 12px;
-    line-height: 1.5;
-    cursor: pointer;
-    padding: 6px 0;
+.cat-te-model-preview-settings[open] > summary {
+    margin-bottom: 12px;
 }
 .cat-te-model-preview-config-actions {
     display: inline-flex;
@@ -3139,7 +3141,7 @@ body.cat-te-media-dnd-over-tl {
     flex-direction: column;
     gap: 12px;
 }
-.cat-te-compose-section > summary {
+.cat-te-disclosure > summary {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -3147,18 +3149,20 @@ body.cat-te-media-dnd-over-tl {
     list-style: none;
     cursor: pointer;
     color: var(--cat-text);
+    font-size: 12px;
+    user-select: none;
 }
-.cat-te-compose-section > summary::marker { content: ""; }
-.cat-te-compose-section > summary::-webkit-details-marker { display: none; }
-.cat-te-compose-section > summary > label {
+.cat-te-disclosure > summary::marker { content: ""; }
+.cat-te-disclosure > summary::-webkit-details-marker { display: none; }
+.cat-te-disclosure > summary > label {
     display: inline-flex;
 }
-.cat-te-compose-chevron {
+.cat-te-disclosure-chevron {
     display: flex;
     flex-shrink: 0;
     color: var(--cat-muted);
 }
-.cat-te-compose-section[open] > summary > .cat-te-compose-chevron { transform: rotate(90deg); }
+.cat-te-disclosure[open] > summary > .cat-te-disclosure-chevron { transform: rotate(90deg); }
 .cat-te-compose-video-fields, .cat-te-compose-audio-fields {
     display: flex;
     flex-direction: column;

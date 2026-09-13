@@ -192,7 +192,7 @@ let submitted = 0;
 twice._runClipDownstream = async () => { submitted++; queue.queue_pending.push([1, 'next', {}]); return true; };
 await Promise.all([twice._runPromptManagerWorkflow(), twice._runPromptManagerWorkflow()]);
 assert.equal(submitted, 1, 'double click cannot submit twice');
-assert.match(source, /<details class="cat-te-model-preview-settings">/);
+assert.match(source, /<details class="cat-te-disclosure cat-te-model-preview-settings">/);
 assert.match(source, /cat-te-info-tip-pop">\$\{T\("workflow_preview_tip"\)\}/);
 const media = {
     src: '', readyState: 0, error: {message: 'Format error'},

@@ -53,6 +53,15 @@ try {
     assert(e.aiPreviewBtn.disabled, 'separate preview cannot overlap monitored run');
     const details = modal.querySelector('details');
     assert(!details.open && e.aiPreviewBtn.closest('details') === details, 'separate workflow collapsed and opt-in');
+    const heading = details.querySelector('summary');
+    const chevron = heading.querySelector('.cat-te-disclosure-chevron');
+    assert(details.classList.contains('cat-te-disclosure') && chevron?.querySelector('svg'), 'preview uses shared compose disclosure style and chevron');
+    assert(!heading.querySelector('input'), 'standalone preview heading has no checkbox');
+    assert(getComputedStyle(heading).listStyleType === 'none', 'native marker is hidden');
+    heading.click();
+    assert(details.open && getComputedStyle(chevron).transform !== 'none', 'header expands settings and rotates chevron');
+    heading.click();
+    assert(!details.open && getComputedStyle(chevron).transform === 'none', 'header collapses settings');
     const tip = modal.querySelector('[aria-label*="preview_frames"]');
     assert(tip && tip.querySelector('svg'), 'shared info icon exists');
     tip.focus();

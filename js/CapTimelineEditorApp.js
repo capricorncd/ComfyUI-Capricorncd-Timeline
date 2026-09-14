@@ -952,10 +952,12 @@ export class CapTimelineEditorApp {
             this.open();
         });
         const w = this.node.addDOMWidget("te_launcher", "timeline_editor", root, {
-            getMinHeight: () => 72,
-            getHeight: () => 72,
+            margin: 10,
+            getMinHeight: () => 120,
+            getHeight: () => 120,
         });
         w.serialize = false;
+        w.computeLayoutSize = () => ({ minHeight: 120, maxHeight: 120, minWidth: 360 });
         // DomWidgets: size = (widget.width ?? node.width) - margin*2.
         // Keep width unset so a stale widget.width cannot outgrow the node.
         Object.defineProperty(w, "width", {
@@ -965,7 +967,10 @@ export class CapTimelineEditorApp {
             configurable: true,
         });
         this.launcherWidget = w;
-        this.node.setSize([360, 280]);
+        this.node.setSize([
+            Math.max(360, this.node.size[0]),
+            Math.max(this.node.size[1], this.node.computeSize()[1]),
+        ]);
     }
 
     open() {

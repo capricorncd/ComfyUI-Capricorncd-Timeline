@@ -15631,7 +15631,9 @@ export class CapTimelineEditorApp {
                     ? "voiceover"
                     : isSubtitle
                         ? "text"
-                        : "image",
+                        : isMediaTrackType(clip.track?.type)
+                            ? "video"
+                            : "image",
             startTime: clip.startTime,
             duration: clip.duration,
             name: clip.name,

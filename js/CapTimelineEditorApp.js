@@ -2033,8 +2033,7 @@ export class CapTimelineEditorApp {
             return "cancel";
         }
         if (choice === true) {
-            await this._runAllActiveClipsDownstream({ clips: related });
-            return "all";
+            return related;
         }
         return "single";
     }
@@ -2229,18 +2228,29 @@ export class CapTimelineEditorApp {
     static _installClipRunJobHook() {
         if (typeof app?.graphToPrompt !== "function" || app.graphToPrompt._capTeClipRunHooked) return;
         const previewRequests = new WeakMap();
+        const relatedRequests = new WeakMap();
         const queuePrompt = api.queuePrompt;
         if (typeof queuePrompt === "function") {
             api.queuePrompt = async function (number, prompt, ...args) {
                 const preview = previewRequests.get(prompt?.output);
                 try {
                     const result = await queuePrompt.call(this, number, prompt, ...args);
+                    const related = relatedRequests.get(prompt?.output);
+                    if (related && result?.prompt_id) {
+                        for (const pending of related.editor._pendingGeneratedJobs) {
+                            if (!pending.promptId && pending.stamp === related.job.stamp
+                                && related.job.clipIds.includes(String(pending.clipId))) {
+                                pending.promptId = String(result.prompt_id);
+                            }
+                        }
+                    }
                     if (preview && result?.prompt_id) {
                         preview.editor._setWorkflowPreviewPrompt(preview.session, String(result.prompt_id));
                     }
                     return result;
                 } finally {
                     if (prompt?.output) previewRequests.delete(prompt.output);
+                    if (prompt?.output) relatedRequests.delete(prompt.output);
                 }
             };
         }
@@ -2250,13 +2260,13 @@ export class CapTimelineEditorApp {
             const job = jobs?.[0];
             const editor = CapTimelineEditorApp._clipRunEditor;
             if (job && editor && !editor._destroyed) {
-                editor._runtimeOnlyClipIds = [String(job.clipId)];
+                editor._runtimeOnlyClipIds = job.clipIds || [String(job.clipId)];
                 editor._genVideoStamp = job.stamp || null;
                 try {
                     const project = JSON.parse(job.projectJson);
                     project.settings = {
                         ...(project.settings || {}),
-                        runtime_only_clip_ids: [String(job.clipId)],
+                        runtime_only_clip_ids: editor._runtimeOnlyClipIds,
                         ...(job.stamp ? { gen_video_stamp: job.stamp } : {}),
                     };
                     editor._writeProjectJson(JSON.stringify(project));
@@ -2264,6 +2274,7 @@ export class CapTimelineEditorApp {
             }
             try {
                 const result = await orig.apply(this, args);
+                if (job?.clipIds?.length > 1 && editor) relatedRequests.set(result.output, { editor, job });
                 if (job?.workflowPreview && editor?._workflowPreview === job.workflowPreview) {
                     // Serialize hooks may flush editor widgets. Change only the final API
                     // snapshot, so randomizing a preview never changes the saved project.
@@ -2280,7 +2291,7 @@ export class CapTimelineEditorApp {
                     }
                     job.workflowPreview.output = result.output;
                     job.workflowPreview.nodeIds = new Set(Object.entries(result.output || {})
-                        .filter(([, node]) => node.class_type === "ModelPreviewOverrideKJ").map(([id]) => id));
+                        .filter(([, node]) => ["ModelPreviewOverrideKJ", "CAP_ModelPreviewOverride"].includes(node.class_type)).map(([id]) => id));
                     job.workflowPreview.seed = workflowPreviewSeed(result.output || {}, String(job.clipId), job.workflowPreview.nodeIds);
                     previewRequests.set(result.output, {editor, session: job.workflowPreview});
                 }
@@ -4285,9 +4296,10 @@ export class CapTimelineEditorApp {
                 </div>
               </div>
               <footer class="cat-te-modal-footer cat-te-ai-optimize-actions">
+                <span class="cat-te-ai-clip-duration">${T("clip_duration_label")} <span class="cat-te-ai-clip-duration-value">00:00.00</span></span>
                 <cap-button class="cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></cap-button>
-                <cap-button variant="danger" class="cat-te-workflow-stop" hidden>${iconHtml("stop", 12)}<span>${T("workflow_stop")}</span></cap-button>
                 <cap-button variant="primary" class="cat-te-ai-run">${iconHtml("play", 12)}<span>${T("workflow_run_queue")}</span></cap-button>
+                <cap-button variant="danger" class="cat-te-workflow-stop" hidden>${iconHtml("stop", 12)}<span>${T("workflow_stop")}</span></cap-button>
               </footer>
               </div>
               <cap-button shape="circle" size="large" class="cat-te-ai-optimize-nav next" title="${T("ai_optimize_next_clip_title")}" aria-label="${T("ai_optimize_next_clip_title")}" disabled>${iconHtml("chevronLeft", 20)}</cap-button>
@@ -4388,7 +4400,7 @@ export class CapTimelineEditorApp {
             <div slot="footer" class="cat-te-confirm-actions"><cap-button class="cat-te-voice-configure">${T("voice_configure")}</cap-button></div>
           </cap-dialog>
           <cap-dialog class="cat-te-export-dialog" aria-label="${T("export_title")}" close-label="${T("close_title")}">
-            <span slot="title">${T("export_title")}</span>
+            <span slot="title" tabindex="-1" autofocus>${T("export_title")}</span>
             <div class="cat-te-modal-body">
               <div class="cat-te-wm-tabs cat-te-export-formats">
                 <cap-button class="is-active" data-format="directory" aria-pressed="true">${T("export_files")}</cap-button>
@@ -5222,6 +5234,7 @@ export class CapTimelineEditorApp {
             else void this._startModelPreview();
         });
         this.aiRunBtn = el.querySelector(".cat-te-ai-run");
+        this.aiClipDurationEl = el.querySelector(".cat-te-ai-clip-duration-value");
         this.workflowStopBtn = el.querySelector(".cat-te-workflow-stop");
         this.aiRunBtn.addEventListener("click", () => void this._runPromptManagerWorkflow());
         this.workflowStopBtn.addEventListener("click", () => void this._stopWorkflowPreview());
@@ -7279,7 +7292,11 @@ export class CapTimelineEditorApp {
 
     _syncWorkflowRunButton() {
         if (!this.aiRunBtn) return;
-        this.aiRunBtn.disabled = this._workflowRunSubmitting || !this._findClipById(this._aiOptimizeClipId);
+        const clip = this._findClipById(this._aiOptimizeClipId);
+        if (this.aiClipDurationEl) {
+            this.aiClipDurationEl.textContent = formatTimecode((Number(clip?.duration) || 0) * 1000, this._timeline?.fps || 24);
+        }
+        this.aiRunBtn.disabled = this._workflowRunSubmitting || !clip;
         this.aiRunBtn.innerHTML = `${iconHtml("play", 12)}<span>${T(this._workflowQueueBusy()
             ? "workflow_run_queue" : "workflow_run_preview")}</span>`;
         const session = this._workflowPreview;
@@ -7681,7 +7698,7 @@ export class CapTimelineEditorApp {
                 const upstreamId = String(source[0]);
                 visited.add(upstreamId);
                 const upstream = prompt[upstreamId];
-                if (upstream?.class_type === "ModelPreviewOverrideKJ") {
+                if (["ModelPreviewOverrideKJ", "CAP_ModelPreviewOverride"].includes(upstream?.class_type)) {
                     hasPreview = true;
                     break;
                 }
@@ -7691,7 +7708,7 @@ export class CapTimelineEditorApp {
             let previewId = `cap_preview_${id}`;
             while (prompt[previewId]) previewId += "_";
             prompt[previewId] = {
-                class_type: "ModelPreviewOverrideKJ",
+                class_type: "CAP_ModelPreviewOverride",
                 inputs: {
                     model: node.inputs.model,
                     max_resolution: 768, jpeg_quality: 80,
@@ -7702,13 +7719,13 @@ export class CapTimelineEditorApp {
             node.inputs.model = [previewId, 0];
         }
         for (const node of Object.values(prompt)) {
-            if (node?.class_type === "ModelPreviewOverrideKJ") {
+            if (["ModelPreviewOverrideKJ", "CAP_ModelPreviewOverride"].includes(node?.class_type)) {
                 if (!(Number(node.inputs.preview_frames) > 1)) node.inputs.preview_frames = 24;
             }
         }
         this._modelPreviewOverrideNodeIds = new Set(
             Object.entries(prompt)
-                .filter(([, node]) => node?.class_type === "ModelPreviewOverrideKJ")
+                .filter(([, node]) => ["ModelPreviewOverrideKJ", "CAP_ModelPreviewOverride"].includes(node?.class_type))
                 .map(([id]) => String(id)),
         );
         for (const node of Object.values(prompt)) {
@@ -15810,7 +15827,7 @@ export class CapTimelineEditorApp {
 
     /**
      * Queue the workflow so Timeline Editor emits data_json / clips_audio for
-     * only this visual clip. Uses settings.runtime_only_clip_ids (not temporary
+     * this visual clip or its confirmed H3 chain. Uses settings.runtime_only_clip_ids (not temporary
      * disable flags) so the filter survives queuePrompt flush / restore races.
      */
     async _runClipDownstream(clip, workflowPreview = null) {
@@ -15825,11 +15842,13 @@ export class CapTimelineEditorApp {
         }
         if (this._isEmptyGroupClip(m)) return;
         const relatedRun = await this._confirmRelatedClipRun(clip);
-        if (relatedRun !== "single") {
-            if (workflowPreview && relatedRun === "all") this._finishWorkflowPreview(T("workflow_run_queue"));
-            return relatedRun === "all";
+        if (relatedRun === "cancel") return;
+        const clips = Array.isArray(relatedRun) ? relatedRun : [clip];
+        if (!await this._validateClipRunDurations(clips)) return;
+        if (workflowPreview && clips.length > 1) {
+            this._finishWorkflowPreview(T("workflow_run_queue"));
+            workflowPreview = null;
         }
-        if (!await this._validateClipRunDurations([clip])) return;
         if (typeof app?.queuePrompt !== "function") {
             alert(T("queue_prompt_not_found"));
             return;
@@ -15840,10 +15859,11 @@ export class CapTimelineEditorApp {
         let stamp = null;
         if (this._useClipSpecifiedVideoFilename !== false) {
             stamp = this._makeGenVideoStamp();
-            expectedFile = this._clipSpecifiedVideoPath(clip.id, stamp);
+            expectedFile = this._clipSpecifiedVideoPath(clips[0].id, stamp);
         }
         const job = {
-            clipId: String(clip.id),
+            clipId: String(clips[0].id),
+            clipIds: clips.map(c => String(c.id)),
             stamp,
             expectedFile,
             projectJson: JSON.stringify(this._buildProject()),
@@ -15851,35 +15871,37 @@ export class CapTimelineEditorApp {
         };
         CapTimelineEditorApp._clipRunEditor = this;
         CapTimelineEditorApp._clipRunJobs = [job];
-        this._runtimeOnlyClipIds = [job.clipId];
+        this._runtimeOnlyClipIds = job.clipIds;
         this._genVideoStamp = stamp;
         try {
             this._saveToWidgets();
             this._openedProjectJson = JSON.stringify(this._buildProject());
             await this._waitForQueueIdle();
-            this._notePendingGeneratedJob({
-                clipId: clip.id,
-                promptId: null,
-                files: [],
-                expectedFile,
-                stamp,
-            });
+            for (const current of clips) {
+                this._notePendingGeneratedJob({
+                    clipId: current.id,
+                    promptId: null,
+                    files: [],
+                    expectedFile: stamp ? this._clipSpecifiedVideoPath(current.id, stamp) : null,
+                    stamp,
+                });
+            }
             const result = await app.queuePrompt(0, 1);
             if (result === false) {
                 // ComfyUI has buffered this request behind another graph submission.
                 await this._waitForQueueIdle();
             }
             const pid = this._promptIdFromQueueResult(result);
-            if (pid) this._bindPromptIdToPendingJob(pid, clip.id);
+            if (pid) this._bindPromptIdToPendingJob(pid, job.clipId);
             this._schedulePendingJobsQueueReconcile();
             return true;
         } catch (error) {
             const idx = CapTimelineEditorApp._clipRunJobs.indexOf(job);
             if (idx >= 0) CapTimelineEditorApp._clipRunJobs.splice(idx, 1);
             this._pendingGeneratedJobs = this._pendingGeneratedJobs.filter(
-                (j) => String(j.clipId) !== String(clip.id) || j.promptId || (j.files?.length),
+                (j) => !job.clipIds.includes(String(j.clipId)) || j.promptId || (j.files?.length),
             );
-            this._clearRunPreview(clip.id);
+            for (const current of clips) this._clearRunPreview(current.id);
             this._syncClipRunDecorations();
             alert(T("run_failed", { msg: error instanceof Error ? error.message : String(error) }));
         } finally {

@@ -60,10 +60,14 @@ body.cat-te-row-resize * {
     accent-color: var(--cat-accent);
 }
 
-.cat-te-overlay :is(button, input, textarea, select):focus-visible,
-.cat-te-open-btn:focus-visible {
+.cat-te-overlay :is(input, textarea, select):focus-visible {
     outline: 2px solid var(--cat-accent);
     outline-offset: 2px;
+}
+
+.cat-te-overlay button:focus,
+.cat-te-open-btn:focus {
+    outline: none;
 }
 
 .cat-te-header {
@@ -2599,7 +2603,7 @@ body.cat-te-media-dnd-over-tl {
     flex-wrap: wrap;
     gap: 4px;
 }
-.cat-te-export-dialog { --cap-dialog-min-width: 420px; --cap-dialog-min-height: 320px; }
+.cat-te-export-dialog { --cap-dialog-height: fit-content; --cap-dialog-min-width: 420px; --cap-dialog-min-height: 320px; }
 .cat-te-voice-dialog { --cap-dialog-min-width: 420px; --cap-dialog-min-height: 280px; }
 .cat-te-shortcuts-dialog { --cap-dialog-min-width: 400px; --cap-dialog-min-height: 240px; }
 .cat-te-subtitle-batch-dialog { --cap-dialog-min-width: 460px; --cap-dialog-min-height: 360px; }
@@ -3782,9 +3786,22 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-ai-optimize-actions {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
     gap: 12px;
     flex-shrink: 0;
+}
+.cat-te-ai-clip-duration {
+    margin-right: auto;
+    color: var(--cat-muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.cat-te-ai-optimize-actions > .cat-te-ai-run,
+.cat-te-ai-optimize-actions > .cat-te-workflow-stop {
+    flex: 0 0 168px;
+    width: 168px;
 }
 .cat-te-ai-generate svg,
 .cat-te-ai-preview-run svg,

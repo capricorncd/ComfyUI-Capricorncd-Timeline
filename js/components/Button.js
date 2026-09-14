@@ -30,7 +30,7 @@ export class Button extends HTMLElement {
                     transition: background 0.12s, border-color 0.12s;
                 }
                 button:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.15); }
-                button:focus-visible { outline: 2px solid var(--cat-accent, #64d8c5); outline-offset: 2px; }
+                button:focus { outline: none; }
                 :host([shape="square"]) button { width: 28px; padding: 0; }
                 :host([shape="circle"]) button { width: 34px; height: 34px; padding: 0; border-radius: 50%; }
                 :host([size="small"]) button { height: 22px; padding: 0 6px; font-size: 11px; }

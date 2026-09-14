@@ -40,7 +40,7 @@ def _audio_only_noise(video, audio, seed, batch_index):
 
 
 class CAP_H3FastAudioRefineSampler:
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/MiniMaxH3"
     FUNCTION = "refine"
     RETURN_TYPES = ("LATENT",)
     RETURN_NAMES = ("latent",)
@@ -103,7 +103,7 @@ class CAP_H3FastAudioRefineSampler:
 
 
 class CAP_H3FastAudioRepair:
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/MiniMaxH3"
     FUNCTION = "repair"
     RETURN_TYPES = ("LATENT",)
     RETURN_NAMES = ("latent",)

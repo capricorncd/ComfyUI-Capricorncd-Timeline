@@ -2,6 +2,24 @@
 
 [Back to README](../README.md) · [Timeline Editor guide](timeline-editor.md)
 
+## Add-node menu groups
+
+All nodes are grouped under `Capricorncd`. Categories only affect menu placement; node IDs, names, inputs and outputs are unchanged, so existing workflows do not need rewiring. Restart ComfyUI and refresh the frontend after updating.
+
+| Category | Contents |
+|----------|----------|
+| `Capricorncd` (root) | Timeline Editor — the main entry point |
+| `Timeline` | Data Json Clip Parser, Generate Timeline Preview |
+| `MiniMaxH3` | H3 reference conditioning, motion-context refinement, optional latent save/load, sequence sampler and audio repair |
+| `Video` | Seq To Video, Compose Clip Videos, Cap Model Preview Override |
+| `Image` | Image loading, metadata, saving and batch operations |
+| `Prompt` | Rich Prompt Input, Prompt Group, Prompt From Batch, Clip Prompt VL |
+| `Utils` | Size settings, megapixel sizing, JSON formatting, Show Anything, Join Strings, directory cleanup and Windows shutdown |
+
+`MiniMaxH3/Internal` contains the continuation, video/audio trimming and audio-joining helpers used by the expanded sequence sampler; ordinary workflows normally use the parent sampler instead.
+
+## Node reference
+
 | Node | Description | Doc |
 |------|-------------|-----|
 | **Cap Model Preview Override** | Loop-safe sampling preview adapter; requires unmodified KJNodes | [→](model-preview-override.md) · [中文](zh/model-preview-override.md) |

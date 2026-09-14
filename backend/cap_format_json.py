@@ -32,7 +32,7 @@ class CAP_FormatJson:
     RETURN_NAMES = ("formatted_json",)
     FUNCTION = "execute"
     OUTPUT_NODE = True
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Utils"
     DESCRIPTION = (
         "Format a JSON string with indentation; shows the result on the node "
         "and outputs formatted_json. Last run text is kept in the workflow so it "

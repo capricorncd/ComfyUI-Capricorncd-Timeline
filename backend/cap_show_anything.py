@@ -46,7 +46,7 @@ class CAP_ShowAnything(io.ComfyNode):
         return io.Schema(
             node_id="CAP_ShowAnything",
             display_name="Show Anything",
-            category="Capricorncd",
+            category="Capricorncd/Utils",
             description=(
                 "Display any connected value on the node (like Easy-Use Show Any). "
                 "Last shown text is stored in the workflow widgets_values so it survives "

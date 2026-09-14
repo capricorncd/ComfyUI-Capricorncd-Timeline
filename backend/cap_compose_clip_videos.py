@@ -241,7 +241,7 @@ class CAP_ComposeClipVideos:
     RETURN_NAMES = ("filename",)
     OUTPUT_NODE = True
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Video"
     DESCRIPTION = (
         "Compose data_json clip output_video files in list order into one MP4. "
         "Trim repeated motion context and explicit extends, preserving continuation tails. "

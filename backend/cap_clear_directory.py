@@ -135,7 +135,7 @@ class CAP_ClearDirectory:
     RETURN_TYPES = ("STRING", "INT")
     RETURN_NAMES = ("directory", "deleted_count")
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Utils"
     DESCRIPTION = (
         "Delete image, video, and/or audio files in a directory. "
         "Filesystem root directories are blocked. "

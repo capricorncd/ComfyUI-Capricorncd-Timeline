@@ -30,7 +30,7 @@ class CAP_ImageBatchCount:
     RETURN_TYPES = ("INT",)
     RETURN_NAMES = ("count",)
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Image"
     DESCRIPTION = "Return the number of images in an IMAGE batch."
 
     def execute(self, images):
@@ -73,7 +73,7 @@ class CAP_ImageFromBatchIndex:
     RETURN_TYPES = ("IMAGE", "INT", "STRING")
     RETURN_NAMES = ("image", "index", "filename")
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Image"
     DESCRIPTION = (
         "Return consecutive images from an IMAGE batch starting at index, "
         "along with the resolved starting index and default filename img_{index:05d}.png."

@@ -221,7 +221,7 @@ class CAP_SeqToVideo:
     RETURN_NAMES = ("filename",)
     OUTPUT_NODE = True
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Video"
     DESCRIPTION = (
         "Compose image sequence and optional audio into MP4 using ffmpeg. "
         "When save_sidecar is true, write a same-name JSON next to the video "

@@ -225,7 +225,7 @@ class CAP_MiniMaxH3ReferenceToVideo:
         "seed",
     )
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/MiniMaxH3"
     DESCRIPTION = (
         "MiniMax H3 Reference to Video using a Timeline Editor clip from data_json+index, "
         "or a self-contained clip_json (when set, data_json and index are ignored for the "
@@ -595,7 +595,7 @@ class CAP_H3MotionContextRefine:
     RETURN_TYPES = ("CONDITIONING",)
     RETURN_NAMES = ("conditioning",)
     FUNCTION = "apply"
-    CATEGORY = "conditioning/minimax"
+    CATEGORY = "Capricorncd/MiniMaxH3"
     DESCRIPTION = "Replace first-pass motion context with the previous clip's high-resolution AV latent. Wire the current upscaled AV latent and MiniMaxH3 trim_frames. Zero context bypasses; no frames are added or trimmed."
 
     def apply(self, conditioning, vae, latent, context_length, context_latent=None):
@@ -662,7 +662,7 @@ class CAP_H3MotionContextLoadLatentOptional:
     RETURN_TYPES = ("LATENT",)
     RETURN_NAMES = ("context_latent",)
     FUNCTION = "load_latent"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/MiniMaxH3"
     DESCRIPTION = (
         "Optional H3 Motion Context Load Latent. Loads only when load=True; "
         "otherwise (or if the file is missing) outputs an empty LATENT so Cap "
@@ -744,7 +744,7 @@ class CAP_H3MotionContextSaveLatentOptional:
     RETURN_NAMES = ("latent_path", "latent")
     FUNCTION = "save"
     OUTPUT_NODE = True
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/MiniMaxH3"
     DESCRIPTION = (
         "Optional H3 Motion Context Save Latent. Saves only when save=True; "
         "otherwise returns an empty path and passes the latent through. "

@@ -67,7 +67,7 @@ def read_image_metadata(path):
 
 
 class CAP_LoadImageMetadata(LoadImage):
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Image"
     RETURN_TYPES = ("IMAGE", "MASK", "STRING", "STRING", "STRING")
     RETURN_NAMES = ("image", "mask", "prompt", "description", "raw")
     OUTPUT_NODE = True

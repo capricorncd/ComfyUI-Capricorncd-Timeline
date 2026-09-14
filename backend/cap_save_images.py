@@ -83,7 +83,7 @@ class CAP_SaveImages:
     RETURN_NAMES = ("image_dir", "image_paths")
     FUNCTION = "save_images"
     OUTPUT_NODE = True
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Image"
     DESCRIPTION = (
         "Save a batch of images to disk. "
         "Relative filename_prefix is under ComfyUI output (last segment = file prefix). "

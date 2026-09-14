@@ -60,7 +60,7 @@ class CAP_LoadImagesFromDir:
     RETURN_TYPES = ("IMAGE", "STRING", "INT", "INT")
     RETURN_NAMES = ("images", "directory", "total_count", "count")
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Image"
     DESCRIPTION = (
         "Load images from a directory into an IMAGE batch. "
         "When deep is enabled, subdirectories are included. "

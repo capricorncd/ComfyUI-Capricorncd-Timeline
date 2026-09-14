@@ -33,7 +33,7 @@ class CAP_RichPromptInput:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("prompt",)
     FUNCTION = "process"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Prompt"
     DESCRIPTION = (
         "Rich prompt editor with # line comments (stripped from output), "
         "Ctrl+/ toggle, plain-text paste, and history/preset library."

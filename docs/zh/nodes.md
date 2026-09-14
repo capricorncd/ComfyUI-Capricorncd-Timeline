@@ -2,6 +2,24 @@
 
 [返回主页](../../README.zh.md) · [时间轴编辑器指南](timeline-editor.md)
 
+## 添加节点菜单分类
+
+所有节点统一位于 `Capricorncd` 下。分类仅改变菜单位置，不改变节点 ID、名称、输入输出，已有工作流无需重新连线。更新后重启 ComfyUI 并刷新页面。
+
+| 分类 | 内容 |
+|------|------|
+| `Capricorncd`（一级菜单） | 时间轴编辑器，作为主要入口直接显示 |
+| `Timeline`（时间轴） | 片段数据解析、生成时间轴预览 |
+| `MiniMaxH3` | H3 参考条件、Motion Context 二采、可选 Latent 保存/加载、连续片段采样、音频修复 |
+| `Video`（视频） | 序列帧合成视频、多段视频合成、Cap 模型预览覆盖 |
+| `Image`（图像） | 图像加载、元数据、保存与批次操作 |
+| `Prompt`（提示词） | 富文本提示词、提示词组、批次提示词提取、Clip Prompt VL |
+| `Utils`（工具） | 尺寸设置、百万像素尺寸计算、JSON 格式化、Show Anything、字符串拼接、清理目录、Windows 关机 |
+
+连续采样自动展开使用的续接、视频/音频裁剪、音频拼接辅助节点放在 `MiniMaxH3/Internal`，一般直接使用上层连续采样节点即可。
+
+## 节点说明
+
 | 节点 | 说明 | 文档 |
 |------|------|------|
 | **Cap Model Preview Override** | 支持循环与子图的采样预览封装，依赖原版 KJNodes | [→](model-preview-override.md) |

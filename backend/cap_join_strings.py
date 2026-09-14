@@ -50,7 +50,7 @@ class CAP_JoinStrings(io.ComfyNode):
         return io.Schema(
             node_id="CAP_JoinStrings",
             display_name="Join Strings",
-            category="Capricorncd",
+            category="Capricorncd/Utils",
             description=(
                 "Join a variable number of string/int/float inputs. "
                 "Slots auto-grow like Math Expression. "

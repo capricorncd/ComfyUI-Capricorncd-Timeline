@@ -123,7 +123,7 @@ class CAP_DataJsonClipParser:
         "seed",
     )
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Timeline"
     DESCRIPTION = (
         "Parse data_json from Timeline Editor and extract a clip by index. "
         "Outputs the clip audio segment, frame count, first/last keyframe images, prompt, "

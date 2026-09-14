@@ -111,7 +111,7 @@ class CAP_SizeSettings:
     RETURN_TYPES = ("INT", "INT", "INT", "FLOAT", "INT")
     RETURN_NAMES = ("width", "height", "count", "fps", "fps_int")
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Utils"
     DESCRIPTION = (
         "Output width, height, count, and fps (float + int) from size presets, "
         "scale, orientation, and optionally locked custom dimensions."
@@ -169,7 +169,7 @@ class CAP_SizeFromMegapixels:
     RETURN_TYPES = ("INT", "INT", "FLOAT", "INT")
     RETURN_NAMES = ("width", "height", "megapixels", "multiple")
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Utils"
 
     def execute(self, width: int, height: int, megapixels: float, multiple: int = 32):
         if width <= 0 or height <= 0 or multiple <= 0 or not math.isfinite(megapixels) or megapixels <= 0:

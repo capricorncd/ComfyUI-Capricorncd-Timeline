@@ -91,7 +91,7 @@ class CAP_WindowsShutdown:
 
     RETURN_TYPES = ()
     FUNCTION = "arm_shutdown"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Utils"
     OUTPUT_NODE = True
     DESCRIPTION = "必须连接 trigger。开关默认开启。默认执行到节点就登记关机；也可设置数字等于或字符串匹配条件。登记后等待工作流成功完成及整个队列清空再强制关机。"
 

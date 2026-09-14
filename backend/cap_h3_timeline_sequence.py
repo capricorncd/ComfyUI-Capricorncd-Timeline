@@ -268,7 +268,7 @@ class CAP_H3SequenceContinuation:
     RETURN_TYPES = ("MODEL", "LATENT")
     RETURN_NAMES = ("model", "latent")
     FUNCTION = "apply"
-    CATEGORY = "Capricorncd/internal"
+    CATEGORY = "Capricorncd/MiniMaxH3/Internal"
 
     def apply(self, model, latent, previous_latent, sigmas, context_frames, drift_strength, continue_audio):
         context_frames = _snap_h3_grid(context_frames)
@@ -331,7 +331,7 @@ class CAP_H3SequenceTrimVideo:
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "trim"
-    CATEGORY = "Capricorncd/internal"
+    CATEGORY = "Capricorncd/MiniMaxH3/Internal"
 
     def trim(self, images, trim_frames, keep_frames):
         start = min(max(0, int(trim_frames)), int(images.shape[0]))
@@ -353,7 +353,7 @@ class CAP_H3SequenceAudioJoin:
 
     RETURN_TYPES = ("AUDIO",)
     FUNCTION = "join"
-    CATEGORY = "Capricorncd/internal"
+    CATEGORY = "Capricorncd/MiniMaxH3/Internal"
 
     def join(self, audio1, audio2, overlap_frames, keep_frames):
         rate1 = int(audio1["sample_rate"])
@@ -404,7 +404,7 @@ class CAP_H3SequenceTrimAudio:
 
     RETURN_TYPES = ("AUDIO",)
     FUNCTION = "trim"
-    CATEGORY = "Capricorncd/internal"
+    CATEGORY = "Capricorncd/MiniMaxH3/Internal"
 
     def trim(self, audio, trim_frames, keep_frames):
         rate = int(audio["sample_rate"])
@@ -445,7 +445,7 @@ class CAP_H3TimelineSequenceSampler:
     RETURN_TYPES = ("LATENT", "IMAGE", "AUDIO", "STRING")
     RETURN_NAMES = ("last_segment_latent (continuation only)", "images", "audio", "sequence_info")
     FUNCTION = "expand_sequence"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/MiniMaxH3"
     DESCRIPTION = (
         "Expands the runnable clips in Timeline Editor data_json into one finite MiniMax H3 sampling graph. "
         "Timeline clips follow authored time ranges when present; remaining long spans are divided by max_segment_seconds. "

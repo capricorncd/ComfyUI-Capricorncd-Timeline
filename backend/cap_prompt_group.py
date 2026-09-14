@@ -119,7 +119,7 @@ class CAP_PromptGroup:
     RETURN_TYPES = ("STRING", "STRING", "STRING", "INT")
     RETURN_NAMES = ("global_prompt", "negative_prompt", "scene_prompt", "effective_length")
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Prompt"
     DESCRIPTION = (
         "Collect global, scene, and negative prompts. "
         "Optional output_scenes filters effective scene lines (1-based); "
@@ -190,7 +190,7 @@ class CAP_PromptFromBatch:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("prompt",)
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Prompt"
     DESCRIPTION = (
         "Take batch_length effective scene prompt lines starting at batch_index. "
         "When merge_global is true, prepend global_prompt."

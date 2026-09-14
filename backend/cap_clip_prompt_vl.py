@@ -1322,7 +1322,7 @@ class CAP_ClipPromptVL:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("prompt",)
     FUNCTION = "execute"
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Prompt"
     DESCRIPTION = (
         "Multimodal prompt writer (Qwen3-VL style). Attach clip stills/video plus user notes. "
         "system_prompt is fine-tuned per clip type / agent in the Timeline Editor. "

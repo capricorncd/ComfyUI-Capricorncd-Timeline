@@ -5,7 +5,7 @@ from comfy_api.latest import io
 
 
 class CAP_ModelPreviewOverride:
-    CATEGORY = "Capricorncd"
+    CATEGORY = "Capricorncd/Video"
     FUNCTION = "patch"
     RETURN_TYPES = ("MODEL",)
     RETURN_NAMES = ("model",)

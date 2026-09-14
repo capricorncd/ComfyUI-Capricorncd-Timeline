@@ -1,4 +1,8 @@
 {
+  "CAP_ModelPreviewOverride": {
+    "display_name": "Cap 模型预览覆盖",
+    "description": "依赖原版 ComfyUI-KJNodes，复用其预览引擎。将 for 循环临时节点 ID 映射回显示节点，保证后续循环更新预览；无需修改第三方插件。不改变种子或采样参数。"
+  },
   "CAP_RichPromptInput": {
     "display_name": "富文本提示词输入",
     "inputs": {

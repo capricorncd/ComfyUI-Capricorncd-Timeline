@@ -11,6 +11,7 @@ import '../js/components/TabButton.js';
 import { iconHtml } from '../js/cap_icons.js';
 import { DICT } from '../js/i18n/timeline_editor.js';
 import { previewSeedValue } from '../js/editor/PreviewSeed.js';
+import { formatTimecode } from '../js/timecode.js';
 const T = key => DICT.zh[key] || key;
 const assert = (value, message) => { if (!value) throw Error(message); };
 try {
@@ -22,13 +23,15 @@ try {
     modal.hidden = false;
     const method = name => {
         const at = source.indexOf('    ' + name + '(');
-        return new Function('T', 'iconHtml', 'app', 'previewSeedValue', 'return ({' + source.slice(at, source.indexOf('\n    }', at) + 6) + '}).' + name)(T, iconHtml, {}, previewSeedValue);
+        return new Function('T', 'iconHtml', 'app', 'previewSeedValue', 'formatTimecode', 'return ({' + source.slice(at, source.indexOf('\n    }', at) + 6) + '}).' + name)(T, iconHtml, {}, previewSeedValue, formatTimecode);
     };
     const e = {
         _aiOptimizeClipId: 'clip', _workflowQueueRemaining: 0, _pendingGeneratedJobs: [],
         _findClipById: () => ({id:'clip'}), aiOptimizeModal: modal,
         aiRunBtn: modal.querySelector('.cat-te-ai-run'), aiPreviewBtn: modal.querySelector('.cat-te-ai-preview-run'),
         aiGenerateBtn: modal.querySelector('.cat-te-ai-generate'),
+        aiClipDurationEl: modal.querySelector('.cat-te-ai-clip-duration-value'),
+        _timeline: {fps:24},
         workflowStopBtn: modal.querySelector('.cat-te-workflow-stop'),
         aiRightTabs: modal.querySelectorAll('[data-right-tab]'), aiRightPanes: modal.querySelectorAll('[data-right-pane]'),
         aiPreviewPanel: modal.querySelector('.cat-te-ai-preview'), aiPreviewStatus: modal.querySelector('.cat-te-ai-preview-status'),
@@ -38,6 +41,16 @@ try {
     };
     for (const name of ['_workflowQueueBusy', '_syncWorkflowRunButton', '_setAiOptimizeRightTab', '_showWorkflowPreview', '_renderModelPreview', '_syncPreviewSeedButton', '_previewSeedForClip']) e[name] = method(name);
     e._syncWorkflowRunButton();
+    assert(e.aiClipDurationEl.textContent === '00:00.00', 'missing duration uses zero');
+    e._findClipById = () => ({id:'clip', duration:5.5});
+    e._syncWorkflowRunButton();
+    assert(e.aiClipDurationEl.textContent === '00:05.12', 'duration uses project frame timecode');
+    e._findClipById = () => ({id:'next', duration:65});
+    e._syncWorkflowRunButton();
+    assert(e.aiClipDurationEl.textContent === '01:05.00', 'switching clip updates duration');
+    const durationBounds = e.aiClipDurationEl.parentElement.getBoundingClientRect();
+    const runBounds = e.aiRunBtn.getBoundingClientRect();
+    assert(durationBounds.right < runBounds.left, 'duration stays left of footer actions');
     e._syncAiPromptContextControls = () => {};
     e._syncAiPromptTargetControls = () => {};
     e._syncAiOptimizeNavButtons = () => {};
@@ -51,6 +64,8 @@ try {
     assert(e.aiRunBtn.getAttribute('variant') === 'primary', 'workflow run remains the primary action');
     assert(getComputedStyle(e.aiGenerateBtn.shadowRoot.querySelector('button')).backgroundColor !== getComputedStyle(e.aiRunBtn.shadowRoot.querySelector('button')).backgroundColor, 'rendered button colors differ after state updates');
     assert(e.aiRunBtn.textContent.includes('运行与预览'), 'idle label');
+    const idleRunRight = e.aiRunBtn.getBoundingClientRect().right;
+    const idleRunWidth = e.aiRunBtn.getBoundingClientRect().width;
     e._workflowQueueRemaining = 1; e._syncWorkflowRunButton();
     assert(e.aiRunBtn.textContent.includes('加入运行队列'), 'busy label');
     e._workflowQueueRemaining = 0;
@@ -62,6 +77,12 @@ try {
     e._setAiOptimizeRightTab('preview');
     assert(!modal.querySelector('[data-right-pane="preview"]').hidden, 'preview tab visible');
     assert(!e.workflowStopBtn.hidden && !e.workflowStopBtn.disabled, 'scoped stop is available');
+    const stopBounds = e.workflowStopBtn.getBoundingClientRect();
+    assert(e.workflowStopBtn.textContent.trim() === '终止任务', 'stop label is concise');
+    assert(Math.abs(stopBounds.width - idleRunWidth) < 1, 'stop matches the idle run-preview width');
+    assert(Math.abs(stopBounds.width - e.aiRunBtn.getBoundingClientRect().width) < 1, 'queue and stop remain equal width');
+    assert(Math.abs(stopBounds.right - idleRunRight) < 1, 'stop occupies the pre-run rightmost position');
+    assert(e.aiRunBtn.getBoundingClientRect().right < stopBounds.left, 'queue action stays to the left of stop');
     assert(e.workflowStopBtn.getAttribute('variant') === 'danger', 'stop uses shared delete-button styling');
     assert(getComputedStyle(e.workflowStopBtn.shadowRoot.querySelector('button')).color === 'rgb(255, 128, 128)', 'enabled stop text is red');
     assert(e.aiPreviewBtn.disabled, 'separate preview cannot overlap monitored run');

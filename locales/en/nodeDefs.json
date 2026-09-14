@@ -1,4 +1,8 @@
 {
+  "CAP_ModelPreviewOverride": {
+    "display_name": "Cap Model Preview Override",
+    "description": "Requires unmodified ComfyUI-KJNodes. Reuses its preview engine and resolves for-loop execution IDs to display nodes so later iterations keep updating. Does not change seeds or sampling settings."
+  },
   "CAP_RichPromptInput": {
     "display_name": "Rich Prompt Input",
     "inputs": {

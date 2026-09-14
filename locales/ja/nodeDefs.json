@@ -1,4 +1,8 @@
 {
+  "CAP_ModelPreviewOverride": {
+    "display_name": "Cap モデルプレビュー上書き",
+    "description": "標準の ComfyUI-KJNodes が必要です。プレビューエンジンを再利用し、for ループの一時 ID を表示ノードに対応付け、2 回目以降も更新します。KJNodes の変更は不要です。シードやサンプリング設定は変更しません。"
+  },
   "CAP_RichPromptInput": {
     "display_name": "リッチプロンプト入力",
     "inputs": {

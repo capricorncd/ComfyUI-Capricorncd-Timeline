@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Loop preview adapter</title>
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app = {registerExtension(ext) {window.previewExtension = ext}};","/scripts/api.js":"data:text/javascript,export const api = new EventTarget();"}}</script>
+<pre id="result">RUNNING</pre>
+<script type="module">
+import {app} from '/scripts/app.js';
+import {api} from '/scripts/api.js';
+import {createPreviewPlayer, findPreviewNode} from '../js/cap_model_preview.js';
+const assert = (v, message) => { if (!v) throw Error(message); };
+const wait = async predicate => {
+    for (let n = 0; n < 100; n++) {
+        if (predicate()) return;
+        await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    throw Error('Preview did not update');
+};
+try {
+    const activeUrls = new Set();
+    const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL);
+    URL.createObjectURL = blob => { const url = create(blob); activeUrls.add(url); return url; };
+    URL.revokeObjectURL = url => { activeUrls.delete(url); revoke(url); };
+    const player = createPreviewPlayer();
+    document.body.append(player.root);
+    const node = {comfyClass: 'CAP_ModelPreviewOverride', _capModelPreview: player};
+    const other = {comfyClass: 'ModelPreviewOverrideKJ'};
+    const graph = {getNodeById: id => id === 686 ? node : id === 700 ? other : null};
+    app.rootGraph = {getNodeById: id => id === 638 ? {subgraph: graph} : null};
+    assert(findPreviewNode(app.rootGraph, '638:686') === node, 'qualified node lookup');
+    assert(findPreviewNode(graph, '686') === node, 'root lookup');
+    assert(findPreviewNode(graph, '700') === null, 'do not touch upstream widgets');
+    assert(findPreviewNode(graph, '584.1.0.686') === null, 'do not guess temporary IDs');
+
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 16;
+    const ctx = canvas.getContext('2d');
+    const send = data => api.dispatchEvent(new CustomEvent('kj_preview_override', {detail: {node_id:'638:686', ...data}}));
+    let previous = null;
+    for (const [iteration, color] of ['red', 'green', 'blue'].entries()) {
+        send({step:0, total:4});
+        assert(player.root.querySelector('img') === previous || !previous, 'retain prior frame while loading');
+        ctx.fillStyle = color; ctx.fillRect(0, 0, 16, 16);
+        const image = canvas.toDataURL('image/jpeg').split(',')[1];
+        send({step:1, total:4, mime:'image/jpeg', image});
+        await wait(() => player.root.querySelector('img') !== previous);
+        previous = player.root.querySelector('img');
+        assert(previous.naturalWidth === 16, `iteration ${iteration + 1} decodes`);
+        assert(activeUrls.size === 1, 'old URLs released');
+    }
+    send({step:2, total:4, mime:'image/webp', image:canvas.toDataURL('image/webp').split(',')[1]});
+    await wait(() => player.root.querySelector('img') !== previous);
+    previous = player.root.querySelector('img');
+    // Exercise the upstream MP4 transport with a real browser-encoded clip.
+    assert(MediaRecorder.isTypeSupported('video/mp4'), 'MP4 recording support');
+    const stream = canvas.captureStream(12);
+    const recorder = new MediaRecorder(stream, {mimeType:'video/mp4'});
+    const chunks = [];
+    recorder.ondataavailable = e => chunks.push(e.data);
+    const recorded = new Promise(resolve => { recorder.onstop = resolve; });
+    recorder.start();
+    await new Promise(resolve => setTimeout(resolve, 120));
+    ctx.fillStyle = 'yellow'; ctx.fillRect(0, 0, 16, 16);
+    await new Promise(resolve => setTimeout(resolve, 180));
+    recorder.stop(); await recorded;
+    stream.getTracks().forEach(track => track.stop());
+    const bytes = new Uint8Array(await new Blob(chunks).arrayBuffer());
+    send({step:2, total:4, mime:'video/mp4', image:btoa(String.fromCharCode(...bytes))});
+    await wait(() => player.root.querySelector('video')?.videoWidth === 16);
+    previous = player.root.querySelector('video');
+    assert(previous.loop && previous.muted, 'animation loops without sound');
+    send({step:3, total:4, mime:'image/jpeg', image:btoa('invalid')});
+    await wait(() => player.root.textContent.includes('decode failed'));
+    assert(player.root.querySelector('video') === previous, 'decode error retains valid frame');
+    player.dispose();
+    assert(activeUrls.size === 0, 'dispose releases current and failed URLs');
+
+    class MockNode {
+        size = [200, 150];
+        addDOMWidget(name, type, root, options) { this.widgetRoot = root; return this.widget = {options}; }
+        computeSize() { return [300, 500]; }
+        setSize(size) { this.size = size; }
+        onRemoved() { this.removed = true; }
+    }
+    await window.previewExtension.beforeRegisterNodeDef(MockNode, {name:'CAP_ModelPreviewOverride'});
+    const mock = new MockNode(); mock.onNodeCreated();
+    assert(mock.size[1] === 500 && mock.widget.serialize === false, 'non-serialized widget expands node');
+    assert(mock.widget.computeLayoutSize().minHeight >= mock.widgetRoot.clientHeight, 'preview fits reserved height');
+    mock.onRemoved();
+    assert(mock.removed && mock._capModelPreview === null, 'removal chains existing cleanup');
+    document.querySelector('#result').textContent = 'PASS: three iterations, subgraph routing, JPEG/WebP/MP4 decode, resource cleanup, widget layout';
+} catch (error) {
+    document.querySelector('#result').textContent = 'FAIL: ' + error.stack;
+}
+</script>

@@ -141,6 +141,7 @@ assert(requests.some(r => r.options?.method === 'DELETE'));
 
 // The existing graph-to-prompt hook captures the actual graph, without overriding model settings.
 const graphResult = {output: {'6:1': {class_type: 'ModelPreviewOverrideKJ', inputs: {preview_frames: 12}},
+    '638:686': {class_type: 'CAP_ModelPreviewOverride', inputs: {preview_frames: 9}},
     '2': {class_type: 'UNETLoader', inputs: {unet_name: 'current-model.safetensors'}}}, workflow: {id: 'current'}};
 const before = JSON.stringify(graphResult);
 app.graphToPrompt = async () => graphResult;
@@ -163,7 +164,7 @@ new Function('app', 'api', 'CapTimelineEditorApp', 'previewSeedValue', 'workflow
     'return ({' + hookSource + '})._installClipRunJobHook')(app, api, Editor, previewSeedValue, workflowPreviewSeed)();
 assert.equal(await app.graphToPrompt(), graphResult);
 assert.equal(session.output, graphResult.output);
-assert.deepEqual([...session.nodeIds], ['6:1'], 'qualified subgraph node IDs are captured');
+assert.deepEqual([...session.nodeIds], ['6:1', '638:686'], 'original and Cap preview qualified node IDs are captured');
 assert.equal(JSON.stringify(graphResult), before, 'model, frame count and workflow must be unchanged');
 assert.equal(Editor._clipRunJobs.length, 0);
 const queueOptions = {previewMethod: 'auto'};

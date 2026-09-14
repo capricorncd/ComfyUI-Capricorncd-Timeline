@@ -4,6 +4,7 @@
 
 | 节点 | 说明 | 文档 |
 |------|------|------|
+| **Cap Model Preview Override** | 支持循环与子图的采样预览封装，依赖原版 KJNodes | [→](model-preview-override.md) |
 | **Timeline Editor** | 全屏多轨编辑器；生成视频预览/禁音；导出 → 合成视频；`swap_wh`；输出 `data_json` 与 `frame_seq_dir` | [→](timeline-editor.md) |
 | **Rich Prompt Input** | 带实时语法高亮、`#` 注释与历史/预设的提示词编辑器 | [→](prompt-input.md) |
 | **Prompt Group** | 全局 / 场景 / 负面提示词输入；统计场景提示词有效条数 | [→](prompt-group.md) |

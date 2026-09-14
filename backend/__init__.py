@@ -83,6 +83,10 @@ from .cap_timeline_preview import (
     NODE_CLASS_MAPPINGS as _CTP_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _CTP_NAMES,
 )
+from .cap_model_preview import (
+    NODE_CLASS_MAPPINGS as _MPO_CLASS,
+    NODE_DISPLAY_NAME_MAPPINGS as _MPO_NAMES,
+)
 from .cap_h3_timeline_sequence import (
     NODE_CLASS_MAPPINGS as _HTS_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _HTS_NAMES,
@@ -127,6 +131,7 @@ NODE_CLASS_MAPPINGS = {
     **_CPG_CLASS,
     **_CMH_CLASS,
     **_CTP_CLASS,
+    **_MPO_CLASS,
     **_HTS_CLASS,
     **_H3FAR_CLASS,
     **_CVP_CLASS,
@@ -151,6 +156,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **_CPG_NAMES,
     **_CMH_NAMES,
     **_CTP_NAMES,
+    **_MPO_NAMES,
     **_HTS_NAMES,
     **_H3FAR_NAMES,
     **_CVP_NAMES,

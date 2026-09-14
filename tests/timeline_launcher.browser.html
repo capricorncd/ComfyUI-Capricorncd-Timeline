@@ -7,13 +7,15 @@
 <script type="module">
 import {iconHtml} from '../js/cap_icons.js';
 import {DICT} from '../js/i18n/timeline_editor.js';
+import {app} from '/scripts/app.js';
+import {bindCanvasWheelPassthrough} from '../js/cap_canvas_wheel.js';
 const assert = (value, message) => { if (!value) throw Error(message); };
 try {
     const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
     const start = source.indexOf('    _buildLauncher() {');
     const body = source.slice(start, source.indexOf('\n    }', start) + 6);
     for (const lang of ['en', 'zh', 'ja']) {
-        for (const width of [360, 600]) {
+        for (const width of [240, 280, 300, 360, 600]) {
             let opened = 0, selected = 0;
             const node = {
                 size: [width, 280],
@@ -21,10 +23,11 @@ try {
                 computeSize() { return [360, 260 + this.widget.computeLayoutSize().minHeight]; },
                 setSize(size) { this.size = size; },
             };
-            const launcher = new Function('T', 'iconHtml', 'return ({' + body + '})._buildLauncher')(key => DICT[lang][key], iconHtml);
+            const launcher = new Function('T', 'iconHtml', 'bindCanvasWheelPassthrough', 'return ({' + body + '})._buildLauncher')(key => DICT[lang][key], iconHtml, bindCanvasWheelPassthrough);
             launcher.call({node, open() { opened++; }});
             const allocation = node.options.getHeight();
             assert(allocation === node.widget.computeLayoutSize().minHeight, 'canvas and layout heights match');
+            assert(node.widget.computeLayoutSize().minWidth === 0, 'launcher does not impose a node width');
             assert(node.size[0] === width && node.size[1] >= 260 + allocation, 'fits content without shrinking node');
             const holder = document.createElement('div');
             holder.style.cssText = `width:${width - 20}px;height:${allocation - 20}px;background:#333;margin:10px`;
@@ -33,15 +36,30 @@ try {
             const rootBounds = node.root.getBoundingClientRect();
             const button = node.root.querySelector('.cat-te-open-btn');
             const buttonBounds = button.getBoundingClientRect();
+            assert(buttonBounds.left >= rootBounds.left && buttonBounds.right <= rootBounds.right, 'button fits the narrowed node');
             const hintBounds = node.root.querySelector('.cat-te-launcher-hint').getBoundingClientRect();
+            assert(buttonBounds.top - rootBounds.top >= 24, lang + ': space above button');
             assert(rootBounds.bottom - buttonBounds.bottom >= 20, lang + ': space below button');
             assert(rootBounds.bottom - hintBounds.bottom >= 13, lang + ': hint not clipped');
             button.click();
             assert(opened === 1 && selected === 0, 'launcher opens without selecting node');
+            const wheels = [];
+            let bubbled = 0;
+            app.canvas = { processMouseWheel(event) { wheels.push(event); } };
+            holder.addEventListener('wheel', () => bubbled++);
+            for (const target of [button, button.querySelector('span'), node.root.querySelector('.cat-te-launcher-hint'), node.root]) {
+                for (const deltaY of [-120, 120]) {
+                    const event = new WheelEvent('wheel', {deltaY, clientX: 80, clientY: 100, bubbles: true, cancelable: true});
+                    const before = wheels.length;
+                    target.dispatchEvent(event);
+                    assert(wheels.length === before + 1 && wheels.at(-1) === event, 'wheel forwarded to canvas exactly once without changing coordinates or delta');
+                    assert(event.defaultPrevented && bubbled === 0, 'no browser scroll or duplicate wheel handling');
+                }
+            }
             assert(node.widget.serialize === false, 'launcher is not serialized');
         }
     }
-    document.querySelector('#result').textContent = 'PASS: launcher spacing at two widths in EN/ZH/JA, sizing and click behavior';
+    document.querySelector('#result').textContent = 'PASS: launcher spacing at 240/280/300/360/600px in EN/ZH/JA, no width clamp, sizing, click behavior and canvas wheel passthrough';
 } catch (error) {
     document.querySelector('#result').textContent = 'FAIL: ' + error.stack;
 }

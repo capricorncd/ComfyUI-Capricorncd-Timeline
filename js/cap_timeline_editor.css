@@ -2615,7 +2615,7 @@ body.cat-te-media-dnd-over-tl {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
-    padding: 8px 5px 14px;
+    padding: 24px 5px 14px;
     height: 100%;
     width: 100%;
     max-width: 100%;

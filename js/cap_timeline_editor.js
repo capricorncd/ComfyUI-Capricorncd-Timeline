@@ -537,7 +537,7 @@ app.registerExtension({
     async nodeCreated(node) {
         if (node.comfyClass !== NODE_CLASS) return;
         markNoSerialize(node);
-        node.setSize([360, 280]);
+        node.setSize([300, 280]);
         const te = ensureTimelineApp(node);
         hookScalarWidgets(node);
         te._syncScalarsToProjectJson();

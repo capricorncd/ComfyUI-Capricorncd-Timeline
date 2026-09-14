@@ -29,6 +29,7 @@ import { parseTimecode, formatTimecode, frameIndexFromSecs, encodeClipTimingMs, 
 import { attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror } from "./rich_prompt.js";
 import { loadExtensionCss, showCapConfirm } from "./cap_ui.js";
 import { iconHtml } from "./cap_icons.js";
+import { bindCanvasWheelPassthrough } from "./cap_canvas_wheel.js";
 import { bindDialogDrag, bindDialogResize, resetDialogPosition } from "./components/Dialog.js";
 import { t as T } from "./i18n/timeline_editor.js";
 
@@ -933,6 +934,7 @@ export class CapTimelineEditorApp {
     _buildLauncher() {
         const root = document.createElement("div");
         root.className = "cat-te-launcher";
+        bindCanvasWheelPassthrough(root);
         root.innerHTML = `
           <button type="button" class="cat-te-open-btn">${iconHtml("timelineBrand", 20)}<span>${T("launcher_open_btn")}</span></button>
           <div class="cat-te-launcher-hint">${T("launcher_hint")}</div>
@@ -953,11 +955,11 @@ export class CapTimelineEditorApp {
         });
         const w = this.node.addDOMWidget("te_launcher", "timeline_editor", root, {
             margin: 10,
-            getMinHeight: () => 120,
-            getHeight: () => 120,
+            getMinHeight: () => 136,
+            getHeight: () => 136,
         });
         w.serialize = false;
-        w.computeLayoutSize = () => ({ minHeight: 120, maxHeight: 120, minWidth: 360 });
+        w.computeLayoutSize = () => ({ minHeight: 136, maxHeight: 136, minWidth: 0 });
         // DomWidgets: size = (widget.width ?? node.width) - margin*2.
         // Keep width unset so a stale widget.width cannot outgrow the node.
         Object.defineProperty(w, "width", {
@@ -968,7 +970,7 @@ export class CapTimelineEditorApp {
         });
         this.launcherWidget = w;
         this.node.setSize([
-            Math.max(360, this.node.size[0]),
+            this.node.size[0],
             Math.max(this.node.size[1], this.node.computeSize()[1]),
         ]);
     }

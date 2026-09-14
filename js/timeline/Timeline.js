@@ -412,7 +412,7 @@ export class Timeline extends EventEmitter {
     this._onKey = (e) => {
       if (this._keyboardSuspended) return;
       if (e.target.closest?.('cap-dialog')) return;
-      if (e.target.closest?.('cap-button, cap-tab-button, cap-dropdown-button')) return;
+      if (e.code !== 'Space' && e.target.closest?.('cap-button, cap-tab-button, cap-dropdown-button')) return;
       if (isEditingField(e)) return;
       switch (e.code) {
         case 'Space':

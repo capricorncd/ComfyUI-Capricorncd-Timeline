@@ -11,6 +11,7 @@ export class DropdownButton extends HTMLElement {
             <style>
                 :host { display: inline-flex; vertical-align: middle; }
                 :host([hidden]) { display: none; }
+                :host([hide-caret]) .caret { display: none; }
                 .caret {
                     width: 0; height: 0; flex-shrink: 0;
                     border-left: 3px solid transparent; border-right: 3px solid transparent;

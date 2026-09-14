@@ -16830,6 +16830,7 @@ export class CapTimelineEditorApp {
         tl.toolbarEl.appendChild(this.runMenuBtn);
         tl.toolbarEl.appendChild(this.editModeBtn);
         const moreBtn = document.createElement("cap-dropdown-button");
+        moreBtn.setAttribute("hide-caret", "");
         moreBtn.className = "tl-btn-more";
         moreBtn.innerHTML = iconHtml("ellipsisVertical", 16);
         moreBtn.title = T("timeline_more");

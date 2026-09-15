@@ -24,6 +24,7 @@ export class Timeline extends EventEmitter {
     this._container = typeof container === 'string'
       ? document.querySelector(container)
       : container;
+    this._endSeekScrub = null;
 
     if (!this._container) throw new Error('Timeline: container not found');
 
@@ -1019,14 +1020,46 @@ export class Timeline extends EventEmitter {
   _beginSeekScrub(e) {
     if (e.button !== 0) return;
     e.preventDefault();
-    this._seekFromEvent(e);
-    const onMove = (ev) => this._seekFromEvent(ev);
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+    this._endSeekScrub?.();
+    let clientX = e.clientX, raf = 0, previousTime = null;
+    const scroll = this.scrollEl;
+    const seek = () => {
+      const left = scroll.getBoundingClientRect().left;
+      const insetLeft = scroll.scrollLeft > 0 ? 8 : 0;
+      const insetRight = scroll.scrollLeft < scroll.scrollWidth - scroll.clientWidth ? 8 : 0;
+      const x = clamp(clientX, left + insetLeft, left + scroll.clientWidth - insetRight);
+      this._seekFromEvent({clientX: x});
     };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    const tick = time => {
+      raf = 0;
+      const elapsed = previousTime == null ? 1 / 60 : Math.min(0.05, (time - previousTime) / 1000);
+      previousTime = time;
+      const left = scroll.getBoundingClientRect().left;
+      const right = left + scroll.clientWidth;
+      const speed = clientX < left + 24 ? -Math.min(720, (left + 24 - clientX) * 20)
+        : clientX > right - 24 ? Math.min(720, (clientX - right + 24) * 20) : 0;
+      if (!speed) { previousTime = null; return; }
+      const maxScroll = Math.max(0, Math.min(scroll.scrollWidth - scroll.clientWidth,
+        this._seekMaxTime() * this.pixelsPerSecond - scroll.clientWidth + 8));
+      const before = scroll.scrollLeft;
+      scroll.scrollLeft = clamp(before + speed * elapsed, 0, maxScroll);
+      if (scroll.scrollLeft !== before) {
+        seek();
+        raf = requestAnimationFrame(tick);
+      } else previousTime = null;
+    };
+    const finish = bindDragSession(e, {onMove: ev => {
+      clientX = ev.clientX;
+      seek();
+      if (!raf) raf = requestAnimationFrame(tick);
+    }, onEnd: () => {
+      if (raf) cancelAnimationFrame(raf);
+      this._endSeekScrub = null;
+      window.removeEventListener('blur', finish);
+    }});
+    this._endSeekScrub = finish;
+    window.addEventListener('blur', finish);
+    this._seekFromEvent(e);
   }
 
   setCurrentTime(time, opts = {}) {
@@ -1034,7 +1067,7 @@ export class Timeline extends EventEmitter {
     this._playhead.update();
     this._timeEl.textContent = this.formatTime(this.currentTime);
 
-    if (this._playing) {
+    if (this._playing && !this._endSeekScrub) {
       const x = this.currentTime * this.pixelsPerSecond;
       const sl = this.scrollEl.scrollLeft;
       const vw = this.scrollEl.clientWidth;
@@ -1106,6 +1139,7 @@ export class Timeline extends EventEmitter {
   // ─── destroy ──────────────────────────────────────────────────────────────
 
   destroy() {
+    this._endSeekScrub?.();
     this.pause();
     this._hideSnapGuide();
     window.removeEventListener('keydown', this._onKey, true);

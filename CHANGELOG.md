@@ -1,5 +1,21 @@
 # Release notes / 更新记录
 
+## 0.17.17 — 2026-09-16
+
+### English
+
+- Add compact MiniMax H3 video generation with per-Clip saving, built-in previews, optional second-pass sampling and audio processing, and final batch composition.
+- Connect H3 sampling previews to Prompt Manager and automatically associate completed Clip videos.
+- Add boundary snapping and alignment guides when moving multiple selected Clips.
+- Auto-scroll horizontally while dragging the playhead or scrubbing the ruler near viewport edges; stop on release, window blur or timeline teardown.
+
+### 简体中文
+
+- 新增精简 MiniMax H3 视频生成节点，支持逐 Clip 保存、内置预览、可选二采与音频处理，以及整批最终合成。
+- H3 采样预览接入提示词管理，片段完成后自动关联生成视频。
+- 多选 Clip 整体移动支持边界吸附与对齐虚线。
+- 拖动播放头或刻度尺到可视边缘时自动横向滚动；松开、窗口失焦或销毁时间轴时停止。
+
 ## 0.16.0 — 2026-09-09
 
 Project schema remains **4**. Existing projects migrate on load; new optional fields do not require a schema bump.

@@ -20,21 +20,7 @@ export class PlayHead {
     head.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
       e.stopPropagation();
-      const tl = this.timeline;
-
-      const onMove = (e) => {
-        const rect = tl.scrollEl.getBoundingClientRect();
-        const x = e.clientX - rect.left + tl.scrollEl.scrollLeft;
-        tl.setCurrentTime(tl._snapSeekToClipEdges(Math.max(0, x / tl.pixelsPerSecond)));
-      };
-
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-      };
-
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+      this.timeline._beginSeekScrub(e);
     });
 
     return el;

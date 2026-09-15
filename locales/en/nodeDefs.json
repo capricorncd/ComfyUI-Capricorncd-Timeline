@@ -642,6 +642,50 @@
       }
     }
   },
+  "CAP_H3VideoGenerator": {
+    "display_name": "MiniMax H3 Video Generator",
+    "outputs": {
+      "composed_video": { "name": "Composed video" }
+    },
+    "inputs": {
+      "first_pass_megapixels": {
+        "name": "First-pass megapixels",
+        "tooltip": "Only used with second sampling. Sets the low-resolution first pass; final size comes from data_json. Without second sampling, ignored: generate directly at data_json width/height."
+      },
+      "model": {
+        "name": "Sampling model (LoRA applied)",
+        "tooltip": "Connect the externally LoRA-patched model for both video passes and previews. No internal LoRA loading."
+      },
+      "base_model": {
+        "name": "Base model (optional)",
+        "tooltip": "Used for audio repair and the base schedule when connected. Otherwise both reuse the incoming sampling model with its LoRAs preserved."
+      },
+      "audio_refine": {
+        "name": "Repair audio",
+        "tooltip": "Run the extra audio repair pass. Automatically skipped when Generate video audio is off."
+      },
+      "generate_audio": {
+        "name": "Generate video audio",
+        "tooltip": "Off skips audio repair, decoding, normalization and audio encoding; Clip and final videos are silent. H3 still jointly samples audio latents and retains audio references."
+      },
+      "compose_final": {
+        "name": "Compose final video",
+        "tooltip": "After all Clips finish, join their generated videos with original audio using data_json context replacement and trim rules. Does not render editor subtitle/media tracks."
+      },
+      "sampling_preview": {
+        "name": "Sampling preview",
+        "tooltip": "Show each Clip's sampling animation, then its completed video. Frame count is automatic. Requires KJNodes; no external preview node needed. Disable to run without KJNodes."
+      },
+      "preview_tiny_vae": {
+        "name": "Preview Tiny VAE",
+        "tooltip": "Select installed taeh3.safetensors from models/vae_approx for H3 RGB previews. none uses approximate colors. Completed videos use the full VAE."
+      },
+      "strict_keyframes": {
+        "name": "Strict first/last frames",
+        "tooltip": "Off: multimodal references or text-to-video. On: one image = first frame; two ordered images = first/last, using native keyframe conditioning (not pixel-exact enforcement). No video/audio references or Motion Context. Select a compatible FL model and LoRA manually."
+      }
+    }
+  },
   "CAP_MiniMaxH3ReferenceToVideo": {
     "display_name": "MiniMaxH3",
     "inputs": {
@@ -675,6 +719,10 @@
       "context_latent": {
         "name": "Context Latent",
         "tooltip": "Preferred: previous sampler AV latent. If missing, Cap MiniMaxH3 pins from the previous clip output_video tail (frames+audio) when h3_motion_context_length > 0. Needs clip-specified filenames and that file on disk. Keep data_json+index wired even with clip_json."
+      },
+      "strict_keyframes": {
+        "name": "Strict first/last frames",
+        "tooltip": "Off: multimodal references or text-to-video. On: one image = first frame; two ordered images = first/last, using native keyframe conditioning (not pixel-exact enforcement). No video/audio references or Motion Context. Select a compatible FL model and LoRA manually."
       }
     },
     "outputs": {

@@ -642,6 +642,50 @@
       }
     }
   },
+  "CAP_H3VideoGenerator": {
+    "display_name": "MiniMax H3 動画生成",
+    "outputs": {
+      "composed_video": { "name": "結合動画" }
+    },
+    "inputs": {
+      "first_pass_megapixels": {
+        "name": "一次サンプリングのメガピクセル",
+        "tooltip": "二次サンプリング時のみ有効。一次の低解像度を指定し、最終サイズは data_json に従います。二次がオフの場合は無視し、data_json の幅・高さで直接生成します。"
+      },
+      "model": {
+        "name": "サンプリングモデル（LoRA 適用済み）",
+        "tooltip": "外部で LoRA を適用したモデルを接続。動画の一次・二次サンプリングとプレビューに使用。内部で LoRA は読み込みません。"
+      },
+      "base_model": {
+        "name": "ベースモデル（任意）",
+        "tooltip": "接続時は音声修復と基本スケジュールに使用。未接続なら入力サンプリングモデルを LoRA 適用状態のまま両方に使用します。"
+      },
+      "audio_refine": {
+        "name": "音声を修復",
+        "tooltip": "追加の音声修復を実行します。動画音声の生成がオフの場合は自動でスキップします。"
+      },
+      "generate_audio": {
+        "name": "動画音声を生成",
+        "tooltip": "オフ：音声修復・デコード・音量正規化・音声出力を省略し、無音動画を保存。H3 の音声 latent の共同サンプリングと音声参照は維持します。"
+      },
+      "compose_final": {
+        "name": "最終動画を結合",
+        "tooltip": "全 Clip の完了後、data_json の Context 置換とトリミング規則で原音付き動画を結合。字幕・メディアトラックの描画は含みません。"
+      },
+      "sampling_preview": {
+        "name": "サンプリングプレビュー",
+        "tooltip": "各 Clip のサンプリング動画を表示し、完了後に生成動画へ切り替えます。フレーム数は自動取得。KJNodes が必要ですが、外部プレビューノードは不要です。"
+      },
+      "preview_tiny_vae": {
+        "name": "プレビュー Tiny VAE",
+        "tooltip": "models/vae_approx の taeh3.safetensors を選択できます。none は近似色で表示。完成動画は完全な VAE でデコードします。"
+      },
+      "strict_keyframes": {
+        "name": "開始・終了フレームを固定",
+        "tooltip": "オフ：複数画像・動画・音声の参照生成。オン：画像1枚を開始、2枚を開始・終了フレームの条件として使用。画素の完全一致は保証しません。動画・音声参照や Motion Context との併用不可。対応する FL モデルと LoRA を選択してください。"
+      }
+    }
+  },
   "CAP_MiniMaxH3ReferenceToVideo": {
     "display_name": "MiniMaxH3",
     "inputs": {
@@ -675,6 +719,10 @@
       "context_latent": {
         "name": "Context Latent",
         "tooltip": "優先: 前クリップの sampler AV latent。無い場合、h3_motion_context_length > 0 なら前クリップ output_video の末尾フレーム+音声でピン留め。Clip 指定ファイル名が必要で、ファイルが既にあること。clip_json 利用時も data_json と index を残すこと。"
+      },
+      "strict_keyframes": {
+        "name": "開始・終了フレームを固定",
+        "tooltip": "オフ：複数画像・動画・音声の参照生成。オン：画像1枚を開始、2枚を開始・終了フレームの条件として使用。画素の完全一致は保証しません。動画・音声参照や Motion Context との併用不可。対応する FL モデルと LoRA を選択してください。"
       }
     },
     "outputs": {

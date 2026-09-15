@@ -52,6 +52,13 @@ export function workflowPreviewSeed(graph, clipId, previewNodeIds) {
     const seeds = [];
     for (const [id, node] of Object.entries(graph)) {
         const inputs = node.inputs || {};
+        if (node.class_type === "CAP_H3VideoGenerator") {
+            const upstream = modelAncestors(id);
+            if ([...previewNodeIds].some(key => upstream.has(key))) {
+                seeds.push(previewSeedValue(timelineClip(inputs.data_json)?.seed));
+            }
+            continue;
+        }
         if (!/Sampler/.test(node.class_type) || !("noise" in inputs || "seed" in inputs || "noise_seed" in inputs)) continue;
         const upstream = modelAncestors(id);
         if (![...previewNodeIds].some(key => upstream.has(key))) continue;

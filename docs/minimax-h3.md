@@ -1,5 +1,7 @@
 # MiniMaxH3
 
+Optional `strict_keyframes` defaults to false (existing multimodal reference mode). True uses native first/last-frame conditioning: one image = first, two ordered images = first/last; rejects video/audio references and Motion Context. Use a compatible FL model/LoRA. For the new compact generation node and limitations, see [MiniMax H3 Video Generator](h3-video-generator.md).
+
 ## Continuous-shot context replacement
 
 An adjacent preceding clip with `save_latent` prefers 22 context frames when the next setting is zero; positive settings prefer their H3-grid value. After padding, `previous.raw_frames - context_frames` must fall inside the previous visible source interval `[previous.context_frames + previous.head_frames, previous.raw_frames - previous.tail_frames)`. If not, the closest valid `17k+5` value is selected (for example 5 or 39). If none fits, generation reports an error instead of cropping outside the clip or shifting storyboard boundaries. The effective value is written to `h3_motion_context_length` and `h3_timing.context_frames`; `requested_context_frames` retains the requested value.

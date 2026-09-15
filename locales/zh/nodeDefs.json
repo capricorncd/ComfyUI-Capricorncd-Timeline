@@ -642,6 +642,91 @@
       }
     }
   },
+  "CAP_H3VideoGenerator": {
+    "display_name": "MiniMax H3 视频生成",
+    "inputs": {
+      "compose_final": {
+        "name": "合成最终视频",
+        "tooltip": "默认开启。全部片段完成后，按时间轴 data_json 的 Context 替换和首尾裁剪规则拼接，保留生成视频原声。不渲染编辑器的字幕及媒体轨道。"
+      },
+      "sampling_preview": {
+        "name": "采样动态预览",
+        "tooltip": "默认开启。底部显示当前 Clip 的采样动图，完成后自动切换为视频。自动获取各 Clip 实际帧数，无需外接预览节点。需要 KJNodes；关闭后不依赖它。"
+      },
+      "preview_tiny_vae": {
+        "name": "预览 Tiny VAE",
+        "tooltip": "可选择 models/vae_approx 中的 taeh3.safetensors；none 使用近似颜色预览。完成视频仍使用完整视频 VAE 解码。"
+      },
+      "model": {
+        "name": "采样模型（已加载 LoRA）",
+        "tooltip": "连接外部已加载加速/风格 LoRA 的模型，用于一采、二采与预览。本节点不再加载 LoRA。"
+      },
+      "base_model": {
+        "name": "基础模型（可选）",
+        "tooltip": "连接时用于音频修复和基础采样日程；未连接时，两者均复用输入的采样模型，保留已加载的 LoRA。"
+      },
+      "clip": {
+        "name": "文本编码器 CLIP"
+      },
+      "vae": {
+        "name": "视频 VAE"
+      },
+      "audio_vae": {
+        "name": "音频 VAE"
+      },
+      "data_json": {
+        "name": "时间轴数据"
+      },
+      "steps": {
+        "name": "采样步数"
+      },
+      "strict_keyframes": {
+        "name": "严格首尾帧",
+        "tooltip": "关闭：多图/视频/音频参考或文生视频；开启：1 张图作为首帧，2 张按顺序作为首尾帧，使用原生关键帧约束（不是逐像素保证）。不接受视频/音频参考，不与 Motion Context 同用；请自行选择匹配的 FL 模型和 LoRA。"
+      },
+      "second_sampling": {
+        "name": "二次采样"
+      },
+      "first_pass_megapixels": {
+        "name": "一采百万像素",
+        "tooltip": "仅开启二次采样时生效：控制一采尺寸，再放大到 data_json 的工程尺寸。关闭二采时忽略此项，直接使用 data_json 的宽高。"
+      },
+      "upscaler_model": {
+        "name": "Latent 放大模型"
+      },
+      "refine_sigmas": {
+        "name": "二采 Sigmas"
+      },
+      "audio_refine": {
+        "name": "修复音频",
+        "tooltip": "额外执行音频修复采样。关闭「生成视频音频」时，本项自动跳过，不要求安装音频修复依赖。"
+      },
+      "generate_audio": {
+        "name": "生成视频音频",
+        "tooltip": "默认开启。关闭后跳过音频修复、解码、响度处理及音轨写入，片段和合成结果均为无声视频，适合 MV。H3 联合采样中的音频 latent 仍参与计算；音频参考仍保留。"
+      },
+      "audio_refine_steps": {
+        "name": "音频修复步数"
+      },
+      "normalize_audio": {
+        "name": "响度归一化（-14 LUFS）"
+      },
+      "attention": {
+        "name": "注意力后端"
+      }
+    },
+    "outputs": {
+      "composed_video": {
+        "name": "最终合成视频"
+      },
+      "video_files": {
+        "name": "视频文件列表"
+      },
+      "data_json": {
+        "name": "更新后的时间轴数据"
+      }
+    }
+  },
   "CAP_MiniMaxH3ReferenceToVideo": {
     "display_name": "MiniMaxH3",
     "inputs": {
@@ -675,6 +760,10 @@
       "context_latent": {
         "name": "Context Latent",
         "tooltip": "优先：上一段 sampler 的 AV latent。缺失时，若本段 h3_motion_context_length > 0，则从上一段 output_video 截取尾部画面+音频钉住。需开启 Clip 指定文件名且文件已生成。即使用 clip_json，也请保留 data_json 与 index 以便定位上一段。"
+      },
+      "strict_keyframes": {
+        "name": "严格首尾帧",
+        "tooltip": "关闭：多图/视频/音频参考或文生视频；开启：1 张图作为首帧，2 张按顺序作为首尾帧，使用原生关键帧约束（不是逐像素保证）。不接受视频/音频参考，不与 Motion Context 同用；请自行选择匹配的 FL 模型和 LoRA。"
       }
     },
     "outputs": {

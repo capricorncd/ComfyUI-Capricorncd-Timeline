@@ -44,6 +44,7 @@ const editor = {
     _clearRunPreview() {}, _syncClipRunDecorations() {},
 };
 const run = method('_runClipDownstream');
+editor._queueClipsDownstream = method('_queueClipsDownstream');
 assert.equal(await run.call(editor, clips[1]), true);
 assert.equal(submissions.length, 1, 'one queue submission for the entire Save Latent chain');
 assert.deepEqual(JSON.parse(submissions[0].output.timeline.inputs.project_json).settings.runtime_only_clip_ids,
@@ -53,6 +54,19 @@ assert.deepEqual(editor._pendingGeneratedJobs.map(j => [j.clipId, j.promptId, j.
     clips.map(c => [c.id, 'prompt-1', `${c.id}.mp4`]));
 assert.equal(editor._runtimeOnlyClipIds, null);
 assert.equal(CapTimelineEditorApp._clipRunJobs.length, 0);
+
+const batchRun = method('_runAllActiveClipsDownstream');
+editor._hasH3VideoGeneratorDownstream = () => true;
+editor._listActiveVisualClips = () => clips;
+editor._pendingGeneratedJobs = [];
+await batchRun.call(editor);
+assert.equal(submissions.length, 2, 'H3 run-all adds one task, not one task per Clip');
+assert.deepEqual(JSON.parse(submissions[1].output.timeline.inputs.project_json).settings.runtime_only_clip_ids,
+    ['first', 'second', 'third']);
+assert.deepEqual(editor._pendingGeneratedJobs.map(j => [j.clipId, j.promptId]),
+    clips.map(c => [c.id, 'prompt-2']));
+assert.equal(editor._runAllClipsBusy, false);
+submissions.pop();
 
 editor._pendingGeneratedJobs = [];
 choice = 'single';
@@ -74,4 +88,24 @@ assert.equal(errors.length, 1);
 assert.equal(editor._pendingGeneratedJobs.length, 0);
 assert.equal(editor._runtimeOnlyClipIds, null);
 assert.equal(CapTimelineEditorApp._clipRunJobs.length, 0);
+await batchRun.call(editor);
+assert.equal(editor._runAllClipsBusy, false, 'failed H3 batch unlocks run-all');
+assert.equal(editor._pendingGeneratedJobs.length, 0);
+
+const graphNodes = new Map();
+const links = new Map();
+const graph = {getLink: id => links.get(id), getNodeById: id => graphNodes.get(id)};
+const timeline = {graph, outputs: [{name: 'data_json', links: [1]}]};
+const reroute = {graph, outputs: [{links: [2, 3]}]};
+const generator = {graph, comfyClass: 'CAP_H3VideoGenerator', inputs: [{name: 'data_json'}]};
+graphNodes.set(2, reroute);
+graphNodes.set(3, generator);
+links.set(1, {target_id: 2, target_slot: 0});
+links.set(2, {target_id: 2, target_slot: 0}); // Cycle must not hang the traversal.
+const hasGenerator = method('_hasH3VideoGeneratorDownstream');
+assert(!hasGenerator.call({node: timeline}), 'unconnected H3 node does not change legacy queue behavior');
+links.set(3, {target_id: 3, target_slot: 0});
+assert(hasGenerator.call({node: timeline}), 'recognize a generator reached through data routing');
+generator.inputs[0].name = 'model';
+assert(!hasGenerator.call({node: timeline}), 'only the data_json connection owns batch generation');
 console.log('Related clips: one serialized workflow, shared prompt tracking, single/cancel/validation/failure passed');

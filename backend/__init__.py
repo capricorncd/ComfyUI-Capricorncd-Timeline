@@ -97,6 +97,10 @@ from .cap_h3_fast_audio_refine import (
     NODE_CLASS_MAPPINGS as _H3FAR_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _H3FAR_NAMES,
 )
+from .cap_h3_video_generator import (
+    NODE_CLASS_MAPPINGS as _H3VG_CLASS,
+    NODE_DISPLAY_NAME_MAPPINGS as _H3VG_NAMES,
+)
 from .cap_clip_prompt_vl import (
     NODE_CLASS_MAPPINGS as _CVP_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _CVP_NAMES,
@@ -136,6 +140,7 @@ NODE_CLASS_MAPPINGS = {
     **_MPO_CLASS,
     **_HTS_CLASS,
     **_H3FAR_CLASS,
+    **_H3VG_CLASS,
     **_CVP_CLASS,
     "CAP_JoinStrings": CAP_JoinStrings,
 }
@@ -161,6 +166,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **_MPO_NAMES,
     **_HTS_NAMES,
     **_H3FAR_NAMES,
+    **_H3VG_NAMES,
     **_CVP_NAMES,
     "CAP_JoinStrings": "Join Strings",
 }

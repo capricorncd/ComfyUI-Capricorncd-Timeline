@@ -2078,6 +2078,28 @@ export class CapTimelineEditorApp {
         }
     }
 
+    _hasH3VideoGeneratorDownstream() {
+        const pending = [this.node];
+        const visited = new Set();
+        while (pending.length) {
+            const node = pending.pop();
+            if (!node || visited.has(node)) continue;
+            visited.add(node);
+            for (const output of node.outputs || []) {
+                if (node === this.node && output.name !== "data_json") continue;
+                for (const id of output.links || []) {
+                    const link = node.graph?.getLink(id);
+                    const target = link && node.graph.getNodeById(link.target_id);
+                    if (!target) continue;
+                    if (target.comfyClass === "CAP_H3VideoGenerator"
+                        && target.inputs?.[link.target_slot]?.name === "data_json") return true;
+                    pending.push(target);
+                }
+            }
+        }
+        return false;
+    }
+
     async _runAllActiveClipsDownstream({ withoutGenerated = false, clips: requestedClips = null } = {}) {
         const clips = Array.isArray(requestedClips)
             ? requestedClips
@@ -2095,6 +2117,15 @@ export class CapTimelineEditorApp {
         }
         if (this._runAllClipsBusy) return;
         this._runAllClipsBusy = true;
+
+        if (this._hasH3VideoGeneratorDownstream()) {
+            try {
+                await this._queueClipsDownstream(clips);
+            } finally {
+                this._runAllClipsBusy = false;
+            }
+            return;
+        }
 
         const stamp = this._useClipSpecifiedVideoFilename !== false
             ? this._makeGenVideoStamp()
@@ -2300,7 +2331,8 @@ export class CapTimelineEditorApp {
                     }
                     job.workflowPreview.output = result.output;
                     job.workflowPreview.nodeIds = new Set(Object.entries(result.output || {})
-                        .filter(([, node]) => ["ModelPreviewOverrideKJ", "CAP_ModelPreviewOverride"].includes(node.class_type)).map(([id]) => id));
+                        .filter(([, node]) => ["ModelPreviewOverrideKJ", "CAP_ModelPreviewOverride"].includes(node.class_type)
+                            || (node.class_type === "CAP_H3VideoGenerator" && node.inputs?.sampling_preview !== false)).map(([id]) => id));
                     job.workflowPreview.seed = workflowPreviewSeed(result.output || {}, String(job.clipId), job.workflowPreview.nodeIds);
                     previewRequests.set(result.output, {editor, session: job.workflowPreview});
                 }
@@ -2362,18 +2394,21 @@ export class CapTimelineEditorApp {
     }
 
     _teNotifyBelongsHere(clipId, file) {
+        const n = normalizeOutputVideoPath(file);
+        const project = this._parseProjectWidgetValue().project;
+        const sourceProject = n?.match(/^CapTimelineEditor\/([^/]+)\//i)?.[1];
+        if (sourceProject && sourceProject !== this._safeProjectFilename(project?.name || T("untitled_project"))) {
+            return false;
+        }
         const id = String(clipId || "").trim();
         if (id) {
             if (this._findClipById(id)) return true;
             if (this._pendingGeneratedJobs.some((j) => String(j.clipId) === id)) return true;
+            return (project?.tracks || []).some(track => (track.clips || []).some(clip => String(clip.id) === id));
         }
-        const n = normalizeOutputVideoPath(file);
         if (!n) return false;
-        const prefix = `CapTimelineEditor/${this._safeProjectFilename()}/`;
-        if (n.startsWith(prefix)) return true;
-        const expected = normalizeOutputVideoPath(file);
         return this._pendingGeneratedJobs.some(
-            (j) => j.expectedFile && normalizeOutputVideoPath(j.expectedFile) === expected,
+            (j) => j.expectedFile && normalizeOutputVideoPath(j.expectedFile) === n,
         );
     }
 
@@ -6928,6 +6963,8 @@ export class CapTimelineEditorApp {
         this._onQueueStatus = (e) => this._onQueueStatusEvent(e);
         this._onTeClipRunning = (e) => this._onTimelineClipRunning(e);
         this._onTeVideoSaved = (e) => this._onTimelineVideoSaved(e);
+        this._onH3VideoReady = (e) => this._onH3ClipVideoReady(e);
+        this._onH3PreviewStarted = (e) => void this._onH3WorkflowPreviewStarted(e);
         this._onKjPreviewOverride = (e) => this._onKjPreviewOverrideEvent(e);
         this._onTimelinePreview = (e) => this._onTimelinePreviewEvent(e);
         api.addEventListener("executed", this._onExecuted);
@@ -6940,6 +6977,8 @@ export class CapTimelineEditorApp {
         api.addEventListener("status", this._onQueueStatus);
         api.addEventListener("cat_te_clip_running", this._onTeClipRunning);
         api.addEventListener("cat_te_video_saved", this._onTeVideoSaved);
+        api.addEventListener("cat_h3_video_ready", this._onH3VideoReady);
+        api.addEventListener("cat_h3_preview_started", this._onH3PreviewStarted);
         api.addEventListener("kj_preview_override", this._onKjPreviewOverride);
         api.addEventListener("cap_timeline_preview", this._onTimelinePreview);
     }
@@ -6957,6 +6996,8 @@ export class CapTimelineEditorApp {
         api.removeEventListener?.("status", this._onQueueStatus);
         api.removeEventListener?.("cat_te_clip_running", this._onTeClipRunning);
         api.removeEventListener?.("cat_te_video_saved", this._onTeVideoSaved);
+        api.removeEventListener?.("cat_h3_video_ready", this._onH3VideoReady);
+        api.removeEventListener?.("cat_h3_preview_started", this._onH3PreviewStarted);
         api.removeEventListener?.("kj_preview_override", this._onKjPreviewOverride);
         api.removeEventListener?.("cap_timeline_preview", this._onTimelinePreview);
         if (this._queueReconcileTimer) {
@@ -6972,6 +7013,8 @@ export class CapTimelineEditorApp {
         this._onQueueStatus = null;
         this._onTeClipRunning = null;
         this._onTeVideoSaved = null;
+        this._onH3VideoReady = null;
+        this._onH3PreviewStarted = null;
         this._onKjPreviewOverride = null;
         this._onTimelinePreview = null;
     }
@@ -7227,9 +7270,19 @@ export class CapTimelineEditorApp {
         this._syncClipRunDecorations();
     }
 
-    /**
-     * Seq To Video finished one file — attach immediately (do not wait for prompt success).
-     */
+    _onH3ClipVideoReady(e) {
+        const video = e?.detail?.video;
+        // The final composition has no clip_id and must not become a Clip take.
+        if (!video?.clip_id || video.type !== "output") return;
+        this._onTimelineVideoSaved({ detail: {
+            ...e.detail,
+            clip_id: video.clip_id,
+            filename: video.filename,
+            subfolder: video.subfolder,
+        } });
+    }
+
+    /** Attach each saved Clip immediately, before the next Clip or final composition. */
     _onTimelineVideoSaved(e) {
         if (this._destroyed || !this._isNodeOnLiveGraph()) return;
         const d = e?.detail;
@@ -7439,10 +7492,27 @@ export class CapTimelineEditorApp {
         return true;
     }
 
+    async _onH3WorkflowPreviewStarted(e) {
+        if (this._destroyed || !this._isNodeOnLiveGraph()) return;
+        const session = this._workflowPreview;
+        const d = e?.detail;
+        if (!session?.active || String(d?.clip_id) !== session.clipId || !d.preview_id
+            || !session.nodeIds.has(String(d.node_id))
+            || session.output?.[d.node_id]?.class_type !== "CAP_H3VideoGenerator") return;
+        const promptId = this._promptIdFromEvent(e);
+        await this._bindWorkflowPreviewPrompt(promptId);
+        if (this._workflowPreview !== session || !session.active || !promptId || session.promptId !== promptId) return;
+        session.h3PreviewIds ??= new Map();
+        session.h3PreviewIds.set(String(d.node_id), String(d.preview_id));
+        // Discard an in-flight frame from a previous internal preview stream.
+        session.sequence++;
+    }
+
     async _receiveWorkflowPreview(d, mime) {
         const session = this._workflowPreview;
         if (!session?.active || !session.promptId || session.promptId !== this._runningPromptId
-            || session.clipId !== String(this._runningClipId) || !session.nodeIds.has(String(d.node_id))
+            || session.clipId !== String(this._runningClipId)
+            || !(session.nodeIds.has(String(d.node_id)) || [...(session.h3PreviewIds?.values() || [])].includes(String(d.node_id)))
             || !["image/jpeg", "image/webp", "video/mp4"].includes(mime)) return;
         const sequence = ++session.sequence;
         const path = `/audio_keyframe_timeline/preview_image/${session.imageId}?frame=${sequence}`;
@@ -8099,6 +8169,10 @@ export class CapTimelineEditorApp {
                 return;
             }
             if (typeof value !== "object") return;
+            if (Array.isArray(value.clip_videos)) {
+                walk(value.clip_videos, depth + 1);
+                return;
+            }
             const type = String(value.type || value.location || "output").toLowerCase();
             const name = value.filename || value.file;
             if (name) {
@@ -8122,6 +8196,13 @@ export class CapTimelineEditorApp {
                 ...preview,
                 prompt_id: this._promptIdFromEvent(e),
             } });
+            return;
+        }
+        const clipVideos = e?.detail?.output?.clip_videos;
+        if (Array.isArray(clipVideos)) {
+            for (const video of clipVideos) {
+                this._onH3ClipVideoReady({ detail: { ...e.detail, video } });
+            }
             return;
         }
         const files = this._collectExecutedOutputVideos(e?.detail);
@@ -15979,6 +16060,10 @@ export class CapTimelineEditorApp {
             return;
         }
 
+        return this._queueClipsDownstream(clips, workflowPreview);
+    }
+
+    async _queueClipsDownstream(clips, workflowPreview = null) {
         CapTimelineEditorApp._installClipRunJobHook();
         let expectedFile = null;
         let stamp = null;

@@ -22,6 +22,7 @@ All nodes are grouped under `Capricorncd`. Categories only affect menu placement
 
 | Node | Description | Doc |
 |------|-------------|-----|
+| **MiniMax H3 Video Generator** | Runtime Clips → saved video list; 4/8 steps, optional upscale/refine, strict endpoints or multimodal references | [→](h3-video-generator.md) · [中文](zh/h3-video-generator.md) |
 | **Cap Model Preview Override** | Loop-safe sampling preview adapter; requires unmodified KJNodes | [→](model-preview-override.md) · [中文](zh/model-preview-override.md) |
 | **Timeline Editor** | Fullscreen multi-track editor; generated-video preview/mute; Export → Compose Video; `swap_wh`; outputs `data_json` and `frame_seq_dir` | [→](timeline-editor.md) · [中文](zh/timeline-editor.md) |
 | **Rich Prompt Input** | Prompt editor with live syntax highlighting, `#` comments, and history/presets | [→](prompt-input.md) · [中文](zh/prompt-input.md) |

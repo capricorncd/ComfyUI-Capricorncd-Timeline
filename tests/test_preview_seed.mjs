@@ -13,6 +13,13 @@ const graph = {
     sample: {class_type: 'SamplerCustomAdvanced', inputs: {noise: ['noise', 0], guider: ['guider', 0]}},
 };
 const resolve = () => workflowPreviewSeed(graph, 'c', new Set(['preview']));
+const compactGraph = {
+    timeline: graph.timeline, preview: graph.preview,
+    generator: {class_type: 'CAP_H3VideoGenerator', inputs: {model: ['preview', 0], data_json: ['timeline', 3]}},
+};
+assert.equal(workflowPreviewSeed(compactGraph, 'c', new Set(['preview'])), 123);
+assert.equal(workflowPreviewSeed(compactGraph, 'other', new Set(['preview'])), null);
+assert.equal(workflowPreviewSeed(compactGraph, 'c', new Set(['unrelated'])), null);
 assert.equal(resolve(), 123, 'resolve actual submitted H3 seed through parser and scoped timeline');
 graph.noise.inputs.noise_seed = ['parser', 19];
 assert.equal(resolve(), 123);

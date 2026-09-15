@@ -1,5 +1,7 @@
 # MiniMaxH3
 
+新增可选「严格首尾帧」，默认关闭，保持多模态参考模式。开启后使用原生首尾帧条件：1 张图作首帧，2 张按顺序作首尾帧；不接受视频/音频参考，不与 Motion Context 同用。请自行选择匹配的 FL 模型/LoRA。精简生成节点及限制见 [MiniMax H3 视频生成](h3-video-generator.md)。
+
 ## 一镜到底的 Context 拼接
 
 同轨相邻上一段启用 `save_latent` 时，下一段未设置 Context（0）优先使用 22 帧；正数优先按指定值对齐 H3 网格。以补齐后的原始帧数计算 `替换起点 = 上一段 raw_frames - context_frames`，起点必须位于上一段可见源区间 `[context_frames + head_frames, raw_frames - tail_frames)` 内。首尾延展和补齐尾帧也计入判断；优先值不合适时选择距离最近的合法 `17k+5` 帧数，例如 5 或 39。若无合法值则提示调整时长或延展，不越界裁剪、不移动分镜边界。最终采用值写入 `h3_motion_context_length` 和 `h3_timing.context_frames`，原请求值记录为 `h3_timing.requested_context_frames`。

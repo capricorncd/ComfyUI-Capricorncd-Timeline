@@ -9,7 +9,7 @@ import torch
 
 import nodes
 from comfy_api.latest._input_impl.video_types import VideoFromFile
-from comfy_extras.nodes_minimax_h3 import FPS as H3_FPS, MiniMaxH3ReferenceToVideo, align_frame_count
+from comfy_extras.nodes_minimax_h3 import FPS as H3_FPS, MiniMaxH3ImageToVideo, MiniMaxH3ReferenceToVideo, align_frame_count
 
 from .cap_data_json_parser import CAP_DataJsonClipParser
 from .cap_timeline_project_io import _resolve_output_file
@@ -215,6 +215,10 @@ class CAP_MiniMaxH3ReferenceToVideo:
                         "Wire Decode -> H3 Motion Context Trim with trim_frames."
                     ),
                 }),
+                "strict_keyframes": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "False: text / image / video / audio reference generation. True: native first/last-frame conditioning; use one image for the first frame or two ordered images for first and last. No video/audio references or Motion Context. Select a compatible FL model and LoRA yourself; keyframes are model constraints, not a pixel-exact guarantee.",
+                }),
             },
         }
 
@@ -245,8 +249,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
 
     @classmethod
     def IS_CHANGED(cls, clip, vae, audio_vae, width, height, ref_image_size,
-                   data_json, index, clip_json="", context_latent=None):
-        return (data_json, index, clip_json, width, height, ref_image_size)
+                   data_json, index, clip_json="", context_latent=None, strict_keyframes=False):
+        return (data_json, index, clip_json, width, height, ref_image_size, strict_keyframes)
 
     def _parse_clip(self, data_json: str, index: int):
         try:
@@ -387,7 +391,7 @@ class CAP_MiniMaxH3ReferenceToVideo:
         return torch.cat(aligned, dim=0)
 
     def execute(self, clip, vae, audio_vae, width, height, ref_image_size,
-                data_json, index, clip_json="", context_latent=None):
+                data_json, index, clip_json="", context_latent=None, strict_keyframes=False):
         if str(clip_json or "").strip():
             data, clip_row, materials, parser = self._parse_clip_json(clip_json)
         else:
@@ -413,6 +417,11 @@ class CAP_MiniMaxH3ReferenceToVideo:
             if abs(float(timing["fps"]) - fps) > 0.01:
                 raise ValueError("Cap MiniMaxH3: fps changed after the generation timing was planned. Run Timeline Editor again.")
             pin = int(timing["context_frames"])
+
+        if strict_keyframes and pin:
+            raise ValueError("Strict first/last frames cannot be combined with Motion Context. Disable strict_keyframes for a continuous chain.")
+        if strict_keyframes and clip_row.get("audios"):
+            raise ValueError("Strict first/last frames accepts only one or two images, not audio references.")
 
         use_context = False
         context_frames = None
@@ -461,8 +470,12 @@ class CAP_MiniMaxH3ReferenceToVideo:
         for ref in self._visual_refs(clip_row, parser):
             path, row = self._material_for_ref(ref, materials, parser)
             if not path or not os.path.isfile(path):
+                if strict_keyframes:
+                    raise ValueError("Strict first/last frame image is missing or unreadable.")
                 continue
             kind = _kind_of(row, path)
+            if strict_keyframes and (kind != "image" or len(image_frames) >= 2):
+                raise ValueError("Strict first/last frames requires one or two ordered images only. Use reference mode for other materials.")
             if kind == "video":
                 if len(ref_videos) >= MAX_REF_VIDEOS:
                     continue
@@ -479,6 +492,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 continue
             img = parser._load_image(path)
             if img is None:
+                if strict_keyframes:
+                    raise ValueError("Strict first/last frame image could not be decoded.")
                 continue
             n = len(ref_images) + 1
             ref_images[f"ref_image_{n}"] = img
@@ -518,13 +533,22 @@ class CAP_MiniMaxH3ReferenceToVideo:
         images_out = self._stack_frames(image_frames, blank)
         videos_out = self._stack_frames(video_frames, blank)
 
-        out = MiniMaxH3ReferenceToVideo.execute(
-            clip, vae, audio_vae, prompt, width, height, length, ref_image_size,
-            ref_images=ref_images or None,
-            ref_videos=ref_videos or None,
-            ref_video_audios=ref_video_audios or None,
-            ref_audios=ref_audios or None,
-        )
+        if strict_keyframes:
+            if not image_frames:
+                raise ValueError("Strict first/last frames needs at least one image. Disable strict_keyframes for text-to-video.")
+            out = MiniMaxH3ImageToVideo.execute(
+                clip, vae, prompt, width, height, length,
+                first_frame=image_frames[0],
+                last_frame=image_frames[1] if len(image_frames) == 2 else None,
+            )
+        else:
+            out = MiniMaxH3ReferenceToVideo.execute(
+                clip, vae, audio_vae, prompt, width, height, length, ref_image_size,
+                ref_images=ref_images or None,
+                ref_videos=ref_videos or None,
+                ref_video_audios=ref_video_audios or None,
+                ref_audios=ref_audios or None,
+            )
         positive, latent = out.args
         trim_frames = 0
 

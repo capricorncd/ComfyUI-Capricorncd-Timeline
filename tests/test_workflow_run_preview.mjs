@@ -35,6 +35,8 @@ function editor() {
     const e = {
         _workflowQueueRemaining: null, _pendingGeneratedJobs: [], _workflowRunSubmitting: false,
         _workflowPreview: null, _aiOptimizeClipId: clip.id, _aiOptimizeRightTab: 'ai',
+        _isNodeOnLiveGraph: () => true,
+        _promptIdFromEvent: event => event.detail.prompt_id,
         aiOptimizeModal: {hidden: false}, aiRunBtn: {}, aiPreviewBtn: {}, workflowStopBtn: {},
         _findClipById: id => id === clip.id ? clip : null,
         _onPromptManagerSourceInput() { this.saved = true; },
@@ -49,7 +51,7 @@ function editor() {
     };
     for (const name of ['_workflowQueueBusy', '_syncWorkflowRunButton', '_refreshWorkflowQueue',
         '_runPromptManagerWorkflow', '_bindWorkflowPreviewPrompt', '_setWorkflowPreviewPrompt', '_showWorkflowPreview',
-        '_receiveWorkflowPreview', '_finishWorkflowPreview', '_clearWorkflowPreview', '_stopWorkflowPreview', '_b64ToBlob']) {
+        '_receiveWorkflowPreview', '_onH3WorkflowPreviewStarted', '_finishWorkflowPreview', '_clearWorkflowPreview', '_stopWorkflowPreview', '_b64ToBlob']) {
         e[name] = method(name);
     }
     return e;
@@ -122,6 +124,39 @@ count = requests.length;
 await e._receiveWorkflowPreview({node_id: '6:1', image: 'aGVsbG8='}, 'image/jpeg');
 assert.equal(requests.length, count, 'late frames cannot replace final video');
 
+const h3 = editor();
+h3._runningClipId = 'selected'; h3._runningPromptId = 'h3-run';
+h3._aiOptimizeRightTab = 'preview';
+h3._workflowPreview = {clipId: 'selected', active: true, promptId: 'h3-run',
+    nodeIds: new Set(['638:769']), imageId: 'h3-preview', sequence: 0,
+    output: {'638:769': {class_type: 'CAP_H3VideoGenerator'}}};
+const startH3 = (id, clip = 'selected', prompt = 'h3-run') => h3._onH3WorkflowPreviewStarted({detail: {
+    node_id: '638:769', preview_id: id, clip_id: clip, prompt_id: prompt,
+}});
+const sendH3 = (id, mime = 'image/jpeg', step = 0) => h3._receiveWorkflowPreview({node_id: id, image: 'aGVsbG8=', step, total: 8}, mime);
+count = requests.length;
+await startH3('638:769::h3:foreign_0', 'other');
+await startH3('638:769::h3:foreign_0', 'selected', 'foreign');
+await sendH3('638:769::h3:foreign_0');
+assert.equal(requests.length, count, 'other Clip or task cannot bind an internal stream');
+await startH3('638:769::h3:run_0');
+await sendH3('638:769::h3:run_0');
+assert.equal(h3.rendered.entry.mime, 'image/jpeg', 'initial noise reaches Prompt Manager');
+await sendH3('638:769::h3:run_0', 'video/mp4', 8);
+assert.equal(h3.rendered.entry.mime, 'video/mp4', 'first pass animation reaches Prompt Manager');
+await sendH3('638:769::h3:run_0', 'image/webp', 1);
+assert.equal(h3.rendered.entry.mime, 'image/webp', 'second pass can replace the first pass');
+await startH3('638:769::h3:next_0');
+count = requests.length;
+await sendH3('638:769::h3:run_0');
+assert.equal(requests.length, count, 'retired internal preview IDs cannot replace the current stream');
+await sendH3('638:769::h3:next_0');
+h3._finishWorkflowPreview('complete', 'clip.mp4');
+count = requests.length;
+await sendH3('638:769::h3:next_0');
+assert.equal(requests.length, count);
+assert.equal(h3.rendered.entry.url, '/view/clip.mp4');
+
 session.active = true;
 await e._stopWorkflowPreview();
 assert.deepEqual(stopped, ['owned']);
@@ -142,6 +177,8 @@ assert(requests.some(r => r.options?.method === 'DELETE'));
 // The existing graph-to-prompt hook captures the actual graph, without overriding model settings.
 const graphResult = {output: {'6:1': {class_type: 'ModelPreviewOverrideKJ', inputs: {preview_frames: 12}},
     '638:686': {class_type: 'CAP_ModelPreviewOverride', inputs: {preview_frames: 9}},
+    '638:769': {class_type: 'CAP_H3VideoGenerator', inputs: {sampling_preview: true}},
+    '770': {class_type: 'CAP_H3VideoGenerator', inputs: {sampling_preview: false}},
     '2': {class_type: 'UNETLoader', inputs: {unet_name: 'current-model.safetensors'}}}, workflow: {id: 'current'}};
 const before = JSON.stringify(graphResult);
 app.graphToPrompt = async () => graphResult;
@@ -164,7 +201,7 @@ new Function('app', 'api', 'CapTimelineEditorApp', 'previewSeedValue', 'workflow
     'return ({' + hookSource + '})._installClipRunJobHook')(app, api, Editor, previewSeedValue, workflowPreviewSeed)();
 assert.equal(await app.graphToPrompt(), graphResult);
 assert.equal(session.output, graphResult.output);
-assert.deepEqual([...session.nodeIds], ['6:1', '638:686'], 'original and Cap preview qualified node IDs are captured');
+assert.deepEqual([...session.nodeIds], ['6:1', '638:686', '638:769'], 'capture enabled built-in H3 previews alongside standalone preview nodes');
 assert.equal(JSON.stringify(graphResult), before, 'model, frame count and workflow must be unchanged');
 assert.equal(Editor._clipRunJobs.length, 0);
 const queueOptions = {previewMethod: 'auto'};

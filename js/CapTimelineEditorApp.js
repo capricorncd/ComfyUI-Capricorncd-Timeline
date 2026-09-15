@@ -109,6 +109,7 @@ const OUTPUT_VIDEOS_TIME_RANGES = [
     { id: "4h", get label() { return T("time_range_4h"); }, hours: 4 },
     { id: "1d", get label() { return T("time_range_1d"); }, hours: 24 },
     { id: "older", get label() { return T("time_range_older"); }, hours: 24 },
+    { id: "custom", get label() { return T("time_range_custom"); } },
 ];
 const MEDIA_LIBRARY_TABS = [
     { id: "image", get label() { return T("media_kind_image"); } },
@@ -848,6 +849,7 @@ export class CapTimelineEditorApp {
         this._outputVideosCache = [];
         this._outputPickerKind = "video";
         this._outputVideosTimeRange = OUTPUT_VIDEOS_TIME_RANGES[0].id;
+        this._outputVideosSortAscending = false;
         this._outputVideosThumbIo = null;
         this._outputVideoHoverEl = null;
         this._outputVideoHoverVideo = null;
@@ -3930,15 +3932,23 @@ export class CapTimelineEditorApp {
               <div class="cat-te-output-videos-toolbar">
                 <div class="cat-te-output-videos-toolbar-row">
                   <input class="cat-te-output-videos-filter" type="search" placeholder="${T("filter_filename_placeholder")}" />
+                  <cap-button class="cat-te-output-videos-select-file">${T("select_video_file_btn")}</cap-button>
                   <cap-button class="cat-te-output-videos-auto-link" title="${T("auto_associate_videos_title")}">${T("auto_associate_videos_btn")}</cap-button>
                 </div>
                 <div class="cat-te-output-videos-time-filter">
                   ${OUTPUT_VIDEOS_TIME_RANGES.map((r) => `
                     <cap-button class="cat-te-output-videos-time-btn${r.id === "1h" ? " is-active" : ""}" aria-pressed="${r.id === "1h"}" data-range="${r.id}">${r.label}</cap-button>
                   `).join("")}
+                  <div class="cat-te-output-videos-date-range" hidden>
+                    <cap-button shape="square" class="cat-te-output-videos-day" data-day="-1" title="${T("time_range_previous_day")}" aria-label="${T("time_range_previous_day")}">${iconHtml("chevronLeft", 16)}</cap-button>
+                    <input class="cat-te-output-videos-date" type="date" aria-label="${T("time_range_custom")}" />
+                    <cap-button shape="square" class="cat-te-output-videos-day" data-day="1" title="${T("time_range_next_day")}" aria-label="${T("time_range_next_day")}">${iconHtml("chevronRight", 16)}</cap-button>
+                  </div>
+                  <cap-button shape="square" class="cat-te-output-videos-sort" aria-pressed="false" title="${T("output_sort_newest")}" aria-label="${T("output_sort_newest")}">${iconHtml("clockArrowDown", 16)}</cap-button>
                 </div>
               </div>
               <div class="cat-te-output-videos-body"></div>
+              <div slot="footer">${T("clip_duration_label")} <span class="cat-te-output-videos-clip-duration">00:00.00</span></div>
           </cap-dialog>
           <cap-dialog class="cat-te-compose-modal" close-label="${T("close_title")}">
             <span slot="title">${T("compose_video_title")}</span>
@@ -4671,8 +4681,13 @@ export class CapTimelineEditorApp {
         this.outputVideosBody = el.querySelector(".cat-te-output-videos-body");
         this.outputVideosFilter = el.querySelector(".cat-te-output-videos-filter");
         this.outputVideosAutoLinkBtn = el.querySelector(".cat-te-output-videos-auto-link");
+        this.outputVideosSelectFileBtn = el.querySelector(".cat-te-output-videos-select-file");
+        this.outputVideosSortBtn = el.querySelector(".cat-te-output-videos-sort");
         this.outputVideosTimeButtons = el.querySelectorAll(".cat-te-output-videos-time-btn");
+        this.outputVideosDateRange = el.querySelector(".cat-te-output-videos-date-range");
+        this.outputVideosDate = el.querySelector(".cat-te-output-videos-date");
         this.outputVideosTitle = el.querySelector(".cat-te-output-videos-title");
+        this.outputVideosClipDuration = el.querySelector(".cat-te-output-videos-clip-duration");
         this.composeModal = el.querySelector(".cat-te-compose-modal");
         this.composeRange = el.querySelector(".cat-te-compose-range");
         this.composeVideoCheck = el.querySelector(".cat-te-compose-video-enabled");
@@ -5168,6 +5183,22 @@ export class CapTimelineEditorApp {
         this.outputVideosModal.addEventListener("close", () => this._closeOutputVideosPicker());
         this.outputVideosFilter?.addEventListener("input", () => this._renderOutputVideosPicker());
         this.outputVideosAutoLinkBtn?.addEventListener("click", () => void this._autoAssociateOutputMedia());
+        this.outputVideosSelectFileBtn?.addEventListener("click", () => this._selectOutputVideoFile());
+        this.outputVideosSortBtn?.addEventListener("click", () => {
+            this._outputVideosSortAscending = !this._outputVideosSortAscending;
+            this.outputVideosSortBtn.innerHTML = iconHtml(this._outputVideosSortAscending ? "clockArrowUp" : "clockArrowDown", 16);
+            this.outputVideosSortBtn.title = T(this._outputVideosSortAscending ? "output_sort_oldest" : "output_sort_newest");
+            this.outputVideosSortBtn.setAttribute("aria-label", this.outputVideosSortBtn.title);
+            this.outputVideosSortBtn.setAttribute("aria-pressed", String(this._outputVideosSortAscending));
+            this._renderOutputVideosPicker();
+        });
+        this.outputVideosDate?.addEventListener("change", () => this._renderOutputVideosPicker());
+        el.querySelectorAll(".cat-te-output-videos-day").forEach(btn => {
+            btn.addEventListener("click", () => {
+                this._shiftOutputVideoDate(Number(btn.dataset.day));
+                this._renderOutputVideosPicker();
+            });
+        });
         this.outputVideosTimeButtons?.forEach((btn) => {
             btn.addEventListener("click", () => {
                 this._outputVideosTimeRange = btn.dataset.range;
@@ -10651,6 +10682,7 @@ export class CapTimelineEditorApp {
             if (kind === "audio") this.outputVideosModal.showModal();
             else this.outputVideosModal.show();
             if (this.outputVideosFilter) this.outputVideosFilter.value = "";
+            this._shiftOutputVideoDate(0);
             this._outputVideosTimeRange = OUTPUT_VIDEOS_TIME_RANGES[0].id;
             this.outputVideosTimeButtons?.forEach(b => {
                 const active = b.dataset.range === this._outputVideosTimeRange;
@@ -10689,6 +10721,7 @@ export class CapTimelineEditorApp {
 
     _syncOutputPickerChrome() {
         const isAudio = this._outputPickerKind === "audio";
+        if (this.outputVideosSelectFileBtn) this.outputVideosSelectFileBtn.hidden = isAudio;
         if (this.outputVideosAutoLinkBtn) {
             this.outputVideosAutoLinkBtn.textContent = isAudio
                 ? T("auto_associate_audios_btn")
@@ -10699,6 +10732,42 @@ export class CapTimelineEditorApp {
         }
     }
 
+    _selectOutputVideoFile() {
+        const clip = this._findClipById(this._outputVideosClipId);
+        const btn = this.outputVideosSelectFileBtn;
+        if (btn?.disabled || this._outputPickerKind === "audio" || !this._isOutputPickerClip(clip, "video")) return;
+        const timeline = this._timeline;
+        const meta = this._meta;
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".mp4,.webm,.mov,.mkv,.avi,.m4v";
+        input.addEventListener("change", async () => {
+            const file = input.files?.[0];
+            if (!file || btn.disabled) return;
+            btn.disabled = true;
+            btn.textContent = T("importing_status", { n: 1 });
+            try {
+                const form = new FormData();
+                form.append("file", file, file.name);
+                const response = await fetch(api.apiURL("/audio_keyframe_timeline/import_output_video"), { method: "POST", body: form });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.error || T("upload_asset_failed", { filename: file.name }));
+                if (this._timeline !== timeline || this._meta !== meta || this._findClipById(clip.id) !== clip) return;
+                this._addGeneratedVideosToClip(clip, [data.file]);
+                if (this.outputVideosModal?.open && this._outputPickerKind === "video") {
+                    this._outputVideosCache = [data, ...this._outputVideosCache.filter(row => row.file !== data.file)];
+                    this._renderOutputVideosPicker();
+                }
+            } catch (error) {
+                alert(T("upload_asset_failed", { filename: file.name }) + "\n" + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = T("select_video_file_btn");
+            }
+        }, { once: true });
+        input.click();
+    }
+
     _syncOutputVideosPickerTitle(clip = null) {
         if (!this.outputVideosTitle) return;
         const target = clip || this._findClipById(this._outputVideosClipId);
@@ -10707,6 +10776,9 @@ export class CapTimelineEditorApp {
             ? T("linked_generated_audios_title")
             : T("linked_generated_videos_title");
         this.outputVideosTitle.textContent = name ? `${base} · ${name}` : base;
+        if (this.outputVideosClipDuration) {
+            this.outputVideosClipDuration.textContent = formatTimecode((Number(target?.duration) || 0) * 1000, this._timeline?.fps || 24);
+        }
     }
 
     _bindModalInteractions() {
@@ -11261,6 +11333,15 @@ export class CapTimelineEditorApp {
         });
     }
 
+    _shiftOutputVideoDate(days) {
+        if (!this.outputVideosDate) return;
+        const date = days && this.outputVideosDate.value
+            ? new Date(`${this.outputVideosDate.value}T00:00:00`)
+            : new Date();
+        date.setDate(date.getDate() + days);
+        this.outputVideosDate.value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    }
+
     _renderOutputVideosPicker() {
         if (!this.outputVideosBody) return;
         this._hideOutputVideoHoverPreview();
@@ -11277,23 +11358,40 @@ export class CapTimelineEditorApp {
         );
         const q = String(this.outputVideosFilter?.value || "").trim().toLowerCase();
         const range = OUTPUT_VIDEOS_TIME_RANGES.find((r) => r.id === this._outputVideosTimeRange) || OUTPUT_VIDEOS_TIME_RANGES[0];
-        const cutoff = Date.now() / 1000 - range.hours * 3600;
+        const custom = range.id === "custom";
+        if (this.outputVideosDateRange) this.outputVideosDateRange.hidden = !custom;
+        const selectedDate = this.outputVideosDate?.value || "";
+        const missingDate = custom && !selectedDate;
+        const cutoff = custom
+            ? new Date(`${selectedDate}T00:00:00`).getTime() / 1000
+            : Date.now() / 1000 - range.hours * 3600;
+        let end = Infinity;
+        if (custom && selectedDate) {
+            const nextDay = new Date(`${selectedDate}T00:00:00`);
+            nextDay.setDate(nextDay.getDate() + 1);
+            end = nextDay.getTime() / 1000;
+        }
         const rows = this._outputVideosCache.filter((row) => {
             const mtime = Number(row?.mtime);
             if (!Number.isFinite(mtime)) return false;
-            if (range.id === "older" ? mtime >= cutoff : mtime < cutoff) return false;
+            if (missingDate) return false;
+            if (range.id === "older" ? mtime >= cutoff : mtime < cutoff || mtime >= end) return false;
             return !q || String(row?.file || "").toLowerCase().includes(q);
         });
+        rows.sort((a, b) => this._outputVideosSortAscending ? a.mtime - b.mtime : b.mtime - a.mtime);
         this.outputVideosBody.replaceChildren();
         if (!rows.length) {
             const empty = document.createElement("div");
             empty.className = "cat-te-output-videos-empty";
-            empty.textContent = this._outputVideosCache.length
+            empty.textContent = missingDate ? T("time_range_select_date") : this._outputVideosCache.length
                 ? T(isAudio ? "no_matching_audios" : "no_matching_videos")
                 : T(isAudio ? "no_audios_in_output_dir" : "no_videos_in_output_dir");
             this.outputVideosBody.appendChild(empty);
             return;
         }
+        const durationText = seconds => Number.isFinite(seconds) && seconds > 0
+            ? T("output_video_duration", { seconds: seconds.toFixed(2) })
+            : T("output_video_duration_unknown");
         const io = isAudio ? null : new IntersectionObserver((entries) => {
             for (const entry of entries) {
                 if (!entry.isIntersecting) continue;
@@ -11304,6 +11402,15 @@ export class CapTimelineEditorApp {
                 void this._getOutputVideoThumbnail(file).then((url) => {
                     if (url && thumb.isConnected) thumb.src = url;
                 });
+                const row = rows.find(row => row.file === file);
+                const duration = thumb.closest(".cat-te-output-video-row")?.querySelector(".cat-te-output-video-duration");
+                if (row && duration) {
+                    row.durationPromise ??= this._probeOutputVideoDuration(file).catch(() => null);
+                    void row.durationPromise.then(seconds => {
+                        row.duration_sec = seconds;
+                        if (duration.isConnected) duration.textContent = durationText(seconds);
+                    });
+                }
             }
         }, { root: this.outputVideosBody, rootMargin: "120px 0px" });
         this._outputVideosThumbIo = io;
@@ -11351,7 +11458,16 @@ export class CapTimelineEditorApp {
             const tag = document.createElement("span");
             tag.className = "cat-te-output-video-tag";
             tag.textContent = added ? T("added_tag") : T("add_btn");
-            item.append(thumbWrap, name, tag);
+            const info = document.createElement("div");
+            info.className = "cat-te-output-video-info";
+            info.appendChild(name);
+            if (!isAudio) {
+                const duration = document.createElement("div");
+                duration.className = "cat-te-output-video-duration";
+                duration.textContent = row.duration_sec === undefined ? T("loading_ellipsis") : durationText(row.duration_sec);
+                info.appendChild(duration);
+            }
+            item.append(thumbWrap, info, tag);
             if (!added) {
                 const add = () => {
                     const target = this._findClipById(this._outputVideosClipId);
@@ -17192,6 +17308,7 @@ export class CapTimelineEditorApp {
         this.clipVideosList?.replaceChildren();
     }
     _updateClipInfoPanel(clip) {
+        if (this.outputVideosModal?.open && this._outputVideosClipId === clip?.id) this._syncOutputVideosPickerTitle(clip);
         if (!clip) {
             this._clearClipInfoPanel();
             return;

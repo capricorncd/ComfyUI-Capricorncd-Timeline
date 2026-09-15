@@ -4,11 +4,13 @@
 
 import asyncio
 import base64
+import filecmp
 import logging
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from urllib.parse import quote
@@ -829,7 +831,7 @@ def _register_routes():
             logging.exception("[CapricorncdTools] import_project_zip error")
             return web.json_response({"error": str(exc)}, status=500)
 
-    def _list_output_media(extensions: set[str], limit: int = 400) -> list[dict]:
+    def _list_output_media(extensions: set[str]) -> list[dict]:
         import folder_paths as _fp
         root = os.path.abspath(_fp.get_output_directory())
         rows = []
@@ -851,7 +853,43 @@ def _register_routes():
         except OSError:
             rows = []
         rows.sort(key=lambda item: item[0], reverse=True)
-        return [{"file": rel, "mtime": mtime} for mtime, rel in rows[:limit]]
+        return [{"file": rel, "mtime": mtime} for mtime, rel in rows]
+
+    def _store_output_video(temporary: str, filename: str) -> dict:
+        root = folder_paths.get_output_directory()
+        for row in _list_output_media(VIDEO_EXTENSIONS):
+            if os.path.basename(row["file"]).casefold() != filename.casefold():
+                continue
+            candidate = _safe_join(root, row["file"])
+            if candidate and filecmp.cmp(temporary, candidate, shallow=False):
+                return row
+        destination = _unique_destination(os.path.join(root, "CapTimelineEditor", "imports"), filename)
+        os.replace(temporary, destination)
+        return {"file": os.path.relpath(destination, root).replace("\\", "/"), "mtime": os.path.getmtime(destination)}
+
+    @routes.post("/audio_keyframe_timeline/import_output_video")
+    async def api_import_output_video(request: web.Request) -> web.Response:
+        lang = resolve_lang(request)
+        reader = await request.multipart()
+        upload = await reader.next()
+        filename = os.path.basename((upload.filename or "").replace("\\", "/")) if upload is not None else ""
+        if upload is None or upload.name != "file" or os.path.splitext(filename)[1].lower() not in VIDEO_EXTENSIONS:
+            return web.json_response({"error": t("unsupported_or_missing_file", lang)}, status=400)
+        root = folder_paths.get_output_directory()
+        os.makedirs(root, exist_ok=True)
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=root, suffix=".upload", delete=False) as stream:
+                temporary = stream.name
+                while chunk := await upload.read_chunk(65536):
+                    stream.write(chunk)
+            if not os.path.getsize(temporary):
+                return web.json_response({"error": t("unsupported_or_missing_file", lang)}, status=400)
+            result = await asyncio.to_thread(_store_output_video, temporary, filename)
+            return web.json_response(result)
+        finally:
+            if temporary and os.path.exists(temporary):
+                os.remove(temporary)
 
     @routes.get("/audio_keyframe_timeline/output_videos")
     async def api_list_output_videos(_request: web.Request) -> web.Response:

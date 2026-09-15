@@ -121,11 +121,12 @@ export class Timeline extends EventEmitter {
     return this._snapTime(best);
   }
 
-  _clipSnapTimes(excludeClip) {
+  _clipSnapTimes(excludeClip, excludeIds = null) {
     const times = [];
     for (const track of this.tracks) {
       for (const clip of track.clips) {
         if (excludeClip && clip.id === excludeClip.id) continue;
+        if (excludeIds?.has(clip.id)) continue;
         times.push(clip.startTime, clip.endTime);
       }
     }
@@ -812,6 +813,8 @@ export class Timeline extends EventEmitter {
     if (!clips.length || clips.some(c => c.track.locked)) return;
     const ids = new Set(clips.map(c => c.id));
     const starts = clips.map(c => c.startTime);
+    const edges = clips.flatMap(c => [c.startTime, c.endTime]);
+    const snapTimes = this._clipSnapTimes(null, ids);
     let min = -Math.min(...starts), max = Infinity;
     for (const c of clips) {
       max = Math.min(max, Math.max(0, this.duration - c.endTime));
@@ -826,7 +829,7 @@ export class Timeline extends EventEmitter {
     const lower = Math.ceil(min * fps - 1e-7), upper = Math.floor(max * fps + 1e-7);
     let dragging = false;
     bindDragSession(e, { onMove: ev => {
-      if (clips.some(c => c.track.locked)) return;
+      if (clips.some(c => c.track.locked)) { this._hideSnapGuide(); return; }
       if (!dragging && Math.abs(ev.clientX - e.clientX) < 4) return;
       if (!dragging) {
         dragging = true;
@@ -834,10 +837,31 @@ export class Timeline extends EventEmitter {
         clips.forEach(c => c.el.classList.add('dragging', 'no-transition'));
       }
       const frames = Math.round((ev.clientX - e.clientX) / this.pixelsPerSecond * fps);
-      const delta = lower <= upper ? clamp(frames, lower, upper) / fps : 0;
+      const desiredFrames = lower <= upper ? clamp(frames, lower, upper) : 0;
+      let snappedFrames = desiredFrames;
+      let guide = null;
+      let bestDist = SNAP_EDGE_PX / this.pixelsPerSecond;
+      if (lower <= upper) {
+        for (const t of snapTimes) {
+          for (const edge of edges) {
+            const candidate = Math.round((t - edge) * fps);
+            if (candidate < lower || candidate > upper) continue;
+            const distance = Math.abs(edge + desiredFrames / fps - t);
+            if (distance < bestDist) {
+              bestDist = distance;
+              snappedFrames = candidate;
+              guide = t;
+            }
+          }
+        }
+      }
+      const delta = snappedFrames / fps;
       clips.forEach((c, i) => { c.startTime = starts[i] + delta; c._applyPosition(); });
+      if (guide != null) this._showSnapGuide(guide);
+      else this._hideSnapGuide();
       this.emit('clip:move', { clip: anchor, track: anchor.track, clips });
     }, onEnd: () => {
+      this._hideSnapGuide();
       if (!dragging) { this.selectClip(anchor); return; }
       clips.forEach(c => { c.el.classList.remove('dragging', 'no-transition'); c._applyPosition(); });
       this.emit('clip:moveend', { clip: anchor, track: anchor.track, clips,

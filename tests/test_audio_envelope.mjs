@@ -57,3 +57,16 @@ envelope.svg.handlers.dblclick(event(200,50));
 assert.equal(envelope.points.length,2);
 assert.equal(events.filter(e=>e==='clip:volumeend').length,3);
 console.log('Audio envelope migration, serialization and interaction tests passed');
+
+const { Clip } = await import('../js/timeline/Clip.js');
+const wave = { _waveform: [0.2, 1], sourceOffset: 2, duration: 2, playbackRate: 1,
+  _visibleWavePeaks: () => [0.2, 1], _waveBarCount: () => 2, audioEnvelope: { points: [] } };
+const svg = new Element();
+Clip.prototype._paintWaveform.call(wave, svg);
+const originalHeight = Number(svg.children[0].children[0].height);
+wave.audioEnvelope.points = [{ source_ms: 2000, gain: 2 }, { source_ms: 4000, gain: 2 }];
+Clip.prototype._paintWaveform.call(wave, svg);
+assert(Number(svg.children[0].children[0].height) > originalHeight, 'boosted audio must have taller waveform bars');
+wave.audioEnvelope.points = [{ source_ms: 2000, gain: 0 }];
+Clip.prototype._paintWaveform.call(wave, svg);
+assert.equal(Number(svg.children[0].children[0].height), 0.03);

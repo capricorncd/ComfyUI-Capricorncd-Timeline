@@ -101,6 +101,7 @@ export class AudioEnvelope {
     return true;
   }
   render(guide=null) {
+    this.clip._paintWaveform?.();
     const c=this.clip, start=c.sourceOffset*1000, end=(c.sourceOffset+c.duration*(c.playbackRate || 1))*1000;
     const x=ms=>(ms-start)/(end-start)*1000, y=g=>(2-g)*50;
     const visible=this.points.filter(p=>p.source_ms>=start&&p.source_ms<=end);

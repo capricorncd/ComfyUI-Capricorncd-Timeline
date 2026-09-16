@@ -382,6 +382,7 @@ body.cat-te-row-resize * {
 }
 
 .cat-te-settings-dialog {
+    min-height: min(520px, calc(100vh - 48px));
     width: 760px;
     max-width: calc(100vw - 32px);
     max-height: calc(100vh - 48px);
@@ -392,7 +393,8 @@ body.cat-te-row-resize * {
     flex-direction: row;
     gap: 0;
     padding: 0;
-    min-height: 340px;
+    min-height: 0;
+    flex: 1;
     overflow: hidden;
 }
 .cat-te-settings-nav {
@@ -1794,6 +1796,10 @@ body.cat-te-media-dnd-over-tl {
     font-size: 12px;
     opacity: 0.8;
 }
+.cat-te-gen-edit-volume-field { flex: 0 0 auto; }
+.cat-te-gen-edit-tl-host .tl-track-muted .tl-clip-row-wave .tl-clip-waveform { visibility: hidden; }
+.cat-te-gen-edit-volume { width: 100%; margin: 0; }
+.cat-te-gen-edit-volume-value { float: right; font-variant-numeric: tabular-nums; }
 .cat-te-gen-edit-prompt {
     flex: 1;
     min-height: 120px;
@@ -2604,7 +2610,6 @@ body.cat-te-media-dnd-over-tl {
     gap: 4px;
 }
 .cat-te-export-dialog { --cap-dialog-height: fit-content; --cap-dialog-min-width: 420px; --cap-dialog-min-height: 320px; }
-.cat-te-voice-dialog { --cap-dialog-min-width: 420px; --cap-dialog-min-height: 280px; }
 .cat-te-shortcuts-dialog { --cap-dialog-min-width: 400px; --cap-dialog-min-height: 240px; }
 .cat-te-subtitle-batch-dialog { --cap-dialog-min-width: 460px; --cap-dialog-min-height: 360px; }
 .cat-te-speech-dialog { --cap-dialog-width: 760px; --cap-dialog-min-width: 560px; --cap-dialog-min-height: 360px; }
@@ -2934,6 +2939,22 @@ body.cat-te-media-dnd-over-tl {
 }
 
 .cat-te-output-videos-modal { --cap-dialog-width: 560px; --cap-dialog-height: 70vh; --cap-dialog-min-width: 480px; --cap-dialog-min-height: 320px; }
+.cat-te-local-audio-dialog { --cap-dialog-width: 520px; --cap-dialog-height: fit-content; --cap-dialog-min-width: 360px; --cap-dialog-min-height: 260px; }
+.cat-te-local-audio-dialog .cat-te-modal-body { min-width: 0; gap: 16px; }
+.cat-te-local-audio-dialog label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cat-te-local-audio-dialog textarea,
+.cat-te-local-audio-dialog select,
+.cat-te-local-audio-dialog input { width: 100%; min-width: 0; box-sizing: border-box; }
+.cat-te-local-audio-dialog audio { width: 100%; }
+.cat-te-local-audio-dialog select[hidden] { display: none; }
+.cat-te-local-audio-dialog label[hidden] { display: none; }
+.cat-te-audio-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 12px 0; }
+[data-audio-panel][hidden] { display: none; }
+.cat-te-local-audio-dialog p { margin: 0; }
+.cat-te-local-audio-dialog [data-description] { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--cat-muted); }
+.cat-te-local-audio-dialog [data-source-file] { display: block; overflow-wrap: anywhere; white-space: pre-wrap; padding: 8px 10px; border: 1px solid var(--cat-border); border-radius: 6px; }
+.cat-te-local-audio-dialog [role="status"] { overflow-wrap: anywhere; }
+.cat-te-local-audio-dialog [role="status"]:empty { display: none; }
 .cat-te-output-videos-title {
     flex: 1;
     min-width: 0;
@@ -3917,7 +3938,6 @@ body.cat-te-media-dnd-over-tl {
     padding: 12px 0;
 }
 .cat-te-character-voice audio,
-.cat-te-voice-audition { width: 100%; }
 .cat-te-voice-contract {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -3936,3 +3956,4 @@ body.cat-te-media-dnd-over-tl {
     background: var(--cat-surface);
     color: var(--cat-text);
 }
+

@@ -22,6 +22,7 @@ import torch
 from PIL import Image
 
 from .cap_i18n import get_last_known_lang, t as _t
+from .local_config import CONFIG_PATH, read_config, write_config
 from .prompt_text import strip_comment_lines
 from .timecode import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS, resolve_media_path
 
@@ -312,20 +313,11 @@ def list_vl_models() -> list[str]:
 
 
 def _agent_config_path() -> Path:
-    import folder_paths
-    return Path(folder_paths.get_user_directory()) / "capricorncd" / "timeline_agents.json"
+    return CONFIG_PATH
 
 
 def _read_agent_configs() -> list[dict]:
-    path = _agent_config_path()
-    if not path.is_file():
-        return []
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logging.warning("[CAP] Failed to read timeline agents: %s", exc)
-        return []
-    return [row for row in data if isinstance(row, dict)] if isinstance(data, list) else []
+    return read_config(_agent_config_path(), "agents", [])
 
 
 def public_agent_configs(enabled_only: bool = False) -> list[dict]:
@@ -376,11 +368,7 @@ def save_agent_config(payload: dict) -> dict:
             "api_key": api_key,
             "enabled": payload.get("enabled") is not False,
         })
-        path = _agent_config_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp = path.with_suffix(".tmp")
-        temp.write_text(json.dumps(configs, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(temp, path)
+        write_config(_agent_config_path(), "agents", configs)
     return next(row for row in public_agent_configs() if row["id"] == existing["id"])
 
 
@@ -391,11 +379,7 @@ def delete_agent_config(agent_id: str) -> bool:
         kept = [row for row in configs if str(row.get("id")) != agent_id]
         if len(kept) == len(configs):
             return False
-        path = _agent_config_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp = path.with_suffix(".tmp")
-        temp.write_text(json.dumps(kept, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(temp, path)
+        write_config(_agent_config_path(), "agents", kept)
     return True
 
 

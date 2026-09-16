@@ -219,3 +219,7 @@ __marimo__/
 
 
 vendor/
+# Local interface configuration and atomic-save files
+.env.*
+config.local.yml
+config.local.yml.*

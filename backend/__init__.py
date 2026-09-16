@@ -20,6 +20,7 @@ import folder_paths
 
 from .cap_i18n import resolve_lang, t
 from .cap_video_metadata import read_video_generation
+from .cap_local_audio import register_local_audio_routes
 from .cap_timeline_project_io import save_project_export
 from .cap_load_image_metadata import (
     NODE_CLASS_MAPPINGS as _CLM_CLASS,
@@ -234,6 +235,7 @@ def _register_routes():
     _soft_patch_h3_motion_context_load_latent()
 
     register_metadata_routes(routes)
+    register_local_audio_routes(routes)
 
     # Keep immutable recent steps; a video's range requests must read the same bytes.
     # At most 8 previews, each capped at 8 MiB and 3 steps, expiring after 120 seconds.

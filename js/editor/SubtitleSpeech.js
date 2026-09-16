@@ -66,7 +66,7 @@ export class SubtitleSpeech {
         this.dialog.querySelector('[data-action="close"]').onclick = () => { if (!this.busy) this.dialog.close(); };
         this.dialog.querySelector('[data-action="settings"]').onclick = () => {
             if (this.busy) return;
-            this.dialog.close(); app._openSettings(); app._setSettingsCategory("speech");
+            this.dialog.close(); app._openSettings(); app._setSettingsCategory("bgm"); app._bgmSettings.selectTab("tts");
         };
         this.dialog.querySelector('[data-action="submit"]').onclick = async () => {
             if (this.busy) return;

@@ -1,6 +1,6 @@
 import { EventEmitter } from './EventEmitter.js';
 import { generateId, clamp, generateWaveform, bindDragSession, normalizePlaybackRate } from './utils.js';
-import { AudioEnvelope } from './AudioEnvelope.js';
+import { AudioEnvelope, volumeAt } from './AudioEnvelope.js';
 
 const MIN_DURATION = 0.05; // seconds
 
@@ -206,11 +206,12 @@ export class Clip extends EventEmitter {
     const n = full.length;
     let i0 = 0;
     let i1 = n;
-    const srcDur = Number(this.sourceDuration);
+    const window = this.waveformWindow || this;
+    const srcDur = Number(window.sourceDuration);
     if (Number.isFinite(srcDur) && srcDur > 0) {
-      const start = clamp(this.sourceOffset / srcDur, 0, 1);
+      const start = clamp(window.sourceOffset / srcDur, 0, 1);
       const end = clamp(
-        (this.sourceOffset + Math.max(MIN_DURATION, this.duration) * this.playbackRate) / srcDur,
+        (window.sourceOffset + Math.max(MIN_DURATION, this.duration) * window.playbackRate) / srcDur,
         start + 1e-6,
         1,
       );
@@ -271,13 +272,16 @@ export class Clip extends EventEmitter {
       if (v > fullMax) fullMax = v;
     }
     if (!(fullMax > 1e-6)) fullMax = 1;
+    if (this.waveformAbsoluteScale) fullMax = 1;
 
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('class', 'tl-clip-waveform-bars');
     const gap = 0.18;
     for (let i = 0; i < n; i++) {
       // Mild lift for mid levels; silence stays near-zero.
-      const raw = Math.min(1, Math.max(0, peaks[i] / fullMax));
+      const sourceMs = (this.sourceOffset + (i + 0.5) / n * this.duration * this.playbackRate) * 1000;
+      const gain = volumeAt(this.audioEnvelope?.points || [], sourceMs) * (this.waveformVolume ?? 1);
+      const raw = Math.min(1, Math.max(0, peaks[i] / fullMax * gain));
       const amp = raw <= 0.02 ? raw * 0.35 : Math.pow(raw, 0.72);
       const h = Math.max(0.03, amp * 0.92);
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');

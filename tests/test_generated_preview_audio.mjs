@@ -6,9 +6,9 @@ function method(name) {
   const start = source.search(new RegExp('    (async )?' + name + '\\('));
   assert(start >= 0, name);
   const end = source.indexOf('\n    }', start) + 6;
-  return new Function('normalizeClipVolume', 'defaultImageMeta',
+  return new Function('normalizeClipVolume', 'defaultImageMeta', 'volumeAt',
     'return ({' + source.slice(start, end) + '}).' + name)(
-    v => Math.max(0, Math.min(2, Number(v ?? 1))), () => ({}));
+    v => Math.max(0, Math.min(2, Number(v ?? 1))), () => ({}), points => points[0]?.gain ?? 1);
 }
 const gen = (file, extra = {}) => ({file, enabled:true, duration_sec:5, ...extra});
 const meta = {
@@ -46,6 +46,10 @@ assert.deepEqual(app._collectGeneratedVideoAudioJobs(16).map(j=>j.file), ['secon
 
 const played=[];
 const scheduled=[];
+meta.generatedVideos[1].volume = 1.5;
+meta.genEditAudios[0].volume = 2;
+assert.equal(app._collectGeneratedVideoAudioJobs(10)[1].volume, 0.75);
+assert.equal(app._collectGeneratedVideoAudioJobs(10).at(-1).volume, 1);
 app._scheduleAudioFadeGain=(...args)=>scheduled.push(args);
 const points=[{source_ms:1000,gain:0.2},{source_ms:4000,gain:1.5}];
 meta.genEditAudios[0].volume_points=points;
@@ -76,7 +80,7 @@ ctx.currentTime=0;
 app._genEditState={
   clipId:'clip',timeline:{_playing:true,currentTime:0,tracks:[]},
   draft:meta.generatedVideos,
-  audioDraft:[{file:'voice.wav',duration:10,source_offset:1,volume_points:points}],
+  audioDraft:[{file:'voice.wav',duration:10,source_offset:1,volume:2,volume_points:points}],
 };
 app._stopGenEditAudioPlayback=()=>{};
 app._genEditParentDuration=()=>10;
@@ -88,6 +92,7 @@ assert.equal(played[2].when,2.03); // Future video is scheduled even with a sepa
 assert.equal(app._genEditAudioSources.length,3);
 assert.equal(scheduled.length,2);
 assert.equal(scheduled[1][8],points);
+assert.equal(scheduled[1][7], 1, 'trim audio gain multiplies clip and parent volume');
 assert(scheduled[1][9]>=1, 'trimmed audio must use its source offset');
 played.length=0;
 app._genEditState.timeline.tracks=[{type:'audio',muted:true},{type:'audio',muted:false}];
@@ -96,3 +101,22 @@ await method('_startGenEditAudioPlayback').call(app);
 assert(played.some(p=>p.file==='voice.wav'),'one muted audio track must not silence other tracks');
 assert(!played.some(p=>p.file==='muted-detached.wav'));
 console.log('Generated preview audio: mixing, mute/disable, trims, future clips and decoding delay passed');
+
+const waveformClip = { startTime: 10, duration: 4, _refreshWaveRow() {} };
+const waveformApp = {
+  _collectGeneratedVideoAudioJobs: () => [{ file: 'video', location: 'output', tin: 1,
+    absStart: 11, absEnd: 13, volume: 2, volumePoints: [{gain: 0.5}] }],
+  _ensureGenVideoAudioBuffer: async () => ({ duration: 4 }),
+  _audioBufferToPeaks: () => [[0.1, 0.2, 0.3, 0.4]],
+  _ensureClipMeta: () => ({}), _clipUsesGeneratedPreview: () => true,
+};
+await method('_syncGeneratedClipWaveform').call(waveformApp, waveformClip);
+assert.equal(waveformClip.hasAudio, true);
+assert.equal(waveformClip.waveformPeaks[0], 0);
+assert(Math.abs(waveformClip.waveformPeaks[2000] - 0.2) < 1e-6);
+assert(Math.abs(waveformClip.waveformPeaks[4000] - 0.3) < 1e-6);
+assert.equal(waveformClip.waveformPeaks[6000], 0);
+assert.equal(waveformClip.waveformWindow.sourceDuration, 4);
+waveformApp._ensureGenVideoAudioBuffer = async () => null;
+await method('_syncGeneratedClipWaveform').call(waveformApp, waveformClip);
+assert.equal(waveformClip.hasAudio, false);

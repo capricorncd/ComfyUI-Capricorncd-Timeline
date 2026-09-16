@@ -235,7 +235,7 @@ def _collect_plan(
                         "end_sec": start_sec + offset + duration,
                         "source_in_sec": source_in,
                         "muted": bool(gen.get("muted")) or bool(track.get("muted")) or bool(clip.get("muted")),
-                        "volume": _clip_volume(clip.get("volume", 1.0)),
+                        "volume": _clip_volume(clip.get("volume", 1.0)) * _clip_volume(gen.get("volume", 1.0)),
                     })
                 if not track.get("muted") and not clip.get("muted"):
                     for audio in _as_list(clip.get("gen_edit_audios")):
@@ -256,7 +256,7 @@ def _collect_plan(
                             "source_in_sec": max(0.0, float(audio.get("source_offset") or 0)),
                             "fade_in_sec": 0.0,
                             "fade_out_sec": 0.0,
-                            "volume": _clip_volume(clip.get("volume", 1.0)),
+                            "volume": _clip_volume(clip.get("volume", 1.0)) * _clip_volume(audio.get("volume", 1.0)),
                             "volume_points": normalize_volume_points(audio.get("volume_points")),
                         })
             continue

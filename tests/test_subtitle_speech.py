@@ -9,7 +9,10 @@ import unittest
 from unittest.mock import patch
 import wave
 
-spec = importlib.util.spec_from_file_location("subtitle_speech_test", (Path(__file__).resolve().parents[1] / "backend") / "cap_subtitle_speech.py")
+package = types.ModuleType("config_test")
+package.__path__ = [str(Path(__file__).resolve().parents[1] / "backend")]
+sys.modules["config_test"] = package
+spec = importlib.util.spec_from_file_location("config_test.subtitle_speech_test", (Path(__file__).resolve().parents[1] / "backend") / "cap_subtitle_speech.py")
 speech = importlib.util.module_from_spec(spec)
 with patch.dict(sys.modules, {"folder_paths": types.SimpleNamespace()}):
     spec.loader.exec_module(speech)
@@ -26,7 +29,7 @@ def wav(seconds=1, rate=48000):
 class SpeechTests(unittest.TestCase):
     def test_wav_validation(self):
         self.assertEqual(speech.wav_duration(wav()), 1)
-        for data in (wav(rate=24000), wav()[:-2], b"not audio", wav(.05)):
+        for data in (wav(rate=24000), wav()[:-2], b"not audio", wav(0)):
             with self.assertRaises(ValueError):
                 speech.wav_duration(data)
 

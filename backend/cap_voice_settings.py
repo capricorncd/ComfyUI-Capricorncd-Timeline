@@ -1,11 +1,8 @@
 """Voice service configuration and the versioned HTTP boundary contract."""
-import json
-import os
-from pathlib import Path
-import tempfile
 from urllib.parse import urlsplit
 
-import folder_paths
+
+from .local_config import CONFIG_PATH, read_config, write_config
 
 
 VOICE_CONTRACT = {
@@ -19,8 +16,8 @@ VOICE_CONTRACT = {
                      "clip_id": "string", "character_media_id": "string",
                      "duration_ms": "positive integer; clipped source duration", "model": "string"},
     },
-    "reference_duration_seconds": {"min": 1, "max": 30},
-    "source_duration_seconds": {"min": 0.1, "max": 300},
+    "reference_duration_seconds": "validated by service",
+    "source_duration_seconds": "validated by service",
     "max_upload_bytes": 67108864,
     "success": {"status": 200, "content_type": "audio/wav", "codec": "PCM16",
                 "sample_rate": 48000, "channels": 1, "max_bytes": 67108864,
@@ -37,12 +34,11 @@ VOICE_CONTRACT = {
 
 
 def _path():
-    return Path(folder_paths.get_user_directory()) / "capricorncd" / "timeline_voice.json"
+    return CONFIG_PATH
 
 
 def _read():
-    path = _path()
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"url": "", "model": "", "timeout_seconds": 300}
+    return read_config(_path(), "voice", {})
 
 
 def public_voice_settings():
@@ -73,14 +69,5 @@ def save_voice_settings(payload):
         key = old.get("api_key", "")
     config = {"url": url, "model": str(payload.get("model") or "").strip(),
               "timeout_seconds": timeout, "api_key": key, "contract_version": VOICE_CONTRACT["version"]}
-    path = _path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(dir=path.parent, prefix="voice_", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            json.dump(config, stream, ensure_ascii=False, indent=2)
-        os.replace(temporary, path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+    write_config(_path(), "voice", config)
     return public_voice_settings()

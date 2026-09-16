@@ -1,0 +1,41 @@
+# Copy to config.local.yml only if that file does not already exist.
+# Configure credentials through Settings. Never commit config.local.yml.
+
+# Shared Local AI Service: BGM, SFX, denoising, separation, TTS and VC.
+audio:
+  connection: standalone
+  url: http://127.0.0.1:19876
+  api_key: ""
+  # Relative endpoints use the common URL; full HTTP(S) URLs override it.
+  # Empty API key inherits the common API key.
+  services:
+    music:
+      url: /v1/music/generate
+      api_key: ""
+    sfx:
+      num_inference_steps: 100
+      cfg_scale: 4
+      url: /v1/sfx/generate
+      api_key: ""
+    denoise:
+      url: /v1/denoise/file
+      api_key: ""
+    separation:
+      segment_seconds: 2
+      url: /v1/separate/file
+      api_key: ""
+    vc:
+      url: /v1/voice/convert
+      api_key: ""
+    tts:
+      url: /v1/tts/generate
+      api_key: ""
+
+# Add AI providers through Settings, or use the commented entry as a template.
+agents: []
+#  - id: my-agent
+#    label: My agent
+#    provider: openai  # openai or gemini
+#    model: ""
+#    api_key: ""
+#    enabled: true

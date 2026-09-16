@@ -14,7 +14,7 @@ export class VoiceSettings {
             <label><span>${T("model_label")}</span><input data-voice="model" type="text" /></label>
             <label><span>API Key</span><input data-voice="api_key" type="password" autocomplete="new-password" /></label>
             <label class="cat-te-agent-enabled"><input data-voice="clear_key" type="checkbox" /><span>${T("bgm_clear_key")}</span></label>
-            <label><span>${T("voice_timeout")}</span><input data-voice="timeout_seconds" type="number" min="10" max="1800" step="1" value="300" /></label>
+            <label><span>${T("voice_timeout")}</span><input data-voice="timeout_seconds" type="number" min="10" max="1800" step="1" required /></label>
             <cap-button variant="primary" data-voice="save" class="" disabled>${T("save_btn")}</cap-button>
           </div>
           <details><summary>${T("voice_contract")}</summary><pre class="cat-te-voice-contract"></pre></details>
@@ -25,7 +25,7 @@ export class VoiceSettings {
 
     fill(config) {
         for (const key of ["url", "model", "timeout_seconds"]) this.field(key).value = config[key] ?? "";
-        this.field("api_key").value = "";
+        this.field("api_key").value = config.has_key ? "****" : "";
         this.field("api_key").placeholder = config.has_key ? T("leave_blank_keep_key") : T("bgm_optional_key");
         this.field("clear_key").checked = false;
         this.root.querySelector("pre").textContent = JSON.stringify(config.contract, null, 2);
@@ -43,9 +43,11 @@ export class VoiceSettings {
     }
 
     async save() {
+        if (!this.field("timeout_seconds").reportValidity()) return;
         this.field("save").disabled = true;
         try {
             const payload = Object.fromEntries(["url", "model", "api_key"].map(key => [key, this.field(key).value.trim()]));
+            if (payload.api_key === "****") payload.api_key = "";
             payload.timeout_seconds = Number(this.field("timeout_seconds").value);
             payload.clear_key = this.field("clear_key").checked;
             const response = await api.fetchApi(this.endpoint, {

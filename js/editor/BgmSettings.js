@@ -1,90 +1,138 @@
-import "../components/Button.js";
-import { api } from "../../../scripts/api.js";
-import { t as T } from "../i18n/timeline_editor.js";
+import '../components/Button.js';
+import '../components/TabButton.js';
+import { iconHtml } from '../cap_icons.js';
+import { api } from '../../../scripts/api.js';
+import { t as T } from '../i18n/timeline_editor.js';
 
 export class BgmSettings {
     constructor(root) {
         this.root = root;
-        this.workflow = null;
         this.loaded = false;
+        this.revision = 0;
+        this.dirty = false;
+        this.saveQueue = Promise.resolve();
+        this.parameters = [['sfx_steps', 'sfx', 'num_inference_steps'], ['sfx_cfg', 'sfx', 'cfg_scale'], ['separation_segment', 'separation', 'segment_seconds']];
+        this.services = [
+            ['music', 'local_audio_bgm', '/v1/music/generate'],
+            ['sfx', 'local_audio_sfx', '/v1/sfx/generate'],
+            ['denoise', 'local_audio_denoise', '/v1/denoise/file'],
+            ['separation', 'local_audio_separation', '/v1/separate/file'],
+            ['vc', 'voice_convert', '/v1/voice/convert'],
+            ['tts', 'speech_convert', '/v1/tts/generate'],
+        ];
+        const numeric = (name, label, min, max, step) => `<label><span>${T(label)}</span><input data-bgm="${name}" type="number" min="${min}" ${max ? `max="${max}"` : ''} step="${step}" /></label>`;
         root.innerHTML = `
-          <div class="cat-te-agent-heading">BGM</div>
-          <div class="cat-te-agent-note">${T("bgm_config_note")}</div>
-          <div class="cat-te-agent-form">
-            <label><span>${T("bgm_connection")}</span><select data-bgm="connection"><option value="comfyui">ComfyUI API</option><option value="standalone">${T("bgm_standalone")}</option></select></label>
-            <label><span>${T("bgm_url")}</span><input data-bgm="url" type="url" placeholder="http://127.0.0.1:8188" /></label>
-            <label><span>${T("model_label")}</span><input data-bgm="model" type="text" placeholder="ACE / MiniMaxH3 Music" /></label>
+          <div class="cat-te-audio-tabs" role="tablist">${[['general', 'audio_general'], ...this.services].map(([id, label]) => `<cap-tab-button data-audio-tab="${id}" id="audio-tab-${id}" aria-controls="audio-panel-${id}">${T(label)}</cap-tab-button>`).join('')}</div>
+          <div data-audio-panel="general" id="audio-panel-general" role="tabpanel" aria-labelledby="audio-tab-general" class="cat-te-agent-form">
+            <label><span>${T('bgm_url')}</span><input data-bgm="url" type="url" placeholder="http://127.0.0.1:19876" /></label>
             <label><span>API Key</span><input data-bgm="api_key" type="password" autocomplete="new-password" /></label>
-            <label class="cat-te-agent-enabled"><input data-bgm="clear_key" type="checkbox" /><span>${T("bgm_clear_key")}</span></label>
-            <div data-bgm="workflow-row">
-              <cap-button  class="" data-bgm="import">${T("bgm_import")}</cap-button>
-              <cap-button  class="" data-bgm="clear">${T("clear_btn")}</cap-button>
-              <div data-bgm="workflow-name" class="cat-te-agent-note"></div>
-              <input data-bgm="file" type="file" accept=".json,application/json" hidden />
-            </div>
-            <div class="cat-te-agent-form-actions"><cap-button variant="primary" class="" data-bgm="save" disabled>${T("save_btn")}</cap-button></div>
+            <div data-bgm="key-status" class="cat-te-agent-note" role="status"></div>
+            <label class="cat-te-agent-enabled"><input data-bgm="clear_key" type="checkbox" /><span>${T('bgm_clear_key')}</span></label>
           </div>
+          ${this.services.map(([id, label, path]) => `<div data-audio-panel="${id}" id="audio-panel-${id}" role="tabpanel" aria-labelledby="audio-tab-${id}" class="cat-te-agent-form" hidden>
+            <label><span>${T('audio_endpoint')}</span><input data-bgm="${id}_url" type="text" placeholder="${path}" /></label>
+            <label><span>API Key <span class="cat-te-info-tip" tabindex="0" aria-label="${T('audio_inherit')}">${iconHtml('info', 12)}<span class="cat-te-info-tip-pop">${T('audio_inherit')}</span></span></span><input data-bgm="${id}_key" type="password" autocomplete="new-password" /></label>
+            ${id === 'sfx' ? numeric('sfx_steps', 'local_audio_steps', 1, 200, 1) + numeric('sfx_cfg', 'local_audio_cfg', 1, 20, 0.1) : ''}
+            ${id === 'separation' ? numeric('separation_segment', 'local_audio_segment', 0.001, '', 'any') : ''}
+          </div>`).join('')}
           <div data-bgm="status" class="cat-te-agent-note" role="status"></div>`;
         this.field = key => root.querySelector(`[data-bgm="${key}"]`);
-        this.field("connection").addEventListener("change", () => this.updateWorkflow());
-        this.field("import").addEventListener("click", () => { this.field("file").value = ""; this.field("file").click(); });
-        this.field("clear").addEventListener("click", () => { this.workflow = null; this.updateWorkflow(); });
-        this.field("file").addEventListener("change", async () => {
-            const file = this.field("file").files[0];
-            if (!file) return;
-            try {
-                const workflow = JSON.parse(await file.text());
-                if (!workflow || Array.isArray(workflow) || !Object.keys(workflow).length ||
-                    !Object.values(workflow).every(n => n && typeof n.class_type === "string" && n.inputs && !Array.isArray(n.inputs))) {
-                    throw new Error(T("bgm_api_workflow_only"));
-                }
-                this.workflow = workflow;
-                this.updateWorkflow();
-                this.field("status").textContent = T("bgm_unsaved");
-            } catch (error) { this.field("status").textContent = error.message; }
+        for (const input of root.querySelectorAll('input[data-bgm]')) {
+            input.disabled = true;
+            input.addEventListener('input', () => {
+                this.revision++;
+                this.dirty = true;
+                this.field('status').textContent = '';
+            });
+            input.addEventListener('change', () => {
+                this.revision++;
+                this.dirty = true;
+                void this.save();
+            });
+        }
+        const tabs = [...root.querySelectorAll('[data-audio-tab]')];
+        tabs.forEach((tab, index) => {
+            tab.addEventListener('click', () => this.selectTab(tab.dataset.audioTab));
+            tab.addEventListener('keydown', event => {
+                const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : -1;
+                if (next < 0) return;
+                event.preventDefault();
+                this.selectTab(tabs[next].dataset.audioTab);
+                tabs[next].focus();
+            });
         });
-        this.field("save").addEventListener("click", () => void this.save());
+        this.selectTab('general');
     }
 
-    updateWorkflow() {
-        this.field("workflow-row").hidden = this.field("connection").value !== "comfyui";
-        this.field("workflow-name").textContent = this.workflow ? T("bgm_workflow_loaded", { n: Object.keys(this.workflow).length }) : T("bgm_workflow_empty");
+    selectTab(id) {
+        for (const tab of this.root.querySelectorAll('[data-audio-tab]')) {
+            const selected = tab.dataset.audioTab === id;
+            tab.setAttribute('aria-selected', String(selected));
+            tab.tabIndex = selected ? 0 : -1;
+        }
+        for (const panel of this.root.querySelectorAll('[data-audio-panel]')) panel.hidden = panel.dataset.audioPanel !== id;
     }
 
     fill(config) {
-        for (const key of ["connection", "url", "model"]) this.field(key).value = config[key] || "";
-        this.field("api_key").value = "";
-        this.field("api_key").placeholder = config.has_key ? T("leave_blank_keep_key") : T("bgm_optional_key");
-        this.field("clear_key").checked = false;
-        this.workflow = config.workflow || null;
-        this.updateWorkflow();
+        this.field('url').value = config.url ?? '';
+        this.field('api_key').value = config.has_key ? '****' : '';
+        this.field('key-status').textContent = T(config.has_key ? 'bgm_key_saved' : 'bgm_key_missing');
+        this.field('clear_key').checked = false;
+        for (const [id] of this.services) {
+            const row = config.services?.[id] || {};
+            this.field(id + '_url').value = row.url || '';
+            this.field(id + '_key').value = row.has_key ? '****' : '';
+        }
+        for (const [field, service, name] of this.parameters) this.field(field).value = config.services?.[service]?.[name] ?? '';
     }
 
     async load() {
         if (this.loaded) return;
         try {
-            const res = await api.fetchApi("/audio_keyframe_timeline/bgm_settings");
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            this.fill((await res.json()).config);
+            const response = await api.fetchApi('/audio_keyframe_timeline/bgm_settings');
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            this.fill(data.config);
             this.loaded = true;
-            this.field("save").disabled = false;
-        } catch (error) { this.field("status").textContent = error.message; }
+            for (const input of this.root.querySelectorAll('input[data-bgm]')) input.disabled = false;
+        } catch (error) { this.field('status').textContent = error.message; }
     }
 
-    async save() {
-        this.field("save").disabled = true;
+    flush() {
+        return this.dirty ? this.save() : this.saveQueue;
+    }
+
+    save() {
+        this.saveQueue = this.saveQueue.then(() => this.persist());
+        return this.saveQueue;
+    }
+
+    async persist() {
+        const revision = this.revision;
+        const services = {};
+        for (const [id] of this.services) {
+            const key = this.field(id + '_key').value.trim();
+            services[id] = { url: this.field(id + '_url').value.trim(), api_key: key === '****' ? '' : key, keep_key: key === '****' };
+        }
+        for (const [field, service, name] of this.parameters) {
+            if (!this.field(field).reportValidity()) return;
+            if (this.field(field).value !== '') services[service][name] = Number(this.field(field).value);
+        }
+        this.field('status').textContent = T('audio_settings_saving');
         try {
-            const payload = Object.fromEntries(["connection", "url", "model", "api_key"].map(key => [key, this.field(key).value.trim()]));
-            payload.clear_key = this.field("clear_key").checked;
-            payload.workflow = payload.connection === "comfyui" ? this.workflow : null;
-            const res = await api.fetchApi("/audio_keyframe_timeline/bgm_settings", {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+            const response = await api.fetchApi('/audio_keyframe_timeline/bgm_settings', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ connection: 'standalone', url: this.field('url').value.trim(), services,
+                    api_key: this.field('api_key').value.trim() === '****' ? '' : this.field('api_key').value.trim(), clear_key: this.field('clear_key').checked }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-            this.fill(data.config);
-            this.field("status").textContent = T("bgm_saved");
-        } catch (error) { this.field("status").textContent = error.message; }
-        finally { this.field("save").disabled = false; }
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            if (revision === this.revision) {
+                this.fill(data.config);
+                this.dirty = false;
+                this.field('status').textContent = T('bgm_saved');
+            }
+        } catch (error) { this.field('status').textContent = error.message; }
+
     }
 }

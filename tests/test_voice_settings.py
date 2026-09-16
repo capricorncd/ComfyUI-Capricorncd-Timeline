@@ -10,7 +10,10 @@ import unittest
 from unittest.mock import patch
 
 ROOT = (Path(__file__).resolve().parents[1] / "backend")
-spec = importlib.util.spec_from_file_location("voice_settings_test", ROOT / "cap_voice_settings.py")
+package = types.ModuleType("config_test")
+package.__path__ = [str(Path(__file__).resolve().parents[1] / "backend")]
+sys.modules["config_test"] = package
+spec = importlib.util.spec_from_file_location("config_test.voice_settings_test", ROOT / "cap_voice_settings.py")
 voice = importlib.util.module_from_spec(spec)
 with patch.dict(sys.modules, {"folder_paths": types.SimpleNamespace()}):
     spec.loader.exec_module(voice)

@@ -14,31 +14,32 @@ import wave
 import aiohttp
 import folder_paths
 
+from .local_config import CONFIG_PATH, read_config, write_config
+
 LIMIT = 32 * 1024 * 1024
 CONTRACT = {
     "version": "capricorncd.subtitle-speech.v1", "method": "POST",
     "request": {"content_type": "multipart/form-data", "parts": {
-        "reference_audio": "PCM16 WAV, mono, 48000 Hz, 1–30 seconds",
+        "reference_audio": "PCM16 WAV, mono, 48000 Hz; duration validated by service",
         "metadata": {"contract": "capricorncd.subtitle-speech.v1", "request_id": "UUID",
                      "subtitle_id": "string", "character_media_id": "string", "text": "1–4000 characters",
                      "prompt": "0–4000 characters", "start_ms": "nonnegative integer",
                      "end_ms": "exclusive timeline end, integer; end_ms = start_ms + duration_ms",
-                     "duration_ms": "target duration, integer 100–300000", "model": "string"},
+                     "duration_ms": "target duration, positive integer", "model": "string"},
     }},
     "response": {"status": 200, "content_type": "audio/wav", "codec": "PCM16",
-                 "sample_rate": 48000, "channels": 1, "duration_seconds": "0.1–300", "max_bytes": LIMIT},
+                 "sample_rate": 48000, "channels": 1, "duration_seconds": "actual generated duration", "max_bytes": LIMIT},
     "errors": {"status": "4xx/5xx; 409 when busy", "body": {"error": {"code": "string", "message": "string"}}},
     "policy": "One request per subtitle; serial execution. No redirects, result URLs, retries or asynchronous jobs. Preserve text and language; use prompt only for delivery. Actual audio duration is preserved, not time-stretched to the target.",
 }
 
 
 def _config_path():
-    return Path(folder_paths.get_user_directory()) / "capricorncd" / "timeline_speech.json"
+    return CONFIG_PATH
 
 
 def _read_config():
-    path = _config_path()
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"url": "", "model": "", "timeout_seconds": 300}
+    return read_config(_config_path(), "speech", {})
 
 
 def public_config():
@@ -65,16 +66,7 @@ def save_config(payload):
     elif not key and old.get("url") == url:
         key = old.get("api_key", "")
     config = {"url": url, "model": str(payload.get("model") or "").strip(), "timeout_seconds": timeout, "api_key": key}
-    path = _config_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp = tempfile.mkstemp(dir=path.parent, prefix="speech_", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
-        os.replace(temp, path)
-    finally:
-        if os.path.exists(temp):
-            os.unlink(temp)
+    write_config(_config_path(), "speech", config)
     return public_config()
 
 
@@ -89,8 +81,8 @@ def validate_request(payload):
         raise ValueError("Text and prompt must be strings of at most 4000 characters each.")
     if type(payload.get("start_ms")) is not int or payload["start_ms"] < 0:
         raise ValueError("Invalid subtitle start_ms.")
-    if type(payload.get("duration_ms")) is not int or not 100 <= payload["duration_ms"] <= 300000:
-        raise ValueError("Subtitle duration must be 0.1–300 seconds.")
+    if type(payload.get("duration_ms")) is not int or payload["duration_ms"] <= 0:
+        raise ValueError("Subtitle duration must be positive.")
     if type(payload.get("end_ms")) is not int or payload["end_ms"] != payload["start_ms"] + payload["duration_ms"]:
         raise ValueError("end_ms must equal start_ms + duration_ms.")
     root = Path(folder_paths.get_input_directory()).resolve()
@@ -102,7 +94,7 @@ def validate_request(payload):
     return reference
 
 
-def wav_duration(data, minimum=0.1, maximum=300):
+def wav_duration(data):
     if len(data) > LIMIT:
         raise ValueError("Audio exceeds 32 MiB.")
     try:
@@ -115,22 +107,22 @@ def wav_duration(data, minimum=0.1, maximum=300):
             duration = frames / 48000
     except (wave.Error, EOFError) as exc:
         raise ValueError("Invalid WAV audio.") from exc
-    if not minimum <= duration <= maximum:
-        raise ValueError(f"Audio duration must be {minimum}–{maximum} seconds.")
+    if duration <= 0:
+        raise ValueError("Audio must not be empty.")
     return duration
 
 
 def prepare_reference(path):
     with tempfile.TemporaryDirectory(prefix="cap_speech_ref_") as temp:
         output = Path(temp) / "reference.wav"
-        command = ["ffmpeg", "-v", "error", "-nostdin", "-i", str(path), "-vn", "-t", "31",
+        command = ["ffmpeg", "-v", "error", "-nostdin", "-i", str(path), "-vn",
                    "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", str(output)]
         result = subprocess.run(command, capture_output=True, timeout=60,
                                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
         if result.returncode:
             raise ValueError("Cannot decode reference audio.")
         data = output.read_bytes()
-        wav_duration(data, minimum=1, maximum=30)
+        wav_duration(data)
         return data
 
 

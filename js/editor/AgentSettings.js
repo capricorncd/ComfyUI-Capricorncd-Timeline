@@ -2,7 +2,6 @@ import "../components/Button.js";
 import { api } from "../../../scripts/api.js";
 import { t as T } from "../i18n/timeline_editor.js";
 
-const AGENT_DEFAULT_MODELS = { openai: "gpt-5.4", gemini: "gemini-3.7-flash" };
 
 export class AgentSettings {
     constructor(root, confirmDelete) {
@@ -21,11 +20,7 @@ export class AgentSettings {
         root.querySelector(".cat-te-agent-cancel")?.addEventListener("click", () => this.cancel());
         root.querySelector(".cat-te-agent-save")?.addEventListener("click", () => void this.save());
         this.agentDeleteBtn?.addEventListener("click", () => void this.requestDelete());
-        this.agentProviderSelect?.addEventListener("change", () => {
-            if (Object.values(AGENT_DEFAULT_MODELS).includes(this.agentModelInput.value) || !this.agentModelInput.value.trim()) {
-                this.agentModelInput.value = AGENT_DEFAULT_MODELS[this.agentProviderSelect.value] || "";
-            }
-        });
+
     }
 
     async load() {
@@ -75,8 +70,8 @@ export class AgentSettings {
         this._editingAgentId = config?.id || "";
         this.agentLabelInput.value = config?.label || "";
         this.agentProviderSelect.value = config?.provider || "openai";
-        this.agentModelInput.value = config?.model || AGENT_DEFAULT_MODELS[this.agentProviderSelect.value] || "";
-        this.agentKeyInput.value = "";
+        this.agentModelInput.value = config?.model || "";
+        this.agentKeyInput.value = config?.has_key ? "****" : "";
         this.agentKeyInput.placeholder = config?.has_key ? T("leave_blank_keep_key") : T("enter_api_key");
         this.agentEnabledCb.checked = config?.enabled !== false;
         this.agentDeleteBtn.hidden = !config;
@@ -96,7 +91,7 @@ export class AgentSettings {
             label: this.agentLabelInput?.value.trim() || "",
             provider: this.agentProviderSelect?.value || "openai",
             model: this.agentModelInput?.value.trim() || "",
-            api_key: this.agentKeyInput?.value.trim() || "",
+            api_key: this.agentKeyInput?.value.trim() === "****" ? "" : (this.agentKeyInput?.value.trim() || ""),
             enabled: !!this.agentEnabledCb?.checked,
         };
         try {

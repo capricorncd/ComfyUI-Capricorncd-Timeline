@@ -1149,8 +1149,9 @@ export class CapTimelineEditorApp {
         if (key !== "b") return false;
         const clip = this.getSelectedClip();
         if (!clip) return false;
-        if (clip.track?.type === "audio") return false;
-        this._toggleDisableClip(clip);
+        if (clip.track?.locked) return false;
+        if (clip.track?.type === "audio") this._setMediaClipMuted(clip, !this._ensureClipMeta(clip).muted);
+        else this._toggleDisableClip(clip);
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation?.();
@@ -14404,7 +14405,7 @@ export class CapTimelineEditorApp {
     }
 
     _setMediaClipMuted(clip, muted) {
-        if (!clip || !isMediaTrackType(clip.track?.type) || clip.track.locked) return;
+        if (!clip || (!isMediaTrackType(clip.track?.type) && clip.track?.type !== "audio") || clip.track.locked) return;
         const meta = this._ensureClipMeta(clip);
         if (!!meta.muted === !!muted) return;
         this._recordUndo();
@@ -15830,12 +15831,8 @@ export class CapTimelineEditorApp {
             fn: () => this._localAudioJobs.open(clip, { start: clip.startTime, sources: this._clipDenoiseSources(clip, true) }) });
         if (isAudio) {
             items.push({
-                label: m.muted ? T("unmute_label") : T("mute_label"),
-                fn: () => {
-                    m.muted = !m.muted;
-                    this._meta.set(clip.id, m);
-                    this._decorateClip(clip);
-                },
+                label: (m.muted ? T("unmute_label") : T("mute_label")) + "  Ctrl+B",
+                fn: () => this._setMediaClipMuted(clip, !this._ensureClipMeta(clip).muted),
             });
         } else if (isVoiceover) {
             items.push(

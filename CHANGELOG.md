@@ -1,5 +1,21 @@
 # Release notes / 更新记录
 
+## 0.17.18 — 2026-09-17
+
+### English
+
+- Add music and sound-effect generation, audio denoising, speaker separation, voice conversion and text-to-audio with voice previews.
+- Group audio service settings into tabs with shared connection defaults, per-service overrides and automatic saving to local YAML configuration.
+- Process director Clip audio as a timeline mix; improve trim audio splitting, volume controls and waveforms.
+- Support Ctrl+B to mute or unmute audio Clips with undo and immediate playback updates.
+
+### 简体中文
+
+- 新增音乐、音效生成、音频降噪、人声分离、音色转换和文本转音频，支持预设音色试听。
+- 音频服务设置采用 Tab 分类，支持通用连接配置、各服务独立覆盖，并自动保存到本机 YAML 配置。
+- 导演 Clip 的音频先按时间线混合再处理；完善修剪音频分割、音量控制及波形显示。
+- 音频 Clip 支持 Ctrl+B 静音与解除静音，可撤销并即时更新播放。
+
 ## 0.17.17 — 2026-09-16
 
 ### English

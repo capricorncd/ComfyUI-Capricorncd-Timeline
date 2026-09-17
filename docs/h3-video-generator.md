@@ -2,6 +2,26 @@
 
 Category: `Capricorncd/MiniMaxH3`. A compact wrapper around existing nodes, not another model implementation.
 
+## Motion deblur (experimental)
+
+`motion_deblur` defaults to **false**. Enable it with **ComfyUI-MAINodes** installed and `base_model` connected to a model without acceleration LoRA. Missing requirements fail before sampling. Disabled workflows do not require MAINodes or run additional passes.
+
+After video sampling and optional audio repair, MAINodes analyzes motion, stretches frame spans, encodes and re-samples them, then recovers the original frame count. The independent repair uses the last 12 steps of a 25-step simple schedule (inject 0.5, Euler, CFG 1, video/audio shift 12/3); it does not reuse the 4/8-step or upscale-refine schedule. Oracle settings are q=0.75, d_max=4, ramp=true, bridge=8. These settings need playback evaluation on actual content; motion and background detail may change.
+
+- Requires at least 22 frames. Extra expanded frames, VAE operations and sampling cost memory and time. No automatic streamed-block patch or window splitting is enabled.
+- Output retains frame count, playback FPS, timeline trims and the original soundtrack. For audible output, `H3AudioSmear` stretches the baseline audio to seed the repair pass; final audio remains the baseline track. Silent mode skips audio stretching/encoding. Lip synchronization still needs visual verification.
+- The context prefix is not dilated and its original pixels are restored after recovery. Strict endpoint mode also restores the original generated first/last frames; this does not imply pixel-exact reference-image matching.
+- Save Latent encodes the repaired frames. With upscale/refine, low-resolution context is resized from the repaired final frames; high-resolution context uses final dimensions. Both retain the original video-sampling audio latent. VAE round trips may affect color/detail.
+- Progress reports the MAINodes repair stage, and video provenance records the option and internal node parameters. Existing workflows default to off.
+
+### Attribution
+
+Motion Lab algorithms are by **MatlowAI / MATLOWAI**, [ComfyUI-MAINodes](https://github.com/matlowai/ComfyUI-MAINodes), Copyright © 2026 MATLOWAI, [GPL-3.0-or-later](https://github.com/matlowai/ComfyUI-MAINodes/blob/f4868b4a08e8a504ce86db54a17961d399ffa2bc/LICENSE). Reviewed interface revision: `f4868b4a08e8a504ce86db54a17961d399ffa2bc`.
+
+Cap calls the installed `H3JerkOracle`, `H3TimeSmear`, `H3AudioSmear`, `H3V2VInit`, `H3InjectSchedule` and `H3ExactRecover` nodes; it does not copy or relabel their algorithms. Cap provides the switch, orchestration, timeline/context integration and output management. References: upstream [motion.py](https://github.com/matlowai/ComfyUI-MAINodes/blob/f4868b4a08e8a504ce86db54a17961d399ffa2bc/motion.py) and [TUNING.md](https://github.com/matlowai/ComfyUI-MAINodes/blob/f4868b4a08e8a504ce86db54a17961d399ffa2bc/TUNING.md). Upstream measurements are not GPU quality validation of this integration. The separately installed package retains its copyright and license.
+
+## Generation
+
 Connect the **sampling MODEL after external LoRA loading**, CLIP text encoder, video VAE, audio VAE and Timeline Editor's runtime `data_json`. LoRA name/strength controls have been removed from this node; select the matching acceleration LoRA in an external loader. Changing 4/8 steps does not change that LoRA. `base_model` is optional, including during audio repair: when connected it supplies audio repair and the base schedule; when omitted both reuse the incoming sampling model with its LoRAs preserved. Sigma shifts remain 12 (video) / 3 (audio), Euler, simple schedule and CFG 1. For old saved workflows, use the updated compact example or recreate/reconnect this node; do not reuse the old positional widget values.
 
 - One pass: full selected 4/8-step schedule at the project's `data_json` width/height (multiples of 32). `first_pass_megapixels` is ignored.

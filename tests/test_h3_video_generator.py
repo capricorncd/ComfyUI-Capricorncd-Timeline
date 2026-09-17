@@ -119,6 +119,78 @@ class GeneratorTests(unittest.TestCase):
         self.assertNotIn("filename_prefix", schema["required"])
         self.assertNotIn("first_pass_steps", schema["required"])
         self.assertEqual(schema["optional"]["base_model"][0], "MODEL")
+        self.assertFalse(schema["optional"]["motion_deblur"][1]["default"])
+
+    def test_motion_deblur_disabled_does_not_require_mainodes(self):
+        lookup = Mock(return_value=object)
+        self.scope["_node_class"] = lookup
+        self.node._deblur_clip = Mock(side_effect=AssertionError("disabled"))
+        self.run_node()
+        self.node._deblur_clip.assert_not_called()
+        self.assertFalse(set(self.scope["MOTION_NODES"]) & {c.args[0] for c in lookup.call_args_list})
+        self.assertFalse(json.loads(self.saved[0][1]["metadata"])["motion_deblur"])
+
+    def test_motion_deblur_missing_requirements_fail_before_sampling(self):
+        with self.assertRaisesRegex(ValueError, "base_model"):
+            self.run_node(motion_deblur=True, base_model=None)
+        self.scope["nodes"].NODE_CLASS_MAPPINGS = {}
+        with self.assertRaisesRegex(RuntimeError, "ComfyUI-MAINodes"):
+            self.run_node(motion_deblur=True)
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.prepared, [])
+
+    def enable_motion_deblur(self):
+        self.scope["nodes"].NODE_CLASS_MAPPINGS = dict.fromkeys((*self.scope["MOTION_NODES"], "H3AudioSmear"), object)
+        self.node._deblur_clip = Mock(return_value="recovered-images")
+
+    def test_motion_deblur_short_clip_fails_before_sampling(self):
+        self.enable_motion_deblur()
+        prepare = self.scope["CAP_MiniMaxH3ReferenceToVideo"].execute
+        def short_clip(*args, **kwargs):
+            result = list(prepare(*args, **kwargs))
+            result[2] = 5
+            return tuple(result)
+        self.scope["CAP_MiniMaxH3ReferenceToVideo"].execute = short_clip
+        with self.assertRaisesRegex(ValueError, "22 frames"):
+            self.run_node(motion_deblur=True)
+        self.assertFalse(any(name == "SamplerCustomAdvanced" for name, _ in self.calls))
+        self.assertEqual(self.saved, [])
+
+    def test_motion_deblur_preserves_audio_timing_and_runs_after_decode(self):
+        self.enable_motion_deblur()
+        self.run_node(motion_deblur=True, audio_refine=True, normalize_audio=True)
+        repair = self.node._deblur_clip.call_args.args
+        self.assertEqual(repair[0], "base")
+        self.assertEqual(repair[3:5], ("VAEDecode_output", "VAEDecodeAudio_output"))
+        self.assertEqual(self.saved[0][1]["images"], "recovered-images")
+        self.assertEqual(self.saved[0][1]["audio"], "NormalizeAudioLoudness_output")
+        phases = [d["phase"] for n, d, _ in self.events if n == "cat_h3_progress"]
+        self.assertEqual(phases, ["prepare", "sample", "audio", "decode", "deblur", "save", "compose", "done"])
+        self.assertTrue(json.loads(self.saved[0][1]["metadata"])["motion_deblur"])
+
+    def test_motion_deblur_silent_context_uses_repaired_pixels_at_both_sizes(self):
+        self.enable_motion_deblur()
+        del self.scope["nodes"].NODE_CLASS_MAPPINGS["H3AudioSmear"]
+        rows = [{"id": "a", "start_ms": 0, "end_ms": 5000, "save_latent": True},
+                {"id": "b", "start_ms": 5000, "end_ms": 10000,
+                 "h3_timing": {"context_frames": 22, "previous_source_clip_id": "a"}}]
+        self.run_node(rows, motion_deblur=True, generate_audio=False, second_sampling=True, upscaler_model="up")
+        self.assertTrue(all(c.args[4] is None for c in self.node._deblur_clip.call_args_list))
+        encoded = [kw["pixels"] for n, kw in self.calls if n == "VAEEncode"]
+        self.assertEqual(encoded, ["recovered-images", "ImageScale_output"])
+        resize = next(kw for n, kw in self.calls if n == "ImageScale")
+        self.assertEqual((resize["image"], resize["width"], resize["height"]), ("recovered-images", 608, 352))
+        saved = [kw for n, kw in self.calls if n == "MiniMaxH3MotionContextSaveLatent"]
+        self.assertEqual([kw["latent"] for kw in saved], ["LTXVConcatAVLatent_output"] * 2)
+        loaded = [kw["latent_path"] for n, kw in self.calls if n == "MiniMaxH3MotionContextLoadLatent"]
+        self.assertEqual(loaded, [saved[1]["filename_prefix"] + ".safetensors", saved[0]["filename_prefix"] + ".safetensors"])
+        self.assertFalse(any(n in ("H3AudioSmear", "VAEEncodeAudio", "VAEDecodeAudio") for n, _ in self.calls))
+
+    def test_motion_deblur_single_pass_saves_only_repaired_context(self):
+        self.enable_motion_deblur()
+        self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "save_latent": True}], motion_deblur=True)
+        self.assertEqual([kw["pixels"] for n, kw in self.calls if n == "VAEEncode"], ["recovered-images"])
+        self.assertEqual([kw["latent"] for n, kw in self.calls if n == "MiniMaxH3MotionContextSaveLatent"], ["LTXVConcatAVLatent_output"])
 
     def test_output_path_is_required_before_any_clip_is_sampled(self):
         for path in (None, "", "   ", 123):

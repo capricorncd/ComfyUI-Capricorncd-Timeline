@@ -648,6 +648,10 @@
       "composed_video": { "name": "Composed video" }
     },
     "inputs": {
+      "motion_deblur": {
+        "name": "Motion deblur (experimental)",
+        "tooltip": "Off by default. Uses MatlowAI's MAINodes for an extra motion repair pass. Requires MAINodes and base_model without acceleration LoRA. Costs time/memory and may change motion detail. Keeps original length, audio, context prefix and strict endpoints."
+      },
       "first_pass_megapixels": {
         "name": "First-pass megapixels",
         "tooltip": "Only used with second sampling. Sets the low-resolution first pass; final size comes from data_json. Without second sampling, ignored: generate directly at data_json width/height."
@@ -658,7 +662,7 @@
       },
       "base_model": {
         "name": "Base model (optional)",
-        "tooltip": "Used for audio repair and the base schedule when connected. Otherwise both reuse the incoming sampling model with its LoRAs preserved."
+        "tooltip": "Used for audio repair and the base schedule when connected; otherwise both use the sampling model. Motion deblur requires this input with no acceleration LoRA for its extra repair pass."
       },
       "audio_refine": {
         "name": "Repair audio",

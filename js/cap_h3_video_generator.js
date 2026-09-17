@@ -4,6 +4,7 @@ const INPUT_ORDER = [
     "model", "base_model", "clip", "vae", "audio_vae", "data_json",
     "steps", "strict_keyframes", "attention",
     "second_sampling", "first_pass_megapixels", "upscaler_model", "refine_sigmas",
+    "motion_deblur",
     "sampling_preview", "preview_tiny_vae",
     "generate_audio", "audio_refine", "audio_refine_steps", "normalize_audio",
     "compose_final",
@@ -45,11 +46,12 @@ app.registerExtension({
             const inputWidgets = info.inputs?.filter(input => WIDGET_ORDER.includes(input.widget?.name))
                 .map(input => input.widget.name) ?? [];
             const savedOrder = info.properties?.cap_h3_widget_order
-                ?? (inputWidgets.length === info.widgets_values?.length ? inputWidgets : schemaOrder);
+                ?? (inputWidgets.length === info.widgets_values?.length ? inputWidgets : schemaOrder.slice(0, info.widgets_values?.length));
             if (Array.isArray(info.widgets_values) && savedOrder.length === info.widgets_values.length) {
                 const values = new Map(savedOrder.map((name, i) => [name, info.widgets_values[i]]));
                 info = {...info, widgets_values: this.widgets.filter(widget => WIDGET_ORDER.includes(widget.name))
-                    .map(widget => values.has(widget.name) ? values.get(widget.name) : widget.value)};
+                    .map(widget => values.has(widget.name) ? values.get(widget.name)
+                        : widget.name === "motion_deblur" ? false : widget.value)};
             }
             configure?.call(this, info);
             // Graph loading/paste installs links after node.configure returns.

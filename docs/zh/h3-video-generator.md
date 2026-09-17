@@ -16,6 +16,24 @@
 - Save Latent 连续片段需按时间轴顺序一起运行。按 `previous_source_clip_id` 匹配低清/高清 Context，不读取目录中任意“最新文件”。Context 保存在 `output/h3_context/cap_generator/<本次运行>/`。缺少前段会报错；暂不支持从旧运行自动恢复部分链。
 - 保留原始视频的 Context 与补齐帧。输出的单个 `data_json` 保留起止时间和裁剪规则，更新文件名及拼接来源，可接「多段视频合成」；`video_files` 是相对于 output 的 STRING 文件名列表，不是 VIDEO 对象或帧张量。
 
+## 运动去模糊（实验）
+
+`motion_deblur` 默认关闭。开启时需要安装 **ComfyUI-MAINodes**，并连接不含加速 LoRA 的「基础模型」；缺少依赖或基础模型会在采样前报错。关闭时不依赖 MAINodes，也不增加采样步骤。
+
+修复在一采/可选二采和音频修复完成后执行：运动分析 → 拉长帧段 → VAE 编码 → 基础模型部分重采样 → 按实际 hold map 恢复原帧数。独立使用 25 步 simple 日程的后 12 步（inject 0.5、Euler、CFG 1、shift 12/3），与现有 4/8 步和二采 Sigmas 分开。采用上游自适应参数 q=0.75、d_max=4、ramp=true、bridge=8；这些组合仍需按实际镜头评估，不保证消除所有模糊，也可能改变动作或背景。
+
+- 至少需要 22 帧。额外的拉长帧段、编码和采样会增加内存、显存及时间；此开关未自动启用 MAINodes 的实验性低显存补丁或分窗口处理。
+- 输出沿用原帧数、FPS、时间轴裁剪规则和原音轨。有声模式通过 `H3AudioSmear` 将原音频拉长后编码，作为修复采样的音频初始值；最终仍使用修复前的音轨，不输出重新生成的声音。无声模式跳过音频拉伸和编码。口型与动作效果仍需实际观看确认。
+- Context 前缀不拉长，修复后恢复为修复前的原帧；严格首尾帧同样保留修复前的端点画面。不会把它升级为参考图逐像素一致保证。
+- Save Latent 改为编码修复后的画面；二采时低清 Context 由修复后的工程尺寸画面缩小再编码，高清 Context 按工程尺寸编码，音频 latent 沿用原视频采样结果。额外 VAE 往返可能引入颜色或细节变化。
+- 进度显示「运动去模糊（MAINodes）」，视频元数据记录开关、内部节点及参数。更新后旧工作流保持默认关闭。
+
+### 来源与致谢
+
+运动分析、帧段拉伸、音视频初始化、截取采样日程和恢复算法来自 **MatlowAI / MATLOWAI** 的 [ComfyUI-MAINodes](https://github.com/matlowai/ComfyUI-MAINodes)，Copyright © 2026 MATLOWAI，采用 [GPL-3.0-or-later](https://github.com/matlowai/ComfyUI-MAINodes/blob/f4868b4a08e8a504ce86db54a17961d399ffa2bc/LICENSE)。接口核对版本：`f4868b4a08e8a504ce86db54a17961d399ffa2bc`。
+
+本节点通过已注册接口调用 `H3JerkOracle`、`H3TimeSmear`、`H3AudioSmear`、`H3V2VInit`、`H3InjectSchedule` 和 `H3ExactRecover`；不复制或改名发布原算法。Cap 的工作是开关、流程编排、时间轴/Context 适配和输出管理。参考上游 [motion.py](https://github.com/matlowai/ComfyUI-MAINodes/blob/f4868b4a08e8a504ce86db54a17961d399ffa2bc/motion.py) 与 [TUNING.md](https://github.com/matlowai/ComfyUI-MAINodes/blob/f4868b4a08e8a504ce86db54a17961d399ffa2bc/TUNING.md)；原作者实测不代表本接入已完成 GPU 画质验证。原节点包保留自己的版权和许可证。
+
 ## MV 与音频开关
 
 - 「生成视频音频」默认开启，保持原有行为；关闭时，片段视频和最终合成均不写入音轨，并跳过音频修复采样、音频 VAE 解码和响度归一化。

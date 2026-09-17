@@ -645,6 +645,10 @@
   "CAP_H3VideoGenerator": {
     "display_name": "MiniMax H3 视频生成",
     "inputs": {
+      "motion_deblur": {
+        "name": "运动去模糊（实验）",
+        "tooltip": "默认关闭。使用 MatlowAI 的 MAINodes 额外修复快速运动拖影；需要安装 MAINodes，并连接不含加速 LoRA 的基础模型。增加耗时和内存，可能改变动作细节。保留原帧数、原音轨、Context 前缀及严格首尾帧。"
+      },
       "compose_final": {
         "name": "合成最终视频",
         "tooltip": "默认开启。全部片段完成后，按时间轴 data_json 的 Context 替换和首尾裁剪规则拼接，保留生成视频原声。不渲染编辑器的字幕及媒体轨道。"
@@ -663,7 +667,7 @@
       },
       "base_model": {
         "name": "基础模型（可选）",
-        "tooltip": "连接时用于音频修复和基础采样日程；未连接时，两者均复用输入的采样模型，保留已加载的 LoRA。"
+        "tooltip": "连接时用于音频修复和基础采样日程；未连接时，两者均复用输入的采样模型。开启运动去模糊时必须连接不含加速 LoRA 的基础模型，供额外修复使用。"
       },
       "clip": {
         "name": "文本编码器 CLIP"

@@ -3957,3 +3957,10 @@ body.cat-te-media-dnd-over-tl {
     color: var(--cat-text);
 }
 
+
+.cat-te-insert-clip-dialog { --cap-dialog-width: 480px; --cap-dialog-height: fit-content; --cap-dialog-min-width: 320px; --cap-dialog-min-height: 280px; }
+.cat-te-insert-clip-dialog fieldset { border: 1px solid var(--cat-border); border-radius: 6px; margin: 0 0 12px; padding: 12px; }
+.cat-te-insert-clip-dialog fieldset label { margin-right: 18px; }
+.cat-te-insert-duration { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.cat-te-insert-duration input { width: 65px; }
+.cat-te-insert-clip-dialog p { color: var(--cat-muted); font-size: 12px; }

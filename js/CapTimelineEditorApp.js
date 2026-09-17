@@ -1,3 +1,4 @@
+import { openInsertClip } from './editor/InsertClip.js';
 /*!
  * Copyright (c) 2026 capricorncd
  * SPDX-License-Identifier: MIT
@@ -15820,6 +15821,7 @@ export class CapTimelineEditorApp {
         const t = this._timeline.currentTime;
         const canSplit = t > clip.startTime && t < clip.endTime;
         const items = [
+            { label: T("insert_clip_title"), fn: () => openInsertClip(this, clip) },
             ...(canSplit ? [{ label: T("menu_split"), fn: () => this._splitClip(clip) }] : []),
         ];
         const denoiseSources = this._clipDenoiseSources(clip, true);
@@ -15940,6 +15942,52 @@ export class CapTimelineEditorApp {
         this._refreshTimelineDuration();
         this._saveToWidgets();
         this._scheduleProgramPreview();
+    }
+
+    _insertAdjacentClip(source, { before = false, copy = false, duration }) {
+        const tl = this._timeline;
+        const track = source?.track;
+        if (!tl || !track || track.locked || this._findClipById(source.id) !== source || !Number.isFinite(duration) || duration <= 0) return false;
+        const fps = tl.fps || 24;
+        duration = Math.round(duration * fps) / fps;
+        if (duration <= 0) return false;
+        const start = before ? source.startTime : source.endTime;
+        const snap = copy ? this._snapshotClip(source) : null;
+        const following = track.clips.filter(clip => clip.startTime >= start - 1e-8);
+        this._recordUndo();
+        for (const clip of following) {
+            clip.startTime += duration;
+            this._rememberResourceTiming(clip);
+            clip._applyPosition();
+        }
+        const data = snap ? {
+            name: snap.name, src: snap.src, thumbnail: snap.thumbnail, color: snap.color,
+            sourceDuration: snap.sourceDuration, sourceOffset: snap.sourceOffset,
+            playbackRate: snap.playbackRate, fadeIn: Math.min(snap.fadeIn, duration), fadeOut: Math.min(snap.fadeOut, duration),
+            hasAudio: snap.hasAudio, waveformPeaks: snap.waveformPeaks,
+        } : { name: 'Clip', src: '', sourceDuration: Infinity, color: track.color };
+        this._ensureTimelineLength(Math.max(start + duration, ...track.clips.map(clip => clip.endTime)));
+        const clip = tl.addClip(track.id, { ...data, startTime: start, duration, groupId: '' });
+        const index = this._trackIndex(track);
+        const meta = snap ? structuredClone(snap.meta) : track.type === 'audio' ? defaultAudioMeta(index)
+            : isVoiceoverTrackType(track.type) ? defaultVoiceoverMeta(index)
+            : isSubtitleTrackType(track.type) ? { ...defaultSubtitleMeta(index), ...pickSubtitleStyle(this._trackInfo.get(track.id)?.subtitleStyle) }
+            : defaultImageMeta(index);
+        if (!copy && isMediaTrackType(track.type)) { meta.clipType = 'media'; meta.mediaKind = 'media'; }
+        meta.trackIndex = index;
+        meta.resourceStartSec = start;
+        meta.resourceDurationSec = duration;
+        if (track.type === 'audio') { meta.fadeInMs = Math.round(clip.fadeIn * 1000); meta.fadeOutMs = Math.round(clip.fadeOut * 1000); }
+        this._meta.set(clip.id, meta);
+        if (snap) clip._audioBuffer = snap.audioBuffer;
+        this._decorateClip(clip);
+        tl.selectClip(clip);
+        this._refreshTimelineDuration();
+        this._updatePromptPanel();
+        this._saveToWidgets();
+        this._scheduleProgramPreview();
+        if (tl._playing) this._startAudioPlayback();
+        return true;
     }
 
     _cloneClipMeta(meta) {

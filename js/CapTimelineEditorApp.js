@@ -15841,6 +15841,7 @@ export class CapTimelineEditorApp {
                 label: (m.muted ? T("unmute_label") : T("mute_label")) + "  Ctrl+B",
                 fn: () => this._setMediaClipMuted(clip, !this._ensureClipMeta(clip).muted),
             });
+            items.push({ label: T("menu_set_title"), fn: () => this._renameClip(clip) });
         } else if (isVoiceover) {
             items.push(
                 {

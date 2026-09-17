@@ -1,5 +1,7 @@
 import { bindDragSession, clamp } from './utils.js';
 
+const gainY = gain => gain <= 1 ? 100 - gain * 50 : 50 - (gain - 1) * 12.5;
+
 export function normalizeVolumePoints(points) {
   const byTime = new Map();
   for (const p of Array.isArray(points) ? points : []) {
@@ -77,10 +79,11 @@ export class AudioEnvelope {
         if (clip.track.locked) return;
         if (!changed && Math.hypot(ev.clientX-e.clientX, ev.clientY-e.clientY)<3) return;
         if (!changed) { this.begin(); changed = true; }
-        let gain = clamp(5*(1-(ev.clientY-r.top)/r.height), 0, 5);
+        const y = clamp((ev.clientY-r.top)/r.height, 0, 1);
+        let gain = y >= 0.5 ? (1-y)*2 : 1+(0.5-y)*8;
         const levels = [1, ...this.points.filter(p=>p!==point).map(p=>p.gain)];
-        const nearest = levels.reduce((a,b)=>Math.abs(b-gain)<Math.abs(a-gain)?b:a);
-        if (Math.abs(nearest-gain)*r.height/5 <= 5) gain=nearest;
+        const nearest = levels.reduce((a,b)=>Math.abs(gainY(b)-gainY(gain))<Math.abs(gainY(a)-gainY(gain))?b:a);
+        if (Math.abs(gainY(nearest)-gainY(gain))*r.height/100 <= 5) gain=nearest;
         point.gain = Math.round(gain*1000)/1000;
         const i=this.points.indexOf(point);
         const min = Math.max(clip.sourceOffset*1000, i ? this.points[i-1].source_ms+1 : 0);
@@ -103,9 +106,14 @@ export class AudioEnvelope {
   render(guide=null) {
     this.clip._paintWaveform?.();
     const c=this.clip, start=c.sourceOffset*1000, end=(c.sourceOffset+c.duration*(c.playbackRate || 1))*1000;
-    const x=ms=>(ms-start)/(end-start)*1000, y=g=>(5-g)*20;
+    const x=ms=>(ms-start)/(end-start)*1000, y=gainY;
     const visible=this.points.filter(p=>p.source_ms>=start&&p.source_ms<=end);
     const path=[{source_ms:start,gain:volumeAt(this.points,start)},...visible,{source_ms:end,gain:volumeAt(this.points,end)}];
+    // Split at unity so the displayed curve still follows linear gain interpolation.
+    for(let i=path.length-1;i>0;i--){
+      const a=path[i-1], b=path[i];
+      if((a.gain-1)*(b.gain-1)<0) path.splice(i,0,{source_ms:a.source_ms+(b.source_ms-a.source_ms)*(1-a.gain)/(b.gain-a.gain),gain:1});
+    }
     this.svg.replaceChildren();
     const add=(tag,attrs)=>{ const el=document.createElementNS(this.svg.namespaceURI,tag); for(const [k,v] of Object.entries(attrs))el.setAttribute(k,String(v));this.svg.appendChild(el);return el; };
     add('polyline',{points:path.map(p=>`${x(p.source_ms)},${y(p.gain)}`).join(' '),class:'tl-volume-line'});

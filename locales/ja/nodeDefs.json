@@ -1,4 +1,47 @@
 {
+  "CAP_H3FaceRefineConfig": {
+    "display_name": "H3 顔修復設定",
+    "inputs": {
+      "detector": {
+        "name": "顔検出モデル"
+      },
+      "select": {
+        "name": "対象の選択規則"
+      },
+      "select_index": {
+        "name": "対象番号（0 から）"
+      },
+      "confidence": {
+        "name": "検出信頼度"
+      },
+      "denoise": {
+        "name": "修復強度"
+      },
+      "large_face_strength": {
+        "name": "大きい顔の強度倍率"
+      },
+      "canvas_size": {
+        "name": "修復キャンバスサイズ"
+      },
+      "crop_factor": {
+        "name": "切り抜き倍率"
+      },
+      "smooth_window": {
+        "name": "追跡平滑化フレーム数"
+      },
+      "feather": {
+        "name": "ぼかし幅"
+      },
+      "blend": {
+        "name": "合成率"
+      }
+    },
+    "outputs": {
+      "face_refine_config": {
+        "name": "H3 顔修復設定"
+      }
+    }
+  },
   "CAP_ModelPreviewOverride": {
     "display_name": "Cap モデルプレビュー上書き",
     "description": "標準の ComfyUI-KJNodes が必要です。プレビューエンジンを再利用し、for ループの一時 ID を表示ノードに対応付け、2 回目以降も更新します。KJNodes の変更は不要です。シードやサンプリング設定は変更しません。"
@@ -648,6 +691,13 @@
       "composed_video": { "name": "結合動画" }
     },
     "inputs": {
+      "face_refine": {
+        "name": "顔の修復",
+        "tooltip": "初期値はオフ。H3 顔修復設定と Carasibana の H3-FaceRefine が必要です。現在の 4/8 ステップモデルで一人の顔を修復し、元の音声とフレーム数を維持します。時間とメモリが増えます。"
+      },
+      "face_refine_config": {
+        "name": "H3 顔修復設定"
+      },
       "motion_deblur": {
         "name": "モーションブラー低減（実験）",
         "tooltip": "初期値はオフ。MatlowAI の MAINodes による追加修復。MAINodes と高速化 LoRA を含まないベースモデルが必要です。時間・メモリが増え、動作の細部が変化する場合があります。元のフレーム数、音声、Context 冒頭と厳密モードの両端を保持します。"

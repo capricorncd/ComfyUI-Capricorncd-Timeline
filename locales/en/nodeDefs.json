@@ -1,4 +1,47 @@
 {
+  "CAP_H3FaceRefineConfig": {
+    "display_name": "H3 Face Refine Config",
+    "inputs": {
+      "detector": {
+        "name": "Face detector"
+      },
+      "select": {
+        "name": "Subject selection"
+      },
+      "select_index": {
+        "name": "Subject index (from 0)"
+      },
+      "confidence": {
+        "name": "Detection confidence"
+      },
+      "denoise": {
+        "name": "Denoise"
+      },
+      "large_face_strength": {
+        "name": "Large-face strength multiplier"
+      },
+      "canvas_size": {
+        "name": "Crop canvas size"
+      },
+      "crop_factor": {
+        "name": "Crop factor"
+      },
+      "smooth_window": {
+        "name": "Tracking smoothing frames"
+      },
+      "feather": {
+        "name": "Feather"
+      },
+      "blend": {
+        "name": "Blend"
+      }
+    },
+    "outputs": {
+      "face_refine_config": {
+        "name": "H3 Face Refine Config"
+      }
+    }
+  },
   "CAP_ModelPreviewOverride": {
     "display_name": "Cap Model Preview Override",
     "description": "Requires unmodified ComfyUI-KJNodes. Reuses its preview engine and resolves for-loop execution IDs to display nodes so later iterations keep updating. Does not change seeds or sampling settings."
@@ -648,6 +691,13 @@
       "composed_video": { "name": "Composed video" }
     },
     "inputs": {
+      "face_refine": {
+        "name": "Face refinement",
+        "tooltip": "Off by default. Requires H3 Face Refine Config and Carasibana H3-FaceRefine. Uses the current 4/8-step sampling model for one tracked face; keeps original audio and frame count. Costs extra time/memory."
+      },
+      "face_refine_config": {
+        "name": "H3 Face Refine Config"
+      },
       "motion_deblur": {
         "name": "Motion deblur (experimental)",
         "tooltip": "Off by default. Uses MatlowAI's MAINodes for an extra motion repair pass. Requires MAINodes and base_model without acceleration LoRA. Costs time/memory and may change motion detail. Keeps original length, audio, context prefix and strict endpoints."

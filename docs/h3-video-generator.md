@@ -2,6 +2,8 @@
 
 Category: `Capricorncd/MiniMaxH3`. A compact wrapper around existing nodes, not another model implementation.
 
+Optional **face_refine** defaults to off. Connect [H3 Face Refine Config](h3-face-refine.md) to configure the detector and repair strength. It uses Carasibana's installed H3-FaceRefine nodes after motion deblur, with existing detectors in `models/yolo` or `models/ultralytics/bbox`.
+
 ## Motion deblur (experimental)
 
 `motion_deblur` defaults to **false**. Enable it with **ComfyUI-MAINodes** installed and `base_model` connected to a model without acceleration LoRA. Missing requirements fail before sampling. Disabled workflows do not require MAINodes or run additional passes.

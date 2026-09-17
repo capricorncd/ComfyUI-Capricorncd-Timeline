@@ -10,9 +10,9 @@ vm.runInNewContext(readFileSync(new URL('../js/cap_h3_video_generator.js', impor
 const oldWidgets = ['steps', 'strict_keyframes', 'second_sampling', 'first_pass_megapixels',
     'upscaler_model', 'refine_sigmas', 'audio_refine', 'audio_refine_steps', 'normalize_audio',
     'attention', 'compose_final', 'sampling_preview', 'preview_tiny_vae', 'generate_audio'];
-const currentWidgets = [...oldWidgets, 'motion_deblur'];
+const currentWidgets = [...oldWidgets, 'motion_deblur', 'face_refine'];
 const expected = ['steps', 'strict_keyframes', 'attention', 'second_sampling', 'first_pass_megapixels',
-    'upscaler_model', 'refine_sigmas', 'motion_deblur', 'sampling_preview', 'preview_tiny_vae', 'generate_audio',
+    'upscaler_model', 'refine_sigmas', 'motion_deblur', 'face_refine', 'sampling_preview', 'preview_tiny_vae', 'generate_audio',
     'audio_refine', 'audio_refine_steps', 'normalize_audio', 'compose_final'];
 const oldInputs = ['model', 'clip', 'vae', 'audio_vae', 'data_json', 'base_model']
     .map((name, i) => ({name, link: i + 1}));
@@ -22,7 +22,7 @@ class Node {
         this.id = 9;
         this.comfyClass = 'CAP_H3VideoGenerator';
         this.inputs = structuredClone(oldInputs);
-        this.widgets = currentWidgets.map(name => ({name, value: name === 'motion_deblur' ? false : `default:${name}`}));
+        this.widgets = currentWidgets.map(name => ({name, value: ['motion_deblur', 'face_refine'].includes(name) ? false : `default:${name}`}));
         this.widgets.push({name: 'stv_ui', serialize: false});
     }
     configure(info) {
@@ -40,6 +40,7 @@ assert.deepEqual(node.inputs.map(i => i.name), ['model', 'base_model', 'clip', '
 assert.deepEqual(node.widgets.map(w => w.name), [...expected, 'stv_ui']);
 const values = Object.fromEntries(oldWidgets.map(name => [name, `saved:${name}`]));
 values.motion_deblur = false;
+values.face_refine = false;
 for (const inputs of [savedInputs, oldInputs, [...oldInputs, {name: 'steps', widget: {name: 'steps'}}]]) {
     node.configure({inputs, widgets_values: oldWidgets.map(name => values[name])});
     const links = new Map(oldInputs.map(input => [input.link, {target_id: 9, target_slot: -1}]));
@@ -67,3 +68,8 @@ extension.loadedGraphNode(node);
 assert.equal(node.widgets.at(-1).name, 'stv_ui');
 assert.equal(node.widgets.at(-2).name, 'compose_final');
 console.log('H3 layout: adjacent models, ordered options, preserved values/links and reload passed.');
+
+node.configure({widgets_values: [...oldWidgets.map(name => values[name]), true]});
+pending.splice(0).forEach(cb => cb());
+assert.equal(node.widgets.find(w => w.name === 'motion_deblur').value, true);
+assert.equal(node.widgets.find(w => w.name === 'face_refine').value, false);

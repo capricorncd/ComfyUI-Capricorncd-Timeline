@@ -1,4 +1,47 @@
 {
+  "CAP_H3FaceRefineConfig": {
+    "display_name": "H3 面部修复配置",
+    "inputs": {
+      "detector": {
+        "name": "人脸检测模型"
+      },
+      "select": {
+        "name": "目标选择规则"
+      },
+      "select_index": {
+        "name": "目标序号（从 0 开始）"
+      },
+      "confidence": {
+        "name": "检测置信度"
+      },
+      "denoise": {
+        "name": "修复强度"
+      },
+      "large_face_strength": {
+        "name": "大脸强度倍率"
+      },
+      "canvas_size": {
+        "name": "修复画布尺寸"
+      },
+      "crop_factor": {
+        "name": "裁剪范围倍率"
+      },
+      "smooth_window": {
+        "name": "跟踪平滑帧数"
+      },
+      "feather": {
+        "name": "融合羽化"
+      },
+      "blend": {
+        "name": "融合比例"
+      }
+    },
+    "outputs": {
+      "face_refine_config": {
+        "name": "H3 面部修复配置"
+      }
+    }
+  },
   "CAP_ModelPreviewOverride": {
     "display_name": "Cap 模型预览覆盖",
     "description": "依赖原版 ComfyUI-KJNodes，复用其预览引擎。将 for 循环临时节点 ID 映射回显示节点，保证后续循环更新预览；无需修改第三方插件。不改变种子或采样参数。"
@@ -645,6 +688,13 @@
   "CAP_H3VideoGenerator": {
     "display_name": "MiniMax H3 视频生成",
     "inputs": {
+      "face_refine": {
+        "name": "面部修复",
+        "tooltip": "默认关闭。需连接 H3 面部修复配置并安装 Carasibana 的 H3-FaceRefine。使用当前 4/8 步采样模型额外修复一个目标人脸，保留原音轨和帧数；会增加耗时与内存。"
+      },
+      "face_refine_config": {
+        "name": "H3 面部修复配置"
+      },
       "motion_deblur": {
         "name": "运动去模糊（实验）",
         "tooltip": "默认关闭。使用 MatlowAI 的 MAINodes 额外修复快速运动拖影；需要安装 MAINodes，并连接不含加速 LoRA 的基础模型。增加耗时和内存，可能改变动作细节。保留原帧数、原音轨、Context 前缀及严格首尾帧。"

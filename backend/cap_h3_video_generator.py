@@ -21,6 +21,7 @@ from .cap_size_settings import CAP_SizeFromMegapixels
 from .cap_te_notify import EVENT_CLIP_RUNNING, notify_timeline
 from .cap_video_metadata import execution_graph
 from .h3_timing import timing_filename
+from .cap_h3_face_refine import FACE_NODES, validate_face_config
 
 
 REFINE_SIGMAS = "0.9035, 0.8000, 0.6316, 0.3158, 0.0000"
@@ -152,6 +153,8 @@ class CAP_H3VideoGenerator:
                 "preview_tiny_vae": (["none"] + folder_paths.get_filename_list("vae_approx"), {"default": "none", "tooltip": "Select taeh3.safetensors for H3 RGB previews if installed in models/vae_approx. none uses approximate latent colors; completed videos always use the full VAE."}),
                 "generate_audio": ("BOOLEAN", {"default": True, "tooltip": "Include generated audio in Clip and final videos. Off skips audio repair, decoding, normalization and audio encoding for silent MV footage. H3 still jointly samples the audio latent; reference audio is preserved."}),
                 "motion_deblur": ("BOOLEAN", {"default": False, "tooltip": "Experimental MAINodes motion repair after video sampling. Requires ComfyUI-MAINodes and base_model without acceleration LoRA. Extra sampling/encode/decode increases time and memory; motion details may change. Keeps original frame count, audio and context prefix."}),
+                "face_refine": ("BOOLEAN", {"default": False, "tooltip": "Refine one tracked face after motion deblur. Requires H3-FaceRefine and a connected H3 Face Refine Config. Uses the sampling model and its 4/8-step LoRA. Adds a crop sampling pass; keeps original audio and frame count."}),
+                "face_refine_config": ("CAP_H3_FACE_REFINE_CONFIG", {"tooltip": "Connect H3 Face Refine Config. Ignored when face_refine is off."}),
             },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "unique_id": "UNIQUE_ID", "dynprompt": "DYNPROMPT"},
         }
@@ -165,7 +168,8 @@ class CAP_H3VideoGenerator:
                  upscaler_model="none", refine_sigmas=REFINE_SIGMAS,
                  audio_refine=False, audio_refine_steps=3, normalize_audio=False, attention="keep",
                  prompt=None, extra_pnginfo=None,
-                 unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False):
+                 unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False,
+                 face_refine=False, face_refine_config=None):
         data = json.loads(data_json)
         width, height, fps = _validate(data, strict_keyframes)
         audio_refine = bool(generate_audio and audio_refine)
@@ -175,6 +179,16 @@ class CAP_H3VideoGenerator:
         steps = int(steps)
         required = ["MiniMaxH3SigmaShift", "RandomNoise", "BasicGuider", "KSamplerSelect",
                     "BasicScheduler", "SamplerCustomAdvanced", "VAEDecode"]
+        if face_refine:
+            face_refine_config = validate_face_config(face_refine_config)
+            for name in FACE_NODES:
+                if name not in nodes.NODE_CLASS_MAPPINGS:
+                    raise RuntimeError(f"Face refinement requires ComfyUI-H3-FaceRefine ({name}). Install/update it and restart ComfyUI.")
+            required += ["VAEEncode", "LTXVSeparateAVLatent", "LTXVConcatAVLatent"]
+            if second_sampling and any(row.get("save_latent") for row in data["clips"]):
+                required.append("ImageScale")
+        else:
+            face_refine_config = None
         if motion_deblur:
             if base_model is None:
                 raise ValueError("Motion deblur requires base_model without an acceleration LoRA. Connect it or disable motion_deblur.")
@@ -244,6 +258,8 @@ class CAP_H3VideoGenerator:
         phases.append("decode")
         if motion_deblur:
             phases.append("deblur")
+        if face_refine:
+            phases.append("face")
         phases.append("save")
         clip_total = len(data["clips"])
         total_units = clip_total * len(phases) + int(compose_final)
@@ -277,7 +293,7 @@ class CAP_H3VideoGenerator:
                 fps, steps, strict_keyframes, second_sampling, upscaler_model, refine_sigmas,
                 audio_refine, audio_refine_steps, normalize_audio, attention, prior_paths,
                 run_token, dict(records), extra_pnginfo,
-                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur)
+                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur, face_refine_config)
             filename = saved["result"][0]
             row["output_video"] = filename
             for owner in data["clips"]:
@@ -312,7 +328,7 @@ class CAP_H3VideoGenerator:
     def _generate_clip(self, model, base_model, clip, vae, audio_vae, data, index, width, height, low_width, low_height,
                        fps, steps, strict_keyframes, second_sampling, upscaler_model, refine_sigmas,
                        audio_refine, audio_refine_steps, normalize_audio, attention, prior_paths,
-                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, motion_deblur=False):
+                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, motion_deblur=False, face_refine_config=None):
         if progress:
             progress("prepare")
         row = data["clips"][index]
@@ -352,7 +368,7 @@ class CAP_H3VideoGenerator:
         del sampled, denoised
         context_prefix = f"h3_context/cap_generator/{run_token}/{hashlib.sha256(cid.encode()).hexdigest()[:16]}"
         low_path = high_path = ""
-        if save_latent and not motion_deblur:
+        if save_latent and not (motion_deblur or face_refine_config):
             low_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=low_result, filename_prefix=context_prefix + "/low", clip_index=1)
         result = low_result
         del low_result
@@ -381,7 +397,7 @@ class CAP_H3VideoGenerator:
                 progress("refine")
             result, denoised = _call("SamplerCustomAdvanced", records, noise=noise, guider=guider, sampler=sampler, sigmas=sigmas, latent_image=latent)
             del denoised, latent, guider
-            if save_latent and not motion_deblur:
+            if save_latent and not (motion_deblur or face_refine_config):
                 high_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=result, filename_prefix=context_prefix + "/high", clip_index=1)
         audio = None
         if generate_audio and audio_refine:
@@ -403,7 +419,6 @@ class CAP_H3VideoGenerator:
             progress("decode")
         if generate_audio:
             audio, = _call("VAEDecodeAudio", records, samples=audio_result, vae=audio_vae)
-        del audio_result
         images, = _call("VAEDecode", records, samples=result, vae=vae)
         if motion_deblur:
             if progress:
@@ -411,21 +426,28 @@ class CAP_H3VideoGenerator:
             images = self._deblur_clip(base_model, positive, result, images, audio, vae, audio_vae,
                                        noise, trim_frames, strict_keyframes, attention, records,
                                        preview_id, preview_tiny_vae, fps)
-            if save_latent:
-                context_video, context_audio = _call("LTXVSeparateAVLatent", records, av_latent=result)
-                del context_video
-                context_images = images
-                if second_sampling:
-                    context_video, = _call("VAEEncode", records, pixels=images, vae=vae)
-                    context, = _call("LTXVConcatAVLatent", records, video_latent=context_video, audio_latent=context_audio)
-                    high_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=context, filename_prefix=context_prefix + "/high", clip_index=1)
-                    del context, context_video
-                    context_images, = _call("ImageScale", records, image=images, upscale_method="area",
-                                            width=low_width, height=low_height, crop="disabled")
-                context_video, = _call("VAEEncode", records, pixels=context_images, vae=vae)
+        if face_refine_config:
+            if progress:
+                progress("face")
+            images = self._refine_faces(model, positive, audio_result, images, vae, noise, steps,
+                                        face_refine_config, trim_frames, strict_keyframes, records,
+                                        preview_id, preview_tiny_vae, fps)
+        del audio_result
+        if save_latent and (motion_deblur or face_refine_config):
+            context_video, context_audio = _call("LTXVSeparateAVLatent", records, av_latent=result)
+            del context_video
+            context_images = images
+            if second_sampling:
+                context_video, = _call("VAEEncode", records, pixels=images, vae=vae)
                 context, = _call("LTXVConcatAVLatent", records, video_latent=context_video, audio_latent=context_audio)
-                low_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=context, filename_prefix=context_prefix + "/low", clip_index=1)
-                del context, context_video, context_audio, context_images
+                high_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=context, filename_prefix=context_prefix + "/high", clip_index=1)
+                del context, context_video
+                context_images, = _call("ImageScale", records, image=images, upscale_method="area",
+                                        width=low_width, height=low_height, crop="disabled")
+            context_video, = _call("VAEEncode", records, pixels=context_images, vae=vae)
+            context, = _call("LTXVConcatAVLatent", records, video_latent=context_video, audio_latent=context_audio)
+            low_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=context, filename_prefix=context_prefix + "/low", clip_index=1)
+            del context, context_video, context_audio, context_images
         del result
         if generate_audio and normalize_audio:
             audio, = _call("NormalizeAudioLoudness", records, audio=audio, lufs=-14.0)
@@ -440,10 +462,72 @@ class CAP_H3VideoGenerator:
                                                              "normalize_audio": bool(generate_audio and normalize_audio),
                                                              "second_sampling": second_sampling, "width": width, "height": height,
                                                              "motion_deblur": motion_deblur,
+                                                             "face_refine": bool(face_refine_config), "face_refine_config": face_refine_config,
                                                              "first_pass_width": low_width, "first_pass_height": low_height,
                                                              "h3_timing": row.get("h3_timing")}),
                                         save_sidecar=True, prompt=records, extra_pnginfo=extra_pnginfo, seed=seed, clip_id=cid)
         return saved, (low_path, high_path) if save_latent else None
+
+    def _refine_faces(self, model, positive, samples, images, vae, noise, steps, config,
+                      trim_frames, strict_keyframes, records, preview_id, preview_tiny_vae, fps):
+        # Tracking, per-frame denoise and stitching: Carasibana, MIT, H3-FaceRefine.
+        # https://github.com/Carasibana/ComfyUI-H3-FaceRefine/tree/d8521d14fe0d721d80cd9417fff5a559cbc21aba
+        # Only the timeline/crop orchestration below belongs to Cap.
+        validate_face_config(config)
+        crops, transform, preview, report, _, _, frame_count = _call(
+            "H3FaceTrackCrop", records, images=images, detector=config["detector"],
+            confidence=config["confidence"], crop_factor=config["crop_factor"],
+            canvas_width=config["canvas_size"], canvas_height=config["canvas_size"], canvas_mode="manual",
+            smooth_window=config["smooth_window"], size_smooth_window=51, smooth_method="gaussian",
+            size_mode="per_frame", select=config["select"], select_index=config["select_index"],
+            identity_track=False, fallback_detector="none", cut_detection="none", absent_shots="off")
+        del preview, report
+        if frame_count != images.shape[0] or transform["source"] != list(range(frame_count)):
+            raise RuntimeError("Face tracker changed the frame order/count; refusing to misalign audio and timeline.")
+        video, = _call("VAEEncode", records, pixels=crops, vae=vae)
+        del crops
+        original_video, audio = _call("LTXVSeparateAVLatent", records, av_latent=samples)
+        del original_video
+        latent, = _call("LTXVConcatAVLatent", records, video_latent=video, audio_latent=audio)
+        del video, audio
+        latent, report, model = _call("H3PerFrameDenoise", records, model=model, av_latent=latent,
+            transform=transform, denoise_multiplier_small_face=1.0,
+            denoise_multiplier_large_face=config["large_face_strength"], face_px_small=30.0,
+            face_px_large=120.0, gamma=1.0, smooth_frames=9, scale_mode="absolute_px")
+        del report
+        # Upstream preserves the supplied audio latent with a zero audio noise mask.
+        # Full-frame keyframes/Context anchors cannot condition a face-sized canvas.
+        conditioning = []
+        for embedding, extra in positive:
+            values = {k: v for k, v in extra.items() if k not in ("minimax_keyframes", "minimax_frame_count")}
+            if "minimax_refs" in values:
+                values["minimax_refs"] = [r for r in values["minimax_refs"] if "motion_context_audio_end_frame" not in r]
+            conditioning.append([embedding, values])
+        model = model.clone()
+        model.remove_wrappers_with_key(WrappersMP.OUTER_SAMPLE, "kj_preview_override")
+        if preview_id is not None:
+            model, = CAP_ModelPreviewOverride().patch(model, 1024, 80, True, frame_count,
+                max(1, min(60, round(fps))), tiny_vae=preview_tiny_vae, unique_id=preview_id)
+        sigmas, = _call("BasicScheduler", records, model=model, scheduler="simple", steps=steps, denoise=config["denoise"])
+        guider, = _call("BasicGuider", records, model=model, conditioning=conditioning)
+        sampler, = _call("KSamplerSelect", records, sampler_name="euler")
+        refined, denoised = _call("SamplerCustomAdvanced", records, noise=noise, guider=guider,
+            sampler=sampler, sigmas=sigmas, latent_image=latent)
+        del denoised, latent, guider
+        crops, = _call("VAEDecode", records, samples=refined, vae=vae)
+        del refined
+        if crops.shape[0] != frame_count:
+            raise RuntimeError("Face refinement decode changed frame count; refusing partial stitching.")
+        stitched, = _call("H3FaceStitch", records, base_images=images, refined_crops=crops, transform=transform,
+            paste_region="face_only", mask_dilation=16, feather=config["feather"], colour_match=1.0,
+            blend=config["blend"], undetected_frames="fade_out")
+        if stitched.shape != images.shape:
+            raise RuntimeError("Face stitching changed video dimensions or frame count.")
+        stitched[:trim_frames] = images[:trim_frames].to(stitched)
+        if strict_keyframes:
+            stitched[0] = images[0].to(stitched)
+            stitched[-1] = images[-1].to(stitched)
+        return stitched
 
     def _deblur_clip(self, base_model, positive, samples, images, audio, vae, audio_vae,
                      noise, trim_frames, strict_keyframes, attention, records,

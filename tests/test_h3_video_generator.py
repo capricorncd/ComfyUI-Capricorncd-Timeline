@@ -120,6 +120,7 @@ class GeneratorTests(unittest.TestCase):
         self.assertNotIn("first_pass_steps", schema["required"])
         self.assertEqual(schema["optional"]["base_model"][0], "MODEL")
         self.assertFalse(schema["optional"]["motion_deblur"][1]["default"])
+        self.assertFalse(schema["optional"]["face_refine"][1]["default"])
 
     def test_motion_deblur_disabled_does_not_require_mainodes(self):
         lookup = Mock(return_value=object)
@@ -142,6 +143,49 @@ class GeneratorTests(unittest.TestCase):
     def enable_motion_deblur(self):
         self.scope["nodes"].NODE_CLASS_MAPPINGS = dict.fromkeys((*self.scope["MOTION_NODES"], "H3AudioSmear"), object)
         self.node._deblur_clip = Mock(return_value="recovered-images")
+
+    def enable_face_refine(self):
+        self.scope["FACE_NODES"] = ("H3FaceTrackCrop", "H3PerFrameDenoise", "H3FaceStitch")
+        self.scope["nodes"].NODE_CLASS_MAPPINGS = dict.fromkeys(self.scope["FACE_NODES"], object)
+        self.scope["validate_face_config"] = lambda config: config or (_ for _ in ()).throw(ValueError("config required"))
+        self.node._refine_faces = Mock(return_value="face-images")
+
+    def test_face_disabled_ignores_connected_config(self):
+        self.scope["validate_face_config"] = Mock(side_effect=AssertionError("must not validate"))
+        self.run_node(face_refine_config={"invalid": True})
+        self.scope["validate_face_config"].assert_not_called()
+        self.assertFalse(json.loads(self.saved[0][1]["metadata"])["face_refine"])
+
+    def test_face_missing_config_or_plugin_fails_before_sampling(self):
+        self.enable_face_refine()
+        with self.assertRaisesRegex(ValueError, "config"):
+            self.run_node(face_refine=True)
+        self.scope["nodes"].NODE_CLASS_MAPPINGS = {}
+        with self.assertRaisesRegex(RuntimeError, "H3-FaceRefine"):
+            self.run_node(face_refine=True, face_refine_config={"configured": True})
+        self.assertEqual(self.calls, [])
+
+    def test_face_uses_repaired_audio_and_final_context_pixels(self):
+        self.enable_face_refine()
+        self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "save_latent": True}],
+                      face_refine=True, face_refine_config={"configured": True}, audio_refine=True)
+        self.assertEqual(self.node._refine_faces.call_args.args[2], "H3AudioRefineSampler_output")
+        self.assertEqual([kw["pixels"] for n, kw in self.calls if n == "VAEEncode"], ["face-images"])
+        self.assertEqual(self.saved[0][1]["images"], "face-images")
+        self.assertEqual(self.saved[0][1]["audio"], "VAEDecodeAudio_output")
+        self.assertTrue(json.loads(self.saved[0][1]["metadata"])["face_refine"])
+
+    def test_face_after_deblur_and_silent_two_size_context(self):
+        self.enable_face_refine()
+        registered = self.scope["nodes"].NODE_CLASS_MAPPINGS.copy()
+        self.enable_motion_deblur()
+        self.scope["nodes"].NODE_CLASS_MAPPINGS.update(registered)
+        self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "save_latent": True}],
+                      face_refine=True, face_refine_config={"configured": True}, motion_deblur=True,
+                      generate_audio=False, second_sampling=True, upscaler_model="up")
+        self.assertEqual(self.node._refine_faces.call_args.args[3], "recovered-images")
+        self.assertEqual([kw["pixels"] for n, kw in self.calls if n == "VAEEncode"], ["face-images", "ImageScale_output"])
+        self.assertFalse(any(n == "VAEDecodeAudio" for n, _ in self.calls))
 
     def test_motion_deblur_short_clip_fails_before_sampling(self):
         self.enable_motion_deblur()

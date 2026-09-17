@@ -1,15 +1,15 @@
 import { app } from "../../scripts/app.js";
 
 const INPUT_ORDER = [
-    "model", "base_model", "clip", "vae", "audio_vae", "data_json",
+    "model", "base_model", "clip", "vae", "audio_vae", "data_json", "face_refine_config",
     "steps", "strict_keyframes", "attention",
     "second_sampling", "first_pass_megapixels", "upscaler_model", "refine_sigmas",
-    "motion_deblur",
+    "motion_deblur", "face_refine",
     "sampling_preview", "preview_tiny_vae",
     "generate_audio", "audio_refine", "audio_refine_steps", "normalize_audio",
     "compose_final",
 ];
-const WIDGET_ORDER = INPUT_ORDER.slice(6);
+const WIDGET_ORDER = INPUT_ORDER.slice(7);
 const rank = name => {
     const index = INPUT_ORDER.indexOf(name);
     return index < 0 ? INPUT_ORDER.length : index;
@@ -51,7 +51,7 @@ app.registerExtension({
                 const values = new Map(savedOrder.map((name, i) => [name, info.widgets_values[i]]));
                 info = {...info, widgets_values: this.widgets.filter(widget => WIDGET_ORDER.includes(widget.name))
                     .map(widget => values.has(widget.name) ? values.get(widget.name)
-                        : widget.name === "motion_deblur" ? false : widget.value)};
+                        : ["motion_deblur", "face_refine"].includes(widget.name) ? false : widget.value)};
             }
             configure?.call(this, info);
             // Graph loading/paste installs links after node.configure returns.

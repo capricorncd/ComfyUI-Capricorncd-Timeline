@@ -33,18 +33,18 @@ assert.equal(sources.call(context, { track: { type: 'voiceover' }, duration: 10 
 
 const uiSource = readFileSync(new URL('../js/editor/LocalAudioJobs.js', import.meta.url), 'utf8');
 class Element {
-    constructor() { this.fields = new Map(); this.parentElement = { firstChild: {} }; }
+    constructor() { this.fields = new Map(); this.children = []; this.parentElement = { firstChild: {} }; }
     setAttribute() {}
-    append() {}
+    append(child) { this.children.push(child); }
     addEventListener() {}
     querySelector(key) { if (!this.fields.has(key)) this.fields.set(key, new Element()); return this.fields.get(key); }
     set innerHTML(value) { this.fields.clear(); }
     showModal() { this.open = true; }
     close() { this.open = false; }
     reportValidity() { return true; }
-    pause() {}
+    pause() { this.paused = true; }
     load() {}
-    removeAttribute() {}
+    removeAttribute(name) { delete this[name]; }
 }
 const LocalAudioJobs = new Function('document', 'T', 'setTimeout', 'api', uiSource.slice(uiSource.indexOf('export class')).replace('export class', 'class') + '; return LocalAudioJobs;')(
     { createElement: () => new Element() }, key => key, callback => callback(), { apiURL: path => path });
@@ -160,6 +160,63 @@ for (const kind of ['tts', 'vc']) {
     if (kind === 'tts') { assert.equal(submitted.text, 'First\nSecond'); assert.equal(submitted.max_duration, undefined); assert.equal(inserted[0][1], 5); }
 }
 console.log('Subtitle ordering/single submission, stale subtitle guard and VC routing passed');
+
+{
+    const target = { id: 'subtitle', track: {}, duration: 2 };
+    const recording = { src: 'reference.mp3', name: 'Renamed voice' };
+    const application = { _timeline: { pause() {}, tracks: [{ clips: [recording] }] },
+        _projectResources: [{ kind: 'audio', file: 'reference.mp3', name: 'Original name' }, { kind: 'video', file: 'reference.mp4' }],
+        _findClipById: () => target, _ensureClipMeta: () => ({}),
+        _audioUrl: file => '/audio/' + file, _videoUrl: file => '/video/' + file };
+    const ui = new LocalAudioJobs(application, { append() {} });
+    let submitted;
+    ui.request = async (path, payload) => {
+        if (path.startsWith('voices')) throw new Error('Bearer API Key required');
+        submitted = payload;
+        throw new Error('Bearer API Key required');
+    };
+    const speech = { text: 'Hello', start: 0, valid: () => true };
+    ui.open(target, null, 'tts', speech);
+    const reference = ui.dialog.querySelector('[data-reference]');
+    assert.equal(reference.children[0].textContent, 'Renamed voice');
+    assert.equal(reference.children[0].value, 'reference.mp3');
+    const preview = ui.dialog.querySelector('[data-reference-preview]');
+    assert.equal(preview.hidden, true);
+    reference.value = 'reference.mp3';
+    reference.onchange();
+    assert.equal(preview.hidden, false);
+    assert.equal(preview.src, '/audio/reference.mp3');
+    preview.paused = false;
+    reference.value = 'reference.mp4';
+    reference.onchange();
+    assert.equal(preview.paused, true);
+    assert.equal(preview.src, '/video/reference.mp4');
+    reference.value = '';
+    reference.onchange();
+    assert.equal(preview.hidden, true);
+    assert.equal(preview.src, undefined);
+    reference.value = 'reference.mp3';
+    reference.onchange();
+    preview.paused = false;
+    ui.stopPreview();
+    assert.equal(preview.paused, true);
+    await ui.dialog.querySelector('[data-submit]').onclick();
+    assert.equal(submitted.reference_file, 'reference.mp3');
+    assert.equal(ui.dialog.querySelector('[role="status"]').textContent, 'Bearer API Key required');
+    assert.equal(ui.dialog.querySelector('[data-submit]').disabled, false);
+    assert.equal(ui.busy, false);
+    recording.name = 'Updated voice';
+    ui.open(target, null, 'tts', speech);
+    assert.equal(ui.dialog.querySelector('[data-reference]').children[0].textContent, 'Updated voice');
+    await Promise.resolve();
+    await Promise.resolve();
+    submitted = null;
+    speech.valid = () => false;
+    await ui.dialog.querySelector('[data-submit]').onclick();
+    assert.equal(submitted, null);
+    assert.equal(ui.dialog.querySelector('[role="status"]').textContent, 'local_audio_target_changed');
+}
+console.log('Reference clip titles, original file submission and visible failure feedback passed');
 
 const directorContext = {
     _ensureClipMeta: () => ({}),

@@ -2953,7 +2953,7 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-local-audio-dialog p { margin: 0; }
 .cat-te-local-audio-dialog [data-description] { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--cat-muted); }
 .cat-te-local-audio-dialog [data-source-file] { display: block; overflow-wrap: anywhere; white-space: pre-wrap; padding: 8px 10px; border: 1px solid var(--cat-border); border-radius: 6px; }
-.cat-te-local-audio-dialog [role="status"] { overflow-wrap: anywhere; }
+.cat-te-local-audio-dialog [role="status"] { overflow-wrap: anywhere; white-space: pre-wrap; margin-bottom: 12px; max-height: 6em; overflow-y: auto; }
 .cat-te-local-audio-dialog [role="status"]:empty { display: none; }
 .cat-te-output-videos-title {
     flex: 1;

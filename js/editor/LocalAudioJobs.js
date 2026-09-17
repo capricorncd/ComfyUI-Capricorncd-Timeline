@@ -15,6 +15,7 @@ export class LocalAudioJobs {
 
     stopPreview() {
         this.dialog.querySelector('[data-voice-preview]')?.pause();
+        this.dialog.querySelector('[data-reference-preview]')?.pause();
     }
 
     async request(path, payload) {
@@ -58,9 +59,9 @@ export class LocalAudioJobs {
         this.dialog.innerHTML = `<span slot="title">${T(titleKey)}</span>
             <div class="cat-te-modal-body"><p data-description></p>
             ${denoise ? `<label>${T('local_audio_source')}<select data-source></select><span data-source-file></span></label><label>${T('local_audio_scope')}<select data-scope><option value="clip">${T('local_audio_clip_scope')}</option><option value="full">${T('local_audio_full_scope')}</option></select></label>` : `<label>${T('local_audio_lyrics')}<textarea data-lyrics rows="4" readonly></textarea></label><label>${T('local_audio_style')}<textarea data-style rows="2" readonly></textarea></label><label>${T('local_audio_duration')}<input data-duration type="number" min="0.001" step="any" /></label>`}
-            ${voice ? `<label>${T('local_voice_preset')}<select data-voice></select></label><p data-voice-description></p><audio data-voice-preview controls preload="none" hidden></audio><label>${T('local_voice_reference')}<select data-reference><option value="">${T('local_voice_use_preset')}</option></select></label>${kind === 'tts' ? `<label>${T('local_voice_language')}<select data-language>${['Auto','Chinese','English','Japanese','Korean','German','French','Russian','Portuguese','Spanish','Italian'].map(language => `<option>${language}</option>`).join('')}</select></label><label>${T('local_voice_instruct')}<textarea data-instruct maxlength="1000" rows="2"></textarea></label><label>${T('local_voice_reference_text')}<textarea data-reference-text maxlength="4000" rows="2"></textarea></label>` : ''}` : ''}
-            <p role="status"></p></div>
-            <div slot="footer" class="cat-te-confirm-actions"><cap-button data-settings>${T('voice_configure')}</cap-button><cap-button data-cancel>${T('close_title')}</cap-button><cap-button variant="primary" data-submit>${T(titleKey)}</cap-button></div>`;
+            ${voice ? `<label>${T('local_voice_preset')}<select data-voice></select></label><p data-voice-description></p><audio data-voice-preview controls preload="none" hidden></audio><label>${T('local_voice_reference')}<select data-reference><option value="">${T('local_voice_use_preset')}</option></select></label><audio data-reference-preview controls preload="none" hidden aria-label="${T('local_voice_reference')}"></audio>${kind === 'tts' ? `<label>${T('local_voice_language')}<select data-language>${['Auto','Chinese','English','Japanese','Korean','German','French','Russian','Portuguese','Spanish','Italian'].map(language => `<option>${language}</option>`).join('')}</select></label><label>${T('local_voice_instruct')}<textarea data-instruct maxlength="1000" rows="2"></textarea></label><label>${T('local_voice_reference_text')}<textarea data-reference-text maxlength="4000" rows="2"></textarea></label>` : ''}` : ''}
+            </div>
+            <div slot="footer"><p role="status"></p><div class="cat-te-confirm-actions"><cap-button data-settings>${T('voice_configure')}</cap-button><cap-button data-cancel>${T('close_title')}</cap-button><cap-button variant="primary" data-submit>${T(titleKey)}</cap-button></div></div>`;
         this.dialog.querySelector('[data-description]').textContent = denoise ? T('local_audio_denoise_note') : clip.name + '\n' + T('local_audio_bgm_note');
         if (kind === 'separation' || sfx) this.dialog.querySelector('[data-description]').textContent = T(sfx ? 'local_audio_sfx_note' : 'local_audio_separation_note');
         if (denoise) {
@@ -104,13 +105,24 @@ export class LocalAudioJobs {
         if (voice) {
             this.dialog.querySelector('[data-description]').textContent = T(kind === 'tts' ? 'local_voice_tts_note' : 'local_voice_vc_note');
             const reference = this.dialog.querySelector('[data-reference]');
+            const referencePreview = this.dialog.querySelector('[data-reference-preview]');
+            referencePreview.onerror = () => { this.dialog.querySelector('[role="status"]').textContent = T('local_voice_no_preview'); };
+            const clips = (timeline.tracks || []).flatMap(track => track.clips);
             for (const row of resources.filter(row => row.kind === 'audio' || row.kind === 'video')) {
                 const option = document.createElement('option');
                 option.value = row.file;
-                option.textContent = row.name || row.file;
+                const names = [...new Set(clips.filter(clip => clip.src === row.file).map(clip => clip.name).filter(Boolean))];
+                option.textContent = names.join(' / ') || row.name || row.file;
+                option.title = row.file;
                 reference.append(option);
             }
             reference.onchange = () => {
+                this.stopPreview();
+                const row = resources.find(row => row.file === reference.value);
+                referencePreview.hidden = !row;
+                referencePreview.removeAttribute('src');
+                if (row) referencePreview.src = row.kind === 'video' ? app._videoUrl(row.file) : app._audioUrl(row.file);
+                referencePreview.load();
                 this.dialog.querySelector('[data-voice]').disabled = !!reference.value;
                 this.dialog.querySelector('[data-voice]').onchange?.();
                 if (kind === 'tts') {
@@ -162,7 +174,8 @@ export class LocalAudioJobs {
             }
         };
         submit.onclick = async () => {
-            if (this.busy || !valid()) return;
+            if (this.busy) return;
+            if (!valid()) { status.textContent = T('local_audio_target_changed'); return; }
             if (!denoise && kind !== 'tts') {
                 const duration = this.dialog.querySelector('[data-duration]');
                 if (!duration.reportValidity()) return;

@@ -33,9 +33,10 @@ class ConfigTests(unittest.TestCase):
     def setUp(self):
         self.config = {key: opts["default"] for key, (_, opts) in config_module.CAP_H3FaceRefineConfig.INPUT_TYPES()["required"].items()}
 
-    def test_existing_yolo_directory_and_model(self):
-        self.assertIn(str(ROOT / "models/yolo"), folder_paths.get_folder_paths("ultralytics_bbox"))
-        if (ROOT / "models/yolo/face_yolov8m.pt").is_file():
+    def test_standard_detector_directory_and_model(self):
+        self.assertIn(str(ROOT / "models/ultralytics/bbox"), folder_paths.get_folder_paths("ultralytics_bbox"))
+        self.assertNotIn(str(ROOT / "models/yolo"), folder_paths.get_folder_paths("ultralytics_bbox"))
+        if (ROOT / "models/ultralytics/bbox/face_yolov8m.pt").is_file():
             self.assertEqual(self.config["detector"], "face_yolov8m.pt")
             self.assertEqual(config_module.validate_face_config(self.config), self.config)
 

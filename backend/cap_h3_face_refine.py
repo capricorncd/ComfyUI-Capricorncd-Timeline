@@ -15,12 +15,7 @@ FACE_SELECTIONS = ["largest_face", "smallest_face", "centre_most", "left_most", 
 
 
 def register_face_detectors():
-    paths = [os.path.join(folder_paths.models_dir, "ultralytics", "bbox"),
-             os.path.join(folder_paths.models_dir, "yolo")]
-    if "yolo" in folder_paths.folder_names_and_paths:
-        paths += folder_paths.get_folder_paths("yolo")
-    for path in paths:
-        folder_paths.add_model_folder_path("ultralytics_bbox", path)
+    folder_paths.add_model_folder_path("ultralytics_bbox", os.path.join(folder_paths.models_dir, "ultralytics", "bbox"))
     paths, extensions = folder_paths.folder_names_and_paths["ultralytics_bbox"]
     folder_paths.folder_names_and_paths["ultralytics_bbox"] = (paths, extensions | {".pt"})
 
@@ -46,7 +41,7 @@ def validate_face_config(config, resolve_detector=True):
     if resolve_detector:
         name = config["detector"]
         if not isinstance(name, str) or name not in folder_paths.get_filename_list("ultralytics_bbox"):
-            raise ValueError("Select an installed face detector from models/yolo or models/ultralytics/bbox.")
+            raise ValueError("Select an installed face detector from models/ultralytics/bbox.")
         folder_paths.get_full_path_or_raise("ultralytics_bbox", name)
     return dict(config)
 

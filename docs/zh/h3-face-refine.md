@@ -2,7 +2,7 @@
 
 将此节点连接到 **MiniMax H3 视频生成 → 面部修复配置**，再开启生成节点的 **面部修复**（默认关闭）。安装可选依赖 [ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine) 后需要重启 ComfyUI。
 
-检测模型读取 `models/yolo`、`models/ultralytics/bbox` 及已注册的外部 YOLO 目录。已有 `face_yolov8m.pt` 可直接使用，无须复制。请选择人脸检测模型，不要选择手部或人体检测模型。不会自动下载模型，此接入不依赖 Impact-Pack。
+请将 `face_yolov8m.pt` 放入原节点使用的标准目录 `models/ultralytics/bbox`，也支持已注册的外部 `ultralytics_bbox` 目录。请选择人脸检测模型，不要选择手部或人体检测模型。不会自动下载模型，此接入不依赖 Impact-Pack。
 
 每个 Clip 跟踪一张脸。「选择方式」用于首次选择，「人物序号」从 0 开始，随后按位置连续跟踪。不加载身份识别模型，不自动切分场景；多人交叉或切镜可能需要拆分 Clip。全片检测不到人脸时会报错，可降低置信度或关闭本次修脸。
 

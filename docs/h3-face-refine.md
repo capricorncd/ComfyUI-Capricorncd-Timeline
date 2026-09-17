@@ -2,7 +2,7 @@
 
 Connect this node to **H3 Video Generator → face_refine_config**, then enable **face_refine** (off by default). Restart ComfyUI after installing the optional [ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine) dependency.
 
-Detectors are read from `models/yolo` and `models/ultralytics/bbox`, including registered external YOLO directories. Existing `face_yolov8m.pt` files can be reused; choose a face detector, not a hand/person detector. Nothing is downloaded automatically. Impact-Pack is not required for this integration.
+Place `face_yolov8m.pt` in the upstream standard directory `models/ultralytics/bbox` (or an externally registered `ultralytics_bbox` directory); choose a face detector, not a hand/person detector. Nothing is downloaded automatically. Impact-Pack is not required for this integration.
 
 Each Clip tracks one face. `select` ranks faces for the initial selection; `select_index` is zero-based. Subsequent frames use spatial continuity, without identity recognition or automatic scene splitting. Crossing people or cuts may need separate Clips. If no face is detected, upstream stops with an error; lower confidence or disable refinement for that run.
 

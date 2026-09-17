@@ -2,7 +2,7 @@
 
 分类：`Capricorncd/MiniMaxH3`。将现有条件编码、循环采样、二采放大、音频修复和保存流程封装，减少画布节点，不另写模型实现。
 
-新增「面部修复」，默认关闭。连接 [H3 面部修复配置](h3-face-refine.md) 设置检测模型和修复强度；调用 Carasibana 的 H3-FaceRefine，在运动去模糊之后修复。可直接使用 `models/yolo` 或 `models/ultralytics/bbox` 中已有的人脸检测模型。
+新增「面部修复」，默认关闭。连接 [H3 面部修复配置](h3-face-refine.md) 设置检测模型和修复强度；调用 Carasibana 的 H3-FaceRefine，在运动去模糊之后修复。可直接使用 `models/ultralytics/bbox` 中已有的人脸检测模型。
 
 「采样模型」连接外部已加载 LoRA 的 MODEL，另接文本编码器 CLIP、视频 VAE、音频 VAE 和时间轴 `data_json`。节点内已删除 LoRA 名称和强度，改由外部加载器选择；切换 4/8 步不会更换 LoRA。「基础模型」始终可选：连接时用于音频修复和基础采样日程；未连接时，两者均复用输入的 LoRA 采样模型，不剥离其 LoRA。视频/音频 shift 固定为 12/3，Euler、simple 日程、CFG 1。旧工作流请使用更新后的精简示例，或重建此节点并重新连接，不要沿用旧版按位置保存的控件值。
 

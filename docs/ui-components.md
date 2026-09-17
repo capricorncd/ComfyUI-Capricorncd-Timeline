@@ -115,3 +115,16 @@ Run `node tests/test_dialog.mjs` plus the existing native-dialog/export/speech t
 ## Export range
 
 `js/components/ExportRange.js` provides `<cap-export-range>`. Call `configure(totalFrames, fps, labels)` and `update(currentFrame, playing)`; `exportRange` returns frame boundaries with an exclusive end, or `null` for the full timeline. The component emits `toggleplay`, `seek` and `rangechange`; seek/range events contain `detail.frame`. Playback and export remain owned by the editor. `tests/export_range.browser.html` checks frame stepping, range limits, playback stopping, independent output selection and preview layout.
+
+## Slider with reset
+
+Import `js/components/Slider.js`. `<cap-slider>` wraps a native range input and optional value label, with a shared `<cap-button>` at the end. Set `default-value` for the reset target and a localized `reset-label` for the accessible button name. Without `default-value`, reset uses the input's HTML `value` attribute. Changing the current value does not change that default.
+
+```html
+<cap-slider default-value="100" reset-label="Reset to default">
+  <input type="range" min="0" max="500" value="100" aria-label="Volume">
+  <output>100%</output>
+</cap-slider>
+```
+
+Keep listeners and value labels on the native input as usual. Reset emits `input` then `change` only when the value changes, so existing preview, saving and undo handlers also apply. Disabled inputs disable reset. Clip volume and generated-video edit volume use this component; both reset to 100%.

@@ -8,7 +8,7 @@ function method(name) {
   const end = source.indexOf('\n    }', start) + 6;
   return new Function('normalizeClipVolume', 'defaultImageMeta', 'volumeAt',
     'return ({' + source.slice(start, end) + '}).' + name)(
-    v => Math.max(0, Math.min(2, Number(v ?? 1))), () => ({}), points => points[0]?.gain ?? 1);
+    v => Math.max(0, Math.min(5, Number(v ?? 1))), () => ({}), points => points[0]?.gain ?? 1);
 }
 const gen = (file, extra = {}) => ({file, enabled:true, duration_sec:5, ...extra});
 const meta = {

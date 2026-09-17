@@ -1798,7 +1798,7 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-gen-edit-volume-field { flex: 0 0 auto; }
 .cat-te-gen-edit-tl-host .tl-track-muted .tl-clip-row-wave .tl-clip-waveform { visibility: hidden; }
-.cat-te-gen-edit-volume { width: 100%; margin: 0; }
+.cat-te-gen-edit-volume-control { width: 100%; }
 .cat-te-gen-edit-volume-value { float: right; font-variant-numeric: tabular-nums; }
 .cat-te-gen-edit-prompt {
     flex: 1;
@@ -2274,7 +2274,7 @@ body.cat-te-media-dnd-over-tl {
     display: none !important;
 }
 
-.cat-te-clip-volume {
+.cat-te-clip-volume-control {
     flex: 1;
     min-width: 72px;
 }

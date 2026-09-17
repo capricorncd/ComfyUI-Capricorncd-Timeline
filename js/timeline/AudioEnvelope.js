@@ -4,7 +4,7 @@ export function normalizeVolumePoints(points) {
   const byTime = new Map();
   for (const p of Array.isArray(points) ? points : []) {
     if (!Number.isFinite(p?.source_ms) || !Number.isFinite(p?.gain)) continue;
-    byTime.set(Math.max(0, p.source_ms), clamp(p.gain, 0, 2));
+    byTime.set(Math.max(0, p.source_ms), clamp(p.gain, 0, 5));
   }
   return [...byTime].sort((a, b) => a[0] - b[0]).map(([source_ms, gain]) => ({ source_ms, gain }));
 }
@@ -77,10 +77,10 @@ export class AudioEnvelope {
         if (clip.track.locked) return;
         if (!changed && Math.hypot(ev.clientX-e.clientX, ev.clientY-e.clientY)<3) return;
         if (!changed) { this.begin(); changed = true; }
-        let gain = clamp(2*(1-(ev.clientY-r.top)/r.height), 0, 2);
+        let gain = clamp(5*(1-(ev.clientY-r.top)/r.height), 0, 5);
         const levels = [1, ...this.points.filter(p=>p!==point).map(p=>p.gain)];
         const nearest = levels.reduce((a,b)=>Math.abs(b-gain)<Math.abs(a-gain)?b:a);
-        if (Math.abs(nearest-gain)*r.height/2 <= 5) gain=nearest;
+        if (Math.abs(nearest-gain)*r.height/5 <= 5) gain=nearest;
         point.gain = Math.round(gain*1000)/1000;
         const i=this.points.indexOf(point);
         const min = Math.max(clip.sourceOffset*1000, i ? this.points[i-1].source_ms+1 : 0);
@@ -103,7 +103,7 @@ export class AudioEnvelope {
   render(guide=null) {
     this.clip._paintWaveform?.();
     const c=this.clip, start=c.sourceOffset*1000, end=(c.sourceOffset+c.duration*(c.playbackRate || 1))*1000;
-    const x=ms=>(ms-start)/(end-start)*1000, y=g=>(2-g)*50;
+    const x=ms=>(ms-start)/(end-start)*1000, y=g=>(5-g)*20;
     const visible=this.points.filter(p=>p.source_ms>=start&&p.source_ms<=end);
     const path=[{source_ms:start,gain:volumeAt(this.points,start)},...visible,{source_ms:end,gain:volumeAt(this.points,end)}];
     this.svg.replaceChildren();

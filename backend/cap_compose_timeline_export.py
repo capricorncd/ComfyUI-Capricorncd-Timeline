@@ -46,7 +46,7 @@ def _ms(value: Any, default: int = 0) -> int:
 
 def _clip_volume(value: Any) -> float:
     try:
-        return max(0.0, min(2.0, float(value)))
+        return max(0.0, min(5.0, float(value)))
     except (TypeError, ValueError):
         return 1.0
 

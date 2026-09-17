@@ -12,7 +12,7 @@ def normalize_volume_points(points):
         if not isinstance(time, (int, float)) or not isinstance(gain, (int, float)):
             continue
         if math.isfinite(time) and math.isfinite(gain):
-            values[max(0, time)] = max(0, min(2, gain))
+            values[max(0, time)] = max(0, min(5, gain))
     return [{"source_ms": time, "gain": gain} for time, gain in sorted(values.items())]
 
 

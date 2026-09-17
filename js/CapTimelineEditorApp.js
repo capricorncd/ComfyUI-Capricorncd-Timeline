@@ -6,6 +6,7 @@ import { openInsertClip } from './editor/InsertClip.js';
  */
 
 import "./components/TabButton.js";
+import "./components/Slider.js";
 import "./components/ExportRange.js";
 import "./components/MediaCarousel.js";
 import { AgentSettings } from "./editor/AgentSettings.js";
@@ -532,7 +533,7 @@ function defaultVoiceoverMeta(trackIndex = 2) {
 
 function normalizeClipVolume(value) {
     const n = Number(value);
-    return Number.isFinite(n) ? Math.max(0, Math.min(2, n)) : 1;
+    return Number.isFinite(n) ? Math.max(0, Math.min(5, n)) : 1;
 }
 
 function parseSubtitleColor(value) {
@@ -3538,8 +3539,10 @@ export class CapTimelineEditorApp {
               <div class="cat-te-clip-volume-panel" hidden>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("clip_volume_label")}</span>
-                  <input class="cat-te-clip-volume" type="range" min="0" max="200" step="1" value="100" />
+                  <cap-slider class="cat-te-clip-volume-control" default-value="100" reset-label="${T("slider_reset")}">
+                  <input class="cat-te-clip-volume" type="range" min="0" max="500" step="1" value="100" />
                   <span class="cat-te-clip-volume-value">100%</span>
+                  </cap-slider>
                 </label>
               </div>
               <div class="cat-te-clip-speed-panel" hidden>
@@ -3902,7 +3905,9 @@ export class CapTimelineEditorApp {
                   <div class="cat-te-gen-edit-file" title=""></div>
                   <label class="cat-te-gen-edit-field cat-te-gen-edit-volume-field">
                     <span>${T("clip_volume_label")} <output class="cat-te-gen-edit-volume-value">100%</output></span>
-                    <input class="cat-te-gen-edit-volume" type="range" min="0" max="200" step="1" value="100" disabled />
+                    <cap-slider class="cat-te-gen-edit-volume-control" default-value="100" reset-label="${T("slider_reset")}">
+                      <input class="cat-te-gen-edit-volume" type="range" min="0" max="500" step="1" value="100" disabled />
+                    </cap-slider>
                   </label>
                   <label class="cat-te-gen-edit-field">
                     <span>${T("desc_prompt_label")}</span>

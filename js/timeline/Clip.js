@@ -219,19 +219,13 @@ export class Clip extends EventEmitter {
       i1 = Math.max(i0 + 1, Math.ceil(end * n));
     }
     const sliceLen = i1 - i0;
-    const bars = Math.max(
-      2,
-      Math.min(
-        sliceLen,
-        targetBars > 0 ? targetBars : Math.min(320, Math.max(48, Math.round(sliceLen))),
-      ),
-    );
-    if (bars >= sliceLen) return full.slice(i0, i1);
+    const bars = targetBars > 0 ? targetBars : Math.min(sliceLen, 320);
+    if (bars === sliceLen) return full.slice(i0, i1);
 
     const out = new Array(bars);
     for (let b = 0; b < bars; b++) {
       const a = i0 + Math.floor((b * sliceLen) / bars);
-      const z = i0 + Math.floor(((b + 1) * sliceLen) / bars);
+      const z = Math.max(a + 1, i0 + Math.floor(((b + 1) * sliceLen) / bars));
       let m = 0;
       for (let i = a; i < z; i++) {
         const v = full[i];
@@ -245,8 +239,7 @@ export class Clip extends EventEmitter {
   _waveBarCount() {
     const pps = this.track?.timeline?.pixelsPerSecond || 40;
     const px = Math.max(8, this.duration * pps);
-    // ~1.5px per bar — dense enough to read dynamics, light enough to redraw while trimming.
-    return Math.max(24, Math.min(400, Math.round(px / 1.5)));
+    return Math.max(2, Math.round(px / 2));
   }
 
   _buildWaveform() {
@@ -276,22 +269,19 @@ export class Clip extends EventEmitter {
 
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('class', 'tl-clip-waveform-bars');
-    const gap = 0.18;
-    for (let i = 0; i < n; i++) {
+    const segments = [];
+    for (let i = 0; i < peaks.length; i++) {
       // Mild lift for mid levels; silence stays near-zero.
       const sourceMs = (this.sourceOffset + (i + 0.5) / n * this.duration * this.playbackRate) * 1000;
       const gain = volumeAt(this.audioEnvelope?.points || [], sourceMs) * (this.waveformVolume ?? 1);
       const raw = Math.min(1, Math.max(0, peaks[i] / fullMax * gain));
       const amp = raw <= 0.02 ? raw * 0.35 : Math.pow(raw, 0.72);
-      const h = Math.max(0.03, amp * 0.92);
-      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.setAttribute('x', String(i + gap / 2));
-      rect.setAttribute('y', String(0.5 - h / 2));
-      rect.setAttribute('width', String(Math.max(0.05, 1 - gap)));
-      rect.setAttribute('height', String(h));
-      rect.setAttribute('rx', '0.08');
-      g.appendChild(rect);
+      const h = amp * 0.92;
+      segments.push(`M${i + 0.5},1v${-h}`);
     }
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', segments.join(''));
+    g.appendChild(path);
     svg.appendChild(g);
   }
 

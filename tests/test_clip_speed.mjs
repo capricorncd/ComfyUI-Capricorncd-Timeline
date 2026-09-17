@@ -65,7 +65,7 @@ assert.equal(envelope.at(-1),2);
 const clipSource=readFileSync(new URL('../js/timeline/Clip.js',import.meta.url),'utf8');
 const peaks=method('_visibleWavePeaks',{clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),MIN_DURATION:0.05},clipSource,'  ');
 const wave={_waveform:Array.from({length:100},(_,i)=>i),sourceDuration:10,sourceOffset:1,duration:3,playbackRate:2};
-assert.deepEqual(peaks.call(wave,100),Array.from({length:60},(_,i)=>i+10));
+assert.deepEqual([...new Set(peaks.call(wave,100))],Array.from({length:60},(_,i)=>i+10));
 assert(source.includes('playbackRate: snap.playbackRate || 1'));
 assert(source.includes('normalizePlaybackRate(c.playback_rate)'));
 assert(source.includes('sourceOffset: sourceOffset + leftDur * (clip.playbackRate || 1)'));

@@ -449,18 +449,21 @@
   opacity: 0.92;
   pointer-events: none;
 }
-.tl-clip-waveform-bars rect {
-  fill: rgba(255, 255, 255, 0.78);
+.tl-clip-waveform-bars path {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.78);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
 }
-.tl-clip-audio .tl-clip-waveform-bars rect,
-.tl-track-audio .tl-clip-waveform-bars rect {
-  fill: rgba(230, 255, 240, 0.88);
+.tl-clip-audio .tl-clip-waveform-bars path,
+.tl-track-audio .tl-clip-waveform-bars path {
+  stroke: rgba(230, 255, 240, 0.88);
 }
 .tl-clip-row-wave .tl-clip-waveform {
   opacity: 0.85;
 }
-.tl-clip-row-wave .tl-clip-waveform-bars rect {
-  fill: rgba(255, 255, 255, 0.7);
+.tl-clip-row-wave .tl-clip-waveform-bars path {
+  stroke: rgba(255, 255, 255, 0.7);
 }
 
 /* ── Image/video clip: 3 stacked rows ─────────────────────── */

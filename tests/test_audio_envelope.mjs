@@ -63,10 +63,16 @@ const wave = { _waveform: [0.2, 1], sourceOffset: 2, duration: 2, playbackRate: 
   _visibleWavePeaks: () => [0.2, 1], _waveBarCount: () => 2, audioEnvelope: { points: [] } };
 const svg = new Element();
 Clip.prototype._paintWaveform.call(wave, svg);
-const originalHeight = Number(svg.children[0].children[0].height);
+const barHeight = () => -Number(svg.children[0].children[0].d.match(/^M0\.5,1v([^M]+)/)[1]);
+const originalHeight = barHeight();
 wave.audioEnvelope.points = [{ source_ms: 2000, gain: 2 }, { source_ms: 4000, gain: 2 }];
 Clip.prototype._paintWaveform.call(wave, svg);
-assert(Number(svg.children[0].children[0].height) > originalHeight, 'boosted audio must have taller waveform bars');
+assert(barHeight() > originalHeight, 'boosted audio must have taller waveform bars');
 wave.audioEnvelope.points = [{ source_ms: 2000, gain: 0 }];
 Clip.prototype._paintWaveform.call(wave, svg);
-assert.equal(Number(svg.children[0].children[0].height), 0.03);
+assert(barHeight() === 0, 'silence must sit on the baseline');
+
+const overview = { _waveform: [0, 0.8, 0, 0], sourceDuration: 4, sourceOffset: 0, duration: 4, playbackRate: 1 };
+assert.deepEqual(Clip.prototype._visibleWavePeaks.call(overview, 8), [0, 0, 0.8, 0.8, 0, 0, 0, 0]);
+assert.deepEqual(Clip.prototype._visibleWavePeaks.call(overview, 2), [0.8, 0]);
+assert.equal(Clip.prototype._waveBarCount.call({duration: 60, track: {timeline: {pixelsPerSecond: 40}}}), 1200);

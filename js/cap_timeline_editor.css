@@ -2080,6 +2080,14 @@ body.cat-te-media-dnd-over-tl {
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.65);
     padding: 4px 0;
     min-width: 140px;
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
+}
+
+.cat-te-ctx-separator {
+    margin: 4px 0;
+    border: 0;
+    border-top: 1px solid var(--cat-border);
 }
 
 .cat-te-timeline-host .tl-clip.cat-te-drop-target {

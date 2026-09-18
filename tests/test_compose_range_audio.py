@@ -69,6 +69,38 @@ class ComposeRangeAudioTests(unittest.TestCase):
         for index in range(25):
             self.assertAlmostEqual(pixels[index * stride], 40 + 17 + index, delta=2)
 
+    def test_generated_video_scale_and_offsets_are_rendered(self):
+        gen = self.project['tracks'][0]['clips'][0]['generated_videos'][0]
+        gen.update(media_scale=50, media_offset_x=25, media_offset_y=-25)
+        plan = scope['_collect_plan'](self.project)
+        self.assertEqual(plan['video_segs'][0]['scale'], 0.5)
+        self.assertEqual(plan['video_segs'][0]['offset_x'], 0.25)
+        self.assertEqual(plan['video_segs'][0]['offset_y'], -0.25)
+        self.compose(export_range=dict(start_frame=0, end_frame=1))
+        pixels = run(['ffmpeg', '-v', 'error', '-i', str(self.directory / 'out.mp4'),
+                      '-an', '-pix_fmt', 'yuv420p', '-f', 'rawvideo', 'pipe:1'])
+        self.assertAlmostEqual(pixels[8 * 32 + 24], 40, delta=3)
+        self.assertAlmostEqual(pixels[8 * 32 + 8], 16, delta=3)
+        self.assertAlmostEqual(pixels[24 * 32 + 24], 16, delta=3)
+
+    def test_voiceover_clip_export_keeps_full_duration_and_trimmed_audio(self):
+        project = dict(settings=self.project['settings'], tracks=[dict(type='voiceover', clips=[dict(
+            start_ms=0, duration_ms=3000, volume=0.5, generated_audios=[dict(
+                file=str(self.audio), edit_start_sec=0.5, trim_in_sec=1, trim_out_sec=2)])])])
+        output = self.directory / 'voice.wav'
+        meta = self.compose(project, export_video=False, audio_output_path=str(output), audio_format='wav',
+                            export_range=dict(start_frame=0, end_frame=72))
+        self.assertEqual(meta['duration_sec'], 3)
+        with wave.open(str(output)) as audio:
+            self.assertEqual(audio.getnframes(), audio.getframerate() * 3)
+        plan = scope['_collect_plan'](project)
+        self.assertEqual(len(plan['audio_segs']), 1)
+        segment = plan['audio_segs'][0]
+        self.assertEqual(segment['start_sec'], 0.5)
+        self.assertEqual(segment['duration_sec'], 1)
+        self.assertEqual(segment['source_in_sec'], 1)
+        self.assertEqual(segment['volume'], 0.5)
+
     def test_combined_outputs_and_audio_only_formats(self):
         for fmt, codec in (("wav", "pcm_s16le"), ("mp3", "mp3")):
             for video in (False, True):

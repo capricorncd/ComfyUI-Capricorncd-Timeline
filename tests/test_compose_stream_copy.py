@@ -41,6 +41,10 @@ class StreamCopyTests(unittest.TestCase):
                         if line and not line.startswith("#")]
             expected = hashes(path, ["-vf", "trim=start=1:end=2,setpts=PTS-STARTPTS"])
             self.assertEqual(hashes(out, []), expected + expected)
+            for field, value in [('scale', 0.5), ('offset_x', 0.25), ('offset_y', -0.25)]:
+                seg[field] = value
+                self.assertEqual(copy.stream_copy_plan(plan, False)[1], 'overlays')
+                del seg[field]
             seg["source_in_sec"] = 0.5
             self.assertEqual(copy.stream_copy_plan(plan, False)[1], "cut")
             self.assertEqual(copy.stream_copy_plan(plan, True)[1], "overlays")

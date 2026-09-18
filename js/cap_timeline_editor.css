@@ -305,6 +305,11 @@ body.cat-te-row-resize * {
 }
 
 .cat-te-confirm-dialog { width: 420px; }
+.cat-te-media-delete-message {
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
 .cat-te-track-delete-message,
 .cat-te-track-convert-message {
     color: var(--cat-text);
@@ -2955,6 +2960,13 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-local-audio-dialog [data-source-file] { display: block; overflow-wrap: anywhere; white-space: pre-wrap; padding: 8px 10px; border: 1px solid var(--cat-border); border-radius: 6px; }
 .cat-te-local-audio-dialog [role="status"] { overflow-wrap: anywhere; white-space: pre-wrap; margin-bottom: 12px; max-height: 6em; overflow-y: auto; }
 .cat-te-local-audio-dialog [role="status"]:empty { display: none; }
+
+.cat-te-clip-export-dialog { --cap-dialog-width: 480px; --cap-dialog-height: fit-content; --cap-dialog-min-width: 320px; --cap-dialog-min-height: 280px; }
+.cat-te-clip-export-dialog .cat-te-modal-body { gap: 12px; }
+.cat-te-clip-export-dialog label { display: flex; flex-direction: column; gap: 6px; }
+.cat-te-clip-export-dialog label[hidden] { display: none; }
+.cat-te-clip-export-dialog [data-summary] { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cat-te-clip-export-dialog cap-status-message { margin-bottom: 12px; }
 .cat-te-output-videos-title {
     flex: 1;
     min-width: 0;

@@ -223,3 +223,5 @@ vendor/
 .env.*
 config.local.yml
 config.local.yml.*
+
+desktop.ini

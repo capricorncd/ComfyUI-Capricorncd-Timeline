@@ -33,10 +33,13 @@ assert.equal(sources.call(context, { track: { type: 'voiceover' }, duration: 10 
 
 const uiSource = readFileSync(new URL('../js/editor/LocalAudioJobs.js', import.meta.url), 'utf8');
 class Element {
-    constructor() { this.fields = new Map(); this.children = []; this.parentElement = { firstChild: {} }; }
+    constructor() { this.fields = new Map(); this.children = []; this.handlers = {}; this.parentElement = { firstChild: {} }; }
     setAttribute() {}
     append(child) { this.children.push(child); }
-    addEventListener() {}
+    addEventListener(name, handler) { this.handlers[name] = handler; }
+    configure(totalFrames) { this.totalFrames = this.endFrame = totalFrames; this.startFrame = 0; }
+    update(frame, playing) { this.currentFrame = frame; this.playing = playing; }
+    async play() { this.paused = false; }
     querySelector(key) { if (!this.fields.has(key)) this.fields.set(key, new Element()); return this.fields.get(key); }
     set innerHTML(value) { this.fields.clear(); }
     showModal() { this.open = true; }
@@ -46,8 +49,10 @@ class Element {
     load() {}
     removeAttribute(name) { delete this[name]; }
 }
-const LocalAudioJobs = new Function('document', 'T', 'setTimeout', 'api', uiSource.slice(uiSource.indexOf('export class')).replace('export class', 'class') + '; return LocalAudioJobs;')(
-    { createElement: () => new Element() }, key => key, callback => callback(), { apiURL: path => path });
+const storage = new Map();
+const LocalAudioJobs = new Function('document', 'T', 'setTimeout', 'api', 'localStorage', uiSource.slice(uiSource.indexOf('export class')).replace('export class', 'class') + '; return LocalAudioJobs;')(
+    { createElement: () => new Element() }, key => key, callback => callback(), { apiURL: path => path },
+    { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) });
 async function music(stale = false, failure = false) {
     const target = { id: 'voice', name: 'music', duration: 1200.25, track: {} };
     const calls = [], attached = [];
@@ -181,10 +186,12 @@ console.log('Subtitle ordering/single submission, stale subtitle guard and VC ro
     assert.equal(reference.children[0].textContent, 'Renamed voice');
     assert.equal(reference.children[0].value, 'reference.mp3');
     const preview = ui.dialog.querySelector('[data-reference-preview]');
-    assert.equal(preview.hidden, true);
+    const trim = ui.dialog.querySelector('[data-reference-trim]');
+    const range = ui.dialog.querySelector('[data-reference-range]');
+    assert.equal(trim.hidden, true);
     reference.value = 'reference.mp3';
     reference.onchange();
-    assert.equal(preview.hidden, false);
+    assert.equal(trim.hidden, false);
     assert.equal(preview.src, '/audio/reference.mp3');
     preview.paused = false;
     reference.value = 'reference.mp4';
@@ -193,15 +200,35 @@ console.log('Subtitle ordering/single submission, stale subtitle guard and VC ro
     assert.equal(preview.src, '/video/reference.mp4');
     reference.value = '';
     reference.onchange();
-    assert.equal(preview.hidden, true);
+    assert.equal(trim.hidden, true);
     assert.equal(preview.src, undefined);
     reference.value = 'reference.mp3';
     reference.onchange();
     preview.paused = false;
     ui.stopPreview();
     assert.equal(preview.paused, true);
+    await Promise.resolve();
+    await Promise.resolve();
+    await ui.dialog.querySelector('[data-submit]').onclick();
+    assert.equal(submitted, undefined, 'Do not send an unloaded reference');
+    assert.equal(ui.dialog.querySelector('[role="status"]').textContent, 'local_voice_trim_not_ready');
+    preview.duration = 12;
+    preview.onloadedmetadata();
+    assert.equal(range.endFrame, 12000);
+    range.startFrame = 2000;
+    range.endFrame = 4500;
+    range.handlers.rangechange({ detail: { frame: 2000 } });
+    assert.equal(preview.currentTime, 2);
+    await range.handlers.toggleplay();
+    assert.equal(preview.paused, false);
+    preview.currentTime = 4.5;
+    preview.ontimeupdate();
+    assert.equal(preview.paused, true);
+    assert.equal(preview.currentTime, 2);
     await ui.dialog.querySelector('[data-submit]').onclick();
     assert.equal(submitted.reference_file, 'reference.mp3');
+    assert.equal(submitted.reference_start_sec, 2);
+    assert.equal(submitted.reference_end_sec, 4.5);
     assert.equal(ui.dialog.querySelector('[role="status"]').textContent, 'Bearer API Key required');
     assert.equal(ui.dialog.querySelector('[data-submit]').disabled, false);
     assert.equal(ui.busy, false);
@@ -217,6 +244,67 @@ console.log('Subtitle ordering/single submission, stale subtitle guard and VC ro
     assert.equal(ui.dialog.querySelector('[role="status"]').textContent, 'local_audio_target_changed');
 }
 console.log('Reference clip titles, original file submission and visible failure feedback passed');
+
+{
+    storage.clear();
+    const target = { id: 'subtitle', track: {} };
+    const application = { _timeline: { pause() {} }, _projectResources: [{ kind: 'audio', file: 'voice.wav' }],
+        _findClipById: () => target, _ensureClipMeta: () => ({}), _audioUrl: file => '/audio/' + file };
+    const speech = { text: 'Hello', start: 0, valid: () => true };
+    const open = async () => {
+        const ui = new LocalAudioJobs(application, { append() {} });
+        ui.request = async () => [{ id: 'first' }, { id: 'last' }];
+        ui.open(target, null, 'tts', speech);
+        await Promise.resolve();
+        return ui.dialog;
+    };
+    let dialog = await open();
+    const voice = dialog.querySelector('[data-voice]');
+    voice.value = 'last';
+    voice.handlers.change();
+    const language = dialog.querySelector('[data-language]');
+    language.value = 'Chinese';
+    language.onchange();
+    const reference = dialog.querySelector('[data-reference]');
+    reference.value = 'voice.wav';
+    reference.onchange();
+    reference.handlers.change();
+    const preview = dialog.querySelector('[data-reference-preview]');
+    preview.duration = 10;
+    preview.onloadedmetadata();
+    const range = dialog.querySelector('[data-reference-range]');
+    range.startFrame = 2000;
+    range.endFrame = 6000;
+    range.handlers.rangechange({ detail: { frame: 2000 } });
+    dialog = await open();
+    assert.equal(dialog.querySelector('[data-voice]').value, 'last');
+    assert.equal(dialog.querySelector('[data-language]').value, 'Chinese');
+    assert.equal(dialog.querySelector('[data-reference]').value, 'voice.wav');
+    const restoredPreview = dialog.querySelector('[data-reference-preview]');
+    restoredPreview.duration = 5;
+    restoredPreview.onloadedmetadata();
+    const restoredRange = dialog.querySelector('[data-reference-range]');
+    assert.equal(restoredRange.startFrame, 2000);
+    assert.equal(restoredRange.endFrame, 5000, 'Clamp saved trim to the current recording duration');
+    assert.equal(restoredPreview.currentTime, 2);
+    restoredPreview.duration = 1;
+    restoredPreview.onloadedmetadata();
+    assert.equal(restoredRange.startFrame, 0, 'Discard trim whose start is outside the recording');
+    assert.equal(restoredRange.endFrame, 1000);
+    application._projectResources = [];
+    dialog = await open();
+    assert.equal(dialog.querySelector('[data-reference]').value, '');
+    assert.equal(dialog.querySelector('[data-reference-trim]').hidden, true);
+    storage.set('cap_timeline_tts_defaults', JSON.stringify({ speaker: 'removed' }));
+    dialog = await open();
+    assert.equal(dialog.querySelector('[data-voice]').value, 'first');
+    assert.equal(dialog.querySelector('[data-language]').value, 'Auto');
+    storage.set('cap_timeline_tts_defaults', '{broken');
+    dialog = await open();
+    assert.equal(dialog.querySelector('[data-voice]').value, 'first');
+    storage.clear();
+}
+console.log('TTS preferences survive new dialogs, restore reference trims and handle missing or shortened media');
 
 const directorContext = {
     _ensureClipMeta: () => ({}),

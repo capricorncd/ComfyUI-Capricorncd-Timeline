@@ -1,6 +1,7 @@
 import { api } from '../../../scripts/api.js';
 import { t as T } from '../i18n/timeline_editor.js';
 import '../components/Dialog.js';
+import '../components/ExportRange.js';
 
 export class LocalAudioJobs {
     constructor(app, host) {
@@ -37,6 +38,19 @@ export class LocalAudioJobs {
         const meta = app._ensureClipMeta(clip);
         const sfx = kind === 'sfx';
         const voice = kind === 'tts' || kind === 'vc';
+        let defaults = {};
+        if (kind === 'tts') {
+            try {
+                const saved = JSON.parse(localStorage.getItem('cap_timeline_tts_defaults'));
+                if (saved && typeof saved === 'object' && !Array.isArray(saved)) defaults = saved;
+            } catch { /* Storage may be unavailable or contain invalid JSON. */ }
+        }
+        const remember = values => {
+            if (kind !== 'tts') return;
+            Object.assign(defaults, values);
+            try { localStorage.setItem('cap_timeline_tts_defaults', JSON.stringify(defaults)); }
+            catch { /* Keep generation available when browser storage is blocked. */ }
+        };
         const titleKey = { music: 'local_audio_bgm', denoise: 'local_audio_denoise', sfx: 'local_audio_sfx', separation: 'local_audio_separation', tts: 'speech_convert', vc: 'voice_convert' }[kind];
         this.jobId = null;
         if (denoise && !denoise.sources.length) return;
@@ -59,7 +73,7 @@ export class LocalAudioJobs {
         this.dialog.innerHTML = `<span slot="title">${T(titleKey)}</span>
             <div class="cat-te-modal-body"><p data-description></p>
             ${denoise ? `<label>${T('local_audio_source')}<select data-source></select><span data-source-file></span></label><label>${T('local_audio_scope')}<select data-scope><option value="clip">${T('local_audio_clip_scope')}</option><option value="full">${T('local_audio_full_scope')}</option></select></label>` : `<label>${T('local_audio_lyrics')}<textarea data-lyrics rows="4" readonly></textarea></label><label>${T('local_audio_style')}<textarea data-style rows="2" readonly></textarea></label><label>${T('local_audio_duration')}<input data-duration type="number" min="0.001" step="any" /></label>`}
-            ${voice ? `<label>${T('local_voice_preset')}<select data-voice></select></label><p data-voice-description></p><audio data-voice-preview controls preload="none" hidden></audio><label>${T('local_voice_reference')}<select data-reference><option value="">${T('local_voice_use_preset')}</option></select></label><audio data-reference-preview controls preload="none" hidden aria-label="${T('local_voice_reference')}"></audio>${kind === 'tts' ? `<label>${T('local_voice_language')}<select data-language>${['Auto','Chinese','English','Japanese','Korean','German','French','Russian','Portuguese','Spanish','Italian'].map(language => `<option>${language}</option>`).join('')}</select></label><label>${T('local_voice_instruct')}<textarea data-instruct maxlength="1000" rows="2"></textarea></label><label>${T('local_voice_reference_text')}<textarea data-reference-text maxlength="4000" rows="2"></textarea></label>` : ''}` : ''}
+            ${voice ? `<label>${T('local_voice_preset')}<select data-voice></select></label><p data-voice-description></p><audio data-voice-preview controls preload="none" hidden></audio><label>${T('local_voice_reference')}<select data-reference><option value="">${T('local_voice_use_preset')}</option></select></label><audio data-reference-preview preload="metadata" hidden></audio><div data-reference-trim hidden><cap-export-range data-reference-range></cap-export-range></div>${kind === 'tts' ? `<label>${T('local_voice_language')}<select data-language>${['Auto','Chinese','English','Japanese','Korean','German','French','Russian','Portuguese','Spanish','Italian'].map(language => `<option>${language}</option>`).join('')}</select></label><label>${T('local_voice_instruct')}<textarea data-instruct maxlength="1000" rows="2"></textarea></label><label>${T('local_voice_reference_text')}<textarea data-reference-text maxlength="4000" rows="2"></textarea></label>` : ''}` : ''}
             </div>
             <div slot="footer"><p role="status"></p><div class="cat-te-confirm-actions"><cap-button data-settings>${T('voice_configure')}</cap-button><cap-button data-cancel>${T('close_title')}</cap-button><cap-button variant="primary" data-submit>${T(titleKey)}</cap-button></div></div>`;
         this.dialog.querySelector('[data-description]').textContent = denoise ? T('local_audio_denoise_note') : clip.name + '\n' + T('local_audio_bgm_note');
@@ -101,12 +115,54 @@ export class LocalAudioJobs {
             text.parentElement.firstChild.textContent = T('local_voice_text');
             this.dialog.querySelector('[data-style]').parentElement.hidden = true;
             this.dialog.querySelector('[data-duration]').parentElement.hidden = true;
+            const language = this.dialog.querySelector('[data-language]');
+            language.value = defaults.language || 'Auto';
+            if (!language.value) language.value = 'Auto';
+            language.onchange = () => remember({ language: language.value });
         }
         if (voice) {
             this.dialog.querySelector('[data-description]').textContent = T(kind === 'tts' ? 'local_voice_tts_note' : 'local_voice_vc_note');
             const reference = this.dialog.querySelector('[data-reference]');
             const referencePreview = this.dialog.querySelector('[data-reference-preview]');
-            referencePreview.onerror = () => { this.dialog.querySelector('[role="status"]').textContent = T('local_voice_no_preview'); };
+            const range = this.dialog.querySelector('[data-reference-range]');
+            const configureRange = duration => range.configure(Math.floor(duration * 1000), 1000, {
+                start: T('compose_range_start'), end: T('compose_range_end'), current: T('compose_range_current'),
+                play: T('compose_range_play'), pause: T('compose_range_pause'), hint: T('local_voice_trim_hint'),
+            });
+            const syncRange = () => {
+                if (range.totalFrames && referencePreview.currentTime >= range.endFrame / 1000) {
+                    referencePreview.pause();
+                    referencePreview.currentTime = range.startFrame / 1000;
+                }
+                range.update(referencePreview.currentTime * 1000 || 0, !referencePreview.paused);
+            };
+            referencePreview.onloadedmetadata = () => {
+                if (!reference.value || !Number.isFinite(referencePreview.duration) || referencePreview.duration <= 0) return;
+                configureRange(referencePreview.duration);
+                const trim = defaults.trim;
+                if (trim?.file === reference.value && Number.isFinite(trim.startFrame) && Number.isFinite(trim.endFrame)
+                    && trim.startFrame >= 0 && trim.startFrame < range.totalFrames && trim.endFrame > trim.startFrame) {
+                    range.startFrame = Math.round(trim.startFrame);
+                    range.endFrame = Math.min(range.totalFrames, Math.round(trim.endFrame));
+                }
+                referencePreview.currentTime = range.startFrame / 1000;
+                syncRange();
+            };
+            referencePreview.ontimeupdate = referencePreview.onplay = referencePreview.onpause = syncRange;
+            range.addEventListener('toggleplay', async () => {
+                if (!range.totalFrames) return;
+                if (!referencePreview.paused) { referencePreview.pause(); return; }
+                if (referencePreview.currentTime < range.startFrame / 1000 || referencePreview.currentTime >= range.endFrame / 1000) referencePreview.currentTime = range.startFrame / 1000;
+                try { await referencePreview.play(); }
+                catch { this.dialog.querySelector('[role="status"]').textContent = T('local_voice_no_preview'); }
+            });
+            const seek = event => { referencePreview.currentTime = event.detail.frame / 1000; syncRange(); };
+            range.addEventListener('seek', seek);
+            range.addEventListener('rangechange', event => {
+                seek(event);
+                remember({ trim: { file: reference.value, startFrame: range.startFrame, endFrame: range.endFrame } });
+            });
+            referencePreview.onerror = () => { configureRange(0); this.dialog.querySelector('[role="status"]').textContent = T('local_voice_no_preview'); };
             const clips = (timeline.tracks || []).flatMap(track => track.clips);
             for (const row of resources.filter(row => row.kind === 'audio' || row.kind === 'video')) {
                 const option = document.createElement('option');
@@ -116,10 +172,13 @@ export class LocalAudioJobs {
                 option.title = row.file;
                 reference.append(option);
             }
+            reference.value = resources.some(row => (row.kind === 'audio' || row.kind === 'video') && row.file === defaults.reference)
+                ? defaults.reference : '';
             reference.onchange = () => {
                 this.stopPreview();
                 const row = resources.find(row => row.file === reference.value);
-                referencePreview.hidden = !row;
+                this.dialog.querySelector('[data-reference-trim]').hidden = !row;
+                configureRange(0);
                 referencePreview.removeAttribute('src');
                 if (row) referencePreview.src = row.kind === 'video' ? app._videoUrl(row.file) : app._audioUrl(row.file);
                 referencePreview.load();
@@ -130,8 +189,10 @@ export class LocalAudioJobs {
                     this.dialog.querySelector('[data-reference-text]').parentElement.hidden = !reference.value;
                 }
             };
+            reference.addEventListener('change', () => remember({ reference: reference.value }));
             reference.onchange();
             const select = this.dialog.querySelector('[data-voice]');
+            select.addEventListener('change', () => remember({ speaker: select.value }));
             void this.request('voices?kind=' + kind).then(rows => {
                 if (this.dialog.querySelector('[data-voice]') !== select) return;
                 for (const row of rows) {
@@ -143,7 +204,7 @@ export class LocalAudioJobs {
                     select.append(option);
                 }
                 const available = rows.find(row => kind !== 'vc' || row.vc_available);
-                select.value = available?.id || '';
+                select.value = rows.find(row => row.id === defaults.speaker)?.id || available?.id || '';
                 const preview = this.dialog.querySelector('[data-voice-preview]');
                 select.onchange = () => {
                     preview.pause();
@@ -188,6 +249,14 @@ export class LocalAudioJobs {
             }
             if (voice && !this.jobId) {
                 payload.reference_file = this.dialog.querySelector('[data-reference]').value;
+                delete payload.reference_start_sec;
+                delete payload.reference_end_sec;
+                if (payload.reference_file) {
+                    const range = this.dialog.querySelector('[data-reference-range]');
+                    if (!range.totalFrames) { status.textContent = T('local_voice_trim_not_ready'); return; }
+                    payload.reference_start_sec = range.startFrame / 1000;
+                    payload.reference_end_sec = range.endFrame / 1000;
+                }
                 payload.speaker = this.dialog.querySelector('[data-voice]').value;
                 if (!payload.reference_file && !payload.speaker) { status.textContent = T('local_voice_choose'); return; }
                 if (kind === 'tts') {
@@ -196,6 +265,11 @@ export class LocalAudioJobs {
                     payload.language = this.dialog.querySelector('[data-language]').value;
                     payload.instruct = this.dialog.querySelector('[data-instruct]').value;
                     payload.reference_text = this.dialog.querySelector('[data-reference-text]').value;
+                    remember({ speaker: payload.speaker, reference: payload.reference_file, language: payload.language });
+                    if (payload.reference_file) {
+                        const range = this.dialog.querySelector('[data-reference-range]');
+                        remember({ trim: { file: payload.reference_file, startFrame: range.startFrame, endFrame: range.endFrame } });
+                    }
                 }
             }
             if (denoise && !this.jobId) {

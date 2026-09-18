@@ -91,7 +91,7 @@ def prepare_denoise_audio(source, destination, payload):
     return duration
 
 
-def prepare_clip_mix(destination, payload):
+def prepare_clip_mix(destination, payload, *, channels=1):
     duration = float(payload.get('duration_sec', 0))
     if not math.isfinite(duration) or duration <= 0:
         raise ValueError('Invalid clip duration.')
@@ -116,9 +116,9 @@ def prepare_clip_mix(destination, payload):
     if not labels:
         raise ValueError('The clip has no audible audio sources.')
     filters.append(''.join(labels) + f'amix=inputs={len(labels)}:normalize=0:dropout_transition=0,apad,atrim=duration={duration}[mixed]')
-    command += ['-filter_complex', ';'.join(filters), '-map', '[mixed]', '-c:a', 'pcm_s16le', '-ar', '48000', '-ac', '1', str(destination)]
+    command += ['-filter_complex', ';'.join(filters), '-map', '[mixed]', '-c:a', 'pcm_s16le', '-ar', '48000', '-ac', str(channels), str(destination)]
     _run_ffmpeg(command)
-    if not _probe_duration_sec(str(destination)) or destination.stat().st_size > LIMIT:
+    if not _probe_duration_sec(str(destination)) or Path(destination).stat().st_size > LIMIT:
         raise ValueError('Invalid clip mix or upload exceeds 512 MB.')
 
 
@@ -172,7 +172,15 @@ def register_local_audio_routes(routes):
                         reference = denoise_source({'file': payload['reference_file'], 'location': 'input'})
                         with tempfile.TemporaryDirectory(prefix='cap_voice_reference_') as temporary:
                             audio = Path(temporary) / 'reference.wav'
-                            await asyncio.to_thread(prepare_denoise_audio, reference, audio, {'scope': 'full'})
+                            interval = {'scope': 'full'}
+                            if 'reference_start_sec' in payload or 'reference_end_sec' in payload:
+                                start = float(payload.get('reference_start_sec', -1))
+                                end = float(payload.get('reference_end_sec', -1))
+                                duration = await asyncio.to_thread(_probe_duration_sec, reference)
+                                if not all(math.isfinite(n) for n in (start, end)) or not duration or not 0 <= start < end <= duration + 0.001:
+                                    raise ValueError('Invalid reference audio interval.')
+                                interval = {'scope': 'clip', 'trim_in_sec': start, 'duration_sec': min(end, duration) - start}
+                            await asyncio.to_thread(prepare_denoise_audio, reference, audio, interval)
                             with audio.open('rb') as stream:
                                 form = aiohttp.FormData()
                                 form.add_field('file', stream, filename='reference.wav', content_type='audio/wav')

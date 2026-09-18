@@ -230,6 +230,9 @@ def _collect_plan(
                         "path": path,
                         "kind": "video",
                         "layer": "director",
+                        "scale": max(1.0, min(300.0, float(gen.get("media_scale", 100)))) / 100,
+                        "offset_x": max(-100.0, min(100.0, float(gen.get("media_offset_x", 0)))) / 100,
+                        "offset_y": max(-100.0, min(100.0, float(gen.get("media_offset_y", 0)))) / 100,
                         "start_sec": start_sec + offset,
                         "duration_sec": duration,
                         "end_sec": start_sec + offset + duration,
@@ -259,6 +262,40 @@ def _collect_plan(
                             "volume": _clip_volume(clip.get("volume", 1.0)) * _clip_volume(audio.get("volume", 1.0)),
                             "volume_points": normalize_volume_points(audio.get("volume_points")),
                         })
+            continue
+
+        if track_type == "voiceover":
+            if track.get("muted"):
+                continue
+            for clip in _as_list(track.get("clips")):
+                if not isinstance(clip, dict) or clip.get("enabled", True) is False:
+                    continue
+                start = _ms(clip.get("start_ms")) / 1000.0
+                clip_duration = _ms(clip.get("duration_ms")) / 1000.0
+                for audio in _as_list(clip.get("generated_audios")):
+                    if not isinstance(audio, dict) or audio.get("enabled", True) is False or not audio.get("file"):
+                        continue
+                    offset = max(0.0, float(audio.get("edit_start_sec") or 0))
+                    source_in = max(0.0, float(audio.get("trim_in_sec") or 0))
+                    duration = clip_duration - offset
+                    source_end = audio.get("trim_out_sec") or audio.get("duration_sec")
+                    if source_end is not None:
+                        duration = min(duration, float(source_end) - source_in)
+                    if duration <= 0:
+                        continue
+                    file = str(audio["file"]).replace("\\", "/")
+                    path = resolve_media_path(file, location="output" if "/" in file else "input")
+                    if not path or not os.path.isfile(path):
+                        raise ValueError(_t("audio_file_not_found", get_last_known_lang(), file=file))
+                    fade_in = max(0.0, float(audio.get("fade_in_sec") or 0))
+                    fade_out = max(0.0, float(audio.get("fade_out_sec") or 0))
+                    scale = min(1.0, duration / (fade_in + fade_out)) if fade_in + fade_out else 1.0
+                    audio_segs.append({
+                        "path": path, "start_sec": start + offset, "duration_sec": duration,
+                        "source_in_sec": source_in, "fade_in_sec": fade_in * scale, "fade_out_sec": fade_out * scale,
+                        "volume": 0.0 if clip.get("muted") or audio.get("muted") else _clip_volume(clip.get("volume", 1.0)),
+                        "volume_points": [], "playback_rate": 1.0,
+                    })
             continue
 
         if track_type != "audio":
@@ -724,7 +761,8 @@ def compose_timeline_project(
                 f"{speed_filter}"
                 f"settb=expr=1/{fps},setpts=N+{start_frame},"
             )
-            if seg.get("layer") == "media" or seg.get("kind") == "image":
+            if (seg.get("layer") == "media" or seg.get("kind") == "image"
+                    or seg.get("scale", 1) != 1 or seg.get("offset_x", 0) != 0 or seg.get("offset_y", 0) != 0):
                 scaled_width = max(1, round(width * seg.get("scale", 1)))
                 scaled_height = max(1, round(height * seg.get("scale", 1)))
                 filters.append(

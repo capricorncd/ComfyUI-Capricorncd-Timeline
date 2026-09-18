@@ -1,5 +1,6 @@
 import asyncio
 import importlib.util
+import io
 import json
 import shutil
 from pathlib import Path
@@ -8,6 +9,7 @@ import sys
 import tempfile
 import types
 import unittest
+import wave
 from unittest.mock import patch
 
 from aiohttp import web
@@ -55,6 +57,19 @@ class AudioExtractionTests(unittest.TestCase):
             self.assertEqual(max(abs(n) for n in samples[:48000]), 0)
             self.assertGreater(max(abs(n) for n in samples[48000:96000]), 0)
             self.assertAlmostEqual(max(abs(n) for n in samples[96000:144000]) / max(abs(n) for n in samples[48000:96000]), 2, delta=0.05)
+            self.assertEqual(max(abs(n) for n in samples[144000:]), 0)
+
+            with patch.object(module, '_run_ffmpeg', run):
+                module.prepare_clip_mix(str(output), {'duration_sec': 4, 'mix': [
+                    {'file': 'tone.wav', 'location': 'input', 'edit_start_sec': 0, 'duration_sec': 2, 'volume': 0.5},
+                    {'file': 'tone.wav', 'location': 'input', 'edit_start_sec': 1, 'duration_sec': 2, 'volume': 0.5},
+                ]}, channels=2)
+            with wave.open(str(output)) as audio:
+                self.assertEqual(audio.getnchannels(), 2)
+                self.assertEqual(audio.getnframes(), 4 * 48000)
+                samples = array.array('h', audio.readframes(audio.getnframes()))[::2]
+            self.assertAlmostEqual(max(abs(n) for n in samples[48000:96000]) / max(abs(n) for n in samples[:48000]), 2, delta=0.05)
+            self.assertGreater(max(abs(n) for n in samples[96000:144000]), 0)
             self.assertEqual(max(abs(n) for n in samples[144000:]), 0)
 
     def test_full_and_clip_with_playback_speed(self):
@@ -222,6 +237,46 @@ class LocalAudioTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.params['reference_text'], 'Original')
             self.assertNotIn('speaker', self.params)
             self.assertNotIn('instruct', self.params)
+
+    async def test_reference_interval_is_cropped_before_upload(self):
+        (self.root / 'source.wav').write_bytes(b'original')
+        payload = dict(kind='tts', text='Hello', reference_file='source.wav',
+                       reference_start_sec=2, reference_end_sec=4.5)
+        with patch.object(module, '_probe_duration_sec', return_value=12), patch.object(module, '_run_ffmpeg') as run:
+            run.side_effect = lambda command: Path(command[-1]).write_bytes(b'cropped reference')
+            status, result = await self.call('start', payload)
+            self.assertEqual(status, 200, result)
+            command = run.call_args.args[0]
+            self.assertIn('atrim=start=2.0:duration=2.5', command[command.index('-af') + 1])
+            self.assertEqual(self.uploaded, b'cropped reference')
+            self.assertIn('reference_upload_id', self.params)
+            for start, end in [(-1, 3), (3, 3), (4, 2), (0, 13), (float('nan'), 4)]:
+                before = len(self.calls)
+                status, _ = await self.call('start', payload | {'reference_start_sec': start, 'reference_end_sec': end})
+                self.assertEqual(status, 400)
+                self.assertEqual(len(self.calls), before, 'Invalid ranges must not upload audio')
+
+    @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'FFmpeg is required')
+    async def test_reference_upload_contains_only_selected_samples(self):
+        source = self.root / 'reference.wav'
+        subprocess.run(['ffmpeg', '-y', '-v', 'error', '-f', 'lavfi', '-i',
+                        'sine=frequency=440:duration=6', str(source)], check=True, capture_output=True)
+
+        def run(command):
+            subprocess.run(command, check=True, capture_output=True)
+
+        def duration(path):
+            with wave.open(str(path)) as audio:
+                return audio.getnframes() / audio.getframerate()
+
+        with patch.object(module, '_run_ffmpeg', run), patch.object(module, '_probe_duration_sec', duration):
+            status, result = await self.call('start', dict(kind='tts', text='Hello', reference_file='reference.wav',
+                                                          reference_start_sec=2, reference_end_sec=3.25))
+        self.assertEqual(status, 200, result)
+        with wave.open(io.BytesIO(self.uploaded)) as audio:
+            self.assertEqual(audio.getnframes(), 60000)
+            self.assertEqual(audio.getframerate(), 48000)
+        self.assertTrue(source.is_file())
 
     async def test_separation_downloads_two_tracks(self):
         (self.root / 'source.wav').write_bytes(b'original')

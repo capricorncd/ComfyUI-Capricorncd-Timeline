@@ -20,7 +20,7 @@ import folder_paths
 
 from .cap_i18n import resolve_lang, t
 from .cap_video_metadata import read_video_generation
-from .cap_local_audio import register_local_audio_routes
+from .cap_local_audio import register_local_audio_routes, prepare_clip_mix
 from .cap_timeline_project_io import save_project_export
 from .cap_load_image_metadata import (
     NODE_CLASS_MAPPINGS as _CLM_CLASS,
@@ -748,6 +748,17 @@ def _register_routes():
             payload = await request.json()
             if not isinstance(payload, dict):
                 return web.json_response({"error": t("invalid_payload", lang)}, status=400)
+            if 'mix' in payload:
+                mix = payload['mix']
+                if not isinstance(mix, list) or not mix or any(not isinstance(row, dict) for row in mix):
+                    raise ValueError('Invalid clip audio mix.')
+                dest_dir = os.path.join(_fp.get_input_directory(), "capricorncd-timeline", "audios")
+                dest = _unique_destination(dest_dir, "director_mix_audio.wav")
+                await asyncio.to_thread(prepare_clip_mix, dest, payload, channels=2)
+                return web.json_response({
+                    "ok": True, "file": os.path.relpath(dest, _fp.get_input_directory()).replace(os.sep, "/"),
+                    "kind": "audio", "location": "input",
+                })
             rel = str(payload.get("file") or "").strip().replace("\\", "/").lstrip("/")
             if not rel:
                 return web.json_response({"error": t("missing_filename", lang)}, status=400)

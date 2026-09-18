@@ -36,7 +36,7 @@ class ExportWorkflowTests(unittest.TestCase):
             scope = {
                 "web": SimpleNamespace(Request=object, Response=object, json_response=lambda body, status=200: (body, status)),
                 "os": SimpleNamespace(path=os.path, sep=os.sep, startfile=reveal),
-                "sys": SimpleNamespace(platform="win32"),
+                "sys": SimpleNamespace(platform="win32"), "reveal_file": reveal, "asyncio": asyncio,
                 "_fp": SimpleNamespace(get_output_directory=lambda: directory),
                 "resolve_lang": lambda request: "en", "t": lambda key, lang: key,
                 "logging": SimpleNamespace(exception=Mock()),
@@ -46,7 +46,7 @@ class ExportWorkflowTests(unittest.TestCase):
                 async def json(self):
                     return {"filename": "旁白 01.wav", "subfolder": folder.name}
             self.assertEqual(asyncio.run(scope["api_reveal_output"](Request()))[1], 200)
-            reveal.assert_called_once_with(str(folder.resolve()))
+            reveal.assert_called_once_with(str((folder / "旁白 01.wav").resolve()))
 
     def test_save_and_reveal_routes_only_accept_successful_local_exports(self):
         routes = ast.parse(source.with_name("__init__.py").read_text(encoding="utf-8-sig"))
@@ -66,7 +66,7 @@ class ExportWorkflowTests(unittest.TestCase):
                                        json_response=lambda body, status=200: (body, status)),
                 "save_project_export": save, "asyncio": asyncio, "uuid": uuid,
                 "os": SimpleNamespace(path=os.path, startfile=reveal),
-                "sys": SimpleNamespace(platform="win32"),
+                "sys": SimpleNamespace(platform="win32"), "reveal_file": reveal, "asyncio": asyncio,
                 "folder_paths": SimpleNamespace(get_output_directory=lambda: directory),
                 "export_destinations": {}, "logging": SimpleNamespace(exception=Mock()),
             }
@@ -94,7 +94,7 @@ class ExportWorkflowTests(unittest.TestCase):
                 self.assertEqual((await scope["api_reveal_export"](Request({"path": directory})))[1], 404)
                 reveal.assert_not_called()
                 self.assertEqual((await scope["api_reveal_export"](Request({"reveal_token": result["reveal_token"]})))[1], 200)
-                reveal.assert_called_once_with(str(destination))
+                reveal.assert_called_once_with(str(destination / "project.json"))
                 save.side_effect = OSError("Disk full")
                 self.assertEqual((await scope["api_export_save"](Request({"project": {}})))[1], 500)
                 self.assertEqual(len(scope["export_destinations"]), 1, "failed export must not enable folder reveal")

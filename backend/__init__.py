@@ -18,6 +18,7 @@ from urllib.parse import quote
 from aiohttp import web
 import folder_paths
 
+from .cap_reveal_file import reveal_file
 from .cap_i18n import resolve_lang, t
 from .cap_video_metadata import read_video_generation
 from .cap_local_audio import register_local_audio_routes, prepare_clip_mix
@@ -616,12 +617,7 @@ def _register_routes():
             path = export_destinations.get(token) if isinstance(token, str) else None
             if not path or not os.path.isfile(path):
                 return web.json_response({"error": "Export folder unavailable; export again after restarting ComfyUI"}, status=404)
-            if sys.platform == "win32":
-                os.startfile(os.path.dirname(path))
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", "-R", path])
-            else:
-                subprocess.Popen(["xdg-open", os.path.dirname(path)])
+            await asyncio.to_thread(reveal_file, path)
             return web.json_response({"ok": True})
         except Exception as exc:
             logging.exception("[CapricorncdTools] reveal_export error")
@@ -821,12 +817,7 @@ def _register_routes():
             # Local desktop use only: reveals the file on the machine running
             # this ComfyUI backend, which is the same machine as the browser
             # for the standard local install this extension targets.
-            if sys.platform == "win32":
-                os.startfile(os.path.dirname(path))
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", "-R", path])
-            else:
-                subprocess.Popen(["xdg-open", os.path.dirname(path)])
+            await asyncio.to_thread(reveal_file, path)
             return web.json_response({"ok": True})
         except Exception as exc:
             logging.exception("[CapricorncdTools] reveal_output error")

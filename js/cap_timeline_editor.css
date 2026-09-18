@@ -682,6 +682,9 @@ body.cat-te-row-resize * {
 
 .cat-te-media-preview-audio {
     width: min(680px, 100%);
+    height: 54px;
+    min-height: 54px;
+    flex-shrink: 0;
 }
 
 .cat-te-media-preview-solo .cat-te-media-preview-nav {

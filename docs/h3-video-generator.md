@@ -4,6 +4,15 @@ Category: `Capricorncd/MiniMaxH3`. A compact wrapper around existing nodes, not 
 
 Optional **face_refine** defaults to off. Connect [H3 Face Refine Config](h3-face-refine.md) to configure the detector and repair strength. It uses Carasibana's installed H3-FaceRefine nodes after motion deblur, with existing detectors in `models/ultralytics/bbox`.
 
+## Digital Human
+
+Choose **Digital Human** as the Clip type, add a character reference, and place driving audio on the corresponding audio track. The generator uses the timeline offsets and trims, encodes the audio into the target latent, and locks it during both sampling passes. Output uses the source track instead of regenerated vocals. No additional audio-lock node is required.
+
+A default performance instruction requests lip-sync only during audible vocals and closed lips during pauses or instrumental passages. Digital Human clips skip audio repair, motion deblur and face refinement to protect lip timing; other clip types still follow these switches. Turning off **Generate audio** silences the output but keeps audio-driven generation. Audio normalization still changes output loudness when enabled.
+
+Missing readable driving audio raises an error. Short tracks are padded with silence, never looped or stretched. Context prefixes receive leading silence to keep the current clip aligned. For songs, use an isolated vocal stem with all original instrumental pauses preserved, then restore the full mix in the editor. This node does not separate vocals automatically or guarantee perfect lip synchronization.
+
+
 ## Motion deblur (experimental)
 
 `motion_deblur` defaults to **false**. Enable it with **ComfyUI-MAINodes** installed and `base_model` connected to a model without acceleration LoRA. Missing requirements fail before sampling. Disabled workflows do not require MAINodes or run additional passes.

@@ -7,9 +7,11 @@ import math
 import secrets
 
 import torch
+import torchaudio
 import folder_paths
 import nodes
 import comfy.model_management
+import comfy.nested_tensor
 from comfy.patcher_extension import WrappersMP
 from comfy_api.latest import io
 
@@ -29,6 +31,34 @@ REFINE_SIGMAS = "0.9035, 0.8000, 0.6316, 0.3158, 0.0000"
 # https://github.com/matlowai/ComfyUI-MAINodes/blob/f4868b4a08e8a504ce86db54a17961d399ffa2bc/motion.py
 # Cap owns only this orchestration; the upstream node names and implementation remain unchanged.
 MOTION_NODES = ("H3JerkOracle", "H3TimeSmear", "H3V2VInit", "H3InjectSchedule", "H3ExactRecover")
+
+
+def _lock_audio(latent, encoded):
+    video, _ = latent["samples"].unbind()
+    return {**latent,
+            "samples": comfy.nested_tensor.NestedTensor((video, encoded)),
+            "noise_mask": comfy.nested_tensor.NestedTensor((torch.ones_like(video), torch.zeros_like(encoded)))}
+
+
+def _digital_human_audio(latent, source, audio_vae, frame_count, prefix_frames):
+    if source is None:
+        raise ValueError("Digital Human requires an audio clip on the corresponding timeline audio track.")
+    rate = source["sample_rate"]
+    waveform = source["waveform"][:1]
+    prefix = round(prefix_frames / 24 * rate)
+    length = round(frame_count / 24 * rate)
+    waveform = torch.nn.functional.pad(waveform, (prefix, 0))[..., :length]
+    waveform = torch.nn.functional.pad(waveform, (0, length - waveform.shape[-1]))
+    source = {"waveform": waveform, "sample_rate": rate}
+    vae_rate = getattr(audio_vae, "audio_sample_rate", 32000)
+    if rate != vae_rate:
+        waveform = torchaudio.functional.resample(waveform, rate, vae_rate)
+    encoded = audio_vae.encode(waveform.movedim(1, -1))
+    target = latent["samples"].unbind()[1].shape[-1]
+    if encoded.shape[-1] < target:
+        encoded = torch.cat((encoded, encoded[..., -1:].expand(*encoded.shape[:-1], target - encoded.shape[-1])), dim=-1)
+    encoded = encoded[..., :target].clone()
+    return _lock_audio(latent, encoded), source, encoded
 
 
 def _node_class(name):
@@ -113,6 +143,8 @@ class CAP_H3VideoGenerator:
         "when connected, otherwise the incoming LoRA model. Select a matching 4/8-step LoRA externally. Project dimensions "
         "must be multiples of 32. Clip seed -1 is resolved once for all passes. "
         "Clips with the first_last role use strict frames: one image = first; two = first/last; no AV references or Motion Context. "
+        "Digital Human clips lock timeline audio through both sampling passes and save the source track. "
+        "Audio repair, motion deblur and face refinement are skipped for Digital Human clips to protect lip sync. "
         "Reference mode also permits FL models but does not force endpoints. "
         "First sampling always runs the full selected 4/8-step schedule. Refine uses its own explicit sigmas. "
         "motion_deblur defaults to false; requires MAINodes and a separate base_model without acceleration LoRA. "
@@ -173,6 +205,8 @@ class CAP_H3VideoGenerator:
         width, height, fps = _validate(data)
         audio_refine = bool(generate_audio and audio_refine)
         normalize_audio = bool(generate_audio and normalize_audio)
+        if all(row.get("clip_role") == "digital_human" for row in data["clips"]):
+            audio_refine = motion_deblur = face_refine = False
         if str(steps) not in ("4", "8"):
             raise ValueError("H3 steps must be 4 or 8.")
         steps = int(steps)
@@ -342,6 +376,13 @@ class CAP_H3VideoGenerator:
             json.dumps(data, ensure_ascii=False), index, context_latent=low_context, strict_keyframes=strict_keyframes)
         positive, latent = prepared[:2]
         frame_count, composed_prompt, trim_frames, save_latent = prepared[2], prepared[3], prepared[8], prepared[9]
+        digital_human = row.get("clip_role") == "digital_human"
+        source_audio = locked_audio = None
+        if digital_human:
+            latent, source_audio, locked_audio = _digital_human_audio(latent, prepared[6], audio_vae, frame_count, trim_frames)
+            audio_refine = False
+            motion_deblur = False
+            face_refine_config = None
         del prepared, low_context
         if motion_deblur and frame_count < 22:
             raise ValueError("Motion deblur needs at least 22 frames for MAINodes motion analysis. Lengthen the Clip or disable motion_deblur.")
@@ -381,6 +422,8 @@ class CAP_H3VideoGenerator:
                           align=32, enable_chunking=True, device="cuda", precision="fp16")
             latent, = _call("LTXVConcatAVLatent", records, video_latent=video, audio_latent=audio)
             del video, audio
+            if digital_human:
+                latent = _lock_audio(latent, locked_audio)
             if strict_keyframes:
                 high_prepared = CAP_MiniMaxH3ReferenceToVideo().execute(
                     clip, vae, audio_vae, width, height, "match", json.dumps(data, ensure_ascii=False), index,
@@ -417,7 +460,10 @@ class CAP_H3VideoGenerator:
         if progress:
             progress("decode")
         if generate_audio:
-            audio, = _call("VAEDecodeAudio", records, samples=audio_result, vae=audio_vae)
+            if digital_human:
+                audio = source_audio
+            else:
+                audio, = _call("VAEDecodeAudio", records, samples=audio_result, vae=audio_vae)
         images, = _call("VAEDecode", records, samples=result, vae=vae)
         if motion_deblur:
             if progress:
@@ -458,6 +504,7 @@ class CAP_H3VideoGenerator:
         saved = CAP_SeqToVideo().execute("", fps, output, images=images, audio=audio,
                                         metadata=json.dumps({"clip_id": cid, "strict_keyframes": strict_keyframes,
                                                              "generate_audio": generate_audio, "audio_refine": bool(generate_audio and audio_refine),
+                                                             "digital_human": digital_human,
                                                              "normalize_audio": bool(generate_audio and normalize_audio),
                                                              "second_sampling": second_sampling, "width": width, "height": height,
                                                              "motion_deblur": motion_deblur,

@@ -91,6 +91,7 @@ _LANGUAGE_ALIASES = {
 _CLIP_ROLE_LABELS = {
     "multi_ref": "多图参考",
     "first_last": "首尾帧",
+    "digital_human": "数字人",
     "t2v": "文生视频",
     "video_ref": "视频参考",
     "video_edit": "视频编辑",
@@ -204,6 +205,7 @@ Use one complete shot unless the user explicitly requests multiple shots. Never 
 
 _H3_ROLE_HINTS = {
     "multi_ref": "Treat stills as identity / scene / prop references. Keep every <Picture n> tag and number. Do not invent extra tags.",
+    "digital_human": "Use the character image for identity and the supplied audio for exact lip synchronization. Match only audible speech or lead vocals; during instrumental sections and vocal pauses keep the lips gently closed with natural breathing. Keep the face visible. Never invent lyrics or dialogue, and do not mouth along to instruments.",
     "first_last": "The first still is the start frame and the last still is the end frame. Describe a continuous motion that begins on the first and lands on the last.",
     "t2v": "This is text-to-video. If no media is attached, invent the full prompt from the user's text. If stills exist they are style or subject hints, not locked start/end frames.",
     "video_ref": "Motion, camera, and identity come from the tagged videos. Keep every <Video n> tag. Stills are supporting references.",

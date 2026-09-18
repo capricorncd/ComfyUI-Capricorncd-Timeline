@@ -124,7 +124,7 @@ def _clip_image_refs(entries: list) -> list[dict]:
     return out
 
 
-_CLIP_ROLES = ("multi_ref", "first_last", "t2v", "video_ref", "video_edit", "other")
+_CLIP_ROLES = ("multi_ref", "first_last", "digital_human", "t2v", "video_ref", "video_edit", "other")
 _CLIP_AGENTS = ("MiniMaxH3", "LTX", "Bernini", "Wan", "other")
 
 

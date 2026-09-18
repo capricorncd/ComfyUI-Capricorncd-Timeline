@@ -195,6 +195,7 @@ export const DICT = {
         // clip roles
         clip_role_multi_ref: "Multi-Reference",
         clip_role_first_last: "First+Last Frame",
+        clip_role_digital_human: "Digital Human",
         clip_role_t2v: "Text-to-Video",
         clip_role_video_ref: "Video Reference",
         clip_role_video_edit: "Video Edit",
@@ -989,6 +990,7 @@ export const DICT = {
         media_kind_audio: "音频",
         clip_role_multi_ref: "多图参考",
         clip_role_first_last: "首尾帧",
+        clip_role_digital_human: "数字人",
         clip_role_t2v: "文生视频",
         clip_role_video_ref: "视频参考",
         clip_role_video_edit: "视频编辑",
@@ -1779,6 +1781,7 @@ export const DICT = {
         media_kind_audio: "オーディオ",
         clip_role_multi_ref: "複数画像参照",
         clip_role_first_last: "開始+終了フレーム",
+        clip_role_digital_human: "デジタルヒューマン",
         clip_role_t2v: "テキストから動画",
         clip_role_video_ref: "動画参照",
         clip_role_video_edit: "動画編集",

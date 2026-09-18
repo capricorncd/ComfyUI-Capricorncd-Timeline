@@ -526,9 +526,19 @@ class CAP_MiniMaxH3ReferenceToVideo:
         )
 
         if parser._uses_master_audio(data, clip_row):
+            if clip_row.get("clip_role") == "digital_human" and not os.path.isfile(str(data.get("audio_path") or "")):
+                raise ValueError("Digital Human requires a readable source audio track.")
             audio_out = parser._clip_audio_from_master(data, clip_row, 0)
         else:
+            if clip_row.get("clip_role") == "digital_human" and not ref_audios:
+                raise ValueError("Digital Human requires an audio clip on the corresponding timeline audio track.")
             audio_out = parser._clip_audio_from_audios(clip_row, 0, materials=materials)
+        if clip_row.get("clip_role") == "digital_human":
+            prompt += ("\nPerformance instruction: Lip-sync only to the audible lead voice in the supplied audio, "
+                       "matching its words, syllables and pauses. During instrumental passages and vocal pauses, "
+                       "keep the lips gently closed with natural breathing and subtle head movement. "
+                       "Do not mouth along to instruments, improvise words or add vocalizations. "
+                       "Keep the face clearly visible.")
         blank = torch.zeros(1, 64, 64, 3)
         images_out = self._stack_frames(image_frames, blank)
         videos_out = self._stack_frames(video_frames, blank)

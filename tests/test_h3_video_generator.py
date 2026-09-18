@@ -84,6 +84,22 @@ class GeneratorTests(unittest.TestCase):
         kw.setdefault("base_model", "base")
         return self.node.generate("base", "clip", "vae", "audio_vae", json.dumps(data), **kw)
 
+    def test_digital_human_locks_both_passes_and_saves_source_audio(self):
+        source = {"waveform": "original", "sample_rate": 44100}
+        self.scope["_digital_human_audio"] = Mock(return_value=("locked_first", source, "encoded_source"))
+        self.scope["_lock_audio"] = Mock(return_value="locked_refine")
+        self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, "seed": 1,
+                             "clip_role": "digital_human"}], second_sampling=True, upscaler_model="upscaler",
+                      audio_refine=True, motion_deblur=True, face_refine=True)
+        sampled = [kw["latent_image"] for name, kw in self.calls if name == "SamplerCustomAdvanced"]
+        self.assertEqual(sampled, ["locked_first", "locked_refine"])
+        self.assertIs(self.saved[0][1]["audio"], source)
+        names = [name for name, _ in self.calls]
+        self.assertNotIn("VAEDecodeAudio", names)
+        self.assertNotIn("H3AudioRefineSampler", names)
+        self.assertNotIn("H3JerkOracle", names)
+
+
     def test_lora_is_external_and_audio_repair_uses_separate_base(self):
         data = {"width": 1376, "height": 768, "fps": 24,
                 "clips": [{"id": "a", "start_ms": 0, "end_ms": 5000, "output_video": "project/a.mp4"}]}
@@ -546,6 +562,45 @@ class StrictKeyframeTests(unittest.TestCase):
     def test_existing_widget_order_is_preserved(self):
         optional = list(self.node.INPUT_TYPES()["optional"])
         self.assertEqual(optional, ["clip_json", "context_latent", "strict_keyframes"])
+
+
+class DigitalHumanAudioTests(unittest.TestCase):
+    def test_editor_export_preserves_digital_human_role(self):
+        path = BACKEND / "cap_timeline_editor.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        tree.body = [n for n in tree.body if
+                     isinstance(n, ast.FunctionDef) and n.name == "_clip_role_fields" or
+                     isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "_CLIP_ROLES" for t in n.targets)]
+        scope = {}
+        exec(compile(tree, str(path), "exec"), scope)
+        self.assertEqual(scope["_clip_role_fields"]({"clip_role": "digital_human"}), ("digital_human", ""))
+
+    def test_waveform_padding_and_audio_lock_preserve_pauses(self):
+        import torch
+        nested = lambda parts: SimpleNamespace(unbind=lambda: parts)
+        scope = load_definitions("cap_h3_video_generator.py", {
+            "torch": torch, "comfy": SimpleNamespace(nested_tensor=SimpleNamespace(NestedTensor=nested)),
+        })
+        video = torch.zeros(1, 24, 2, 2, 2)
+        template = torch.zeros(1, 32, 2, 40)
+        source = {"waveform": torch.tensor([[[1., 0., 0., .5]]]), "sample_rate": 8}
+        encode = Mock(return_value=torch.full((1, 32, 2, 39), 3.))
+        vae = SimpleNamespace(audio_sample_rate=8, encode=encode)
+        latent, fitted, encoded = scope["_digital_human_audio"](
+            {"samples": nested((video, template))}, source, vae, 24, 6)
+        self.assertEqual(fitted["waveform"].tolist(), [[[0., 0., 1., 0., 0., .5, 0., 0.]]])
+        self.assertEqual(encoded.shape, template.shape)
+        video_mask, audio_mask = latent["noise_mask"].unbind()
+        self.assertTrue(torch.all(video_mask == 1))
+        self.assertTrue(torch.all(audio_mask == 0))
+        self.assertTrue(torch.all(encoded == 3))
+        self.assertEqual(source["waveform"].shape[-1], 4)
+
+    def test_missing_audio_fails_before_encoding(self):
+        scope = load_definitions("cap_h3_video_generator.py", {})
+        with self.assertRaisesRegex(ValueError, "requires an audio clip"):
+            scope["_digital_human_audio"]({}, None, None, 124, 0)
+
 
 
 class NodeAdapterTests(unittest.TestCase):

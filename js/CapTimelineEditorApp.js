@@ -122,6 +122,7 @@ const MEDIA_LIBRARY_TABS = [
 const CLIP_ROLES = [
     { id: "multi_ref", get label() { return T("clip_role_multi_ref"); } },
     { id: "first_last", get label() { return T("clip_role_first_last"); } },
+    { id: "digital_human", get label() { return T("clip_role_digital_human"); } },
     { id: "t2v", get label() { return T("clip_role_t2v"); } },
     { id: "video_ref", get label() { return T("clip_role_video_ref"); } },
     { id: "video_edit", get label() { return T("clip_role_video_edit"); } },
@@ -3575,6 +3576,7 @@ export class CapTimelineEditorApp {
                   <select class="cat-te-clip-role" disabled>
                     <option value="multi_ref">${T("clip_role_multi_ref")}</option>
                     <option value="first_last">${T("clip_role_first_last")}</option>
+                    <option value="digital_human">${T("clip_role_digital_human")}</option>
                     <option value="t2v">${T("clip_role_t2v")}</option>
                     <option value="video_ref">${T("clip_role_video_ref")}</option>
                     <option value="video_edit">${T("clip_role_video_edit")}</option>
@@ -4257,6 +4259,7 @@ export class CapTimelineEditorApp {
                       <select class="cat-te-ai-target-role">
                         <option value="multi_ref">${T("clip_role_multi_ref")}</option>
                         <option value="first_last">${T("clip_role_first_last")}</option>
+                        <option value="digital_human">${T("clip_role_digital_human")}</option>
                         <option value="t2v">${T("clip_role_t2v")}</option>
                         <option value="video_ref">${T("clip_role_video_ref")}</option>
                         <option value="video_edit">${T("clip_role_video_edit")}</option>

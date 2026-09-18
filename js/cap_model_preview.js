@@ -16,14 +16,14 @@ export function findPreviewNode(graph, id) {
 export function createPreviewPlayer() {
     const root = document.createElement("div");
     root.className = "cap-sampling-preview";
-    root.style.cssText = "height:224px;box-sizing:border-box;overflow:hidden;background:#111;color:#ddd;border-radius:var(--cap-preview-radius,6px)";
+    root.style.cssText = "position:relative;height:224px;box-sizing:border-box;overflow:hidden;background:#111;color:#ddd;border-radius:var(--cap-preview-radius,6px)";
     const status = document.createElement("div");
     status.className = "cap-sampling-status";
-    status.style.cssText = "height:24px;padding:3px 8px;box-sizing:border-box;font:var(--cap-preview-status-font-size,12px) sans-serif";
+    status.style.cssText = "position:absolute;right:0;bottom:0;z-index:1;pointer-events:none;text-align:right;opacity:0.5;height:24px;padding:3px 8px;box-sizing:border-box;font:var(--cap-preview-status-font-size,12px) sans-serif";
     status.textContent = "Preview";
     const stage = document.createElement("div");
     stage.className = "cap-sampling-stage";
-    stage.style.cssText = "height:200px;overflow:hidden";
+    stage.style.cssText = "height:100%;overflow:hidden";
     root.append(status, stage);
     let current = null, pending = null, disposed = false;
     function release(frame) {

@@ -3497,6 +3497,7 @@ export class CapTimelineEditorApp {
                       <div class="cat-te-clip-thumb-wrap">
                         <img class="cat-te-clip-thumb" alt="" />
                         <video class="cat-te-clip-thumb-video" muted playsinline hidden></video>
+                        <audio class="cat-te-clip-thumb-player" controls preload="metadata" hidden></audio>
                         <div class="cat-te-clip-thumb-empty" hidden>${T("empty_clip")}</div>
                         <div class="cat-te-clip-thumb-subtitle" hidden>T</div>
                       </div>
@@ -4650,6 +4651,7 @@ export class CapTimelineEditorApp {
         this.clipThumbWrap = el.querySelector(".cat-te-clip-thumb-wrap");
         this.clipThumb = el.querySelector(".cat-te-clip-thumb");
         this.clipThumbVideo = el.querySelector(".cat-te-clip-thumb-video");
+        this.clipThumbAudio = el.querySelector(".cat-te-clip-thumb-player");
         this.clipThumbEmpty = el.querySelector(".cat-te-clip-thumb-empty");
         this.clipThumbSubtitle = el.querySelector(".cat-te-clip-thumb-subtitle");
         this.clipVideosHost = el.querySelector(".cat-te-clip-videos");
@@ -5169,6 +5171,12 @@ export class CapTimelineEditorApp {
         this.clipVolumeInput?.addEventListener("blur", () => { this._clipVolumeUndoArmed = false; });
         this._bindSubtitlePanelEvents();
         this._bindClipResourceCarousel(this.clipSwiper, () => this._selClip);
+        this.clipThumbAudio?.addEventListener("click", event => event.stopPropagation());
+        this.clipThumbAudio?.addEventListener("keydown", event => event.stopPropagation());
+        this.clipThumbAudio?.addEventListener("play", () => {
+            if (this._timeline?._playing) this._timeline.pause();
+            this._stopAudioPlayback();
+        });
         this.clipThumbWrap?.addEventListener("click", () => {
             const clip = this._selClip;
             if (clip) this._openClipMediaPreview(clip);
@@ -9219,6 +9227,7 @@ export class CapTimelineEditorApp {
             if (tl._playing) void this._startGenEditAudioPlayback();
         });
         tl.on("play", () => {
+            this.clipThumbAudio?.pause();
             this._scheduleGenEditPreview();
             void this._startGenEditAudioPlayback();
         });
@@ -15042,6 +15051,7 @@ export class CapTimelineEditorApp {
     }
 
     _showMediaPreviewAt(index) {
+        this.clipThumbAudio?.pause();
         const state = this._mediaPreviewState;
         const n = this._mediaPreviewCount();
         if (!n || !this.mediaPreviewModal || !this.mediaPreviewStage) return;
@@ -17806,6 +17816,12 @@ export class CapTimelineEditorApp {
     }
 
     _clearClipInfoPanel() {
+        if (this.clipThumbAudio) {
+            this.clipThumbAudio.pause();
+            this.clipThumbAudio.removeAttribute("src");
+            this.clipThumbAudio.load();
+            this.clipThumbAudio.hidden = true;
+        }
         if (this.clipInfoDetail) this.clipInfoDetail.hidden = true;
         if (this.clipThumb) {
             this.clipThumb.removeAttribute("src");
@@ -17854,6 +17870,12 @@ export class CapTimelineEditorApp {
         const isSubtitle = isSubtitleTrackType(track.type);
         const isMedia = isMediaTrackType(track.type);
         // Reset thumb overlays before any meta work that might throw.
+        if (this.clipThumbAudio) {
+            this.clipThumbAudio.pause();
+            this.clipThumbAudio.removeAttribute("src");
+            this.clipThumbAudio.load();
+            this.clipThumbAudio.hidden = true;
+        }
         if (this.clipThumbVideo) {
             this.clipThumbVideo.pause();
             this.clipThumbVideo.hidden = true;
@@ -17872,13 +17894,18 @@ export class CapTimelineEditorApp {
         const current = items[idx] || null;
         if (this.clipInfoDetail) this.clipInfoDetail.hidden = false;
 
-        if (isAudio || isVoiceover) {
+        if (isAudio || isVoiceover || current?.kind === "audio") {
             if (this.clipThumb) {
                 this.clipThumb.removeAttribute("src");
                 this.clipThumb.style.display = "none";
                 this.clipThumb.parentElement?.classList.add("cat-te-clip-thumb-audio");
             }
             this.clipThumbWrap?.classList.add("cat-te-clip-thumb-audio");
+            const file = isAudio ? clip.src : current?.file;
+            if (file && this.clipThumbAudio && this.clipSwiper?.mode !== "list") {
+                this.clipThumbAudio.src = this._audioUrl(file);
+                this.clipThumbAudio.hidden = false;
+            }
         } else if (isSubtitle) {
             if (this.clipThumb) {
                 this.clipThumb.removeAttribute("src");

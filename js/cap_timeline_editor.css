@@ -1964,6 +1964,19 @@ body.cat-te-media-dnd-over-tl {
     content: "♫";
 }
 
+.cat-te-clip-thumb-audio:has(.cat-te-clip-thumb-player:not([hidden]))::after {
+    content: none;
+}
+
+.cat-te-clip-thumb-player:not([hidden]) {
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    width: calc(100% - 16px);
+    height: 54px;
+    transform: translateY(-50%);
+}
+
 .cat-te-clip-thumb-subtitle:not([hidden]) {
     position: absolute;
     inset: 0;

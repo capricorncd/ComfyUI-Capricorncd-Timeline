@@ -128,3 +128,11 @@ Import `js/components/Slider.js`. `<cap-slider>` wraps a native range input and 
 ```
 
 Keep listeners and value labels on the native input as usual. Reset emits `input` then `change` only when the value changes, so existing preview, saving and undo handlers also apply. Disabled inputs disable reset. Clip volume and generated-video edit volume use this component; both reset to 100%.
+
+## Context menu
+
+Use `js/components/ContextMenu.js` and `<cap-context-menu>`. Call `setItems([{ label, icon, shortcut, disabled, danger, strike }, { separator: true }])`. Icons use keys from `cap_icons.js`; shortcuts are presentation only, not new key bindings. Existing labels ending in two spaces plus `Ctrl+…` are split into the shortcut column.
+
+The component owns the menu surface, three-column layout and `cap-button` actions. `menu-select` carries the original item; the caller performs its action and removes the menu. `menu-close` requests dismissal; `detail.restoreFocus` is true for Escape. Arrow keys, Home and End navigate enabled items. The caller owns placement and outside-click dismissal. `focus()` selects the first enabled item.
+
+Run `node tests/test_context_menu.mjs` and `node tests/test_context_menu_dismiss.mjs`.

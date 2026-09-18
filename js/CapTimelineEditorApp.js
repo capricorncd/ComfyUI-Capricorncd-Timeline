@@ -12,6 +12,7 @@ import "./components/MediaCarousel.js";
 import { AgentSettings } from "./editor/AgentSettings.js";
 import "./components/StatusMessage.js";
 import "./components/DropdownButton.js";
+import "./components/ContextMenu.js";
 import { FontCatalog } from "./editor/FontCatalog.js";
 import { previewSeedValue, workflowPreviewSeed } from "./editor/PreviewSeed.js";
 import { TimelineHistory } from "./editor/TimelineHistory.js";
@@ -1471,8 +1472,8 @@ export class CapTimelineEditorApp {
     _showImportMenu(e) {
         const r = e.currentTarget.getBoundingClientRect();
         return this._buildCtxMenu([
-            { label: T("import_from_directory"), fn: () => void this._importFromDirectory() },
-            { label: T("import_from_zip"), fn: () => this._chooseZipImport() },
+            { label: T("import_from_directory"), icon: "insert", fn: () => void this._importFromDirectory() },
+            { label: T("import_from_zip"), icon: "preset", fn: () => this._chooseZipImport() },
         ], r.left, r.bottom + 4, { ignoreNextClick: false });
     }
 
@@ -1531,15 +1532,15 @@ export class CapTimelineEditorApp {
         e.stopPropagation();
         const r = e.currentTarget.getBoundingClientRect();
         return this._buildCtxMenu([
-            { label: T("run_all_clips_menu"), fn: () => void this._runAllActiveClipsDownstream() },
-            { label: T("run_selected_clips_menu"), fn: () => void this._runSelectedClipsDownstream() },
-            { label: T("run_track_left_menu"), fn: () => void this._runSelectedTrackSide("left") },
-            { label: T("run_track_right_menu"), fn: () => void this._runSelectedTrackSide("right") },
+            { label: T("run_all_clips_menu"), icon: "play", fn: () => void this._runAllActiveClipsDownstream() },
+            { label: T("run_selected_clips_menu"), icon: "play", fn: () => void this._runSelectedClipsDownstream() },
+            { label: T("run_track_left_menu"), icon: "chevronLeft", fn: () => void this._runSelectedTrackSide("left") },
+            { label: T("run_track_right_menu"), icon: "chevronRight", fn: () => void this._runSelectedTrackSide("right") },
             {
-                label: T("run_clips_without_generated_menu"),
+                label: T("run_clips_without_generated_menu"), icon: "videoOff",
                 fn: () => void this._runAllActiveClipsDownstream({ withoutGenerated: true }),
             },
-            { label: T("run_workflow_menu"), fn: () => void this._runWorkflow() },
+            { label: T("run_workflow_menu"), icon: "clapperboard", fn: () => void this._runWorkflow() },
         ], r.left, r.bottom + 4, { ignoreNextClick: false });
     }
 
@@ -1726,11 +1727,11 @@ export class CapTimelineEditorApp {
             this._addUserTrack(type);
         };
         return this._buildCtxMenu([
-            { label: T("subtitle_track_menu"), fn: () => addTrack("text") },
-            { label: T("media_track_menu"), fn: () => addTrack("video") },
-            { label: T("director_track_menu"), fn: () => addTrack("image") },
-            { label: T("voiceover_track_menu"), fn: () => addTrack("voiceover") },
-            { label: T("audio_track_menu"), fn: () => addTrack("audio") },
+            { label: T("subtitle_track_menu"), icon: "text", fn: () => addTrack("text") },
+            { label: T("media_track_menu"), icon: "film", fn: () => addTrack("video") },
+            { label: T("director_track_menu"), icon: "clapperboard", fn: () => addTrack("image") },
+            { label: T("voiceover_track_menu"), icon: "voiceover", fn: () => addTrack("voiceover") },
+            { label: T("audio_track_menu"), icon: "audio", fn: () => addTrack("audio") },
         ], r.left, r.bottom + 4, { ignoreNextClick: false });
     }
 
@@ -1738,18 +1739,18 @@ export class CapTimelineEditorApp {
         if (!track || !anchor) return;
         clearTimeout(this._trackTypeMenuHideTimer);
         const items = [{
-            label: track.name || T("generic_track_name"),
+            label: track.name || T("generic_track_name"), icon: "pencil",
             trackName: true,
             fn: () => this._openTrackRenameModal(track),
         }, {
-            label: T("track_color_menu"),
+            label: T("track_color_menu"), icon: "image",
             fn: () => this._openTrackColorModal(track),
         }];
         if (isSubtitleTrackType(track.type)) items.push({ label: T('speech_convert'), disabled: track.locked || !track.clips.length,
             fn: () => this._openLocalSubtitleSpeech(track.clips) });
         for (const [direction, label] of [[-1, "move_up_title"], [1, "move_down_title"]]) {
             items.push({
-                label: T(label),
+                label: T(label), icon: direction < 0 ? "arrowUp" : "arrowDown",
                 disabled: !this._canMoveTrack(track, direction),
                 fn: () => this._moveTrack(track, direction),
             });
@@ -1757,12 +1758,12 @@ export class CapTimelineEditorApp {
         if (isDirectorTrackType(track.type) || isMediaTrackType(track.type)) {
             const toMedia = isDirectorTrackType(track.type);
             items.push({
-                label: T(toMedia ? "convert_to_media_track" : "convert_to_director_track"),
+                label: T(toMedia ? "convert_to_media_track" : "convert_to_director_track"), icon: toMedia ? "film" : "clapperboard",
                 fn: () => this._convertVisualTrackType(track, toMedia ? "video" : "image"),
             });
         }
         items.push({
-            label: T("delete_track_menu"),
+            label: T("delete_track_menu"), icon: "trash",
             danger: true,
             disabled: !!track.locked,
             fn: () => this._deleteTrack(track),
@@ -9243,7 +9244,7 @@ export class CapTimelineEditorApp {
             if (!clipEl) {
                 e.preventDefault();
                 e.stopPropagation();
-                this._buildCtxMenu([{ label: T("menu_paste_shortcut"), disabled: !st.audioClipboard?.length,
+                this._buildCtxMenu([{ label: T("menu_paste_shortcut"), icon: "clipboard", disabled: !st.audioClipboard?.length,
                     fn: () => this._pasteGenEditAudioClips() }], e.clientX, e.clientY);
                 return;
             }
@@ -9261,30 +9262,30 @@ export class CapTimelineEditorApp {
             const isAudioClip = !!(st.audioMap?.get(c.id) || c.el?.dataset?.audioId || c.track?.type === "audio");
             const items = isAudioClip
                 ? [{
-                    label: T("delete_btn"),
+                    label: T("delete_btn"), icon: "trash",
                     danger: true,
                     fn: () => this._deleteGenEditClips(tl.getSelectedClips()),
                 }]
                 : [
                     {
-                        label: T("menu_separate_audio"),
+                        label: T("menu_separate_audio"), icon: "audio",
                         fn: () => void this._separateGenEditClipAudio(c),
                     },
                     {
-                        label: T("delete_btn"),
+                        label: T("delete_btn"), icon: "trash",
                         danger: true,
                         fn: () => this._deleteGenEditClips(tl.getSelectedClips()),
                     },
                 ];
-            if (canSplit) items.unshift({ label: T("menu_split"), fn: () => this._splitGenEditClip(c) });
-            items.push({ label: T("clip_export_title"), fn: () => this._exportGenEditClip(c) });
+            if (canSplit) items.unshift({ label: T("menu_split"), icon: "scissors", fn: () => this._splitGenEditClip(c) });
+            items.push({ label: T("clip_export_title"), icon: "save", fn: () => this._exportGenEditClip(c) });
             if (isAudioClip) items.unshift(
-                { label: T("menu_copy_shortcut"), fn: () => this._copyGenEditAudioClips() },
-                { label: T("menu_paste_shortcut"), disabled: !st.audioClipboard?.length, fn: () => this._pasteGenEditAudioClips() },
+                { label: T("menu_copy_shortcut"), icon: "copy", fn: () => this._copyGenEditAudioClips() },
+                { label: T("menu_paste_shortcut"), icon: "clipboard", disabled: !st.audioClipboard?.length, fn: () => this._pasteGenEditAudioClips() },
             );
-            items.unshift({ label: T("local_audio_denoise"), fn: () => this._openGenEditDenoise(c) });
-            if (isAudioClip || c.hasAudio) items.unshift({ label: T("local_audio_separation"), fn: () => this._openGenEditDenoise(c, 'separation') });
-            if (isAudioClip || c.hasAudio) items.unshift({ label: T("voice_convert"), fn: () => this._openGenEditDenoise(c, 'vc') });
+            items.unshift({ label: T("local_audio_denoise"), icon: "filter", fn: () => this._openGenEditDenoise(c) });
+            if (isAudioClip || c.hasAudio) items.unshift({ label: T("local_audio_separation"), icon: "micVocal", fn: () => this._openGenEditDenoise(c, 'separation') });
+            if (isAudioClip || c.hasAudio) items.unshift({ label: T("voice_convert"), icon: "micVocal", fn: () => this._openGenEditDenoise(c, 'vc') });
             this._buildCtxMenu(items, e.clientX, e.clientY);
         });
     }
@@ -9296,7 +9297,7 @@ export class CapTimelineEditorApp {
             clearTimeout(this._trackTypeMenuHideTimer);
             const rect = anchor.getBoundingClientRect();
             const menu = this._buildCtxMenu([{
-                label: T("delete_track_menu"), danger: true, disabled: !!track.locked,
+                label: T("delete_track_menu"), icon: "trash", danger: true, disabled: !!track.locked,
                 fn: () => this._deleteGenEditClips(track.clips),
             }], rect.right + 4, rect.top, { ignoreNextClick: false });
             if (!menu) return;
@@ -10827,7 +10828,7 @@ export class CapTimelineEditorApp {
             if (!item || !row || !parent) return;
             event.preventDefault();
             event.stopPropagation();
-            this._buildCtxMenu(['denoise', 'separation', 'vc'].map(kind => ({ label: T({ denoise: 'local_audio_denoise', separation: 'local_audio_separation', vc: 'voice_convert' }[kind]), fn: () => this._localAudioJobs.open(parent, {
+            this._buildCtxMenu(['denoise', 'separation', 'vc'].map(kind => ({ icon: kind === 'denoise' ? 'filter' : 'micVocal', label: T({ denoise: 'local_audio_denoise', separation: 'local_audio_separation', vc: 'voice_convert' }[kind]), fn: () => this._localAudioJobs.open(parent, {
                 start: parent.startTime + item.startTime,
                 sources: [{ id: row.id, file: row.file, location: "output", trim_in_sec: item.sourceOffset || 0,
                     duration_sec: item.duration, playback_rate: item.playbackRate || 1 }],
@@ -12717,7 +12718,7 @@ export class CapTimelineEditorApp {
             if (this._mediaBatchMode) return;
             const items = [];
             if (status.location !== "missing") items.push({
-                label: T("insert_to_timeline_ctx"),
+                label: T("insert_to_timeline_ctx"), icon: "insert",
                 fn: () => {
                     if (kind === "audio") void this._addAudioAtPlayhead(file);
                     else if (kind === "video") void this._addVideoAtPlayhead(file);
@@ -12725,15 +12726,15 @@ export class CapTimelineEditorApp {
                 },
             });
             if (status.location !== "missing") items.push({
-                label: T("replace_material_label"),
+                label: T("replace_material_label"), icon: "replace",
                 fn: () => this._chooseMaterialFile({ file, kind }),
             });
             if (status.location === "missing") items.push({
-                label: T("relink_file_menu"),
+                label: T("relink_file_menu"), icon: "link",
                 fn: () => this._chooseMaterialFile({ file, kind }),
             });
             items.push({
-                label: T("delete_btn"),
+                label: T("delete_btn"), icon: "trash",
                 fn: () => void this._deleteLibraryMedia(file, kind),
                 danger: true,
             });
@@ -13005,9 +13006,9 @@ export class CapTimelineEditorApp {
     _showInsertClipMenu(e) {
         const r = e.currentTarget.getBoundingClientRect();
         return this._buildCtxMenu([
-            { label: T("insert_director_clip_menu"), fn: () => this._insertPackageAtTime(this._timeline?.currentTime ?? 0) },
-            { label: T("insert_voiceover_clip_menu"), fn: () => this._insertVoiceoverAtTime(this._timeline?.currentTime ?? 0) },
-            { label: T("insert_subtitle_clip_menu"), fn: () => this._insertSubtitleAtTime(this._timeline?.currentTime ?? 0) },
+            { label: T("insert_director_clip_menu"), icon: "clapperboard", fn: () => this._insertPackageAtTime(this._timeline?.currentTime ?? 0) },
+            { label: T("insert_voiceover_clip_menu"), icon: "voiceover", fn: () => this._insertVoiceoverAtTime(this._timeline?.currentTime ?? 0) },
+            { label: T("insert_subtitle_clip_menu"), icon: "text", fn: () => this._insertSubtitleAtTime(this._timeline?.currentTime ?? 0) },
         ], r.left, r.bottom + 4, { ignoreNextClick: false });
     }
 
@@ -16019,35 +16020,27 @@ export class CapTimelineEditorApp {
     _buildCtxMenu(items, x, y, { ignoreNextClick = true } = {}) {
         this._removeCtxMenu();
         if (!items?.length) return;
-        const menu = document.createElement("div");
+        const previousFocus = document.activeElement;
+        const menu = document.createElement("cap-context-menu");
         menu.className = "cat-te-ctx-menu";
         menu.style.left = `${x}px`;
         menu.style.top = `${y}px`;
-        for (const { label, fn, danger, strike, trackName, disabled, separator } of items) {
-            if (separator) {
-                const line = document.createElement("hr");
-                line.className = "cat-te-ctx-separator";
-                menu.appendChild(line);
-                continue;
-            }
-            const div = document.createElement("div");
-            div.className = `cat-te-ctx-item${danger ? " danger" : ""}${strike ? " strike" : ""}${trackName ? " track-name" : ""}${disabled ? " disabled" : ""}`;
-            div.textContent = label;
-            if (disabled) div.setAttribute("aria-disabled", "true");
-            div.addEventListener("click", (e) => {
-                e.stopPropagation();
-                if (disabled) return;
-                fn();
-                this._removeCtxMenu();
-            });
-            menu.appendChild(div);
-        }
+        menu.setItems(items);
+        menu.addEventListener("menu-select", event => {
+            event.detail.fn();
+            this._removeCtxMenu();
+        });
+        menu.addEventListener("menu-close", event => {
+            this._removeCtxMenu();
+            if (event.detail.restoreFocus) previousFocus?.focus();
+        });
         // Prefer overlay so stacking stays above the editor chrome.
         (this._overlay || document.body).appendChild(menu);
         this._ignoreCtxCloseOnce = ignoreNextClick;
         const r = menu.getBoundingClientRect();
         if (r.right > window.innerWidth) menu.style.left = `${window.innerWidth - r.width - 8}px`;
         if (r.bottom > window.innerHeight) menu.style.top = `${window.innerHeight - r.height - 8}px`;
+        if (ignoreNextClick) menu.focus({ preventScroll: true });
         return menu;
     }
 
@@ -16076,76 +16069,76 @@ export class CapTimelineEditorApp {
         const canSplit = t > clip.startTime && t < clip.endTime;
         const generation = [], media = [], audio = [];
         const editing = [
-            { label: T("insert_clip_title"), fn: () => openInsertClip(this, clip) },
-            ...(canSplit ? [{ label: T("menu_split"), fn: () => this._splitClip(clip) }] : []),
-            { label: T("menu_copy_shortcut"), fn: () => this._copySelectedClips() },
-            { label: T("menu_paste_shortcut"), fn: () => this._pasteClips() },
-            { label: T("menu_set_title"), fn: () => this._renameClip(clip) },
+            { label: T("insert_clip_title"), icon: "insert", fn: () => openInsertClip(this, clip) },
+            ...(canSplit ? [{ label: T("menu_split"), icon: "scissors", fn: () => this._splitClip(clip) }] : []),
+            { label: T("menu_copy_shortcut"), icon: "copy", fn: () => this._copySelectedClips() },
+            { label: T("menu_paste_shortcut"), icon: "clipboard", fn: () => this._pasteClips() },
+            { label: T("menu_set_title"), icon: "pencil", fn: () => this._renameClip(clip) },
         ];
         if (isAudio) {
-            audio.push({ label: (m.muted ? T("unmute_label") : T("mute_label")) + "  Ctrl+B",
+            audio.push({ icon: m.muted ? "volume" : "volumeOff", label: (m.muted ? T("unmute_label") : T("mute_label")) + "  Ctrl+B",
                 fn: () => this._setMediaClipMuted(clip, !this._ensureClipMeta(clip).muted) });
         } else if (isVoiceover) {
             generation.push(
-                { label: T("local_audio_bgm"), fn: () => this._localAudioJobs.open(clip) },
-                { label: T("local_audio_sfx"), fn: () => this._localAudioJobs.open(clip, null, 'sfx') },
-                { label: T("linked_generated_audios_title"), fn: () => void this._openOutputAudiosPicker(clip) },
-                { label: T("voiceover_edit_menu"), fn: () => void this._openVoiceoverEditModal(clip) },
+                { label: T("local_audio_bgm"), icon: "audio", fn: () => this._localAudioJobs.open(clip) },
+                { label: T("local_audio_sfx"), icon: "sparkles", fn: () => this._localAudioJobs.open(clip, null, 'sfx') },
+                { label: T("linked_generated_audios_title"), icon: "link", fn: () => void this._openOutputAudiosPicker(clip) },
+                { label: T("voiceover_edit_menu"), icon: "voiceover", fn: () => void this._openVoiceoverEditModal(clip) },
             );
-            audio.push({ label: m.muted ? T("unmute_label") : T("mute_label"), fn: () => {
+            audio.push({ icon: m.muted ? "volume" : "volumeOff", label: m.muted ? T("unmute_label") : T("mute_label"), fn: () => {
                 m.muted = !m.muted;
                 this._meta.set(clip.id, m);
                 this._decorateClip(clip);
             } });
         } else if (isSubtitle) {
             generation.push(
-                { label: T("speech_bind"), fn: () => this._subtitleSpeech.open(this._timeline.getSelectedClips().filter(c => isSubtitleTrackType(c.track.type) && !c.track.locked), true) },
-                { label: T("speech_convert"), fn: () => this._openLocalSubtitleSpeech([clip]) },
+                { label: T("speech_bind"), icon: "micVocal", fn: () => this._subtitleSpeech.open(this._timeline.getSelectedClips().filter(c => isSubtitleTrackType(c.track.type) && !c.track.locked), true) },
+                { label: T("speech_convert"), icon: "voiceover", fn: () => this._openLocalSubtitleSpeech([clip]) },
             );
         } else if (isMedia) {
-            editing.push({ label: T("convert_to_director_clip"), fn: () => this._convertMediaClipToDirector(clip) });
+            editing.push({ label: T("convert_to_director_clip"), icon: "clapperboard", fn: () => this._convertMediaClipToDirector(clip) });
             if (clip.hasAudio) audio.push(
-                { label: m.muted ? T("unmute_label") : T("mute_label"), fn: () => this._setMediaClipMuted(clip, !m.muted) },
-                { label: T("menu_separate_audio"), fn: () => void this._separateClipAudio(clip) },
+                { icon: m.muted ? "volume" : "volumeOff", label: m.muted ? T("unmute_label") : T("mute_label"), fn: () => this._setMediaClipMuted(clip, !m.muted) },
+                { label: T("menu_separate_audio"), icon: "audio", fn: () => void this._separateClipAudio(clip) },
             );
         } else {
             const runState = this._clipRunState(clip.id);
             generation.push(runState === "queued" || runState === "running"
-                ? { label: T("menu_abort"), fn: () => void this._abortClipDownstream(clip) }
-                : { label: T("menu_run"), fn: () => void this._runClipDownstream(clip) });
+                ? { label: T("menu_abort"), icon: "stop", fn: () => void this._abortClipDownstream(clip) }
+                : { label: T("menu_run"), icon: "play", fn: () => void this._runClipDownstream(clip) });
             generation.push(
-                { label: T("run_track_right_menu"), fn: () => void this._runSelectedTrackSide("right", clip) },
-                { label: T("run_track_left_menu"), fn: () => void this._runSelectedTrackSide("left", clip) },
-                { label: T("menu_ai_optimize_prompt"), fn: () => void this._openAiOptimizeModal(clip) },
+                { label: T("run_track_right_menu"), icon: "chevronRight", fn: () => void this._runSelectedTrackSide("right", clip) },
+                { label: T("run_track_left_menu"), icon: "chevronLeft", fn: () => void this._runSelectedTrackSide("left", clip) },
+                { label: T("menu_ai_optimize_prompt"), icon: "sparkles", fn: () => void this._openAiOptimizeModal(clip) },
             );
-            if (this._clipGeneratedVideos(m).length) media.push({ label: T("menu_trim_video"), fn: () => void this._openGenEditModal(clip) });
-            media.push({ label: T("linked_generated_videos_title"), fn: () => void this._openOutputVideosPicker(clip) });
+            if (this._clipGeneratedVideos(m).length) media.push({ label: T("menu_trim_video"), icon: "scissors", fn: () => void this._openGenEditModal(clip) });
+            media.push({ label: T("linked_generated_videos_title"), icon: "link", fn: () => void this._openOutputVideosPicker(clip) });
             if (this._clipGeneratedVideos(m).length || m.genEditAudios?.length) audio.push({
-                label: m.muted ? T("unmute_label") : T("mute_label"), fn: () => this._setDirectorClipMuted(clip, !m.muted),
+                icon: m.muted ? "volume" : "volumeOff", label: m.muted ? T("unmute_label") : T("mute_label"), fn: () => this._setDirectorClipMuted(clip, !m.muted),
             });
-            audio.push({ label: T("menu_separate_audio"), fn: () => void this._separateClipAudio(clip) });
+            audio.push({ label: T("menu_separate_audio"), icon: "audio", fn: () => void this._separateClipAudio(clip) });
         }
         const denoiseSources = this._clipDenoiseSources(clip, true);
         if (denoiseSources.length) audio.push(
-            { label: T("local_audio_separation"), fn: () => this._localAudioJobs.open(clip, { start: clip.startTime, sources: this._clipDenoiseSources(clip, true) }, 'separation') },
-            { label: T("local_audio_denoise"), fn: () => this._localAudioJobs.open(clip, { start: clip.startTime, sources: this._clipDenoiseSources(clip, true) }) },
-            { label: T("voice_convert"), fn: () => this._localAudioJobs.open(clip, { start: clip.startTime, sources: this._clipDenoiseSources(clip, true) }, 'vc') },
+            { label: T("local_audio_separation"), icon: "micVocal", fn: () => this._localAudioJobs.open(clip, { start: clip.startTime, sources: this._clipDenoiseSources(clip, true) }, 'separation') },
+            { label: T("local_audio_denoise"), icon: "filter", fn: () => this._localAudioJobs.open(clip, { start: clip.startTime, sources: this._clipDenoiseSources(clip, true) }) },
+            { label: T("voice_convert"), icon: "micVocal", fn: () => this._localAudioJobs.open(clip, { start: clip.startTime, sources: this._clipDenoiseSources(clip, true) }, 'vc') },
         );
-        if (canExport) media.push({ label: T("clip_export_title"), fn: () => {
+        if (canExport) media.push({ label: T("clip_export_title"), icon: "save", fn: () => {
             this._timeline.pause();
             this._clipExport.open(this._buildProject(), clip.id);
         } });
         if (!isAudio && !isVoiceover && !isSubtitle && !isMedia) media.push({
-            label: T("clear_clip_video_links"), danger: true, disabled: !this._clipGeneratedVideos(m).length,
+            label: T("clear_clip_video_links"), icon: "close", danger: true, disabled: !this._clipGeneratedVideos(m).length,
             fn: () => void this._clearClipGeneratedVideoLinks(clip),
         });
         const grouping = [
-            { label: T("menu_group_clips"), fn: () => this._setClipGroup(false), disabled: this._timeline.getSelectedClips().length < 2 },
-            { label: T("menu_ungroup_clips"), fn: () => this._setClipGroup(true), disabled: !this._timeline.getSelectedClips().some(c => c.groupId) },
+            { label: T("menu_group_clips"), icon: "grid", fn: () => this._setClipGroup(false), disabled: this._timeline.getSelectedClips().length < 2 },
+            { label: T("menu_ungroup_clips"), icon: "grid", fn: () => this._setClipGroup(true), disabled: !this._timeline.getSelectedClips().some(c => c.groupId) },
         ];
         const state = [
-            ...(!isAudio ? [{ label: m.disabled ? T("menu_enable_shortcut") : T("menu_disable_shortcut"), strike: !!m.disabled, fn: () => this._toggleDisableClip(clip) }] : []),
-            { label: T("delete_btn"), fn: () => this._deleteClip(clip), danger: true },
+            ...(!isAudio ? [{ icon: m.disabled ? "eye" : "eyeOff", label: m.disabled ? T("menu_enable_shortcut") : T("menu_disable_shortcut"), strike: !!m.disabled, fn: () => this._toggleDisableClip(clip) }] : []),
+            { label: T("delete_btn"), icon: "trash", shortcut: "Delete", fn: () => this._deleteClip(clip), danger: true },
         ];
         const items = [];
         for (const group of [generation, editing, media, audio, grouping, state]) {
@@ -17516,15 +17509,15 @@ export class CapTimelineEditorApp {
         moreBtn.bindMenu(e => {
             const rect = e.currentTarget.getBoundingClientRect();
             return this._buildCtxMenu([
-                { label: T("reset_track_order"), fn: () => this._resetTrackOrder() },
+                { label: T("reset_track_order"), icon: "refresh", fn: () => this._resetTrackOrder() },
                 {
-                    label: T("clear_generated_video_links"),
+                    label: T("clear_generated_video_links"), icon: "close",
                     disabled: !this._clipsWithGeneratedVideoLinks().length,
                     fn: () => void this._clearAllGeneratedVideoLinks(),
                 },
-                { label: T("shortcuts_title"), fn: () => this.shortcutsDialog.showModal() },
-                { label: T("new_project"), disabled: !this._canCreateProject(), fn: () => void this._newProject() },
-                { label: "GitHub", fn: () => window.open("https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline", "_blank", "noopener,noreferrer") },
+                { label: T("shortcuts_title"), icon: "info", fn: () => this.shortcutsDialog.showModal() },
+                { label: T("new_project"), icon: "insert", disabled: !this._canCreateProject(), fn: () => void this._newProject() },
+                { label: "GitHub", icon: "squareArrowOutUpRight", fn: () => window.open("https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline", "_blank", "noopener,noreferrer") },
             ], rect.left, rect.bottom + 4, { ignoreNextClick: false });
         });
         tl.toolbarEl.appendChild(moreBtn);
@@ -17606,11 +17599,11 @@ export class CapTimelineEditorApp {
                 const trackEl = e.target.closest?.(".tl-track");
                 const track = tl.tracks.find(row => row.el === trackEl);
                 if (isSubtitleTrackType(track?.type)) {
-                    items.push({ label: T("subtitle_batch_insert"), disabled: !!track.locked,
+                    items.push({ label: T("subtitle_batch_insert"), icon: "text", disabled: !!track.locked,
                         fn: () => this._openSubtitleBatchDialog(track, tl.currentTime) });
                 }
                 if (CapTimelineEditorApp._clipClipboard?.length) {
-                    items.push({ label: T("menu_paste_shortcut"), fn: () => this._pasteClips() });
+                    items.push({ label: T("menu_paste_shortcut"), icon: "clipboard", fn: () => this._pasteClips() });
                 }
                 if (!items.length) return;
                 e.preventDefault();

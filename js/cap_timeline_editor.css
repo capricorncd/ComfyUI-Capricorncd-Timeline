@@ -2071,54 +2071,9 @@ body.cat-te-media-dnd-over-tl {
     pointer-events: auto;
 }
 
-.cat-te-ctx-menu {
-    position: fixed;
-    z-index: 100020;
-    background: var(--cat-raised);
-    border: 1px solid var(--cat-border);
-    border-radius: 6px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.65);
-    padding: 4px 0;
-    min-width: 140px;
-    max-height: calc(100vh - 16px);
-    overflow-y: auto;
-}
-
-.cat-te-ctx-separator {
-    margin: 4px 0;
-    border: 0;
-    border-top: 1px solid var(--cat-border);
-}
-
 .cat-te-timeline-host .tl-clip.cat-te-drop-target {
     outline: 2px solid #ffd166;
     outline-offset: -2px;
-}
-
-.cat-te-ctx-item {
-    padding: 6px 12px;
-    font-size: 12px;
-    color: #ccc;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-}
-.cat-te-ctx-item:hover { background: rgba(100, 216, 197, 0.2); color: #fff; }
-.cat-te-ctx-item.track-name {
-    color: #fff;
-    font-weight: 700;
-    border-bottom: 1px solid var(--cat-border);
-}
-.cat-te-ctx-item.danger { color: #ff7a90; }
-.cat-te-ctx-item.danger:hover { background: rgba(255, 68, 102, 0.2); color: #ff9aab; }
-.cat-te-ctx-item.strike { text-decoration: line-through; opacity: 0.72; }
-.cat-te-ctx-item.disabled,
-.cat-te-ctx-item.disabled:hover {
-    color: var(--cat-dim);
-    background: transparent;
-    cursor: not-allowed;
-    opacity: 0.55;
 }
 
 .cat-te-frame-preview {

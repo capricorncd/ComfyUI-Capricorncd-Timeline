@@ -1,14 +1,17 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+const utils = readFileSync(new URL('../js/timeline/utils.js', import.meta.url), 'utf8');
+const normalizePlaybackRate = new Function('clamp', `return ${utils.match(/export const normalizePlaybackRate = ([\s\S]*?);/)[1]}`)(
+    (v, a, b) => Math.max(a, Math.min(b, v)));
 
 const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
 function method(name) {
   const start = source.search(new RegExp('    (async )?' + name + '\\('));
   assert(start >= 0, name);
   const end = source.indexOf('\n    }', start) + 6;
-  return new Function('normalizeClipVolume', 'defaultImageMeta', 'volumeAt',
+  return new Function('normalizePlaybackRate', 'normalizeClipVolume', 'defaultImageMeta', 'volumeAt',
     'return ({' + source.slice(start, end) + '}).' + name)(
-    v => Math.max(0, Math.min(5, Number(v ?? 1))), () => ({}), points => points[0]?.gain ?? 1);
+    normalizePlaybackRate, v => Math.max(0, Math.min(5, Number(v ?? 1))), () => ({}), points => points[0]?.gain ?? 1);
 }
 const gen = (file, extra = {}) => ({file, enabled:true, duration_sec:5, ...extra});
 const meta = {
@@ -56,6 +59,7 @@ meta.genEditAudios[0].volume_points=points;
 const ctx = {
   currentTime:0, destination:{},
   createBufferSource() { return {
+    playbackRate: { value: 1 },
     connect(){}, start(when,offset,duration){played.push({file:this.buffer.file,when,offset,duration});},
   }; },
   createGain() { return {connect(){},gain:{setValueAtTime(){}}}; },

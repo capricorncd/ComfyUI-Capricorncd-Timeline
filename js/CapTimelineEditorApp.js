@@ -256,6 +256,7 @@ function normalizeGeneratedVideo(row) {
         note: String(row.note || row.remark || ""),
         prompt: String(row.prompt || ""),
         h3_trim_applied: row.h3_trim_applied === true,
+        playback_rate: normalizePlaybackRate(row.playback_rate),
         volume: normalizeClipVolume(row.volume),
         media_scale: Math.max(1, Math.min(300, Number(row.media_scale ?? 100))),
         media_offset_x: Math.max(-100, Math.min(100, Number(row.media_offset_x ?? 0))),
@@ -3936,6 +3937,13 @@ export class CapTimelineEditorApp {
                     </cap-slider>
                   </label>`).join('')}
                   <label class="cat-te-gen-edit-field">
+                    <span>${T("clip_speed_label")}</span>
+                    <cap-slider default-value="1" reset-label="${T('slider_reset')}">
+                      <input class="cat-te-gen-edit-speed" type="range" min="0.25" max="4" step="0.05" value="1" disabled />
+                    </cap-slider>
+                    <output class="cat-te-gen-edit-speed-value">1×</output>
+                  </label>
+                  <label class="cat-te-gen-edit-field">
                     <span>${T("desc_prompt_label")}</span>
                     <textarea class="cat-te-gen-edit-prompt" rows="8" placeholder="${T("gen_edit_prompt_placeholder")}"></textarea>
                   </label>
@@ -4705,6 +4713,8 @@ export class CapTimelineEditorApp {
         this.genEditVolume = el.querySelector(".cat-te-gen-edit-volume");
         this.genEditVolumeValue = el.querySelector(".cat-te-gen-edit-volume-value");
         this.genEditTransformInputs = [...el.querySelectorAll('[data-gen-transform]')];
+        this.genEditSpeed = el.querySelector('.cat-te-gen-edit-speed');
+        this.genEditSpeedValue = el.querySelector('.cat-te-gen-edit-speed-value');
         this.genEditDubBtn = el.querySelector(".cat-te-gen-edit-dub");
         this.voEditModal = el.querySelector(".cat-te-vo-edit-modal");
         this.voEditTitle = el.querySelector(".cat-te-vo-edit-title");
@@ -5183,6 +5193,7 @@ export class CapTimelineEditorApp {
         this.genEditPrompt?.addEventListener("input", () => this._onGenEditPromptInput());
         this.genEditVolume?.addEventListener("input", () => this._onGenEditVolumeInput());
         for (const input of this.genEditTransformInputs) input.addEventListener("input", () => this._onGenEditTransformInput(input));
+        this.genEditSpeed.addEventListener("input", () => this._onGenEditSpeedInput());
         this._bindGenEditPreviewResize();
         el.querySelector(".cat-te-vo-edit-close")?.addEventListener("click", () => this._closeVoiceoverEditModal(false));
         el.querySelector(".cat-te-vo-edit-cancel")?.addEventListener("click", () => this._closeVoiceoverEditModal(false));
@@ -6566,7 +6577,7 @@ export class CapTimelineEditorApp {
         if (!(Number.isFinite(tout) && tout > tin)) {
             tout = Number.isFinite(full) && full > tin ? full : null;
         }
-        if (tout != null && tout > tin) return tout - tin;
+        if (tout != null && tout > tin) return (tout - tin) / normalizePlaybackRate(gen.playback_rate);
         return null;
     }
 
@@ -6618,7 +6629,7 @@ export class CapTimelineEditorApp {
             return [{
                 ...gen,
                 edit_start_sec: Math.max(0, start - seconds),
-                trim_in_sec: Math.max(0, Number(gen.trim_in_sec) || 0) + cut,
+                trim_in_sec: Math.max(0, Number(gen.trim_in_sec) || 0) + cut * normalizePlaybackRate(gen.playback_rate),
             }];
         });
         m.genEditAudios = this._normalizeGenEditAudioDraft(m.genEditAudios).flatMap((audio) => {
@@ -9060,6 +9071,7 @@ export class CapTimelineEditorApp {
                 startTime: startSec,
                 duration: dur,
                 sourceOffset: tin,
+                playbackRate: normalizePlaybackRate(gen.playback_rate),
                 sourceDuration: Number.isFinite(Number(gen.duration_sec)) && gen.duration_sec > 0
                     ? gen.duration_sec
                     : Infinity,
@@ -9476,7 +9488,8 @@ export class CapTimelineEditorApp {
                     muted: track.muted === true,
                     edit_start_sec: start,
                     trim_in_sec: tin,
-                    trim_out_sec: tin + dur,
+                    trim_out_sec: tin + dur * (c.playbackRate || 1),
+                    playback_rate: normalizePlaybackRate(c.playbackRate),
                     duration_sec: Number.isFinite(Number(c.sourceDuration)) && c.sourceDuration > 0
                         ? c.sourceDuration
                         : prev.duration_sec,
@@ -9582,7 +9595,7 @@ export class CapTimelineEditorApp {
         const src = st.draft[idx];
         const local = t - clip.startTime;
         const tin = Math.max(0, Number(src.trim_in_sec) || 0);
-        const leftOut = tin + local;
+        const leftOut = tin + local * normalizePlaybackRate(src.playback_rate);
         const rightIn = leftOut;
         const rightStart = Math.max(0, Number(src.edit_start_sec) || 0) + local;
         const fullOut = src.trim_out_sec != null ? Number(src.trim_out_sec) : (Number(src.duration_sec) || rightIn + 0.05);
@@ -9659,9 +9672,9 @@ export class CapTimelineEditorApp {
         const startSec = Math.max(0, Number(gen.edit_start_sec) || 0);
 
         try {
-            const file = await this._extractAudioFromMedia(gen.file, {
-                location: "output",
-                trimInSec: tin,
+            const file = await this._extractAudioFromMedia('', {
+                mix: [{ file: gen.file, location: "output", trim_in_sec: tin, duration_sec: eff,
+                    edit_start_sec: 0, playback_rate: normalizePlaybackRate(gen.playback_rate), volume: 1 }],
                 durationSec: eff,
             });
             if (this._genEditState !== st) return;
@@ -9700,6 +9713,7 @@ export class CapTimelineEditorApp {
                 file: job.file, location: job.location, trim_in_sec: job.tin,
                 duration_sec: job.absEnd - job.absStart, edit_start_sec: job.absStart - clip.startTime,
                 volume: job.volume, volume_points: job.volumePoints || [],
+                playback_rate: job.playbackRate || 1,
             }));
             return mix.length ? [{ file: T('current_clip_audio_mix_name'), mix, duration_sec: clip.duration }] : [];
         }
@@ -9707,7 +9721,7 @@ export class CapTimelineEditorApp {
             return [
                 ...this._clipGeneratedVideos(meta).filter(row => row.enabled !== false).map(row => ({
                     videoId: row.id, file: row.file, location: 'output', trim_in_sec: row.trim_in_sec || 0,
-                    duration_sec: this._genEffectiveDurationSec(row) || clip.duration, playback_rate: 1,
+                    duration_sec: this._genEffectiveDurationSec(row) || clip.duration, playback_rate: normalizePlaybackRate(row.playback_rate),
                     edit_start_sec: row.edit_start_sec || 0,
                 })),
                 ...this._normalizeGenEditAudioDraft(meta.genEditAudios).map(row => ({
@@ -9933,6 +9947,11 @@ export class CapTimelineEditorApp {
         const audioId = st?.audioMap?.get(selected?.id);
         const row = audioId ? st.audioDraft.find(row => row.id === audioId)
             : st?.draft?.find((g) => g.id === st.selectedId);
+        if (this.genEditSpeed) {
+            this.genEditSpeed.disabled = !row || !!audioId || selected?.track?.locked === true;
+            this.genEditSpeed.value = normalizePlaybackRate(row?.playback_rate);
+            this.genEditSpeedValue.textContent = `${this.genEditSpeed.value}×`;
+        }
         if (this.genEditVolume) {
             this.genEditVolume.disabled = !row || selected?.track?.locked === true;
             this.genEditVolume.value = Math.round(normalizeClipVolume(row?.volume) * 100);
@@ -9956,6 +9975,34 @@ export class CapTimelineEditorApp {
             this.genEditPrompt.disabled = !row || !!audioId;
             this.genEditPrompt.value = row?.prompt || "";
         }
+    }
+
+    _onGenEditSpeedInput() {
+        const st = this._genEditState;
+        const selected = st?.timeline?.getSelectedClips()[0];
+        if (!selected || selected.track.locked || st.audioMap.has(selected.id)) return;
+        this._pullGenEditDraftFromTimeline();
+        const row = st.draft.find(row => row.id === st.clipMap.get(selected.id));
+        if (!row) return;
+        const rate = normalizePlaybackRate(this.genEditSpeed.value);
+        const duration = selected.duration * (selected.playbackRate || 1) / rate;
+        if (duration < 0.05 || selected.track.clips.some(other => other !== selected
+            && other.startTime < selected.startTime + duration - 1e-6 && other.endTime > selected.startTime + 1e-6)) {
+            this._syncGenEditInspector();
+            alert(T("clip_speed_overlap"));
+            return;
+        }
+        selected.playbackRate = row.playback_rate = rate;
+        selected.duration = duration;
+        selected._applyPosition();
+        this.genEditSpeedValue.textContent = `${rate}×`;
+        this._applyGenEditChanges();
+        const end = this._genEditTimelineDuration(this._genEditParentDuration(), st.draft);
+        st.timeline.duration = Math.max(st.timeline.duration, end);
+        st.timeline._refresh();
+        this._syncGenEditOutOfBoundsUI(st.timeline, this._genEditParentDuration());
+        if (st.timeline._playing) void this._startGenEditAudioPlayback();
+        this._scheduleGenEditPreview();
     }
 
     _onGenEditTransformInput(input) {
@@ -10140,6 +10187,7 @@ export class CapTimelineEditorApp {
                 kind: "generated",
                 clip: hostClip,
                 transform: gen,
+                playbackRate: normalizePlaybackRate(gen.playback_rate),
                 file: gen.file,
                 muted: gen.muted === true,
                 trimInSec: Math.max(0, Number(gen.trim_in_sec) || 0),
@@ -10254,6 +10302,7 @@ export class CapTimelineEditorApp {
                 file: gen.file,
                 location: "output",
                 volume: normalizeClipVolume(gen.volume),
+                playbackRate: normalizePlaybackRate(gen.playback_rate),
                 tin: Math.max(0, Number(gen.trim_in_sec) || 0),
                 start,
                 end,
@@ -10269,6 +10318,8 @@ export class CapTimelineEditorApp {
             if (job.end <= playhead) continue;
             const src = ctx.createBufferSource();
             src.buffer = buffer;
+            const rate = job.playbackRate || 1;
+            src.playbackRate.value = rate;
             const gain = ctx.createGain();
             src.connect(gain);
             gain.connect(ctx.destination);
@@ -10283,7 +10334,7 @@ export class CapTimelineEditorApp {
             let dur;
             if (job.start <= playhead) {
                 when = now;
-                offset = job.tin + (playhead - job.start);
+                offset = job.tin + (playhead - job.start) * rate;
                 dur = job.end - playhead;
             } else {
                 when = startCtxTime + (job.start - startPlayhead);
@@ -10292,11 +10343,11 @@ export class CapTimelineEditorApp {
             }
             const maxOff = Math.max(0, buffer.duration - 0.001);
             offset = Math.max(0, Math.min(offset, maxOff));
-            dur = Math.max(0.001, Math.min(dur, Math.max(0.001, buffer.duration - offset)));
+            dur = Math.max(0.001, Math.min(dur, Math.max(0.001, buffer.duration - offset) / rate));
             try {
                 if (job.volumePoints?.length) this._scheduleAudioFadeGain(gain, when, 0, dur, 0, 0, dur,
-                    normalizeClipVolume(parentClip ? this._ensureClipMeta(parentClip)?.volume : 1) * normalizeClipVolume(job.volume), job.volumePoints, offset);
-                src.start(when, offset, dur);
+                    normalizeClipVolume(parentClip ? this._ensureClipMeta(parentClip)?.volume : 1) * normalizeClipVolume(job.volume), job.volumePoints, offset, rate);
+                src.start(when, offset, dur * rate);
                 sources.push({ src, gain });
             } catch { /* ignore */ }
         }
@@ -12021,7 +12072,7 @@ export class CapTimelineEditorApp {
             const start = Math.max(0, Math.floor((job.absStart - clip.startTime) / clip.duration * peaks.length));
             const end = Math.min(peaks.length, Math.ceil((job.absEnd - clip.startTime) / clip.duration * peaks.length));
             for (let i = start; i < end; i++) {
-                const time = job.tin + clip.startTime + (i + 0.5) / peaks.length * clip.duration - job.absStart;
+                const time = job.tin + (clip.startTime + (i + 0.5) / peaks.length * clip.duration - job.absStart) * (job.playbackRate || 1);
                 const index = Math.floor(time / buffer.duration * source.length);
                 peaks[i] += (source[index] || 0) * job.volume * volumeAt(job.volumePoints || [], time * 1000);
             }
@@ -13625,7 +13676,7 @@ export class CapTimelineEditorApp {
                     const absStart = clip.startTime + editStart;
                     const absEnd = Math.min(clip.endTime, absStart + eff);
                     if (absEnd <= absStart || absEnd <= t0 + 1e-6) continue;
-                    jobs.push({ file: gen.file, location: "output", tin, absStart, absEnd, volume: normalizeClipVolume(m.volume) * normalizeClipVolume(gen.volume), volumePoints: gen.volume_points });
+                    jobs.push({ file: gen.file, location: "output", tin, absStart, absEnd, playbackRate: normalizePlaybackRate(gen.playback_rate), volume: normalizeClipVolume(m.volume) * normalizeClipVolume(gen.volume), volumePoints: gen.volume_points });
                 }
                 // Detached audios from gen-edit modal (saved on the clip).
                 for (const row of this._normalizeGenEditAudioDraft(m.genEditAudios)) {
@@ -13661,6 +13712,8 @@ export class CapTimelineEditorApp {
             if (job.absEnd <= playhead) continue;
             const src = ctx.createBufferSource();
             src.buffer = buffer;
+            const rate = job.playbackRate || 1;
+            src.playbackRate.value = rate;
             const gain = ctx.createGain();
             src.connect(gain);
             gain.connect(ctx.destination);
@@ -13671,7 +13724,7 @@ export class CapTimelineEditorApp {
             let dur;
             if (job.absStart <= playhead) {
                 when = now;
-                offset = job.tin + (playhead - job.absStart);
+                offset = job.tin + (playhead - job.absStart) * rate;
                 dur = job.absEnd - playhead;
             } else {
                 when = startCtxTime + (job.absStart - startPlayhead);
@@ -13680,11 +13733,11 @@ export class CapTimelineEditorApp {
             }
             const maxOff = Math.max(0, buffer.duration - 0.001);
             offset = Math.max(0, Math.min(offset, maxOff));
-            dur = Math.max(0.001, Math.min(dur, Math.max(0.001, buffer.duration - offset)));
+            dur = Math.max(0.001, Math.min(dur, Math.max(0.001, buffer.duration - offset) / rate));
             try {
                 if (job.volumePoints?.length) this._scheduleAudioFadeGain(gain, when, 0, dur, 0, 0, dur,
-                    job.volume, job.volumePoints, offset);
-                src.start(when, offset, dur);
+                    job.volume, job.volumePoints, offset, rate);
+                src.start(when, offset, dur * rate);
                 this._activeAudioSources.push({ src, gain });
             } catch { /* skip */ }
         }
@@ -17093,7 +17146,7 @@ export class CapTimelineEditorApp {
         let mediaTime = (layer.clip.sourceOffset || 0) + (nextTime - layer.clip.startTime) * (layer.clip.playbackRate || 1);
         if (layer.kind === "generated") {
             mediaTime = Math.max(0, Number(layer.trimInSec) || 0)
-                + Math.max(0, nextTime - layer.clip.startTime - (Number(layer.editStartSec) || 0));
+                + Math.max(0, nextTime - layer.clip.startTime - (Number(layer.editStartSec) || 0)) * (layer.playbackRate || 1);
         }
         entry.active = false;
         entry.el.muted = true;
@@ -17190,6 +17243,7 @@ export class CapTimelineEditorApp {
                             clip,
                             meta: m,
                             transform: gen,
+                            playbackRate: normalizePlaybackRate(gen.playback_rate),
                             file: gen.file,
                             muted: gen.muted === true || !!track.muted || !!m.muted,
                             trimInSec: Math.max(0, Number(gen.trim_in_sec) || 0),
@@ -17264,12 +17318,12 @@ export class CapTimelineEditorApp {
                 if (layer.kind === "generated") {
                     const tin = Math.max(0, Number(layer.trimInSec ?? layer.clip.sourceOffset) || 0);
                     const editStart = Math.max(0, Number(layer.editStartSec) || 0);
-                    mediaTime = tin + Math.max(0, (t - layer.clip.startTime) - editStart);
+                    mediaTime = tin + Math.max(0, (t - layer.clip.startTime) - editStart) * (layer.playbackRate || 1);
                 } else if (items.length > 1) {
                     const slice = layer.clip.duration / items.length;
                     mediaTime = Math.max(0, (t - layer.clip.startTime) - (layer.itemIndex || 0) * slice) * (layer.clip.playbackRate || 1);
                 }
-                entry.el.playbackRate = layer.mediaTrack ? (layer.clip.playbackRate || 1) : 1;
+                entry.el.playbackRate = layer.kind === "generated" ? (layer.playbackRate || 1) : layer.mediaTrack ? (layer.clip.playbackRate || 1) : 1;
                 this._syncPreviewVideo(entry, mediaTime, {
                     audible: layer.kind === "generated" && layer.muted !== true,
                     playing,
@@ -19748,6 +19802,7 @@ export class CapTimelineEditorApp {
                             file: v.file,
                             enabled: v.enabled !== false,
                             muted: v.muted === true,
+                            playback_rate: normalizePlaybackRate(v.playback_rate),
                             volume: normalizeClipVolume(v.volume),
                             media_scale: v.media_scale ?? 100,
                             media_offset_x: v.media_offset_x ?? 0,

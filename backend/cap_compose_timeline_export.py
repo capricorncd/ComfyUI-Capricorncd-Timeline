@@ -216,10 +216,11 @@ def _collect_plan(
                         continue
                     offset = max(0.0, float(gen.get("edit_start_sec") or 0))
                     source_in = max(0.0, float(gen.get("trim_in_sec") or 0))
+                    rate = playback_rate(gen.get("playback_rate"))
                     duration = clip_duration - offset
                     source_end = gen.get("trim_out_sec") or gen.get("duration_sec")
                     if source_end is not None:
-                        duration = min(duration, float(source_end) - source_in)
+                        duration = min(duration, (float(source_end) - source_in) / rate)
                     if duration <= 0:
                         continue
                     path = _resolve_output_video(file)
@@ -230,6 +231,7 @@ def _collect_plan(
                         "path": path,
                         "kind": "video",
                         "layer": "director",
+                        "playback_rate": rate,
                         "scale": max(1.0, min(300.0, float(gen.get("media_scale", 100)))) / 100,
                         "offset_x": max(-100.0, min(100.0, float(gen.get("media_offset_x", 0)))) / 100,
                         "offset_y": max(-100.0, min(100.0, float(gen.get("media_offset_y", 0)))) / 100,

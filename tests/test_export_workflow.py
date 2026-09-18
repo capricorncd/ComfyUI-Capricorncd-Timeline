@@ -22,6 +22,32 @@ function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.nam
 
 
 class ExportWorkflowTests(unittest.TestCase):
+    def test_reveal_audio_output_opens_containing_folder(self):
+        routes = ast.parse(source.with_name("__init__.py").read_text(encoding="utf-8-sig"))
+        function = next(n for n in ast.walk(routes) if isinstance(n, ast.AsyncFunctionDef) and n.name == "api_reveal_output")
+        function.decorator_list = []
+        function.body = [n for n in function.body if not isinstance(n, ast.Import)]
+        safe_join = next(n for n in routes.body if isinstance(n, ast.FunctionDef) and n.name == "_safe_join")
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "音频 exports, clips"
+            folder.mkdir()
+            (folder / "旁白 01.wav").write_bytes(b"audio")
+            reveal = Mock()
+            scope = {
+                "web": SimpleNamespace(Request=object, Response=object, json_response=lambda body, status=200: (body, status)),
+                "os": SimpleNamespace(path=os.path, sep=os.sep, startfile=reveal),
+                "sys": SimpleNamespace(platform="win32"),
+                "_fp": SimpleNamespace(get_output_directory=lambda: directory),
+                "resolve_lang": lambda request: "en", "t": lambda key, lang: key,
+                "logging": SimpleNamespace(exception=Mock()),
+            }
+            exec(compile(ast.Module(body=[safe_join, function], type_ignores=[]), str(source), "exec"), scope)
+            class Request:
+                async def json(self):
+                    return {"filename": "旁白 01.wav", "subfolder": folder.name}
+            self.assertEqual(asyncio.run(scope["api_reveal_output"](Request()))[1], 200)
+            reveal.assert_called_once_with(str(folder.resolve()))
+
     def test_save_and_reveal_routes_only_accept_successful_local_exports(self):
         routes = ast.parse(source.with_name("__init__.py").read_text(encoding="utf-8-sig"))
         functions = [n for n in ast.walk(routes) if isinstance(n, ast.AsyncFunctionDef)
@@ -39,7 +65,7 @@ class ExportWorkflowTests(unittest.TestCase):
                 "web": SimpleNamespace(Request=object, Response=object,
                                        json_response=lambda body, status=200: (body, status)),
                 "save_project_export": save, "asyncio": asyncio, "uuid": uuid,
-                "os": SimpleNamespace(path=os.path), "subprocess": SimpleNamespace(Popen=reveal),
+                "os": SimpleNamespace(path=os.path, startfile=reveal),
                 "sys": SimpleNamespace(platform="win32"),
                 "folder_paths": SimpleNamespace(get_output_directory=lambda: directory),
                 "export_destinations": {}, "logging": SimpleNamespace(exception=Mock()),
@@ -68,7 +94,7 @@ class ExportWorkflowTests(unittest.TestCase):
                 self.assertEqual((await scope["api_reveal_export"](Request({"path": directory})))[1], 404)
                 reveal.assert_not_called()
                 self.assertEqual((await scope["api_reveal_export"](Request({"reveal_token": result["reveal_token"]})))[1], 200)
-                reveal.assert_called_once_with(["explorer", f"/select,{destination / 'project.json'}"])
+                reveal.assert_called_once_with(str(destination))
                 save.side_effect = OSError("Disk full")
                 self.assertEqual((await scope["api_export_save"](Request({"project": {}})))[1], 500)
                 self.assertEqual(len(scope["export_destinations"]), 1, "failed export must not enable folder reveal")

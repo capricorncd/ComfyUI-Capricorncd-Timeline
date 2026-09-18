@@ -47,9 +47,9 @@ Connect the **sampling MODEL after external LoRA loading**, CLIP text encoder, v
 
 ## Strict first/last frames
 
-`strict_keyframes=false` (default): existing multimodal reference generation, including text-only, images, video and audio. Supplying an FL model does **not** change references into endpoint constraints.
+The generator selects conditioning per Clip from `clip_role`; there is no node-level `strict_keyframes` switch. Roles other than `first_last` use multimodal reference generation, including text-only, images, video and audio. Supplying an FL model does **not** change references into endpoint constraints.
 
-`true`: use native `MiniMaxH3ImageToVideo` keyframe conditioning. One enabled image supplies the first frame; two supply first and last in reference order. Rejects empty/more-than-two images, video/audio references and Motion Context. Select a compatible FL model and LoRA yourself. This is model conditioning, not a pixel-exact replacement of rendered endpoint frames. Two-pass strict mode re-encodes anchors at the final resolution.
+`clip_role=first_last`: use native `MiniMaxH3ImageToVideo` keyframe conditioning. One enabled image supplies the first frame; two supply first and last in reference order. Rejects empty/more-than-two images, video/audio references and Motion Context. Select a compatible FL model and LoRA yourself. This is model conditioning, not a pixel-exact replacement of rendered endpoint frames. Two-pass strict mode re-encodes anchors at the final resolution.
 
 The existing **Cap MiniMaxH3** conditioning node also exposes the same optional toggle, default off; old connections and outputs remain unchanged.
 

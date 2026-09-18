@@ -617,7 +617,7 @@ def _register_routes():
             if not path or not os.path.isfile(path):
                 return web.json_response({"error": "Export folder unavailable; export again after restarting ComfyUI"}, status=404)
             if sys.platform == "win32":
-                subprocess.Popen(["explorer", f"/select,{path}"])
+                os.startfile(os.path.dirname(path))
             elif sys.platform == "darwin":
                 subprocess.Popen(["open", "-R", path])
             else:
@@ -822,7 +822,7 @@ def _register_routes():
             # this ComfyUI backend, which is the same machine as the browser
             # for the standard local install this extension targets.
             if sys.platform == "win32":
-                subprocess.Popen(["explorer", f"/select,{path}"])
+                os.startfile(os.path.dirname(path))
             elif sys.platform == "darwin":
                 subprocess.Popen(["open", "-R", path])
             else:

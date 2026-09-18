@@ -69,6 +69,27 @@ class ComposeRangeAudioTests(unittest.TestCase):
         for index in range(25):
             self.assertAlmostEqual(pixels[index * stride], 40 + 17 + index, delta=2)
 
+    def test_director_video_speed_changes_frames_and_audio_duration(self):
+        clip = self.project['tracks'][0]['clips'][0]
+        gen = clip['generated_videos'][0]
+        gen.update(trim_in_sec=1, trim_out_sec=3, playback_rate=2)
+        clip['duration_ms'] = 1000
+        plan = scope['_collect_plan'](self.project)
+        self.assertEqual(plan['video_segs'][0]['playback_rate'], 2)
+        self.assertEqual(plan['video_segs'][0]['duration_sec'], 1)
+        output = self.directory / 'fast.wav'
+        self.compose(audio_output_path=str(output), export_range=dict(start_frame=0, end_frame=24))
+        with wave.open(str(output)) as audio:
+            self.assertEqual(audio.getnframes(), 48000)
+        pixels = run(['ffmpeg', '-v', 'error', '-i', str(self.directory / 'out.mp4'),
+                      '-an', '-pix_fmt', 'yuv420p', '-f', 'rawvideo', 'pipe:1'])
+        stride = 32 * 32 * 3 // 2
+        self.assertEqual(len(pixels) // stride, 24)
+        self.assertAlmostEqual(pixels[10 * stride], 40 + 24 + 20, delta=3)
+        gen['playback_rate'] = 0.5
+        clip['duration_ms'] = 4000
+        self.assertEqual(scope['_collect_plan'](self.project)['video_segs'][0]['duration_sec'], 4)
+
     def test_generated_video_scale_and_offsets_are_rendered(self):
         gen = self.project['tracks'][0]['clips'][0]['generated_videos'][0]
         gen.update(media_scale=50, media_offset_x=25, media_offset_y=-25)

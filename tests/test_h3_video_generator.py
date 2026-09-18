@@ -397,9 +397,22 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_strict_second_pass_reencodes_high_resolution_anchors(self):
-        self.run_node(strict_keyframes=True, second_sampling=True, upscaler_model="up.safetensors")
+        self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "clip_role": "first_last"}],
+                      second_sampling=True, upscaler_model="up.safetensors")
         self.assertEqual([(w, h) for w, h, _, _ in self.prepared], [(608, 352), (1376, 768)])
         self.assertTrue(all(kw["strict_keyframes"] for _, _, _, kw in self.prepared))
+
+    def test_frame_mode_is_selected_per_clip(self):
+        self.assertNotIn("strict_keyframes", self.node.generate.__code__.co_varnames[:self.node.generate.__code__.co_argcount])
+        self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "clip_role": "first_last"},
+                       {"id": "b", "start_ms": 5000, "end_ms": 10000, "clip_role": "multi_ref"}])
+        self.assertEqual([kw["strict_keyframes"] for _, _, _, kw in self.prepared], [True, False])
+
+    def test_first_last_clip_rejects_motion_context(self):
+        with self.assertRaisesRegex(ValueError, "Motion Context"):
+            self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "clip_role": "first_last",
+                            "h3_motion_context_length": 22}])
+        self.assertEqual(self.calls, [])
 
     def test_validation(self):
         for kw in ({"steps": "6"}, {"second_sampling": True},

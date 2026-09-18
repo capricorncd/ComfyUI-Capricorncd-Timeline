@@ -5,8 +5,8 @@ function method(name) {
     const start=source.search(new RegExp(`    (async )?${name}\\(`));
     assert(start>=0,name);
     const end=source.indexOf('\n    }',start)+6;
-    return new Function('defaultImageMeta','normalizeClipVolume','isDirectorTrackType','isMediaTrackType',
-        `return ({${source.slice(start,end)}}).${name}`)(()=>({}),v=>Number(v??1),t=>t==='image',t=>t==='video');
+    return new Function('defaultImageMeta','normalizeClipVolume','isDirectorTrackType','isMediaTrackType','normalizePlaybackRate',
+        `return ({${source.slice(start,end)}}).${name}`)(()=>({}),v=>Number(v??1),t=>t==='image',t=>t==='video',v=>v || 1);
 }
 const clip={id:'director',startTime:10,endTime:15,duration:5};
 const other={id:'other',startTime:10,endTime:15,duration:5};

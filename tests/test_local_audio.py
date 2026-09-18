@@ -84,6 +84,18 @@ class AudioExtractionTests(unittest.TestCase):
             source = str(Path(temporary) / 'source.wav')
             run(['ffmpeg', '-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=6', source])
             with patch.object(module, '_run_ffmpeg', run), patch.object(module, '_probe_duration_sec', duration):
+                fp.get_input_directory = lambda: temporary
+                mixed = Path(temporary) / 'speed-mix.wav'
+                module.prepare_clip_mix(mixed, {'duration_sec': 2, 'mix': [
+                    {'file': 'source.wav', 'location': 'input', 'trim_in_sec': 1,
+                     'duration_sec': 1, 'playback_rate': 2, 'edit_start_sec': 0.5},
+                ]}, channels=2)
+                with wave.open(str(mixed)) as audio:
+                    self.assertEqual(audio.getnframes(), 96000)
+                    samples = audio.readframes(96000)
+                    self.assertEqual(set(samples[:24000 * 4]), {0})
+                    self.assertGreater(len(set(samples[24000 * 4:72000 * 4])), 1)
+                    self.assertEqual(set(samples[72000 * 4:]), {0})
                 for scope, expected in [('full', 6), ('clip', 2)]:
                     output = Path(temporary) / (scope + '.wav')
                     actual = module.prepare_denoise_audio(source, output, {

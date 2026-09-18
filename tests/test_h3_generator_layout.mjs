@@ -10,8 +10,8 @@ vm.runInNewContext(readFileSync(new URL('../js/cap_h3_video_generator.js', impor
 const oldWidgets = ['steps', 'strict_keyframes', 'second_sampling', 'first_pass_megapixels',
     'upscaler_model', 'refine_sigmas', 'audio_refine', 'audio_refine_steps', 'normalize_audio',
     'attention', 'compose_final', 'sampling_preview', 'preview_tiny_vae', 'generate_audio'];
-const currentWidgets = [...oldWidgets, 'motion_deblur', 'face_refine'];
-const expected = ['steps', 'strict_keyframes', 'attention', 'second_sampling', 'first_pass_megapixels',
+const currentWidgets = [...oldWidgets.filter(name => name !== 'strict_keyframes'), 'motion_deblur', 'face_refine'];
+const expected = ['steps', 'attention', 'second_sampling', 'first_pass_megapixels',
     'upscaler_model', 'refine_sigmas', 'motion_deblur', 'face_refine', 'sampling_preview', 'preview_tiny_vae', 'generate_audio',
     'audio_refine', 'audio_refine_steps', 'normalize_audio', 'compose_final'];
 const oldInputs = ['model', 'clip', 'vae', 'audio_vae', 'data_json', 'base_model']
@@ -32,7 +32,7 @@ class Node {
 }
 await extension.beforeRegisterNodeDef(Node, {name: 'CAP_H3VideoGenerator', input: {
     required: Object.fromEntries(oldWidgets.slice(0, 10).map(name => [name, {}])),
-    optional: Object.fromEntries(currentWidgets.slice(10).map(name => [name, {}])),
+    optional: Object.fromEntries([...oldWidgets.slice(10), 'motion_deblur', 'face_refine'].map(name => [name, {}])),
 }});
 const node = new Node();
 node.onNodeCreated();

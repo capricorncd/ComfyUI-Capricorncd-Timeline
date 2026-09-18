@@ -72,7 +72,7 @@ def _context_source(row, earlier):
     return ""
 
 
-def _validate(data, strict_keyframes):
+def _validate(data):
     if not isinstance(data, dict) or not isinstance(data.get("clips"), list) or not data["clips"]:
         raise ValueError("Connect Timeline Editor runtime data_json with at least one director Clip.")
     width, height = int(data["width"]), int(data["height"])
@@ -93,7 +93,7 @@ def _validate(data, strict_keyframes):
         if float(row["end_ms"]) <= float(row["start_ms"]):
             raise ValueError(f"Clip {_clip_id(row)} has an empty time range.")
         timing = row.get("h3_timing") or {}
-        if strict_keyframes and int(timing.get("context_frames", row.get("h3_motion_context_length", 0)) or 0):
+        if row.get("clip_role") == "first_last" and int(timing.get("context_frames", row.get("h3_motion_context_length", 0)) or 0):
             raise ValueError("Strict first/last frames cannot be combined with Motion Context.")
     return width, height, fps
 
@@ -112,7 +112,7 @@ class CAP_H3VideoGenerator:
         "after external LoRA loading, CLIP, video VAE and audio VAE. Audio repair uses optional base_model "
         "when connected, otherwise the incoming LoRA model. Select a matching 4/8-step LoRA externally. Project dimensions "
         "must be multiples of 32. Clip seed -1 is resolved once for all passes. "
-        "Strict frames: one image = first; two = first/last; no AV references or Motion Context. "
+        "Clips with the first_last role use strict frames: one image = first; two = first/last; no AV references or Motion Context. "
         "Reference mode also permits FL models but does not force endpoints. "
         "First sampling always runs the full selected 4/8-step schedule. Refine uses its own explicit sigmas. "
         "motion_deblur defaults to false; requires MAINodes and a separate base_model without acceleration LoRA. "
@@ -136,7 +136,6 @@ class CAP_H3VideoGenerator:
                 "audio_vae": ("VAE",),
                 "data_json": ("STRING", {"default": "", "multiline": True, "forceInput": True}),
                 "steps": (["4", "8"], {"default": "8"}),
-                "strict_keyframes": ("BOOLEAN", {"default": False, "tooltip": CAP_MiniMaxH3ReferenceToVideo.INPUT_TYPES()["optional"]["strict_keyframes"][1]["tooltip"]}),
                 "second_sampling": ("BOOLEAN", {"default": False}),
                 "first_pass_megapixels": ("FLOAT", {"default": 0.2, "min": 0.01, "max": 8.0, "step": 0.01, "tooltip": "Only used with second sampling: sets first-pass resolution before upscale to data_json dimensions. Without second sampling, generate directly at data_json width/height and ignore this value."}),
                 "upscaler_model": (["none"] + upscale_models,),
@@ -164,14 +163,14 @@ class CAP_H3VideoGenerator:
         return float("nan")
 
     def generate(self, model, clip, vae, audio_vae, data_json,
-                 steps="8", strict_keyframes=False, second_sampling=False, first_pass_megapixels=0.2,
+                 steps="8", second_sampling=False, first_pass_megapixels=0.2,
                  upscaler_model="none", refine_sigmas=REFINE_SIGMAS,
                  audio_refine=False, audio_refine_steps=3, normalize_audio=False, attention="keep",
                  prompt=None, extra_pnginfo=None,
                  unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False,
                  face_refine=False, face_refine_config=None):
         data = json.loads(data_json)
-        width, height, fps = _validate(data, strict_keyframes)
+        width, height, fps = _validate(data)
         audio_refine = bool(generate_audio and audio_refine)
         normalize_audio = bool(generate_audio and normalize_audio)
         if str(steps) not in ("4", "8"):
@@ -290,7 +289,7 @@ class CAP_H3VideoGenerator:
             notify_timeline(EVENT_CLIP_RUNNING, clip_id=cid, index=index)
             saved, contexts = self._generate_clip(
                 model, base_model, clip, vae, audio_vae, data, index, width, height, low_width, low_height,
-                fps, steps, strict_keyframes, second_sampling, upscaler_model, refine_sigmas,
+                fps, steps, row.get("clip_role") == "first_last", second_sampling, upscaler_model, refine_sigmas,
                 audio_refine, audio_refine_steps, normalize_audio, attention, prior_paths,
                 run_token, dict(records), extra_pnginfo,
                 f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur, face_refine_config)

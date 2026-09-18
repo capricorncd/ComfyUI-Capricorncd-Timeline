@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+const utils = readFileSync(new URL('../js/timeline/utils.js', import.meta.url), 'utf8');
+const normalizePlaybackRate = new Function('clamp', `return ${utils.match(/export const normalizePlaybackRate = ([\s\S]*?);/)[1]}`)(
+    (v, a, b) => Math.max(a, Math.min(b, v)));
 const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
 function method(name) {
     const start = source.indexOf('    ' + name + '(');
-    return new Function('return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '}).' + name)();
+    return new Function('normalizePlaybackRate', 'return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '}).' + name)(normalizePlaybackRate);
 }
 const start = source.indexOf('function normalizeGeneratedVideo(');
-const normalize = new Function('normalizeOutputVideoPath', 'normalizeClipVolume', 'genVideoUid',
-    source.slice(start, source.indexOf('\n}', start) + 2) + ';return normalizeGeneratedVideo;')(file => file, v => v ?? 1, () => 'video');
+const normalize = new Function('normalizeOutputVideoPath', 'normalizeClipVolume', 'genVideoUid', 'normalizePlaybackRate',
+    source.slice(start, source.indexOf('\n}', start) + 2) + ';return normalizeGeneratedVideo;')(file => file, v => v ?? 1, () => 'video', normalizePlaybackRate);
 const row = normalize({ id: 'video', file: 'video.mp4', media_scale: 75, media_offset_x: 12.5, media_offset_y: -20 });
 assert.deepEqual([row.media_scale, row.media_offset_x, row.media_offset_y], [75, 12.5, -20]);
 const restored = normalize(JSON.parse(JSON.stringify(row)));
@@ -46,3 +49,32 @@ const layers = method('_collectGenEditPreviewLayers').call({ _genEditState: { dr
 assert.equal(layers[0].transform, row);
 assert(source.includes('media_scale: v.media_scale ?? 100'));
 console.log('Trim video transform: defaults, persistence, bounds, locked/audio guards and preview coordinates passed');
+
+row.duration_sec = 10;
+row.trim_in_sec = 2;
+row.trim_out_sec = 10;
+row.playback_rate = 2;
+assert.equal(method('_genEffectiveDurationSec')(row), 4);
+assert.equal(normalize(JSON.parse(JSON.stringify(row))).playback_rate, 2);
+clip.startTime = 1;
+clip.duration = 4;
+clip.playbackRate = 2;
+clip._applyPosition = () => {};
+clip.track.clips = [clip];
+app._genEditState.audioMap.clear();
+Object.assign(app._genEditState.timeline, { duration: 12, _refresh() {} });
+Object.assign(app, { genEditSpeed: { value: '0.5' }, genEditSpeedValue: {},
+    _genEditParentDuration: () => 10, _genEditTimelineDuration: () => 18, _syncGenEditOutOfBoundsUI() {} });
+method('_onGenEditSpeedInput').call(app);
+assert.equal(clip.duration, 16);
+assert.equal(clip.playbackRate, 0.5);
+assert.equal(row.trim_in_sec, 2);
+assert.equal(row.trim_out_sec, 10);
+assert.equal(row.playback_rate, 0.5);
+assert.equal(app.genEditSpeedValue.textContent, '0.5×');
+assert.equal(app._genEditState.timeline.duration, 18);
+clip.track.locked = true;
+app.genEditSpeed.value = '4';
+method('_onGenEditSpeedInput').call(app);
+assert.equal(row.playback_rate, 0.5);
+console.log('Trim speed changes duration while preserving source trims and persists across normalization');

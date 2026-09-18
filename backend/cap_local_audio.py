@@ -15,6 +15,7 @@ import folder_paths
 from .cap_bgm_settings import _read
 from .cap_compose_clip_videos import _run_ffmpeg, _probe_duration_sec, _probe_has_audio
 from .audio_envelope import volume_points_filter
+from .media_speed import playback_rate, audio_speed_filter
 from .timecode import _safe_join, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS
 
 
@@ -105,13 +106,14 @@ def prepare_clip_mix(destination, payload, *, channels=1):
         start = float(row.get('edit_start_sec', 0))
         length = float(row.get('duration_sec', 0))
         volume = float(row.get('volume', 1))
+        rate = playback_rate(row.get('playback_rate'))
         if not all(math.isfinite(n) for n in (offset, start, length, volume)) or min(offset, start, volume) < 0 or length <= 0:
             raise ValueError('Invalid clip mix interval or volume.')
         index = len(labels)
         command += ['-i', source]
         envelope = volume_points_filter(row.get('volume_points'), offset)
-        filters.append(f'[{index}:a:0]atrim=start={offset}:duration={length},asetpts=PTS-STARTPTS'
-                       f'{envelope},volume={volume},aresample=48000,adelay={round(start * 1000)}:all=1[a{index}]')
+        filters.append(f'[{index}:a:0]atrim=start={offset}:duration={length * rate},asetpts=PTS-STARTPTS'
+                       f'{envelope},volume={volume}{audio_speed_filter(rate)},aresample=48000,adelay={round(start * 1000)}:all=1[a{index}]')
         labels.append(f'[a{index}]')
     if not labels:
         raise ValueError('The clip has no audible audio sources.')

@@ -6,6 +6,8 @@ import os
 import sys
 
 import torch
+import torchaudio
+import comfy.nested_tensor
 
 import nodes
 from comfy_api.latest._input_impl.video_types import VideoFromFile
@@ -22,6 +24,34 @@ REF_VIDEO_FPS = 24
 REF_VIDEO_MAX_SEC = 15.0
 
 _LOG = logging.getLogger("cap_minimax_h3")
+
+
+def _lock_audio(latent, encoded):
+    video, _ = latent["samples"].unbind()
+    return {**latent,
+            "samples": comfy.nested_tensor.NestedTensor((video, encoded)),
+            "noise_mask": comfy.nested_tensor.NestedTensor((torch.ones_like(video), torch.zeros_like(encoded)))}
+
+
+def _digital_human_audio(latent, source, audio_vae, frame_count, prefix_frames):
+    if source is None:
+        raise ValueError("Digital Human requires an audio clip on the corresponding timeline audio track.")
+    rate = source["sample_rate"]
+    waveform = source["waveform"][:1]
+    prefix = round(prefix_frames / 24 * rate)
+    length = round(frame_count / 24 * rate)
+    waveform = torch.nn.functional.pad(waveform, (prefix, 0))[..., :length]
+    waveform = torch.nn.functional.pad(waveform, (0, length - waveform.shape[-1]))
+    source = {"waveform": waveform, "sample_rate": rate}
+    vae_rate = getattr(audio_vae, "audio_sample_rate", 32000)
+    if rate != vae_rate:
+        waveform = torchaudio.functional.resample(waveform, rate, vae_rate)
+    encoded = audio_vae.encode(waveform.movedim(1, -1))
+    target = latent["samples"].unbind()[1].shape[-1]
+    if encoded.shape[-1] < target:
+        encoded = torch.cat((encoded, encoded[..., -1:].expand(*encoded.shape[:-1], target - encoded.shape[-1])), dim=-1)
+    encoded = encoded[..., :target].clone()
+    return _lock_audio(latent, encoded), source, encoded
 
 
 def _kind_of(row: dict, path: str) -> str:
@@ -236,6 +266,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
         "clip body; previous_output_video in clip_json or data_json+index locates the previous video). "
         "Clip images map to ref_image, videos to ref_video (+ soundtrack), "
         "and clip audios to ref_audio. Frame count and prompt come from the clip. "
+        "Digital Human clips lock source audio in the output latent; keep its noise_mask through sampling. "
+        "The audio output includes context-prefix silence and model-grid padding for synchronized saving. "
         "Also outputs clip stills, video frames, mixed clip audio, and output_video "
         "(CapTimelineEditor-specified save path when enabled). "
         "total_frame_count uses clip_json/data_json fps (Timeline Editor fps), "
@@ -597,6 +629,9 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 )
                 positive, latent = out.args
                 trim_frames = 0
+
+        if clip_row.get("clip_role") == "digital_human":
+            latent, audio_out, _ = _digital_human_audio(latent, audio_out, audio_vae, length, trim_frames)
 
         output_video = str(clip_row.get("output_video") or "").strip().replace("\\", "/")
         save_latent = bool(clip_row.get("save_latent", False))

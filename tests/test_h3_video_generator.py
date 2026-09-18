@@ -1,6 +1,7 @@
 import ast
 import hashlib
 import json
+import logging
 import math
 from pathlib import Path
 import secrets
@@ -37,7 +38,9 @@ class GeneratorTests(unittest.TestCase):
                 data = json.loads(data_json)
                 row = data["clips"][index]
                 owner.prepared.append((width, height, row, kw))
-                return ("positive", "empty", 124, "clip prompt", None, None, None, "",
+                latent = owner.digital_latent if row.get("clip_role") == "digital_human" else "empty"
+                audio = owner.digital_audio if row.get("clip_role") == "digital_human" else None
+                return ("positive", latent, 124, "clip prompt", None, None, audio, "",
                         (row.get("h3_timing") or {}).get("context_frames", 0), row.get("save_latent", False), row["seed"])
 
         class Save:
@@ -86,13 +89,14 @@ class GeneratorTests(unittest.TestCase):
 
     def test_digital_human_locks_both_passes_and_saves_source_audio(self):
         source = {"waveform": "original", "sample_rate": 44100}
-        self.scope["_digital_human_audio"] = Mock(return_value=("locked_first", source, "encoded_source"))
+        self.digital_audio = source
+        self.digital_latent = {"samples": SimpleNamespace(unbind=lambda: ("video", "encoded_source"))}
         self.scope["_lock_audio"] = Mock(return_value="locked_refine")
         self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, "seed": 1,
                              "clip_role": "digital_human"}], second_sampling=True, upscaler_model="upscaler",
                       audio_refine=True, motion_deblur=True, face_refine=True)
         sampled = [kw["latent_image"] for name, kw in self.calls if name == "SamplerCustomAdvanced"]
-        self.assertEqual(sampled, ["locked_first", "locked_refine"])
+        self.assertEqual(sampled, [self.digital_latent, "locked_refine"])
         self.assertIs(self.saved[0][1]["audio"], source)
         names = [name for name, _ in self.calls]
         self.assertNotIn("VAEDecodeAudio", names)
@@ -550,6 +554,21 @@ class StrictKeyframeTests(unittest.TestCase):
         self.prepare([{"file": "first"}])
         self.assertIsNone(self.native.call_args.kwargs["last_frame"])
 
+    def test_standalone_digital_human_returns_locked_latent_and_aligned_audio(self):
+        self.parser._uses_master_audio = lambda *a: True
+        self.parser._clip_audio_from_master = lambda *a: "source_audio"
+        lock = Mock(return_value=("locked_latent", "aligned_source", "encoded"))
+        self.scope["_digital_human_audio"] = lock
+        result = self.prepare([{"file": "portrait"}], strict=False, clip_role="digital_human")
+        self.assertEqual(result[1], "locked_latent")
+        self.assertEqual(result[6], "aligned_source")
+        lock.assert_called_once_with("latent", "source_audio", "audio_vae", result[2], 0)
+        self.assertIn("vocal pauses", result[3])
+
+    def test_standalone_digital_human_rejects_missing_audio(self):
+        with self.assertRaisesRegex(ValueError, "requires an audio clip"):
+            self.prepare([{"file": "portrait"}], strict=False, clip_role="digital_human")
+
     def test_rejects_mixed_refs_empty_refs_and_context(self):
         for images, extra in (([], {}), ([{"file": "v", "kind": "video"}], {}),
                               ([{"file": str(i)} for i in range(3)], {}),
@@ -578,8 +597,8 @@ class DigitalHumanAudioTests(unittest.TestCase):
     def test_waveform_padding_and_audio_lock_preserve_pauses(self):
         import torch
         nested = lambda parts: SimpleNamespace(unbind=lambda: parts)
-        scope = load_definitions("cap_h3_video_generator.py", {
-            "torch": torch, "comfy": SimpleNamespace(nested_tensor=SimpleNamespace(NestedTensor=nested)),
+        scope = load_definitions("cap_minimax_h3.py", {
+            "logging": logging, "torch": torch, "CAP_DataJsonClipParser": object, "comfy": SimpleNamespace(nested_tensor=SimpleNamespace(NestedTensor=nested)),
         })
         video = torch.zeros(1, 24, 2, 2, 2)
         template = torch.zeros(1, 32, 2, 40)
@@ -597,7 +616,7 @@ class DigitalHumanAudioTests(unittest.TestCase):
         self.assertEqual(source["waveform"].shape[-1], 4)
 
     def test_missing_audio_fails_before_encoding(self):
-        scope = load_definitions("cap_h3_video_generator.py", {})
+        scope = load_definitions("cap_minimax_h3.py", {"logging": logging, "CAP_DataJsonClipParser": object, "torch": SimpleNamespace(Tensor=object)})
         with self.assertRaisesRegex(ValueError, "requires an audio clip"):
             scope["_digital_human_audio"]({}, None, None, 124, 0)
 

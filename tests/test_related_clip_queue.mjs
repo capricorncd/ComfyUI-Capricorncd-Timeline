@@ -108,4 +108,27 @@ links.set(3, {target_id: 3, target_slot: 0});
 assert(hasGenerator.call({node: timeline}), 'recognize a generator reached through data routing');
 generator.inputs[0].name = 'model';
 assert(!hasGenerator.call({node: timeline}), 'only the data_json connection owns batch generation');
-console.log('Related clips: one serialized workflow, shared prompt tracking, single/cancel/validation/failure passed');
+const textClip = { id: 'text-only', startTime: 0, track: { type: 'director' } };
+const textMeta = { prompt: '# Shot notes\nSteam rises from a cup.', clipType: 'clip' };
+let textQueued = 0;
+const textTrack = { id: 'director', type: 'director', clips: [textClip] };
+const textEditor = {
+    node: {}, _meta: new Map([[textClip.id, textMeta]]), _trackInfo: new Map(),
+    _isEmptyGroupClip: () => true,
+    _stripPromptComments: method('_stripPromptComments'),
+    _allImageTracks: () => [textTrack],
+    _confirmRelatedClipRun: async () => 'single',
+    _validateClipRunDurations: async () => true,
+    _queueClipsDownstream: async selected => { assert.deepEqual(selected, [textClip]); textQueued++; return true; },
+};
+const activeClips = method('_listActiveVisualClips');
+assert.deepEqual(activeClips.call(textEditor), [textClip], 'batch run includes a prompt-only clip');
+assert.equal(await run.call(textEditor, textClip), true, 'single run queues a prompt-only clip');
+assert.equal(textQueued, 1);
+for (const prompt of ['', '  \n', '# Notes only\n  # No shot']) {
+    textMeta.prompt = prompt;
+    assert.deepEqual(activeClips.call(textEditor), [], 'empty/comment-only clips remain excluded');
+    await run.call(textEditor, textClip);
+    assert.equal(textQueued, 1, 'empty/comment-only clips do not queue');
+}
+console.log('Related clips and prompt-only single/batch queue validation passed');

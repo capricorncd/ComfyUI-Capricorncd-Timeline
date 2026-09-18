@@ -1990,7 +1990,7 @@ export class CapTimelineEditorApp {
                 if (meta.disabled || meta.visible === false || meta.clipType === "audio" || meta.clipType === "subtitle" || meta.clipType === "voiceover") continue;
                 if (isSubtitleClipMeta(meta, track)) continue;
                 // Empty package clips have nothing to generate.
-                if (this._isEmptyGroupClip(meta)) continue;
+                if (this._isEmptyGroupClip(meta) && !this._stripPromptComments(meta.prompt)) continue;
                 if (withoutGenerated && this._clipGeneratedVideos(meta).length) continue;
                 out.push(clip);
             }
@@ -16432,7 +16432,7 @@ export class CapTimelineEditorApp {
         if (isSubtitleTrackType(clip.track?.type) || isSubtitleClipMeta(m, clip.track)) {
             return;
         }
-        if (this._isEmptyGroupClip(m)) return;
+        if (this._isEmptyGroupClip(m) && !this._stripPromptComments(m.prompt)) return;
         const relatedRun = await this._confirmRelatedClipRun(clip);
         if (relatedRun === "cancel") return;
         const clips = Array.isArray(relatedRun) ? relatedRun : [clip];

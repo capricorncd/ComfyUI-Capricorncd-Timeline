@@ -1,5 +1,23 @@
 # Release notes / 更新记录
 
+## 0.17.20 — 2026-09-19
+
+### English
+
+- Add digital human Clips and preserve source audio in MiniMax H3 lip-sync generation.
+- Fix text-only Clip queueing and restore H3 progress and previews after switching workflows.
+- Add audio playback in Clip resource previews and make preview labels less prominent.
+- Use shared menus with icons, shortcut labels and grouped actions.
+- Highlight tracks when hovering their headers and add undoable removal of gaps between Clips.
+
+### 简体中文
+
+- 新增数字人 Clip，MiniMax H3 对口型生成保留原始音频。
+- 修复纯文本 Clip 无法进入队列，以及切换工作流后 H3 进度和预览丢失的问题。
+- Clip 素材预览支持音频播放，降低预览标签的视觉干扰。
+- 使用共享菜单组件，统一图标、快捷键标注和操作分组。
+- 悬停轨道头时高亮轨道，新增可撤销的 Clip 间隙移除操作。
+
 ## 0.17.19 — 2026-09-18
 
 ### English

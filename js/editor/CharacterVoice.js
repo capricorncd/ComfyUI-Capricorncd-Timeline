@@ -9,7 +9,6 @@ export class CharacterVoice {
           <span>${T("voice_reference")}</span>
           <select aria-label="${T("voice_reference")}"></select>
           <div class="cat-te-model-preview-config-actions">
-            <cap-button  class="" data-voice-action="bind">${T("voice_bind")}</cap-button>
             <cap-button  class="" data-voice-action="import">${T("voice_import")}</cap-button>
             <cap-button  class="" data-voice-action="unbind">${T("voice_unbind")}</cap-button>
           </div>
@@ -20,7 +19,7 @@ export class CharacterVoice {
         this.audio = host.querySelector("audio");
         this.status = host.querySelector('[role="status"]');
         const button = action => host.querySelector(`[data-voice-action="${action}"]`);
-        button("bind").addEventListener("click", () => {
+        this.select.addEventListener("change", () => {
             const row = this.current();
             const file = this.select.value;
             if (!row || !file) return;
@@ -84,6 +83,7 @@ export class CharacterVoice {
         this.select.replaceChildren();
         const empty = document.createElement("option");
         empty.value = "";
+        empty.disabled = true;
         empty.textContent = T("voice_choose_audio");
         this.select.append(empty);
         const files = new Set([...this.app._audioFiles, ...this.app._projectResources.filter(r => r.kind === "audio").map(r => r.file)]);

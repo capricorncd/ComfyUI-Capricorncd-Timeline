@@ -17469,6 +17469,7 @@ export class CapTimelineEditorApp {
                 },
                 { label: T("shortcuts_title"), fn: () => this.shortcutsDialog.showModal() },
                 { label: T("new_project"), disabled: !this._canCreateProject(), fn: () => void this._newProject() },
+                { label: "GitHub", fn: () => window.open("https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline", "_blank", "noopener,noreferrer") },
             ], rect.left, rect.bottom + 4, { ignoreNextClick: false });
         });
         tl.toolbarEl.appendChild(moreBtn);

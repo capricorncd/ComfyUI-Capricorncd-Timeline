@@ -3952,3 +3952,10 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-insert-duration { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .cat-te-insert-duration input { width: 65px; }
 .cat-te-insert-clip-dialog p { color: var(--cat-muted); font-size: 12px; }
+
+/* Highlight the row while hovering anywhere in its track header. */
+.cat-te-overlay .tl-track.cat-te-track-header-hover,
+.cat-te-overlay .tl-track-header:hover {
+    box-shadow: inset 0 0 0 1px var(--track-color);
+    background-color: color-mix(in srgb, var(--track-color) 16%, var(--cat-bg, #151d21));
+}

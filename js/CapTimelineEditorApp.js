@@ -1742,10 +1742,15 @@ export class CapTimelineEditorApp {
             label: track.name || T("generic_track_name"), icon: "pencil",
             trackName: true,
             fn: () => this._openTrackRenameModal(track),
-        }, {
+        }, { separator: true }, {
             label: T("track_color_menu"), icon: "image",
             fn: () => this._openTrackColorModal(track),
         }];
+        items.push({
+            label: T("remove_track_gaps"), icon: "scissors",
+            disabled: !!track.locked || track.clips.length < 2,
+            fn: () => this._removeTrackGaps(track),
+        });
         if (isSubtitleTrackType(track.type)) items.push({ label: T('speech_convert'), disabled: track.locked || !track.clips.length,
             fn: () => this._openLocalSubtitleSpeech(track.clips) });
         for (const [direction, label] of [[-1, "move_up_title"], [1, "move_down_title"]]) {
@@ -1774,6 +1779,31 @@ export class CapTimelineEditorApp {
         menu.dataset.trackTypeMenu = "1";
         menu.addEventListener("mouseenter", () => clearTimeout(this._trackTypeMenuHideTimer));
         menu.addEventListener("mouseleave", () => this._scheduleTrackTypeMenuHide());
+    }
+
+    _removeTrackGaps(track) {
+        if (!track || track.locked || !this._timeline?.tracks.includes(track)) return;
+        const clips = [...track.clips].sort((a, b) => a.startTime - b.startTime);
+        if (clips.length < 2) return;
+        const changes = [];
+        let end = clips[0].endTime;
+        let shift = 0;
+        for (const clip of clips.slice(1)) {
+            const start = clip.startTime - shift;
+            if (start > end) shift += start - end;
+            const nextStart = clip.startTime - shift;
+            if (Math.abs(nextStart - clip.startTime) > 1e-6) changes.push({ clip, start: nextStart });
+            end = Math.max(end, nextStart + clip.duration);
+        }
+        if (!changes.length) return;
+        this._recordUndo();
+        for (const { clip, start } of changes) clip.startTime = start;
+        this._timeline._refresh();
+        this._refreshTimelineDuration();
+        this._syncSelectedClip();
+        this._saveToWidgets();
+        this._scheduleProgramPreview();
+        if (this._timeline._playing) this._startAudioPlayback();
     }
 
     _scheduleTrackTypeMenuHide() {
@@ -5906,7 +5936,16 @@ export class CapTimelineEditorApp {
         return btn;
     }
 
+    _setupTrackHeaderHover(track) {
+        const header = track.headerEl;
+        if (!header || header.dataset.catTeHoverBound) return;
+        header.dataset.catTeHoverBound = "1";
+        header.addEventListener("mouseenter", () => track.el.classList.add("cat-te-track-header-hover"));
+        header.addEventListener("mouseleave", () => track.el.classList.remove("cat-te-track-header-hover"));
+    }
+
     _setupTrackControls(track) {
+        this._setupTrackHeaderHover(track);
         const icon = track.headerEl?.querySelector(".tl-track-icon");
         if (icon && !icon.dataset.catTeTypeMenuBound) {
             icon.dataset.catTeTypeMenuBound = "1";
@@ -9291,6 +9330,7 @@ export class CapTimelineEditorApp {
     }
 
     _setupGenEditTrackDeleteMenu(track) {
+        this._setupTrackHeaderHover(track);
         const show = (anchor, event) => {
             event?.preventDefault();
             event?.stopPropagation();
@@ -16004,7 +16044,7 @@ export class CapTimelineEditorApp {
     _dismissContextMenuOutside(e) {
         const menu = this._overlay?.querySelector(".cat-te-ctx-menu");
         if (menu && !menu.contains(e.target)) {
-            menu.remove();
+            this._removeCtxMenu();
             this._ignoreCtxCloseOnce = false;
         }
     }

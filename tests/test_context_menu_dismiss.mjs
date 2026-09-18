@@ -7,7 +7,7 @@ const dismiss = new Function(`return ({${source.slice(start, end)}})._dismissCon
 const item = {};
 let visible = true;
 const menu = { contains: target => target === item, remove() { visible = false; } };
-const app = { _overlay: { querySelector: () => visible ? menu : null }, _ignoreCtxCloseOnce: true };
+const app = { _overlay: { querySelector: () => visible ? menu : null }, _ignoreCtxCloseOnce: true, _removeCtxMenu: () => menu.remove() };
 dismiss.call(app, { target: item });
 assert(visible, 'menu items must still receive their click');
 dismiss.call(app, { target: {} });

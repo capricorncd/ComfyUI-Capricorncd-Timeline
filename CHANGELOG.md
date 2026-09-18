@@ -1,5 +1,21 @@
 # Release notes / 更新记录
 
+## 0.17.21 — 2026-09-19
+
+### English
+
+- Fix invisible audio playback controls in the asset preview dialog.
+- Bind character reference audio immediately on selection and add an optional character language setting.
+- Preselect the bound character's audio and language for subtitle speech generation.
+- Select exported files and bring their Explorer window to the foreground on Windows.
+
+### 简体中文
+
+- 修复素材预览弹窗中音频播放控件不可见的问题。
+- 角色参考音频选中即绑定，新增可留空的角色语言设置。
+- 字幕转音频自动选中所绑定角色的参考音频和语言。
+- Windows 下打开导出文件夹时自动选中文件，并将对应资源管理器窗口前置。
+
 ## 0.17.20 — 2026-09-19
 
 ### English

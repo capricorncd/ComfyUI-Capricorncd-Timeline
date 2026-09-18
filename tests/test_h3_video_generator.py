@@ -489,6 +489,12 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual([u["phase"] for u in updates], ["prepare", "sample", "decode", "save", "done"])
         self.assertEqual([u["percent"] for u in updates], [0, 25, 50, 75, 100])
 
+    def test_generator_events_include_workflow_identity(self):
+        self.run_node(extra_pnginfo={"workflow": {"id": "workflow-a"}})
+        updates = [data for name, data, _ in self.events if name in ("cat_h3_progress", "cat_h3_video_ready")]
+        self.assertTrue(updates)
+        self.assertTrue(all(data["workflow_id"] == "workflow-a" for data in updates))
+
     def test_compose_preserves_timing_and_explicit_disabled_run_scope(self):
         row = {"id": "a", "start_ms": 0, "end_ms": 5000, "enabled": False,
                "h3_timing": {"context_frames": 0, "raw_frames": 124, "tail_frames": 4},

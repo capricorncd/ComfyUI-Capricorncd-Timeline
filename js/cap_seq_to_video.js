@@ -11,6 +11,39 @@ const PLAYER_H       = 200;  // placeholder / initial height in px
 const PLAYER_MARGIN  = 10;   // ComfyUI DOM widget inset on each side
 const MIN_NODE_WIDTH = 300;  // px
 
+// Session-only state survives graph replacement; keep only the latest frame per node.
+const generatorStates = new Map();
+function generatorState(data) {
+    if (!data?.workflow_id || data.node_id == null) return null;
+    const key = `${data.workflow_id}/${data.node_id}`;
+    let state = generatorStates.get(key);
+    if (!state || (data.prompt_id && state.promptId !== data.prompt_id)) {
+        state = { workflowId: data.workflow_id, nodeId: data.node_id, promptId: data.prompt_id };
+    }
+    generatorStates.delete(key);
+    generatorStates.set(key, state);
+    if (generatorStates.size > 16) generatorStates.delete(generatorStates.keys().next().value);
+    return state;
+}
+
+function activeGenerator(state) {
+    const graph = app.rootGraph ?? app.graph;
+    return state && graph?.id === state.workflowId ? findGeneratorVideoNode(graph, state.nodeId) : null;
+}
+
+function restoreGenerator(node) {
+    for (const state of generatorStates.values()) {
+        if (activeGenerator(state) !== node) continue;
+        showGeneratorProgress(node, state.progress);
+        if (state.preview) {
+            startSamplingPreview(node, state.preview);
+            if (state.frame) node._stvSampling?.update(state.frame);
+        } else if (state.video) showVideo(node, state.video);
+        return true;
+    }
+    return false;
+}
+
 function loadCss() {
     loadExtensionCss("cap_seq_to_video.css", "stv-styles");
 }
@@ -46,7 +79,11 @@ function showVideo(node, info) {
 api.addEventListener("cat_h3_video_ready", event => {
     const data = event.detail;
     if (!data?.video) return;
-    showVideo(findGeneratorVideoNode(app.rootGraph ?? app.graph, data.node_id), data.video);
+    const state = generatorState(data);
+    if (!state) return;
+    state.video = data.video;
+    state.preview = state.frame = null;
+    showVideo(activeGenerator(state), data.video);
 });
 
 function showGeneratorProgress(node, data) {
@@ -60,7 +97,10 @@ function showGeneratorProgress(node, data) {
 
 api.addEventListener("cat_h3_progress", event => {
     const data = event.detail;
-    showGeneratorProgress(findGeneratorVideoNode(app.rootGraph ?? app.graph, data?.node_id), data);
+    const state = generatorState(data);
+    if (!state) return;
+    state.progress = data;
+    showGeneratorProgress(activeGenerator(state), data);
 });
 
 function clearSamplingPreview(node) {
@@ -70,10 +110,9 @@ function clearSamplingPreview(node) {
     node._stvSamplingId = null;
 }
 
-api.addEventListener("cat_h3_preview_started", event => {
-    const data = event.detail;
-    const node = findGeneratorVideoNode(app.rootGraph ?? app.graph, data?.node_id);
+function startSamplingPreview(node, data) {
     if (!node?._stvRoot || !data.preview_id) return;
+    if (node._stvSamplingId === data.preview_id) return;
     clearSamplingPreview(node);
     node._stvVideo?.pause();
     node._stvVideo?.removeAttribute("src");
@@ -88,6 +127,15 @@ api.addEventListener("cat_h3_preview_started", event => {
     node._stvSampling.root.style.width = "100%";
     node._stvRoot.classList.add("stv-loaded");
     node._stvRoot.appendChild(node._stvSampling.root);
+}
+
+api.addEventListener("cat_h3_preview_started", event => {
+    const data = event.detail;
+    const state = generatorState(data);
+    if (!state) return;
+    state.preview = data;
+    state.frame = state.video = null;
+    startSamplingPreview(activeGenerator(state), data);
 });
 
 api.addEventListener("kj_preview_override", event => {
@@ -95,9 +143,14 @@ api.addEventListener("kj_preview_override", event => {
     const id = String(data?.node_id ?? "");
     const separator = id.indexOf("::h3:");
     if (separator < 0) return;
-    const node = findGeneratorVideoNode(app.rootGraph ?? app.graph, id.slice(0, separator));
     // Ignore late encodes from a completed Clip or an earlier execution.
-    if (node?._stvSamplingId === id) node._stvSampling.update(data);
+    for (const state of generatorStates.values()) {
+        if (state.preview?.preview_id !== id) continue;
+        if (typeof data.image === "string") state.frame = data;
+        const node = activeGenerator(state);
+        if (node?._stvSamplingId === id) node._stvSampling.update(data);
+        break;
+    }
 });
 
 function clampWidth(size) {
@@ -176,9 +229,10 @@ app.registerExtension({
                 const url = videoUrl(vi);
                 this._stvCurrent = url;
                 requestAnimationFrame(() => {
-                    if (this._stvRoot && !this._stvVideo) _loadVideo(this, url);
+                    if (this._stvRoot && !this._stvVideo && !this._stvSampling && this._stvCurrent === url) _loadVideo(this, url);
                 });
             }
+            if (this._stvClickToPause) requestAnimationFrame(() => restoreGenerator(this));
         };
 
         // Persist last video info in workflow JSON
@@ -224,6 +278,7 @@ app.registerExtension({
         const onExecuted = nodeType.prototype.onExecuted;
         nodeType.prototype.onExecuted = function (output) {
             onExecuted?.apply(this, arguments);
+            if (this._stvClickToPause && restoreGenerator(this)) return;
             // Prefer custom "video" payload; also accept core PreviewVideo shape
             // (images + animated) so previews still work across frontend versions.
             const info = output?.video?.[0]
@@ -238,6 +293,9 @@ app.registerExtension({
             _destroyPlayer(this);
             onRemoved?.apply(this, arguments);
         };
+    },
+    loadedGraphNode(node) {
+        if (node.comfyClass === "CAP_H3VideoGenerator") requestAnimationFrame(() => restoreGenerator(node));
     },
 });
 

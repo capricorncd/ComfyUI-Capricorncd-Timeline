@@ -251,6 +251,7 @@ class CAP_H3VideoGenerator:
                 width, height, min(first_pass_megapixels, width * height / 1048576), 32)
 
         paths, videos, context_paths = [], [], {}
+        workflow_id = (extra_pnginfo or {}).get("workflow", {}).get("id")
         run_token = secrets.token_hex(8)
         display_id = dynprompt.get_display_node_id(unique_id) if dynprompt is not None else unique_id
         phases = ["prepare", "sample"]
@@ -274,7 +275,7 @@ class CAP_H3VideoGenerator:
                 units = clip_total * len(phases)
             else:
                 units = index * len(phases) + phases.index(phase)
-            info = dict(node_id=display_id, clip_index=index + 1,
+            info = dict(node_id=display_id, workflow_id=workflow_id, clip_index=index + 1,
                         clip_total=clip_total, phase=phase, percent=math.floor(100 * units / total_units))
             notify_timeline("cat_h3_progress", **info)
             return info
@@ -306,7 +307,7 @@ class CAP_H3VideoGenerator:
             paths.append(filename)
             info = {**saved["ui"]["video"][0], "preview_key": f"{run_token}_{index}", "clip_id": cid}
             videos.append(info)
-            notify_timeline("cat_h3_video_ready", node_id=display_id, video=info)
+            notify_timeline("cat_h3_video_ready", node_id=display_id, workflow_id=workflow_id, video=info)
             if contexts:
                 context_paths[cid] = contexts
         preview = videos[-1]
@@ -324,7 +325,7 @@ class CAP_H3VideoGenerator:
             )
             composed_video = composed["result"][0]
             preview = {**composed["ui"]["video"][0], "preview_key": f"{run_token}_final"}
-            notify_timeline("cat_h3_video_ready", node_id=display_id, video=preview)
+            notify_timeline("cat_h3_video_ready", node_id=display_id, workflow_id=workflow_id, video=preview)
         return {"ui": {"video": [preview], "clip_videos": videos, "h3_progress": [progress("done")]},
                 "result": (paths, json.dumps(data, ensure_ascii=False), composed_video)}
 
@@ -364,7 +365,8 @@ class CAP_H3VideoGenerator:
             model, = CAP_ModelPreviewOverride().patch(
                 model, 1024, 80, True, frame_count, max(1, min(60, round(fps))),
                 tiny_vae=preview_tiny_vae, unique_id=preview_id)
-            notify_timeline("cat_h3_preview_started", node_id=preview_id.split("::h3:")[0], preview_id=preview_id, clip_id=cid)
+            notify_timeline("cat_h3_preview_started", node_id=preview_id.split("::h3:")[0],
+                            workflow_id=(extra_pnginfo or {}).get("workflow", {}).get("id"), preview_id=preview_id, clip_id=cid)
         records["h3_clip_prompt"] = {"class_type": "MiniMaxH3ImageToVideo" if strict_keyframes else "MiniMaxH3ReferenceToVideo",
                                    "inputs": {"prompt": composed_prompt, "width": low_width, "height": low_height, "length": frame_count}}
         noise, = _call("RandomNoise", records, noise_seed=seed)

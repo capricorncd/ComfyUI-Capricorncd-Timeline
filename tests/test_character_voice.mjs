@@ -49,3 +49,18 @@ row.voice_audio_id='missing';ui.refresh();
 assert.equal(ui.status.textContent,'voice_reference_missing');
 assert.equal(ui.audio.hidden,true);
 console.log('Character voice binding, unbinding, audition source, missing reference and undo checks passed.');
+
+row.voice_audio_id = 'voice';
+ui.refresh();
+assert.equal(ui.language.value, '');
+ui.language.value = 'Chinese';
+ui.language.handlers.change();
+assert.equal(row.voice_language, 'Chinese');
+ui.refresh();
+assert.equal(ui.language.value, 'Chinese');
+ui.language.value = '';
+ui.language.handlers.change();
+assert.equal(row.voice_language, undefined);
+assert.equal(app.undo, 5);
+assert.equal(app.saved, 5);
+console.log('Character language: empty default, immediate save, restoration and clearing passed');

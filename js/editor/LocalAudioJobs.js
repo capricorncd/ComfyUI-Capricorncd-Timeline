@@ -116,7 +116,7 @@ export class LocalAudioJobs {
             this.dialog.querySelector('[data-style]').parentElement.hidden = true;
             this.dialog.querySelector('[data-duration]').parentElement.hidden = true;
             const language = this.dialog.querySelector('[data-language]');
-            language.value = defaults.language || 'Auto';
+            language.value = speech.language || defaults.language || 'Auto';
             if (!language.value) language.value = 'Auto';
             language.onchange = () => remember({ language: language.value });
         }
@@ -172,8 +172,9 @@ export class LocalAudioJobs {
                 option.title = row.file;
                 reference.append(option);
             }
-            reference.value = resources.some(row => (row.kind === 'audio' || row.kind === 'video') && row.file === defaults.reference)
-                ? defaults.reference : '';
+            const initialReference = speech?.reference || defaults.reference;
+            reference.value = resources.some(row => (row.kind === 'audio' || row.kind === 'video') && row.file === initialReference)
+                ? initialReference : '';
             reference.onchange = () => {
                 this.stopPreview();
                 const row = resources.find(row => row.file === reference.value);

@@ -132,7 +132,7 @@ console.log('SFX prompt editing/binding and two-speaker insertion passed');
 const subtitles = [{ id: 'late', startTime: 7, track: {} }, { id: 'early', startTime: 2, track: {} }];
 const subtitleMeta = { late: { text: 'Second\nline' }, early: { text: 'First' } };
 let speechArgs;
-const speechApp = { _ensureClipMeta: clip => subtitleMeta[clip.id], _findClipById: id => subtitles.find(clip => clip.id === id),
+const speechApp = { _findMediaById: () => null, _ensureClipMeta: clip => subtitleMeta[clip.id], _findClipById: id => subtitles.find(clip => clip.id === id),
     _localAudioJobs: { open: (...args) => { speechArgs = args; } } };
 method('_openLocalSubtitleSpeech').call(speechApp, subtitles);
 assert.equal(speechArgs[2], 'tts');
@@ -141,6 +141,18 @@ assert.equal(speechArgs[3].start, 2);
 assert(speechArgs[3].valid());
 subtitleMeta.late.text = 'Changed';
 assert.equal(speechArgs[3].valid(), false);
+const character = { id: 'character', voice_audio_id: 'reference', voice_language: 'Chinese' };
+speechApp._findMediaById = id => id === 'character' ? character : id === 'reference' ? { kind: 'audio', file: 'character.wav' } : null;
+subtitleMeta.early.characterMediaId = 'character';
+subtitleMeta.late.characterMediaId = 'character';
+method('_openLocalSubtitleSpeech').call(speechApp, subtitles);
+assert.equal(speechArgs[3].reference, 'character.wav');
+assert.equal(speechArgs[3].language, 'Chinese');
+subtitleMeta.late.characterMediaId = 'other';
+assert.equal(speechArgs[3].valid(), false);
+method('_openLocalSubtitleSpeech').call(speechApp, subtitles);
+assert.equal(speechArgs[3].reference, '', 'Do not apply one character to a mixed-character selection');
+
 
 for (const kind of ['tts', 'vc']) {
     const target = { id: 'target', track: {}, duration: 2 };
@@ -291,6 +303,16 @@ console.log('Reference clip titles, original file submission and visible failure
     restoredPreview.onloadedmetadata();
     assert.equal(restoredRange.startFrame, 0, 'Discard trim whose start is outside the recording');
     assert.equal(restoredRange.endFrame, 1000);
+    application._projectResources.push({ kind: 'audio', file: 'character.wav' });
+    speech.reference = 'character.wav';
+    speech.language = 'Japanese';
+    dialog = await open();
+    assert.equal(dialog.querySelector('[data-reference]').value, 'character.wav');
+    assert.equal(dialog.querySelector('[data-language]').value, 'Japanese');
+    assert.equal(dialog.querySelector('[data-reference-preview]').src, '/audio/character.wav');
+    assert.equal(dialog.querySelector('[data-voice]').disabled, true);
+    delete speech.reference;
+    delete speech.language;
     application._projectResources = [];
     dialog = await open();
     assert.equal(dialog.querySelector('[data-reference]').value, '');

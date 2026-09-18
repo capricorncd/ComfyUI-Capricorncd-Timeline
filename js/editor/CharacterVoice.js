@@ -13,9 +13,22 @@ export class CharacterVoice {
             <cap-button  class="" data-voice-action="unbind">${T("voice_unbind")}</cap-button>
           </div>
           <audio controls preload="none" hidden></audio>
+          <label>${T("local_voice_language")}<select data-voice-language>
+            <option value="">${T("not_set_option")}</option>
+            ${['Auto','Chinese','English','Japanese','Korean','German','French','Russian','Portuguese','Spanish','Italian'].map(language => `<option>${language}</option>`).join('')}
+          </select></label>
           <div class="cat-te-agent-note" role="status"></div>
           <input type="file" accept="audio/*,.wav,.mp3,.flac,.ogg,.m4a" hidden />`;
         this.select = host.querySelector("select");
+        this.language = host.querySelector('[data-voice-language]');
+        this.language.addEventListener("change", () => {
+            const row = this.current();
+            if (!row || (row.voice_language || "") === this.language.value) return;
+            this.app._recordUndo();
+            if (this.language.value) row.voice_language = this.language.value;
+            else delete row.voice_language;
+            this.app._saveToWidgets();
+        });
         this.audio = host.querySelector("audio");
         this.status = host.querySelector('[role="status"]');
         const button = action => host.querySelector(`[data-voice-action="${action}"]`);
@@ -94,6 +107,7 @@ export class CharacterVoice {
             this.select.append(option);
         }
         this.select.value = valid ? reference.file : "";
+        this.language.value = row.voice_language || "";
         this.host.querySelector('[data-voice-action="unbind"]').disabled = !row.voice_audio_id;
         this.audio.hidden = !valid;
         if (valid) this.audio.src = this.app._audioUrl(reference.file);

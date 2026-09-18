@@ -1519,12 +1519,19 @@ export class CapTimelineEditorApp {
     _openLocalSubtitleSpeech(clips) {
         const ordered = [...clips].sort((a, b) => a.startTime - b.startTime);
         if (!ordered.length || ordered.some(clip => clip.track.locked)) return;
-        const rows = ordered.map(clip => ({ clip, start: clip.startTime, text: this._ensureClipMeta(clip).text || '' }));
+        const rows = ordered.map(clip => ({ clip, start: clip.startTime, text: this._ensureClipMeta(clip).text || '',
+            characterId: this._ensureClipMeta(clip).characterMediaId || '' }));
+        const character = rows.every(row => row.characterId === rows[0].characterId)
+            ? this._findMediaById(rows[0].characterId) : null;
+        const reference = this._findMediaById(character?.voice_audio_id);
         this._localAudioJobs.open(ordered[0], null, 'tts', {
+            reference: reference?.kind === 'audio' ? reference.file : '',
+            language: character?.voice_language || '',
             text: rows.map(row => row.text.replace(/\r?\n/g, ' ')).join('\n'),
             start: ordered[0].startTime,
             valid: () => rows.every(row => this._findClipById(row.clip.id) === row.clip && !row.clip.track.locked
-                && row.clip.startTime === row.start && (this._ensureClipMeta(row.clip).text || '') === row.text),
+                && row.clip.startTime === row.start && (this._ensureClipMeta(row.clip).text || '') === row.text
+                && (this._ensureClipMeta(row.clip).characterMediaId || '') === row.characterId),
         });
     }
 
@@ -6153,6 +6160,7 @@ export class CapTimelineEditorApp {
                 setting_description: String(row.setting_description || ""),
                 media_type: String(row.media_type || "").trim(),
                 ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
+                ...(row.voice_language ? { voice_language: String(row.voice_language) } : {}),
                 tags: Array.isArray(row.tags) ? row.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
             };
             const stars = Number(row.stars);
@@ -6251,6 +6259,7 @@ export class CapTimelineEditorApp {
                 setting_description: String(row.setting_description || row.settingDescription || local.settingDescription || ""),
                 media_type: String(row.media_type || row.mediaType || local.mediaType || "").trim(),
                 ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
+                ...(row.voice_language ? { voice_language: String(row.voice_language) } : {}),
                 tags: tags.map((t) => String(t || "").trim()).filter(Boolean),
             };
             const stars = Number(row.stars ?? local.stars);

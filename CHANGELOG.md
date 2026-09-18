@@ -1,5 +1,23 @@
 # Release notes / 更新记录
 
+## 0.17.19 — 2026-09-18
+
+### English
+
+- Add individual audio/video Clip export and video scale and position controls in Trim Video.
+- Add reference-audio preview and trimming for text-to-audio; remember voice, language and reference selection.
+- Improve audio waveforms, volume controls, splitting and clipboard placement on available tracks.
+- Separate director Clip audio as a complete mix; fix mute-state and renamed audio-title persistence.
+- Wrap long filenames in delete dialogs and add a GitHub link to the timeline menu.
+
+### 简体中文
+
+- 新增音频、视频 Clip 单独导出，以及视频修剪中的缩放和位置偏移控制。
+- 文本转音频支持参考音频试听和裁剪，并记住音色、语言及参考音频选择。
+- 改善音频波形、音量控制、分割及空闲轨道上的复制粘贴。
+- 导演 Clip 分离音频时导出完整混音；修复静音状态和音频重命名标题的保存与恢复。
+- 删除弹窗中的长文件名自动换行，时间轴更多菜单新增 GitHub 链接。
+
 ## 0.17.18 — 2026-09-17
 
 ### English

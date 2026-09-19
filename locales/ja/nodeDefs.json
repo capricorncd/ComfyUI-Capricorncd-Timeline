@@ -688,7 +688,9 @@
   "CAP_H3VideoGenerator": {
     "display_name": "MiniMax H3 動画生成",
     "outputs": {
-      "composed_video": { "name": "結合動画" }
+      "composed_video": {
+        "name": "結合動画"
+      }
     },
     "inputs": {
       "face_refine": {
@@ -737,6 +739,12 @@
       "strict_keyframes": {
         "name": "開始・終了フレームを固定",
         "tooltip": "オフ：複数画像・動画・音声の参照生成。オン：画像1枚を開始、2枚を開始・終了フレームの条件として使用。画素の完全一致は保証しません。動画・音声参照や Motion Context との併用不可。対応する FL モデルと LoRA を選択してください。"
+      },
+      "sampling_mode": {
+        "name": "サンプリングモード"
+      },
+      "selflift_config": {
+        "name": "SelfLift 設定"
       }
     }
   },
@@ -863,27 +871,65 @@
   "CAP_TimelinePreview": {
     "display_name": "タイムラインプレビュー生成",
     "inputs": {
-      "model": { "name": "MiniMax H3 モデル" },
-      "clip": { "name": "MiniMax H3 CLIP" },
-      "video_vae": { "name": "映像 VAE" },
-      "audio_vae": { "name": "音声 VAE" },
-      "project_json": { "name": "プロジェクト JSON" },
-      "clip_id": { "name": "Clip ID" },
-      "width": { "name": "幅（0 = プロジェクト）" },
-      "height": { "name": "高さ（0 = プロジェクト）" },
-      "steps": { "name": "ステップ数" },
-      "seed": { "name": "シード（-1 = Clip/ランダム）" },
-      "ref_image_size": { "name": "参照画像サイズ" },
-      "shift_video": { "name": "映像 Shift" },
-      "shift_audio": { "name": "音声 Shift" }
+      "model": {
+        "name": "MiniMax H3 モデル"
+      },
+      "clip": {
+        "name": "MiniMax H3 CLIP"
+      },
+      "video_vae": {
+        "name": "映像 VAE"
+      },
+      "audio_vae": {
+        "name": "音声 VAE"
+      },
+      "project_json": {
+        "name": "プロジェクト JSON"
+      },
+      "clip_id": {
+        "name": "Clip ID"
+      },
+      "width": {
+        "name": "幅（0 = プロジェクト）"
+      },
+      "height": {
+        "name": "高さ（0 = プロジェクト）"
+      },
+      "steps": {
+        "name": "ステップ数"
+      },
+      "seed": {
+        "name": "シード（-1 = Clip/ランダム）"
+      },
+      "ref_image_size": {
+        "name": "参照画像サイズ"
+      },
+      "shift_video": {
+        "name": "映像 Shift"
+      },
+      "shift_audio": {
+        "name": "音声 Shift"
+      }
     },
     "outputs": {
-      "preview_video": { "name": "プレビュー動画（メモリ）" },
-      "frames": { "name": "フレーム" },
-      "audio": { "name": "音声" },
-      "prompt": { "name": "最終プロンプト" },
-      "seed": { "name": "使用シード" },
-      "clip_id": { "name": "Clip ID" }
+      "preview_video": {
+        "name": "プレビュー動画（メモリ）"
+      },
+      "frames": {
+        "name": "フレーム"
+      },
+      "audio": {
+        "name": "音声"
+      },
+      "prompt": {
+        "name": "最終プロンプト"
+      },
+      "seed": {
+        "name": "使用シード"
+      },
+      "clip_id": {
+        "name": "Clip ID"
+      }
     }
   },
   "CAP_H3MotionContextSaveLatentOptional": {
@@ -911,5 +957,33 @@
         "name": "Latent"
       }
     }
+  },
+  "CAP_H3SelfLiftConfig": {
+    "display_name": "H3 SelfLift 設定",
+    "inputs": {
+      "transition_step": {
+        "name": "低解像度ステップ数",
+        "tooltip": "低解像度ステップ数はメインノードの総ステップ数未満にしてください。4 ステップでは 3（低解像度 3 + 高解像度 1、有効範囲 1–3）、8 ステップでは 6（低解像度 6 + 高解像度 2、有効範囲 1–7）に設定します。総ステップ数を変更したら、この値と対応する 4/8 ステップ LoRA も変更してください。自動では切り替わりません。"
+      },
+      "lowres_scale": {
+        "name": "低解像度倍率"
+      },
+      "scheduler": {
+        "name": "スケジューラー"
+      },
+      "upscaler_model": {
+        "name": "拡大モデル"
+      },
+      "rho": {
+        "name": "補正比率"
+      },
+      "w_min": {
+        "name": "最小補正重み"
+      },
+      "w_max": {
+        "name": "最大補正重み"
+      }
+    },
+    "description": "実験的な SelfLift 設定。MiniMax H3 Video Generator に接続し、selflift モードを選択してください。低解像度ステップ数はメインノードの総ステップ数未満にしてください。4 ステップでは 3（低解像度 3 + 高解像度 1、有効範囲 1–3）、8 ステップでは 6（低解像度 6 + 高解像度 2、有効範囲 1–7）に設定します。総ステップ数を変更したら、この値と対応する 4/8 ステップ LoRA も変更してください。自動では切り替わりません。"
   }
 }

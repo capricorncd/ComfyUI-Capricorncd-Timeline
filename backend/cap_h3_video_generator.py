@@ -22,6 +22,7 @@ from .cap_te_notify import EVENT_CLIP_RUNNING, notify_timeline
 from .cap_video_metadata import execution_graph
 from .h3_timing import timing_filename
 from .cap_h3_face_refine import FACE_NODES, validate_face_config
+from .cap_h3_selflift import validate_selflift_config
 
 
 REFINE_SIGMAS = "0.9035, 0.8000, 0.6316, 0.3158, 0.0000"
@@ -116,7 +117,7 @@ class CAP_H3VideoGenerator:
         "Digital Human clips lock timeline audio through both sampling passes and save the source track. "
         "Audio repair, motion deblur and face refinement are skipped for Digital Human clips to protect lip sync. "
         "Reference mode also permits FL models but does not force endpoints. "
-        "First sampling always runs the full selected 4/8-step schedule. Refine uses its own explicit sigmas. "
+        "Standard sampling runs the full selected 4/8-step schedule; refine uses explicit sigmas. SelfLift uses a connected H3 SelfLift Config for progressive resolution sampling instead. "
         "motion_deblur defaults to false; requires MAINodes and a separate base_model without acceleration LoRA. "
         "It adds a base-model repair pass, preserves playback length and original audio, and costs extra memory/time. "
         "Run connected Save Latent clips together; high/low contexts are matched by source Clip ID, not newest file. "
@@ -156,6 +157,8 @@ class CAP_H3VideoGenerator:
                 "motion_deblur": ("BOOLEAN", {"default": False, "tooltip": "Experimental MAINodes motion repair after video sampling. Requires ComfyUI-MAINodes and base_model without acceleration LoRA. Extra sampling/encode/decode increases time and memory; motion details may change. Keeps original frame count, audio and context prefix."}),
                 "face_refine": ("BOOLEAN", {"default": False, "tooltip": "Refine one tracked face after motion deblur. Requires H3-FaceRefine and a connected H3 Face Refine Config. Uses the sampling model and its 4/8-step LoRA. Adds a crop sampling pass; keeps original audio and frame count."}),
                 "face_refine_config": ("CAP_H3_FACE_REFINE_CONFIG", {"tooltip": "Connect H3 Face Refine Config. Ignored when face_refine is off."}),
+                "sampling_mode": (["standard", "selflift"], {"default": "standard", "tooltip": "standard preserves existing one/two-pass settings. selflift uses H3 SelfLift Config instead of second_sampling, first_pass_megapixels, upscaler_model and refine_sigmas. No Digital Human or Motion Context support yet."}),
+                "selflift_config": ("CAP_H3_SELFLIFT_CONFIG",),
             },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "unique_id": "UNIQUE_ID", "dynprompt": "DYNPROMPT"},
         }
@@ -170,7 +173,7 @@ class CAP_H3VideoGenerator:
                  audio_refine=False, audio_refine_steps=3, normalize_audio=False, attention="keep",
                  prompt=None, extra_pnginfo=None,
                  unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False,
-                 face_refine=False, face_refine_config=None):
+                 face_refine=False, face_refine_config=None, sampling_mode="standard", selflift_config=None):
         data = json.loads(data_json)
         width, height, fps = _validate(data)
         audio_refine = bool(generate_audio and audio_refine)
@@ -180,8 +183,23 @@ class CAP_H3VideoGenerator:
         if str(steps) not in ("4", "8"):
             raise ValueError("H3 steps must be 4 or 8.")
         steps = int(steps)
+        if sampling_mode not in ("standard", "selflift"):
+            raise ValueError("Sampling mode must be standard or selflift.")
+        if sampling_mode == "selflift":
+            selflift_config = validate_selflift_config(selflift_config, steps)
+            for row in data["clips"]:
+                if row.get("clip_role") == "digital_human":
+                    raise ValueError("SelfLift does not support Digital Human audio locking yet. Select standard sampling mode.")
+                if row.get("h3_motion_context_length") or (row.get("h3_timing") or {}).get("context_frames"):
+                    raise ValueError("SelfLift does not support Motion Context yet. Select standard sampling mode or disable context.")
+            _node_class("SelfLiftH3Sampler")
+            second_sampling = False
+        else:
+            selflift_config = None
         required = ["MiniMaxH3SigmaShift", "RandomNoise", "BasicGuider", "KSamplerSelect",
                     "BasicScheduler", "SamplerCustomAdvanced", "VAEDecode"]
+        if selflift_config:
+            required.append("ConditioningZeroOut")
         if face_refine:
             face_refine_config = validate_face_config(face_refine_config)
             for name in FACE_NODES:
@@ -297,7 +315,7 @@ class CAP_H3VideoGenerator:
                 fps, steps, row.get("clip_role") == "first_last", second_sampling, upscaler_model, refine_sigmas,
                 audio_refine, audio_refine_steps, normalize_audio, attention, prior_paths,
                 run_token, dict(records), extra_pnginfo,
-                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur, face_refine_config)
+                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur, face_refine_config, selflift_config)
             filename = saved["result"][0]
             row["output_video"] = filename
             for owner in data["clips"]:
@@ -332,7 +350,7 @@ class CAP_H3VideoGenerator:
     def _generate_clip(self, model, base_model, clip, vae, audio_vae, data, index, width, height, low_width, low_height,
                        fps, steps, strict_keyframes, second_sampling, upscaler_model, refine_sigmas,
                        audio_refine, audio_refine_steps, normalize_audio, attention, prior_paths,
-                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, motion_deblur=False, face_refine_config=None):
+                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, motion_deblur=False, face_refine_config=None, selflift_config=None):
         if progress:
             progress("prepare")
         row = data["clips"][index]
@@ -369,16 +387,25 @@ class CAP_H3VideoGenerator:
                             workflow_id=(extra_pnginfo or {}).get("workflow", {}).get("id"), preview_id=preview_id, clip_id=cid)
         records["h3_clip_prompt"] = {"class_type": "MiniMaxH3ImageToVideo" if strict_keyframes else "MiniMaxH3ReferenceToVideo",
                                    "inputs": {"prompt": composed_prompt, "width": low_width, "height": low_height, "length": frame_count}}
-        noise, = _call("RandomNoise", records, noise_seed=seed)
         sampler, = _call("KSamplerSelect", records, sampler_name="euler")
-        sigmas, = _call("BasicScheduler", records, model=base_model, scheduler="simple", steps=steps, denoise=1.0)
-        guider, = _call("BasicGuider", records, model=model, conditioning=positive)
+        scheduler = selflift_config["scheduler"] if selflift_config else "simple"
+        sigmas, = _call("BasicScheduler", records, model=base_model, scheduler=scheduler, steps=steps, denoise=1.0)
+        noise, = _call("RandomNoise", records, noise_seed=seed)
         if progress:
             progress("sample")
-        sampled, denoised = _call("SamplerCustomAdvanced", records, noise=noise, guider=guider, sampler=sampler, sigmas=sigmas, latent_image=latent)
-        del latent, guider
-        low_result = denoised if second_sampling else sampled
-        del sampled, denoised
+        if selflift_config:
+            negative, = _call("ConditioningZeroOut", records, conditioning=positive)
+            parameters = {key: value for key, value in selflift_config.items() if key != "scheduler"}
+            low_result, = _call("SelfLiftH3Sampler", records, model=model, positive=positive, negative=negative,
+                                vae=vae, latent_image=latent, sampler=sampler, sigmas=sigmas,
+                                seed=seed, cfg=1.0, highres_tiling=False, **parameters)
+            del negative
+        else:
+            guider, = _call("BasicGuider", records, model=model, conditioning=positive)
+            sampled, denoised = _call("SamplerCustomAdvanced", records, noise=noise, guider=guider, sampler=sampler, sigmas=sigmas, latent_image=latent)
+            low_result = denoised if second_sampling else sampled
+            del sampled, denoised, guider
+        del latent
         context_prefix = f"h3_context/cap_generator/{run_token}/{hashlib.sha256(cid.encode()).hexdigest()[:16]}"
         low_path = high_path = ""
         if save_latent and not (motion_deblur or face_refine_config):

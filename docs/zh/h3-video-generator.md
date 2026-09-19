@@ -1,5 +1,16 @@
 # MiniMax H3 视频生成
 
+## SelfLift 渐进采样（实验）
+
+安装 [facok/comfyui-SelfLift](https://github.com/facok/comfyui-SelfLift) 并重启 ComfyUI。连接 **H3 SelfLift 配置** 到 `selflift_config`，主节点的采样模式选择 `selflift`。本节点调用上游 `SelfLiftH3Sampler`，不复制其采样算法，也不自动下载模型。
+
+总步数仍使用主节点的 4/8 步。配置默认：低分辨率 6 步、比例 0.5、beta 调度、rho=0、权重 0.5/1；在配置节点中选择已安装的 H3 Latent 放大模型。使用 4 步时，将低分辨率步数改为 1–3。无放大模型时选择 none，设置正数 rho 和修正权重（上游建议 H3 从 rho=0.6、权重 1/1 开始尝试）。固定使用 Euler、CFG 1，不启用高分辨率分块。
+
+SelfLift 按工程目标分辨率准备条件，并自行完成低清到高清的过渡。忽略主节点的二采开关、一采像素数、放大模型及细化 Sigmas，不叠加额外二采。standard 模式保持原有单采/二采行为，忽略 SelfLift 配置。
+
+文生视频、图像/视频参考及严格首尾帧会传入 SelfLift。暂不支持数字人音频锁定和 Motion Context，遇到这些组合会在采样前提示切回 standard。保留现有预览、导出和后处理通路。已用 CPU/模拟测试验证调用与参数校验；尚未实测 GPU 速度、画质、首尾帧一致性及采样预览。上游 H3 适配仍属实验功能。
+
+
 分类：`Capricorncd/MiniMaxH3`。将现有条件编码、循环采样、二采放大、音频修复和保存流程封装，减少画布节点，不另写模型实现。
 
 新增「面部修复」，默认关闭。连接 [H3 面部修复配置](h3-face-refine.md) 设置检测模型和修复强度；调用 Carasibana 的 H3-FaceRefine，在运动去模糊之后修复。可直接使用 `models/ultralytics/bbox` 中已有的人脸检测模型。

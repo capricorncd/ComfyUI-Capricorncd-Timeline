@@ -1,5 +1,16 @@
 # MiniMax H3 Video Generator
 
+## SelfLift progressive sampling (experimental)
+
+Install [facok/comfyui-SelfLift](https://github.com/facok/comfyui-SelfLift), restart ComfyUI, connect **H3 SelfLift Config** to `selflift_config`, and set `sampling_mode` to `selflift`. The integration calls the upstream `SelfLiftH3Sampler`; it does not copy its sampling implementation or download models.
+
+The main node keeps the total **4/8 steps**. Config defaults: 6 low-resolution steps, scale 0.5, beta scheduler, rho 0, weights 0.5/1. Select an installed H3 latent upscaler in the config. For 4 steps, lower `transition_step` to 1–3. Without an upscaler, use `none` with positive rho and correction weight (upstream suggests rho 0.6 and weights 1/1 for H3). Euler and CFG 1 are used; spatial tiling is disabled.
+
+SelfLift prepares conditioning at the project output resolution and performs its own low-to-high transition. It ignores `second_sampling`, `first_pass_megapixels`, the main node's `upscaler_model`, and `refine_sigmas`; no additional upscale/refine pass is stacked on top. `standard` preserves existing one/two-pass behavior and ignores the SelfLift config.
+
+Text, image/video references and strict first/last-frame conditioning are routed to SelfLift. Digital Human audio locking and Motion Context are not supported in this integration yet; these combinations fail before sampling with an instruction to use standard mode. Existing preview, export and post-processing paths remain connected. CPU/mock tests cover routing and validation; GPU speed, visual quality, FL2V endpoint fidelity and sampling previews have not been validated. The upstream H3 adaptation is experimental.
+
+
 Category: `Capricorncd/MiniMaxH3`. A compact wrapper around existing nodes, not another model implementation.
 
 Optional **face_refine** defaults to off. Connect [H3 Face Refine Config](h3-face-refine.md) to configure the detector and repair strength. It uses Carasibana's installed H3-FaceRefine nodes after motion deblur, with existing detectors in `models/ultralytics/bbox`.

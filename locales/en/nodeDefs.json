@@ -688,7 +688,9 @@
   "CAP_H3VideoGenerator": {
     "display_name": "MiniMax H3 Video Generator",
     "outputs": {
-      "composed_video": { "name": "Composed video" }
+      "composed_video": {
+        "name": "Composed video"
+      }
     },
     "inputs": {
       "face_refine": {
@@ -737,6 +739,12 @@
       "strict_keyframes": {
         "name": "Strict first/last frames",
         "tooltip": "Off: multimodal references or text-to-video. On: one image = first frame; two ordered images = first/last, using native keyframe conditioning (not pixel-exact enforcement). No video/audio references or Motion Context. Select a compatible FL model and LoRA manually."
+      },
+      "sampling_mode": {
+        "name": "Sampling mode"
+      },
+      "selflift_config": {
+        "name": "SelfLift config"
       }
     }
   },
@@ -863,27 +871,65 @@
   "CAP_TimelinePreview": {
     "display_name": "Generate Timeline Preview",
     "inputs": {
-      "model": { "name": "MiniMax H3 Model" },
-      "clip": { "name": "MiniMax H3 CLIP" },
-      "video_vae": { "name": "Video VAE" },
-      "audio_vae": { "name": "Audio VAE" },
-      "project_json": { "name": "Project JSON" },
-      "clip_id": { "name": "Clip ID" },
-      "width": { "name": "Width (0 = Project)" },
-      "height": { "name": "Height (0 = Project)" },
-      "steps": { "name": "Steps" },
-      "seed": { "name": "Seed (-1 = Clip/Random)" },
-      "ref_image_size": { "name": "Reference Image Size" },
-      "shift_video": { "name": "Video Shift" },
-      "shift_audio": { "name": "Audio Shift" }
+      "model": {
+        "name": "MiniMax H3 Model"
+      },
+      "clip": {
+        "name": "MiniMax H3 CLIP"
+      },
+      "video_vae": {
+        "name": "Video VAE"
+      },
+      "audio_vae": {
+        "name": "Audio VAE"
+      },
+      "project_json": {
+        "name": "Project JSON"
+      },
+      "clip_id": {
+        "name": "Clip ID"
+      },
+      "width": {
+        "name": "Width (0 = Project)"
+      },
+      "height": {
+        "name": "Height (0 = Project)"
+      },
+      "steps": {
+        "name": "Steps"
+      },
+      "seed": {
+        "name": "Seed (-1 = Clip/Random)"
+      },
+      "ref_image_size": {
+        "name": "Reference Image Size"
+      },
+      "shift_video": {
+        "name": "Video Shift"
+      },
+      "shift_audio": {
+        "name": "Audio Shift"
+      }
     },
     "outputs": {
-      "preview_video": { "name": "Preview Video (Memory)" },
-      "frames": { "name": "Frames" },
-      "audio": { "name": "Audio" },
-      "prompt": { "name": "Final Prompt" },
-      "seed": { "name": "Used Seed" },
-      "clip_id": { "name": "Clip ID" }
+      "preview_video": {
+        "name": "Preview Video (Memory)"
+      },
+      "frames": {
+        "name": "Frames"
+      },
+      "audio": {
+        "name": "Audio"
+      },
+      "prompt": {
+        "name": "Final Prompt"
+      },
+      "seed": {
+        "name": "Used Seed"
+      },
+      "clip_id": {
+        "name": "Clip ID"
+      }
     }
   },
   "CAP_H3MotionContextSaveLatentOptional": {
@@ -911,5 +957,33 @@
         "name": "Latent"
       }
     }
+  },
+  "CAP_H3SelfLiftConfig": {
+    "display_name": "H3 SelfLift Config",
+    "inputs": {
+      "transition_step": {
+        "name": "Low-resolution steps",
+        "tooltip": "Low-resolution steps must be less than the generator's total steps. For 4 total steps, set 3 (3 low-res + 1 high-res; valid range 1–3). For 8 total steps, set 6 (6 low-res + 2 high-res; valid range 1–7). When changing total steps, update this value and select the matching 4/8-step LoRA; neither changes automatically."
+      },
+      "lowres_scale": {
+        "name": "Low-resolution scale"
+      },
+      "scheduler": {
+        "name": "Scheduler"
+      },
+      "upscaler_model": {
+        "name": "Upscaler model"
+      },
+      "rho": {
+        "name": "Correction fraction"
+      },
+      "w_min": {
+        "name": "Minimum correction weight"
+      },
+      "w_max": {
+        "name": "Maximum correction weight"
+      }
+    },
+    "description": "Experimental SelfLift configuration. Connect to MiniMax H3 Video Generator and select selflift. Low-resolution steps must be less than the generator's total steps. For 4 total steps, set 3 (3 low-res + 1 high-res; valid range 1–3). For 8 total steps, set 6 (6 low-res + 2 high-res; valid range 1–7). When changing total steps, update this value and select the matching 4/8-step LoRA; neither changes automatically."
   }
 }

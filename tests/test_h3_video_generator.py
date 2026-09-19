@@ -87,6 +87,74 @@ class GeneratorTests(unittest.TestCase):
         kw.setdefault("base_model", "base")
         return self.node.generate("base", "clip", "vae", "audio_vae", json.dumps(data), **kw)
 
+    def selflift_config(self):
+        folders = SimpleNamespace(folder_names_and_paths={"latent_upscale_models": []},
+            get_filename_list=lambda name: ["h3_up.safetensors"], get_full_path_or_raise=lambda *args: "valid")
+        config_scope = load_definitions("cap_h3_selflift.py", dict(math=math, folder_paths=folders))
+        self.scope["validate_selflift_config"] = config_scope["validate_selflift_config"]
+        return {key: options["default"] for key, (_, options) in config_scope["CAP_H3SelfLiftConfig"].INPUT_TYPES()["required"].items()}
+
+    def test_selflift_replaces_two_pass_and_keeps_target_dimensions(self):
+        config = self.selflift_config()
+        self.run_node(sampling_mode="selflift", selflift_config=config, second_sampling=True,
+                      upscaler_model="none", refine_sigmas="invalid")
+        names = [name for name, _ in self.calls]
+        self.assertIn("SelfLiftH3Sampler", names)
+        self.assertNotIn("SamplerCustomAdvanced", names)
+        self.assertNotIn("MinimaxH3LatentUpscaler3D", names)
+        call = next(kw for name, kw in self.calls if name == "SelfLiftH3Sampler")
+        self.assertEqual(call["transition_step"], 6)
+        self.assertEqual(call["cfg"], 1.0)
+        self.assertFalse(call["highres_tiling"])
+        self.assertEqual(next(kw for name, kw in self.calls if name == "BasicScheduler")["scheduler"], "beta")
+        self.assertTrue(self.saved)
+        self.assertEqual(self.prepared[0][:2], (1376, 768))
+
+    def test_selflift_postprocessing_receives_seeded_noise(self):
+        for deblur, face in ((True, False), (False, True), (True, True)):
+            with self.subTest(deblur=deblur, face=face):
+                self.setUp()
+                config = self.selflift_config()
+                self.enable_face_refine()
+                registered = self.scope["nodes"].NODE_CLASS_MAPPINGS.copy()
+                self.enable_motion_deblur()
+                self.scope["nodes"].NODE_CLASS_MAPPINGS.update(registered)
+                self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, "seed": 42}],
+                              sampling_mode="selflift", selflift_config=config, motion_deblur=deblur,
+                              face_refine=face, face_refine_config={"configured": True})
+                self.assertEqual([kw["noise_seed"] for name, kw in self.calls if name == "RandomNoise"], [42])
+                if deblur:
+                    self.assertEqual(self.node._deblur_clip.call_args.args[7], "RandomNoise_output")
+                if face:
+                    self.assertEqual(self.node._refine_faces.call_args.args[5], "RandomNoise_output")
+                self.assertEqual(self.saved[0][1]["images"], "face-images" if face else "recovered-images")
+
+    def test_selflift_rejects_incompatible_inputs_before_sampling(self):
+        config = self.selflift_config()
+        for row in ({"clip_role": "digital_human"}, {"h3_motion_context_length": 22},
+                    {"h3_timing": {"context_frames": 22}}):
+            with self.subTest(row=row), self.assertRaisesRegex(ValueError, "SelfLift"):
+                self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, **row}],
+                              sampling_mode="selflift", selflift_config=config)
+        for invalid in (None, {**config, "transition_step": 8}, {**config, "rho": float("nan")},
+                        {**config, "w_min": 1, "w_max": 0.5}, {**config, "upscaler_model": "../outside"},
+                        {**config, "upscaler_model": "none"}):
+            with self.subTest(config=invalid), self.assertRaises(ValueError):
+                self.run_node(sampling_mode="selflift", selflift_config=invalid)
+        with self.assertRaisesRegex(ValueError, "less than 4"):
+            self.run_node(steps="4", sampling_mode="selflift", selflift_config=config)
+        self.assertFalse(self.calls)
+
+    def test_selflift_four_steps_first_last_and_standard_config_ignored(self):
+        config = self.selflift_config()
+        config["transition_step"] = 3
+        self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, "clip_role": "first_last"}],
+                      steps="4", sampling_mode="selflift", selflift_config=config)
+        self.assertEqual(next(kw for name, kw in self.calls if name == "SelfLiftH3Sampler")["transition_step"], 3)
+        self.calls.clear()
+        self.run_node(selflift_config={"invalid": True})
+        self.assertNotIn("SelfLiftH3Sampler", [name for name, _ in self.calls])
+
     def test_digital_human_locks_both_passes_and_saves_source_audio(self):
         source = {"waveform": "original", "sample_rate": 44100}
         self.digital_audio = source

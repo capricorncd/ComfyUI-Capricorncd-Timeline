@@ -767,6 +767,12 @@
       },
       "attention": {
         "name": "注意力后端"
+      },
+      "sampling_mode": {
+        "name": "采样模式"
+      },
+      "selflift_config": {
+        "name": "SelfLift 配置"
       }
     },
     "outputs": {
@@ -904,27 +910,65 @@
   "CAP_TimelinePreview": {
     "display_name": "生成时间轴预览",
     "inputs": {
-      "model": { "name": "MiniMax H3 模型" },
-      "clip": { "name": "MiniMax H3 CLIP" },
-      "video_vae": { "name": "视频 VAE" },
-      "audio_vae": { "name": "音频 VAE" },
-      "project_json": { "name": "工程 JSON" },
-      "clip_id": { "name": "Clip ID" },
-      "width": { "name": "宽度（0 = 工程设置）" },
-      "height": { "name": "高度（0 = 工程设置）" },
-      "steps": { "name": "采样步数" },
-      "seed": { "name": "种子（-1 = Clip/随机）" },
-      "ref_image_size": { "name": "参考图尺寸" },
-      "shift_video": { "name": "视频 Shift" },
-      "shift_audio": { "name": "音频 Shift" }
+      "model": {
+        "name": "MiniMax H3 模型"
+      },
+      "clip": {
+        "name": "MiniMax H3 CLIP"
+      },
+      "video_vae": {
+        "name": "视频 VAE"
+      },
+      "audio_vae": {
+        "name": "音频 VAE"
+      },
+      "project_json": {
+        "name": "工程 JSON"
+      },
+      "clip_id": {
+        "name": "Clip ID"
+      },
+      "width": {
+        "name": "宽度（0 = 工程设置）"
+      },
+      "height": {
+        "name": "高度（0 = 工程设置）"
+      },
+      "steps": {
+        "name": "采样步数"
+      },
+      "seed": {
+        "name": "种子（-1 = Clip/随机）"
+      },
+      "ref_image_size": {
+        "name": "参考图尺寸"
+      },
+      "shift_video": {
+        "name": "视频 Shift"
+      },
+      "shift_audio": {
+        "name": "音频 Shift"
+      }
     },
     "outputs": {
-      "preview_video": { "name": "预览视频（内存）" },
-      "frames": { "name": "画面帧" },
-      "audio": { "name": "音频" },
-      "prompt": { "name": "最终提示词" },
-      "seed": { "name": "实际种子" },
-      "clip_id": { "name": "Clip ID" }
+      "preview_video": {
+        "name": "预览视频（内存）"
+      },
+      "frames": {
+        "name": "画面帧"
+      },
+      "audio": {
+        "name": "音频"
+      },
+      "prompt": {
+        "name": "最终提示词"
+      },
+      "seed": {
+        "name": "实际种子"
+      },
+      "clip_id": {
+        "name": "Clip ID"
+      }
     }
   },
   "CAP_H3MotionContextSaveLatentOptional": {
@@ -952,5 +996,33 @@
         "name": "Latent"
       }
     }
+  },
+  "CAP_H3SelfLiftConfig": {
+    "display_name": "H3 SelfLift 配置",
+    "inputs": {
+      "transition_step": {
+        "name": "低分辨率采样步数",
+        "tooltip": "低分辨率采样步数必须小于主节点总步数。总步数为 4 时设为 3（3 步低清 + 1 步高清，可用范围 1–3）；总步数为 8 时设为 6（6 步低清 + 2 步高清，可用范围 1–7）。切换总步数后，请同步修改此值并选择匹配的 4/8 步 LoRA；不会自动切换。"
+      },
+      "lowres_scale": {
+        "name": "低分辨率比例"
+      },
+      "scheduler": {
+        "name": "调度器"
+      },
+      "upscaler_model": {
+        "name": "放大模型"
+      },
+      "rho": {
+        "name": "修正比例"
+      },
+      "w_min": {
+        "name": "最小修正权重"
+      },
+      "w_max": {
+        "name": "最大修正权重"
+      }
+    },
+    "description": "实验性 SelfLift 配置。连接 MiniMax H3 视频生成节点，并选择 selflift 模式。低分辨率采样步数必须小于主节点总步数。总步数为 4 时设为 3（3 步低清 + 1 步高清，可用范围 1–3）；总步数为 8 时设为 6（6 步低清 + 2 步高清，可用范围 1–7）。切换总步数后，请同步修改此值并选择匹配的 4/8 步 LoRA；不会自动切换。"
   }
 }

@@ -9,6 +9,7 @@ import secrets
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
+from test_h3_timing import h3
 
 BACKEND = Path(__file__).resolve().parents[1] / "backend"
 
@@ -55,6 +56,8 @@ class GeneratorTests(unittest.TestCase):
                 return {"result": ("compose/final.mp4",), "ui": {"video": [{"filename": "final.mp4", "subfolder": "compose", "type": "output"}]}}
 
         scope = dict(json=json, hashlib=hashlib, math=math, secrets=secrets,
+                     plan_h3_clips=h3.plan_h3_clips,
+                     _prev_clip_output_video_path=Mock(return_value=""),
                      folder_paths=SimpleNamespace(get_full_path_or_raise=lambda *a: "valid"),
                      nodes=SimpleNamespace(), comfy=SimpleNamespace(model_management=SimpleNamespace(throw_exception_if_processing_interrupted=lambda: None)),
                      CAP_MiniMaxH3ReferenceToVideo=Prepare, CAP_SeqToVideo=Save, CAP_ComposeClipVideos=Compose,
@@ -582,11 +585,40 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(loads, [saves[0] + ".safetensors", saves[1] + ".safetensors"])
         self.assertNotIn(saves[2] + ".safetensors", loads)
 
-    def test_missing_chain_fails_before_sampling(self):
-        with self.assertRaisesRegex(ValueError, "preceding Clip a"):
-            self.run_node([{"id": "b", "start_ms": 5000, "end_ms": 10000,
-                            "h3_timing": {"context_frames": 22, "previous_source_clip_id": "a"}}])
-        self.assertEqual(self.calls, [])
+    def test_missing_chain_generates_independently_with_persistent_warning(self):
+        self.run_node([{"id": "b", "start_ms": 5000, "end_ms": 10000,
+                        "h3_timing": {"context_frames": 22, "previous_source_clip_id": "a"}}])
+        row = self.prepared[0][2]
+        self.assertEqual(row["h3_timing"]["context_frames"], 0)
+        self.assertEqual(row["h3_timing"]["context_carry_frames"], 0)
+        self.assertEqual(row["h3_timing"]["play_frames"], 120)
+        self.assertEqual(row["playback_spans"][0]["start_frame"], 0)
+        self.assertEqual(row["h3_motion_context_length"], 0)
+        self.assertTrue(self.saved)
+        updates = [data for name, data, _ in self.events if name == "cat_h3_progress"]
+        self.assertEqual(updates[-1]["phase"], "done")
+        self.assertTrue(all(data["warnings"] == [dict(code="missing_context", clip_id="b", previous_clip_id="a")]
+                            for data in updates))
+
+    def test_missing_context_replans_following_chain(self):
+        self.run_node([{"id": "b", "start_ms": 5000, "end_ms": 10000, "save_latent": True,
+                        "h3_timing": {"context_frames": 22, "previous_source_clip_id": "a"}},
+                       {"id": "c", "start_ms": 10000, "end_ms": 15000, "h3_motion_context_length": 22,
+                        "h3_timing": {"context_frames": 22, "previous_source_clip_id": "b"}}])
+        self.assertEqual(self.prepared[0][2]["h3_timing"]["context_frames"], 0)
+        self.assertEqual(self.prepared[1][2]["h3_timing"]["previous_source_clip_id"], "b")
+        self.assertTrue(any(name == "MiniMaxH3MotionContextLoadLatent" for name, _ in self.calls))
+
+    def test_single_clip_uses_existing_previous_video_in_both_passes(self):
+        self.scope["_prev_clip_output_video_path"].return_value = "previous.mp4"
+        row = {"id": "b", "start_ms": 5000, "end_ms": 10000,
+               "previous_output_video": "previous.mp4",
+               "h3_timing": {"context_frames": 22, "previous_source_clip_id": "a"}}
+        self.run_node([row], second_sampling=True, upscaler_model="up.safetensors")
+        self.assertEqual([(w, h) for w, h, _, _ in self.prepared], [(608, 352), (1376, 768)])
+        self.assertTrue(all(r["previous_output_video"] == "previous.mp4" for _, _, r, _ in self.prepared))
+        self.assertFalse(any(n == "MiniMaxH3MotionContextLoadLatent" for n, _ in self.calls))
+        self.assertTrue(self.saved)
 
     def test_strict_second_pass_reencodes_high_resolution_anchors(self):
         self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "clip_role": "first_last"}],

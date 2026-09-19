@@ -15,6 +15,34 @@ execute = next(n for n in node.body if isinstance(n, ast.FunctionDef) and n.name
 
 
 class TimelineOutputsTests(unittest.TestCase):
+    def test_single_clip_keeps_existing_predecessor_video_before_filtering(self):
+        from test_h3_timing import h3
+        namespace = dict(json=json, datetime=datetime, PROJECT_VERSION='test', SCHEMA_VERSION=4,
+                         clear_clip_prompt_vl=lambda: None, _setting_prompt=lambda s, k: s.get(k, ''),
+                         _safe_filename_part=lambda name, default: name or default,
+                         plan_h3_clips=h3.plan_h3_clips, _is_subtitle_clip=lambda c: False,
+                         _clip_visual_entries=lambda *a: [], _strip_comment_lines=lambda s: s,
+                         _clip_role_fields=lambda c: ('multi_ref', ''), _clip_agent_fields=lambda c: ('MiniMaxH3', ''),
+                         _timeline_prompt_includes=lambda c: ['clip'], _clip_seed=lambda c: 1,
+                         _h3_motion_context_length=lambda c: c.get('h3_motion_context_length', 0),
+                         _clip_image_refs=lambda e: [])
+        exec(compile(ast.Module(body=[execute], type_ignores=[]), '<timeline execute>', 'exec'), namespace)
+        first = dict(id='a', prompt='First', save_latent=True, generated_videos=[
+            dict(file='disabled.mp4', enabled=False), dict(file='existing.mp4'), dict(file='older.mp4')])
+        second = dict(id='b', prompt='Second', h3_motion_context_length=22)
+        instance = SimpleNamespace(
+            _project=lambda value: json.loads(value),
+            _visual_segments=lambda clips: [(first, 0, 5000, 0), (second, 5000, 10000, 0)],
+            _audio_slices=lambda *a: [], _concat_runtime_clips_audio=lambda *a, **kw: None,
+            _prepare_frame_seq_dir=lambda: 'frame-dir')
+        project = dict(settings=dict(runtime_only_clip_ids=['b']), tracks=[])
+        result = namespace['execute'](instance, 24, 864, 480, 'test', json.dumps(project))
+        rows = json.loads(result[3])['clips']
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['source_clip_id'], 'b')
+        self.assertEqual(rows[0]['previous_output_video'], 'existing.mp4')
+        self.assertEqual(rows[0]['h3_timing']['context_frames'], 22)
+
     def test_execution_matches_output_contract_and_preserves_prompt_data(self):
         namespace = dict(json=json, datetime=datetime, PROJECT_VERSION='test', SCHEMA_VERSION=4,
                          clear_clip_prompt_vl=lambda: None, _setting_prompt=lambda s, k: s.get(k, ''),

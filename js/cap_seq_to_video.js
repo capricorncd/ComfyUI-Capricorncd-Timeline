@@ -89,11 +89,37 @@ api.addEventListener("cat_h3_video_ready", event => {
 function showGeneratorProgress(node, data) {
     if (!node?._stvProgress || !data) return;
     const percent = Math.max(0, Math.min(100, Number(data.percent) || 0));
-    node._stvProgress.setStatus(t("h3_progress", {
+    const progress = t("h3_progress", {
         current: data.clip_index, total: data.clip_total, percent,
         phase: t(`h3_phase_${data.phase}`),
-    }), data.phase === "done" ? "success" : "info");
+    });
+    const warnings = (data.warnings ?? []).map(warning => warning.code === "missing_context"
+        ? t("h3_warning_missing_context", {clip: warning.clip_id, previous: warning.previous_clip_id}) : "").filter(Boolean);
+    node._stvProgress.setStatus(warnings.length ? `${progress}\n${warnings.join("\n")}` : progress,
+        warnings.length ? "warning" : data.phase === "done" ? "success" : "info");
 }
+
+api.addEventListener("execution_error", event => {
+    const data = event.detail;
+    if (data?.node_type !== "CAP_H3VideoGenerator") return;
+    const node = findGeneratorVideoNode(app.rootGraph ?? app.graph, data.node_id);
+    if (!node?._stvProgress) return;
+    const message = String(data.exception_message ?? "").trim();
+    const hint = message.includes("SelfLift does not support Motion Context") ? t("h3_error_selflift_context")
+        : message.includes("SelfLift does not support Digital Human") ? t("h3_error_selflift_digital_human")
+        : message;
+    node._stvProgress.setStatus(`${t("h3_error_title")}\n${hint}`, "error");
+    node._stvProgress.title = message;
+    node.setDirtyCanvas?.(true, true);
+});
+
+api.addEventListener("executing", event => {
+    if (event.detail == null) return;
+    const node = findGeneratorVideoNode(app.rootGraph ?? app.graph, event.detail);
+    if (!node?._stvProgress) return;
+    node._stvProgress.setStatus("");
+    node._stvProgress.title = t("h3_progress_tip");
+});
 
 api.addEventListener("cat_h3_progress", event => {
     const data = event.detail;

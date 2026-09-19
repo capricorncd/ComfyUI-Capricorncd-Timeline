@@ -2,6 +2,10 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        h3_warning_missing_context: "Warning: clip {clip} has no available context or generated video from {previous}. Generating independently without motion continuity.",
+        h3_error_title: "Generation stopped",
+        h3_error_selflift_context: "SelfLift cannot be used with Motion Context. Set enabled to false on H3 SelfLift Config to keep motion continuity, or disable Motion Context on the clips being generated.",
+        h3_error_selflift_digital_human: "SelfLift cannot be used with Digital Human audio locking. Set enabled to false on H3 SelfLift Config, then run again.",
         h3_progress: "Clip {current} / {total} · {percent}% · {phase}",
         h3_progress_tip: "Overall progress by completed processing stages, not an elapsed-time estimate. 100% includes final composition when enabled.",
         h3_phase_prepare: "Preparing",
@@ -20,6 +24,10 @@ export const DICT = {
         ffmpeg_not_found: "ffmpeg not found; please install it and restart ComfyUI",
     },
     zh: {
+        h3_warning_missing_context: "警告：片段 {clip} 未找到前段 {previous} 的 Context 或生成视频，本次已改为独立生成，不使用动作续接。",
+        h3_error_title: "生成已停止",
+        h3_error_selflift_context: "SelfLift 暂不支持与 Motion Context（动作续接）同时使用。\n要保留动作续接：将 H3 SelfLift Config 的 enabled 设为 false。\n要使用 SelfLift：关闭本次生成片段的 Motion Context。修改后重新运行。",
+        h3_error_selflift_digital_human: "SelfLift 暂不支持数字人音频锁定。\n请将 H3 SelfLift Config 的 enabled 设为 false，然后重新运行。",
         h3_progress: "Clip {current} / {total} · {percent}% · {phase}",
         h3_progress_tip: "按已完成的处理阶段统计整体进度，并非耗时估算。启用最终合成时，合成成功后才显示 100%。",
         h3_phase_prepare: "准备素材与条件",
@@ -38,6 +46,10 @@ export const DICT = {
         ffmpeg_not_found: "未检测到 ffmpeg，请安装后重启 ComfyUI",
     },
     ja: {
+        h3_warning_missing_context: "警告：クリップ {clip} の前段 {previous} に利用可能な Context・生成動画がないため、動作の継続なしで独立生成します。",
+        h3_error_title: "生成を停止しました",
+        h3_error_selflift_context: "SelfLift と Motion Context は併用できません。動作の連続性を保つには H3 SelfLift Config の enabled を false にするか、生成対象クリップの Motion Context を無効にして再実行してください。",
+        h3_error_selflift_digital_human: "SelfLift は Digital Human の音声固定に対応していません。H3 SelfLift Config の enabled を false にして再実行してください。",
         h3_progress: "Clip {current} / {total} · {percent}% · {phase}",
         h3_progress_tip: "完了した処理段階に基づく全体進捗です。所要時間の推定ではありません。最終結合が有効な場合は結合完了後に 100% になります。",
         h3_phase_prepare: "準備中",

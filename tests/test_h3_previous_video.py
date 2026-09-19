@@ -57,6 +57,37 @@ class PreviousVideoTests(unittest.TestCase):
     def test_missing_video_does_not_select_an_unrelated_file(self):
         self.assertEqual(self.resolve("", 0, "missing.mp4"), "")
 
+    def test_selected_clip_carries_previous_video_and_tracks_resolve_by_id(self):
+        with tempfile.TemporaryDirectory() as directory:
+            video = Path(directory) / "previous.mp4"
+            video.touch()
+            row = {"previous_output_video": str(video),
+                   "h3_timing": {"previous_source_clip_id": "a", "context_frames": 22}}
+            self.assertEqual(self.resolve(json.dumps({"clips": [row]}), 0), str(video))
+            del row["previous_output_video"]
+            data = {"clips": [{"id": "a", "output_video": str(video)},
+                              {"id": "other-track", "output_video": "wrong.mp4"}, row]}
+            self.assertEqual(self.resolve(json.dumps(data), 2), str(video))
+
+    def test_video_tail_contains_exactly_requested_frames_and_audio(self):
+        import torch
+        from types import SimpleNamespace
+        import logging
+        frames = torch.arange(40).reshape(40, 1, 1, 1)
+        waveform = torch.arange(40000).reshape(1, 1, 40000)
+        components = SimpleNamespace(images=frames, frame_rate=24,
+                                     audio={"waveform": waveform, "sample_rate": 24000})
+        scope = load_definitions("cap_minimax_h3.py", {"_load_motion_context_from_video"}, {
+            "torch": torch, "os": os, "H3_FPS": 24, "_LOG": logging.getLogger(__name__),
+            "VideoFromFile": lambda *a, **kw: SimpleNamespace(get_components=lambda: components),
+            "_frames_at_fps": lambda frames, *a: frames,
+        })
+        with tempfile.NamedTemporaryFile() as video:
+            tail, audio = scope["_load_motion_context_from_video"](video.name, 22)
+        self.assertEqual(tail[:, 0, 0, 0].tolist(), list(range(18, 40)))
+        self.assertEqual(audio["waveform"].shape[-1], 22000)
+        self.assertEqual(audio["waveform"][0, 0, 0].item(), 18000)
+
 
 if __name__ == "__main__":
     unittest.main()

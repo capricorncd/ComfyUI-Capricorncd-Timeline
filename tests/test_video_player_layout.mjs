@@ -113,10 +113,10 @@ for (const type of ['CAP_SeqToVideo', 'CAP_ComposeClipVideos', 'CAP_H3VideoGener
     if (type === 'CAP_H3VideoGenerator') {
         node.comfyClass = type;
         const nested = {getNodeById: id => id === 2 ? node : null};
-        app.rootGraph = {getNodeById: id => id === 1 ? {subgraph: nested} : null};
+        app.rootGraph = {id: 'test-workflow', getNodeById: id => id === 1 ? {subgraph: nested} : null};
         const header = node._stvProgress;
         assert.equal(header.hidden, true);
-        const report = data => listeners.get('cat_h3_progress')({detail: {node_id: '1:2', ...data}});
+        const report = data => listeners.get('cat_h3_progress')({detail: {workflow_id: 'test-workflow', node_id: '1:2', ...data}});
         report({clip_index: 1, clip_total: 3, percent: 0, phase: 'prepare'});
         assert.equal(header.textContent, 'Clip 1 / 3 · 0% · h3_phase_prepare');
         assert.equal(header.hidden, false);
@@ -124,7 +124,7 @@ for (const type of ['CAP_SeqToVideo', 'CAP_ComposeClipVideos', 'CAP_H3VideoGener
         report({clip_index: 2, clip_total: 3, percent: 45, phase: 'refine'});
         assert.equal(header.textContent, 'Clip 2 / 3 · 45% · h3_phase_refine');
         const send = (filename, key, id = '1:2') => listeners.get('cat_h3_video_ready')({detail: {
-            node_id: id, video: {filename, type: 'output', preview_key: key},
+            workflow_id: 'test-workflow', node_id: id, video: {filename, type: 'output', preview_key: key},
         }});
         send('clip1.mp4', 'run_0');
         const first = node._stvVideo;
@@ -156,7 +156,7 @@ for (const type of ['CAP_SeqToVideo', 'CAP_ComposeClipVideos', 'CAP_H3VideoGener
         assert.notEqual(node._stvVideo, second, 'same filename in a new run reloads fresh data');
         send('final.mp4', 'next-run_final');
         assert.ok(node._stvVideo.src.includes('final.mp4'));
-        const start = id => listeners.get('cat_h3_preview_started')({detail: {node_id: '1:2', preview_id: id}});
+        const start = id => listeners.get('cat_h3_preview_started')({detail: {workflow_id: 'test-workflow', node_id: '1:2', preview_id: id}});
         const frame = id => listeners.get('kj_preview_override')({detail: {node_id: id, image: 'frame'}});
         const previousVideo = node._stvVideo;
         start('1:2::h3:run_0');
@@ -181,6 +181,7 @@ for (const type of ['CAP_SeqToVideo', 'CAP_ComposeClipVideos', 'CAP_H3VideoGener
         assert.ok(node._stvVideo.src.includes('finished.mp4'));
         report({clip_index: 3, clip_total: 3, percent: 95, phase: 'compose'});
         assert.equal(header.state, 'info');
+        report({clip_index: 3, clip_total: 3, percent: 100, phase: 'done'});
         node.onExecuted({h3_progress: [{clip_index: 3, clip_total: 3, percent: 100, phase: 'done'}]});
         assert.equal(header.textContent, 'Clip 3 / 3 · 100% · h3_phase_done');
         assert.equal(header.state, 'success');

@@ -57,6 +57,13 @@
     opacity: 0.5;
 }
 
+.stv-generator > .stv-progress[state="error"],
+.stv-generator > .stv-progress[state="warning"] {
+    opacity: 1;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
 .stv-generator > .stv-video {
     flex: 1 1 0;
     min-height: 0;

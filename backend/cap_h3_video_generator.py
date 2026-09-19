@@ -13,14 +13,14 @@ import comfy.model_management
 from comfy.patcher_extension import WrappersMP
 from comfy_api.latest import io
 
-from .cap_minimax_h3 import CAP_MiniMaxH3ReferenceToVideo, CAP_H3MotionContextRefine, _lock_audio
+from .cap_minimax_h3 import CAP_MiniMaxH3ReferenceToVideo, CAP_H3MotionContextRefine, _lock_audio, _prev_clip_output_video_path
 from .cap_seq_to_video import CAP_SeqToVideo
 from .cap_compose_clip_videos import CAP_ComposeClipVideos
 from .cap_model_preview import CAP_ModelPreviewOverride
 from .cap_size_settings import CAP_SizeFromMegapixels
 from .cap_te_notify import EVENT_CLIP_RUNNING, notify_timeline
 from .cap_video_metadata import execution_graph
-from .h3_timing import timing_filename
+from .h3_timing import timing_filename, plan_h3_clips
 from .cap_h3_face_refine import FACE_NODES, validate_face_config
 from .cap_h3_selflift import validate_selflift_config
 from .cap_h3_interpolation import validate_interpolation_config
@@ -263,10 +263,26 @@ class CAP_H3VideoGenerator:
         for name in required:
             _node_class(name)
         earlier = []
-        for row in data["clips"]:
+        warnings = []
+        for index, row in enumerate(data["clips"]):
             previous = _context_source(row, earlier)
             if previous and not any(_clip_id(p) == previous and p.get("save_latent") for p in earlier):
-                raise ValueError(f"Clip {_clip_id(row)} needs preceding Clip {previous}. Run the connected Save Latent chain together.")
+                if not _prev_clip_output_video_path(json.dumps(data), index, row.get("previous_output_video", "")):
+                    warnings.append(dict(code="missing_context", clip_id=_clip_id(row), previous_clip_id=previous))
+                    row.pop("previous_output_video", None)
+                    # Replan this chain so independent generation does not retain context trims.
+                    chain = [row]
+                    for following in data["clips"][index + 1:]:
+                        if _context_source(following, []) == _clip_id(chain[-1]):
+                            chain.append(following)
+                    for item in chain:
+                        item.setdefault("source_clip_id", _clip_id(item))
+                        item.setdefault("preview_start_ms", item["start_ms"])
+                        item.setdefault("preview_end_ms", item["end_ms"])
+                    # Keep the first row in the timing plan even without Save Latent.
+                    row["h3_motion_context_length"] = max(5, int(row.get("h3_motion_context_length") or (row.get("h3_timing") or {}).get("context_frames") or 5))
+                    plan_h3_clips(chain, fps)
+                    row["h3_motion_context_length"] = 0
             earlier.append(row)
 
         records = execution_graph(prompt, dynprompt, unique_id)
@@ -308,7 +324,7 @@ class CAP_H3VideoGenerator:
             else:
                 units = index * len(phases) + phases.index(phase)
             info = dict(node_id=display_id, workflow_id=workflow_id, clip_index=index + 1,
-                        clip_total=clip_total, phase=phase, percent=math.floor(100 * units / total_units))
+                        clip_total=clip_total, phase=phase, percent=math.floor(100 * units / total_units), warnings=warnings)
             notify_timeline("cat_h3_progress", **info)
             return info
 
@@ -321,8 +337,11 @@ class CAP_H3VideoGenerator:
             row["seed"] = seed
             previous = _context_source(row, data["clips"][:index])
             prior_paths = context_paths.get(previous)
-            if previous and not prior_paths:
-                raise ValueError(f"Clip {cid} needs preceding Clip {previous}. Run the connected Save Latent chain together.")
+            if previous:
+                for prior in data["clips"][:index]:
+                    if _clip_id(prior) == previous and prior.get("output_video"):
+                        row["previous_output_video"] = prior["output_video"]
+                        break
             notify_timeline(EVENT_CLIP_RUNNING, clip_id=cid, index=index)
             saved, contexts = self._generate_clip(
                 model, base_model, clip, vae, audio_vae, data, index, width, height, low_width, low_height,
@@ -447,10 +466,10 @@ class CAP_H3VideoGenerator:
             del video, audio
             if digital_human:
                 latent = _lock_audio(latent, locked_audio)
-            if strict_keyframes:
+            if strict_keyframes or (trim_frames and high_context is None):
                 high_prepared = CAP_MiniMaxH3ReferenceToVideo().execute(
                     clip, vae, audio_vae, width, height, "match", json.dumps(data, ensure_ascii=False), index,
-                    strict_keyframes=True)
+                    strict_keyframes=strict_keyframes)
                 positive = high_prepared[0]
                 del high_prepared
             else:

@@ -757,6 +757,7 @@ class CAP_TimelineEditor:
             return resolve_media_path(name, assets_dir="", location="input")
 
         runtime_clips = []
+        generated_outputs = {}
         materials = []
         seen_materials = set()
         for clip, start, end, z_index in segments:
@@ -791,6 +792,8 @@ class CAP_TimelineEditor:
             clip_role, clip_role_custom = _clip_role_fields(clip)
             agent, agent_custom = _clip_agent_fields(clip)
             source_clip_id = str(clip.get("id", ""))
+            generated_outputs[source_clip_id] = next((str(video["file"]) for video in clip.get("generated_videos", [])
+                if video.get("enabled", True) and video.get("file")), "")
             prompt_includes = _timeline_prompt_includes(clip)
             runtime_row = {
                 "id": f"runtime_{len(runtime_clips) + 1:04d}",
@@ -829,6 +832,10 @@ class CAP_TimelineEditor:
             runtime_clips.append(runtime_row)
 
         plan_h3_clips(runtime_clips, fps)
+        for row in runtime_clips:
+            previous = (row.get("h3_timing") or {}).get("previous_source_clip_id")
+            if previous and generated_outputs.get(previous):
+                row["previous_output_video"] = generated_outputs[previous]
         if only_ids is not None:
             runtime_clips = [clip for clip in runtime_clips if clip["source_clip_id"] in only_ids]
         total_frame_count = max(1, sum(

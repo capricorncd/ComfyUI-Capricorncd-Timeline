@@ -29,6 +29,11 @@ export class StatusMessage extends HTMLElement {
                     border-color: #7f1d1d;
                     background: #1f1216;
                 }
+                :host([state="warning"]) .panel {
+                    color: #fde68a;
+                    border-color: #a16207;
+                    background: #241c0e;
+                }
             </style>
             <div class="panel" role="status" aria-live="polite" aria-atomic="true"><slot></slot></div>
         `;
@@ -36,7 +41,7 @@ export class StatusMessage extends HTMLElement {
 
     setStatus(text, state = "info") {
         this.textContent = String(text ?? "");
-        this.setAttribute("state", state === "success" || state === "error" ? state : "info");
+        this.setAttribute("state", ["success", "error", "warning"].includes(state) ? state : "info");
         this.hidden = !this.textContent;
     }
 }

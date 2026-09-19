@@ -746,7 +746,7 @@ class CAP_DataJsonClipParser:
             prompt_concat_order=prompt_concat_order,
             prepend_prompt=prepend_prompt,
             append_prompt=append_prompt,
-            previous_output_video=clips[index - 1].get("output_video", "") if 0 < index < len(clips) and isinstance(clips[index - 1], dict) else "",
+            previous_output_video=clip.get("previous_output_video") or (clips[index - 1].get("output_video", "") if 0 < index < len(clips) and isinstance(clips[index - 1], dict) else ""),
         )
         output_video = str(clip.get("output_video") or "").strip().replace("\\", "/")
 

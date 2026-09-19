@@ -158,10 +158,13 @@ def _prev_clip_output_video_path(data_json: str, index: int, previous_output_vid
         return ""
     clips = data.get("clips")
     rel = str(previous_output_video or "").strip().replace("\\", "/")
-    if not rel and isinstance(clips, list) and 0 < index < len(clips):
-        prev = clips[index - 1]
+    if not rel and isinstance(clips, list) and 0 <= index < len(clips):
+        current = clips[index]
+        rel = str(current.get("previous_output_video") or "").strip().replace("\\", "/")
+        owner = (current.get("h3_timing") or {}).get("previous_source_clip_id")
+        prev = next((row for row in clips[:index] if str(row.get("source_clip_id") or row.get("id")) == str(owner)), None) if owner else (clips[index - 1] if index else None)
         if isinstance(prev, dict):
-            rel = str(prev.get("output_video") or "").strip().replace("\\", "/")
+            rel = rel or str(prev.get("output_video") or "").strip().replace("\\", "/")
     if not rel:
         return ""
     path = _resolve_output_file(rel)
@@ -200,12 +203,15 @@ def _load_motion_context_from_video(path: str, pin_frames: int):
             int(frames.shape[0]), pin_frames,
         )
         return None, None
-    frames = frames[-pin_frames:]
+    frames = frames[-pin_frames:].clone()
     audio = components.audio
     if not isinstance(audio, dict) or audio.get("waveform") is None:
         audio = None
     elif int(audio["waveform"].shape[-1]) < 1:
         audio = None
+    else:
+        samples = max(1, round(pin_frames / float(H3_FPS) * audio["sample_rate"]))
+        audio = dict(audio, waveform=audio["waveform"][..., -samples:].clone())
     return frames, audio
 
 

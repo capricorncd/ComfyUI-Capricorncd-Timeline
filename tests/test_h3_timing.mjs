@@ -96,3 +96,32 @@ assert.equal(saved.tracks[0].clips[0].generated_videos[1].trim_in_sec, 39/24);
 assert.equal(saved.tracks[0].clips[0].generated_videos[1].prompt, 'keep this prompt');
 assert.equal(saved.tracks[0].clips[0].generated_videos[1].h3_trim_applied, true);
 console.log('H3 trim and playback layout tests passed');
+
+// The editor must not capture a pre-trim snapshot while its preceding clip is resolving.
+{
+    const order = [];
+    const previous = {id: 'previous'}, current = {id: 'current'};
+    const track = {type: 'image', clips: [previous, current]};
+    previous.track = current.track = track;
+    let release;
+    const pending = new Promise(resolve => {release = resolve;});
+    const ready = new Error('snapshot reached');
+    const editor = {
+        genEditModal: {}, _loadSeq: 1,
+        async _resolveH3VideoTiming(clip) {
+            order.push(clip.id);
+            if (clip === previous) await pending;
+        },
+        _ensureClipMeta() { order.push('snapshot'); throw ready; },
+    };
+    const open = method('_openGenEditModal', {isSubtitleTrackType: () => false});
+    const result = open.call(editor, current);
+    assert.deepEqual(order, ['previous']);
+    release();
+    await assert.rejects(result, error => error === ready);
+    assert.deepEqual(order, ['previous', 'current', 'snapshot']);
+    order.length = 0;
+    editor._resolveH3VideoTiming = async () => { editor._loadSeq++; };
+    await open.call(editor, current);
+    assert.deepEqual(order, [], 'changing projects while resolving must not open a stale editor');
+}

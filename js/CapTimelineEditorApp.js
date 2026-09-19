@@ -8571,11 +8571,11 @@ export class CapTimelineEditorApp {
         } else {
             this._persistGeneratedVideosToProjectJson(clip.id, added.map((row) => row.file));
         }
-        void this._resolveH3VideoTiming(clip).then(() => {
+        void this._resolveH3VideoTiming(clip).then((changed) => {
             if (this._timeline && this._timelineReady) {
                 const st = this._genEditState;
                 const editingClip = st && this._findClipById(st.clipId);
-                if (editingClip && editingClip.track === clip.track) {
+                if (changed && editingClip && editingClip.track === clip.track) {
                     const time = st.timeline?.currentTime || 0;
                     const playing = st.timeline?._playing;
                     const editedMeta = this._ensureClipMeta(editingClip);
@@ -9076,6 +9076,12 @@ export class CapTimelineEditorApp {
     async _openGenEditModal(clip) {
         if (!this.genEditModal || !clip || clip.track?.type === "audio") return;
         if (isSubtitleTrackType(clip.track?.type)) return;
+        const loadSeq = this._loadSeq;
+        // Resolve both sides of Context splices before taking the editable snapshot.
+        for (const sibling of [...clip.track.clips]) {
+            await this._resolveH3VideoTiming(sibling);
+            if (this._destroyed || loadSeq !== this._loadSeq) return;
+        }
         const m = this._ensureClipMeta(clip);
         const rows = this._clipGeneratedVideos(m);
         if (!rows.length) {
@@ -14389,6 +14395,7 @@ export class CapTimelineEditorApp {
             clip._audioBuffer = buffer;
             const fadeInMs = Math.max(0, Number(c.fade_in_ms) || 0);
             const fadeOutMs = Math.max(0, Number(c.fade_out_ms) || 0);
+            clip.waveformVolume = normalizeClipVolume(c.volume);
             this._meta.set(clip.id, {
                 ...defaultAudioMeta(trackIdx),
                 volumePoints: migrateAudioFades(c.volume_points, trimIn, dur, fadeInMs / 1000, fadeOutMs / 1000),
@@ -17171,8 +17178,12 @@ export class CapTimelineEditorApp {
         }
     }
 
-    _syncPreviewVideo(entry, mediaTime, { audible = false, playing = null } = {}) {
+    _syncPreviewVideo(entry, mediaTime, { audible = false, playing = null, segmentKey = null } = {}) {
         if (!entry?.el) return;
+        if (segmentKey !== null && entry._segmentKey !== segmentKey) {
+            entry._segmentKey = segmentKey;
+            entry._playSynced = false;
+        }
         entry.active = true;
         const v = entry.el;
         const t = Math.max(0, Number(mediaTime) || 0);
@@ -17443,6 +17454,9 @@ export class CapTimelineEditorApp {
                 this._syncPreviewVideo(entry, mediaTime, {
                     audible: layer.kind === "generated" && layer.muted !== true,
                     playing,
+                    segmentKey: JSON.stringify([layer.clip.id, layer.clip.startTime,
+                        layer.kind === "generated" ? layer.transform?.id : layer.itemIndex,
+                        layer.trimInSec ?? layer.clip.sourceOffset, layer.editStartSec, entry.el.playbackRate]),
                 });
                 const drawLayer = layer.mediaTrack
                     ? (c, m, w, h) => this._drawMediaLayer(c, m, w, h, layer.meta)

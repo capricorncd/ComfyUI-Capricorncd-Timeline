@@ -52,6 +52,18 @@ assert(!entry.seeking, 'normal playback must still freewheel');
 
 const sync = method('_syncPreviewVideo');
 seekApp._seekPreviewVideo = seek;
+{
+    const video = {readyState: 2, currentTime: 1, duration: 10, paused: false};
+    const shared = {el: video, ready: true, seeking: false, _hasDrawn: true,
+        _playSynced: true, _segmentKey: 'previous-context'};
+    sync.call(seekApp, shared, 1.5, {playing: true, segmentKey: 'clip_opt_06'});
+    assert.equal(video.currentTime, 1.5, 'switching segments of the same file must correct sub-second offsets');
+    assert(shared.seeking);
+    shared.seeking = false;
+    shared._hasDrawn = true;
+    sync.call(seekApp, shared, 1.54, {playing: true, segmentKey: 'clip_opt_06'});
+    assert(!shared.seeking, 'the same segment still freewheels between frames');
+}
 const nextVideo = {readyState:2, videoWidth:864, videoHeight:480, currentTime:0, duration:10,
     paused:true, play(){this.paused = false; return Promise.resolve();}, pause(){this.paused = true;}};
 const nextEntry = {el:nextVideo, ready:true, seeking:false, _hasDrawn:false, _playSynced:false};

@@ -4427,11 +4427,16 @@ export class CapTimelineEditorApp {
               <cap-button shape="circle" size="large" class="cat-te-ai-optimize-nav next" title="${T("ai_optimize_next_clip_title")}" aria-label="${T("ai_optimize_next_clip_title")}" disabled>${iconHtml("chevronLeft", 20)}</cap-button>
             </div>
           </div>
-          <cap-dialog class="cat-te-agent-prompt-picker" style="--cap-dialog-min-width: 420px; --cap-dialog-min-height: 240px;">
+          <cap-dialog class="cat-te-agent-prompt-picker">
             <span slot="title">${T("agent_prompt_label")}</span>
-            <p>${T("agent_prompt_directory_hint")}</p>
-            <p class="cat-te-agent-prompt-directory"></p>
-            <div class="cat-te-agent-list cat-te-agent-prompt-files"></div>
+            <div class="cat-te-agent-prompt-picker-body">
+              <p class="cat-te-agent-prompt-hint">${T("agent_prompt_directory_hint")}</p>
+              <div class="cat-te-agent-prompt-location">
+                <span>${T("agent_prompt_directory_label")}</span>
+                <p class="cat-te-agent-prompt-directory"></p>
+              </div>
+              <div class="cat-te-agent-list cat-te-agent-prompt-files"></div>
+            </div>
           </cap-dialog>
           <div class="cat-te-modal-backdrop cat-te-skill-picker-modal" hidden>
             <div class="cat-te-modal cat-te-skill-picker-dialog">

@@ -477,6 +477,50 @@ body.cat-te-row-resize * {
     margin-bottom: 8px;
 }
 
+.cat-te-agent-prompt-picker {
+    --cap-dialog-width: 560px;
+    --cap-dialog-height: fit-content;
+    --cap-dialog-min-width: 320px;
+    --cap-dialog-min-height: 240px;
+}
+
+.cat-te-agent-prompt-picker-body {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.cat-te-agent-prompt-hint {
+    margin: 0;
+    color: var(--cat-muted);
+}
+
+.cat-te-agent-prompt-location {
+    padding: 12px;
+    border: 1px solid var(--cat-border);
+    border-radius: 6px;
+    background: var(--cat-bg);
+}
+
+.cat-te-agent-prompt-location > span {
+    color: var(--cat-muted);
+    font-size: 12px;
+}
+
+.cat-te-agent-prompt-directory {
+    margin: 4px 0 0;
+    overflow-wrap: anywhere;
+    user-select: text;
+}
+
+.cat-te-agent-prompt-files {
+    padding: 12px 0;
+    color: var(--cat-muted);
+    overflow-wrap: anywhere;
+}
+
 .cat-te-agent-list {
     display: flex;
     flex-direction: column;

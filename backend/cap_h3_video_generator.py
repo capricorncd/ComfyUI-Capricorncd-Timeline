@@ -380,7 +380,7 @@ class CAP_H3VideoGenerator:
             composed = CAP_ComposeClipVideos().execute(
                 json.dumps(compose_data, ensure_ascii=False),
                 filename_prefix=f"capricorncd-timeline/compose/{run_token}",
-                trim_extends=True, use_original_audio=generate_audio, save_sidecar=True,
+                trim_extends=True, use_original_audio=generate_audio, save_sidecar=False,
                 prompt=records, extra_pnginfo=extra_pnginfo,
             )
             composed_video = composed["result"][0]
@@ -578,7 +578,7 @@ class CAP_H3VideoGenerator:
                                                              "first_pass_width": low_width, "first_pass_height": low_height,
                                                              "frame_interpolation": interpolation, "output_fps": output_fps,
                                                              "h3_timing": output_timing}),
-                                        save_sidecar=True, prompt=records, extra_pnginfo=extra_pnginfo, seed=seed, clip_id=cid)
+                                        save_sidecar=False, prompt=records, extra_pnginfo=extra_pnginfo, seed=seed, clip_id=cid)
         return saved, (low_path, high_path) if save_latent else None
 
     def _refine_faces(self, model, positive, samples, images, vae, noise, steps, config,

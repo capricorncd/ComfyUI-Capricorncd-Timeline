@@ -559,6 +559,12 @@ class GeneratorTests(unittest.TestCase):
         self.assertFalse(any(n == "cat_h3_progress" and d["phase"] == "audio" for n, d, _ in self.events))
         self.assertEqual(result["ui"]["h3_progress"][0]["percent"], 100)
 
+    def test_saves_videos_without_sidecar(self):
+        self.run_node()
+        self.assertTrue(self.saved)
+        self.assertTrue(all(not options["save_sidecar"] for _, options in self.saved))
+        self.assertTrue(all(not options["save_sidecar"] for _, options in self.composed))
+
     def test_audio_generation_without_repair(self):
         self.run_node(generate_audio=True, audio_refine=False)
         self.assertTrue(any(n == "VAEDecodeAudio" for n, _ in self.calls))

@@ -6,6 +6,7 @@ import sys
 import tempfile
 import types
 import unittest
+import textwrap
 
 ROOT = (Path(__file__).resolve().parents[1] / "backend")
 package = types.ModuleType("cap_metadata_test")
@@ -15,6 +16,22 @@ metadata = importlib.import_module("cap_metadata_test.cap_video_metadata")
 
 
 class GenerationMetadataTests(unittest.TestCase):
+    def test_save_embeds_prompt_and_clip_details_without_sidecar(self):
+        source = (ROOT / 'cap_seq_to_video.py').read_text(encoding='utf-8')
+        block = source[source.index('        graph = execution_graph(prompt, dynprompt, unique_id)'):]
+        block = block[:block.index('        if save_sidecar:')]
+        records = []
+        note = json.dumps({'h3_timing': {'context_frames': 22}, 'second_sampling': True})
+        scope = dict(execution_graph=metadata.execution_graph, generation_record=metadata.generation_record,
+                     prompt={'1': {'class_type': 'MiniMaxH3ReferenceToVideo', 'inputs': {'prompt': 'A speaking character'}}},
+                     dynprompt=None, unique_id=None, clip_id='clip_opt_06', seed=123,
+                     fps=24, frame_count=226, video_duration=226/24, metadata=note,
+                     output_path='video.mp4', embed_video_generation=lambda path, record: records.append(record))
+        exec(textwrap.dedent(block), scope)
+        self.assertEqual(records[0]['prompts'][0]['text'], 'A speaking character')
+        self.assertEqual(json.loads(records[0]['note'])['h3_timing']['context_frames'], 22)
+        self.assertEqual(records[0]['frames'], 226)
+
     def test_scope_and_unknown_linked_seed(self):
         graph = {
             "1": {"class_type": "RandomNoise", "inputs": {"noise_seed": ["2", 10]}},
@@ -47,6 +64,8 @@ class GenerationMetadataTests(unittest.TestCase):
             before = packets()
             self.assertIsNone(metadata.read_video_generation(path))
             record = metadata.generation_record({}, "中文#;=\\\n片段", 123)
+            record.update(note=json.dumps({'h3_timing': {'context_frames': 22}}),
+                          prompts=[{'text': '角色说话\n保持口型同步'}], fps=24, frames=12)
             metadata.embed_video_generation(path, record)
             self.assertEqual(metadata.read_video_generation(path), record)
             self.assertEqual(packets(), before)

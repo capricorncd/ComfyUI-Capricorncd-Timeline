@@ -34,7 +34,8 @@ def execution_graph(prompt, dynprompt=None, unique_id=None):
 
 
 def generation_record(graph, clip_id="", seed=-1):
-    models = extract_from_prompt(graph)["models"]
+    extracted = extract_from_prompt(graph)
+    models = extracted["models"]
     components = []
     seeds = []
     unknown_seed = False
@@ -67,7 +68,7 @@ def generation_record(graph, clip_id="", seed=-1):
     return {"schema": "capricorncd.video.generation.v1", "clip_id": str(clip_id or "") or None,
             "seed": str(actual) if actual is not None else None, "seed_source": "input" if seed is not None and int(seed) >= 0
             else "execution_prompt" if actual is not None else "unavailable",
-            "seeds": seeds, "models": models, "sampling": components}
+            "seeds": seeds, "models": models, "prompts": extracted["prompts"], "sampling": components}
 
 
 def _run(command):

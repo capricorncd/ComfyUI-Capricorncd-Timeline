@@ -394,6 +394,9 @@ class CAP_SeqToVideo:
         clip_id = str(clip_id or "").strip() or clip_id_from_output_video(output_path)
         graph = execution_graph(prompt, dynprompt, unique_id)
         generation = generation_record(graph, clip_id, seed)
+        generation.update(fps=fps, frames=frame_count, duration=round(video_duration, 6))
+        if metadata:
+            generation["note"] = str(metadata)
         embed_video_generation(output_path, generation)
         if save_sidecar:
             write_sidecar(

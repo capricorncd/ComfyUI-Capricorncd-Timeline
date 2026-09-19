@@ -19422,9 +19422,6 @@ export class CapTimelineEditorApp {
             if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
             const text = String(data.prompt || "").trim();
             if (!text) throw new Error(T("model_no_prompt_returned"));
-            const preview = text.length > 800 ? `${text.slice(0, 800)}…` : text;
-            const target = T("clip_prompt_tab");
-            if (!confirm(T("confirm_apply_generated_prompt", { target, preview }))) return;
             this._writePromptManagerValue("clip", text, { recordUndo: true });
             this._setAiOptimizeSrcTab("clip");
         } catch (error) {

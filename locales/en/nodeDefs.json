@@ -36,7 +36,7 @@
         "name": "Blend"
       },
       "enabled": {
-        "name": "Face refinement",
+        "name": "Enable",
         "tooltip": "Off by default. Requires H3 Face Refine Config and Carasibana H3-FaceRefine. Uses the current 4/8-step sampling model for one tracked face; keeps original audio and frame count. Costs extra time/memory."
       }
     },
@@ -708,7 +708,7 @@
         "name": "RIFE cache clear interval"
       },
       "enabled": {
-        "name": "Frame interpolation (RIFE)",
+        "name": "Enable",
         "tooltip": "Off by default. Runs after face/deblur repair. Multiplies output fps, preserves duration and audio. Requires ComfyUI-Frame-Interpolation; first use may download the selected model."
       }
     }
@@ -1008,7 +1008,7 @@
         "name": "Maximum correction weight"
       },
       "enabled": {
-        "name": "Enable SelfLift"
+        "name": "Enable"
       }
     },
     "description": "Experimental SelfLift configuration. Connect to MiniMax H3 Video Generator and enable this config. Disconnected or disabled uses standard sampling. Low-resolution steps must be less than the generator's total steps. For 4 total steps, set 3 (3 low-res + 1 high-res; valid range 1–3). For 8 total steps, set 6 (6 low-res + 2 high-res; valid range 1–7). When changing total steps, update this value and select the matching 4/8-step LoRA; neither changes automatically."

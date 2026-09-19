@@ -27,7 +27,7 @@ export class BgmSettings {
             <label><span>${T('bgm_url')}</span><input data-bgm="url" type="url" placeholder="http://127.0.0.1:19876" /></label>
             <label><span>API Key</span><input data-bgm="api_key" type="password" autocomplete="new-password" /></label>
             <div data-bgm="key-status" class="cat-te-agent-note" role="status"></div>
-            <label class="cat-te-agent-enabled"><input data-bgm="clear_key" type="checkbox" /><span>${T('bgm_clear_key')}</span></label>
+            <cap-button data-bgm="clear_key" disabled>${T('bgm_clear_key')}</cap-button>
           </div>
           ${this.services.map(([id, label, path]) => `<div data-audio-panel="${id}" id="audio-panel-${id}" role="tabpanel" aria-labelledby="audio-tab-${id}" class="cat-te-agent-form" hidden>
             <label><span>${T('audio_endpoint')}</span><input data-bgm="${id}_url" type="text" placeholder="${path}" /></label>
@@ -37,6 +37,11 @@ export class BgmSettings {
           </div>`).join('')}
           <div data-bgm="status" class="cat-te-agent-note" role="status"></div>`;
         this.field = key => root.querySelector(`[data-bgm="${key}"]`);
+        this.field('clear_key').addEventListener('click', async () => {
+            this.field('clear_key').disabled = true;
+            try { await this.save(true); }
+            finally { this.field('clear_key').disabled = !this.hasSavedKey; }
+        });
         for (const input of root.querySelectorAll('input[data-bgm]')) {
             input.disabled = true;
             input.addEventListener('input', () => {
@@ -77,7 +82,8 @@ export class BgmSettings {
         this.field('url').value = config.url ?? '';
         this.field('api_key').value = config.has_key ? '****' : '';
         this.field('key-status').textContent = T(config.has_key ? 'bgm_key_saved' : 'bgm_key_missing');
-        this.field('clear_key').checked = false;
+        this.hasSavedKey = !!config.has_key;
+        this.field('clear_key').disabled = !this.hasSavedKey;
         for (const [id] of this.services) {
             const row = config.services?.[id] || {};
             this.field(id + '_url').value = row.url || '';
@@ -102,12 +108,12 @@ export class BgmSettings {
         return this.dirty ? this.save() : this.saveQueue;
     }
 
-    save() {
-        this.saveQueue = this.saveQueue.then(() => this.persist());
+    save(clearKey = false) {
+        this.saveQueue = this.saveQueue.then(() => this.persist(clearKey));
         return this.saveQueue;
     }
 
-    async persist() {
+    async persist(clearKey = false) {
         const revision = this.revision;
         const services = {};
         for (const [id] of this.services) {
@@ -123,10 +129,13 @@ export class BgmSettings {
             const response = await api.fetchApi('/audio_keyframe_timeline/bgm_settings', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ connection: 'standalone', url: this.field('url').value.trim(), services,
-                    api_key: this.field('api_key').value.trim() === '****' ? '' : this.field('api_key').value.trim(), clear_key: this.field('clear_key').checked }),
+                    api_key: clearKey || this.field('api_key').value.trim() === '****' ? '' : this.field('api_key').value.trim(), clear_key: clearKey }),
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            this.hasSavedKey = !!data.config.has_key;
+            this.field('clear_key').disabled = !this.hasSavedKey;
+            this.field('key-status').textContent = T(this.hasSavedKey ? 'bgm_key_saved' : 'bgm_key_missing');
             if (revision === this.revision) {
                 this.fill(data.config);
                 this.dirty = false;

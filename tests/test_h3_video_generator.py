@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import math
+import re
 from pathlib import Path
 import secrets
 from types import SimpleNamespace
@@ -61,6 +62,9 @@ class GeneratorTests(unittest.TestCase):
                      CAP_H3MotionContextRefine=lambda: SimpleNamespace(apply=lambda *a: (a[0],)),
                      EVENT_CLIP_RUNNING="running", notify_timeline=lambda event, **k: owner.events.append((event, k, len(owner.prepared))),
                      execution_graph=lambda *a: {}, timing_filename=lambda path, timing: path)
+        config_scope = load_definitions("cap_h3_interpolation.py", {})
+        scope["validate_interpolation_config"] = config_scope["validate_interpolation_config"]
+        self.interpolation_node = config_scope["CAP_H3InterpolationConfig"]()
         self.scope = load_definitions("cap_h3_video_generator.py", scope)
         scope["_node_class"] = lambda name: object
 
@@ -128,6 +132,104 @@ class GeneratorTests(unittest.TestCase):
                 if face:
                     self.assertEqual(self.node._refine_faces.call_args.args[5], "RandomNoise_output")
                 self.assertEqual(self.saved[0][1]["images"], "face-images" if face else "recovered-images")
+
+    def enable_interpolation(self):
+        import torch
+        self.scope["torch"] = torch
+        self.scope["_node_class"] = lambda name: SimpleNamespace(INPUT_TYPES=lambda: {
+            "required": {"ckpt_name": (self.interpolation_node.INPUT_TYPES()["required"]["rife_model"][0],)}})
+        call = self.scope["_call"]
+        def interpolate(name, records, **kw):
+            result = call(name, records, **kw)
+            if name == "VAEDecode":
+                return (torch.arange(124, dtype=torch.float32).reshape(124, 1, 1, 1),)
+            if name == "RIFE VFI":
+                return (torch.arange((kw["frames"].shape[0] - 1) * kw["multiplier"] + 1,
+                                    dtype=torch.float32).reshape(-1, 1, 1, 1),)
+            return result
+        self.scope["_call"] = interpolate
+        self.saved_fps = []
+        save = self.scope["CAP_SeqToVideo"].execute
+        owner = self
+        def save_with_fps(instance, frames_dir, fps, output, **kw):
+            owner.saved_fps.append(fps)
+            return save(instance, frames_dir, fps, output, **kw)
+        self.scope["CAP_SeqToVideo"].execute = save_with_fps
+
+    def test_interpolation_preserves_duration_audio_and_composition_timing(self):
+        for multiplier in (2, 3, 4):
+            with self.subTest(multiplier=multiplier):
+                self.setUp()
+                self.enable_interpolation()
+                timing_scope = load_definitions("h3_timing.py", dict(re=re))
+                self.scope["timing_filename"] = timing_scope["timing_filename"]
+                timing = dict(version=2, fps=24, raw_frames=124, context_frames=0, context_carry_frames=0,
+                              head_frames=0, tail_frames=4, play_frames=120, save_latent=False)
+                rows = [dict(id="a", source_clip_id="a", start_ms=0, end_ms=5000, h3_timing=timing,
+                             playback_spans=[dict(source_clip_id="a", start_frame=0, frame_count=120)])]
+                result = self.run_node(rows, frame_interpolation=True, interpolation_config=self.interpolation_node.configure(interpolation_multiplier=multiplier)[0])
+                self.assertEqual(self.saved_fps, [24 * multiplier])
+                images = self.saved[0][1]["images"]
+                self.assertEqual(images.shape[0], 124 * multiplier)
+                self.assertTrue((images[-multiplier:] == images[-1]).all())
+                self.assertEqual(self.saved[0][1]["audio"], "VAEDecodeAudio_output")
+                data = json.loads(result["result"][1])
+                self.assertEqual(data["fps"], 24 * multiplier)
+                self.assertEqual(data["clips"][0]["h3_timing"]["raw_frames"], 124 * multiplier)
+                self.assertEqual(data["clips"][0]["playback_spans"][0]["frame_count"], 120 * multiplier)
+                self.assertEqual(self.composed[0][0]["fps"], 24 * multiplier)
+                saved_timing = timing_scope["timing_from_filename"](self.saved[0][0])
+                self.assertEqual(timing_scope["trim_h3_video"](saved_timing, 124 * multiplier, 24 * multiplier), (0, 5))
+                self.assertEqual(timing["raw_frames"], 124)
+                phases = [d["phase"] for n, d, _ in self.events if n == "cat_h3_progress"]
+                self.assertLess(phases.index("interpolate"), phases.index("save"))
+
+    def test_interpolation_keeps_latent_context_at_original_rate(self):
+        self.enable_interpolation()
+        rows = [dict(id="a", start_ms=0, end_ms=5000, save_latent=True),
+                dict(id="b", start_ms=5000, end_ms=10000,
+                     h3_timing=dict(version=2, fps=24, raw_frames=124, context_frames=22,
+                                    context_carry_frames=0, head_frames=0, tail_frames=0,
+                                    play_frames=102, save_latent=False, previous_source_clip_id="a"))]
+        self.run_node(rows, frame_interpolation=True, interpolation_config=self.interpolation_node.configure()[0])
+        loaded = [kw for name, kw in self.calls if name == "MiniMaxH3MotionContextLoadLatent"]
+        self.assertEqual(len(loaded), 1)
+        self.assertEqual(self.prepared[1][2]["h3_timing"]["context_frames"], 22)
+        self.assertEqual(self.composed[0][0]["clips"][1]["h3_timing"]["context_frames"], 44)
+        self.assertEqual(self.saved_fps, [48, 48])
+
+    def test_selflift_interpolation_and_disabled_interpolation(self):
+        self.enable_interpolation()
+        self.run_node(sampling_mode="selflift", selflift_config=self.selflift_config(), frame_interpolation=True, interpolation_config=self.interpolation_node.configure()[0],
+                      generate_audio=False, compose_final=False)
+        self.assertEqual(self.saved_fps, [48])
+        self.assertIsNone(self.saved[0][1]["audio"])
+        self.assertEqual(json.loads(self.saved[0][1]["metadata"])["h3_timing"]["raw_frames"], 248)
+        self.calls.clear()
+        self.run_node(frame_interpolation=False, interpolation_config={"rife_model": "../invalid"})
+        self.assertNotIn("RIFE VFI", [name for name, _ in self.calls])
+
+    def test_interpolation_requires_external_config_and_exposes_only_switch_and_socket(self):
+        with self.assertRaisesRegex(ValueError, "connected H3 Interpolation Config"):
+            self.run_node(frame_interpolation=True)
+        self.assertEqual(self.calls, [])
+        self.scope["folder_paths"].folder_names_and_paths = {}
+        self.scope["folder_paths"].get_filename_list = lambda name: []
+        inputs = self.node.INPUT_TYPES()["optional"]
+        self.assertIn("frame_interpolation", inputs)
+        self.assertEqual(inputs["interpolation_config"][0], "CAP_H3_INTERPOLATION_CONFIG")
+        self.assertNotIn("rife_model", inputs)
+        self.assertNotIn("interpolation_multiplier", inputs)
+        with self.assertRaises(ValueError):
+            self.interpolation_node.configure(rife_model="../invalid")
+
+    def test_interpolation_rejects_invalid_parameters_before_sampling(self):
+        for kw in ({"rife_model": "../outside.pth"}, {"interpolation_multiplier": 1},
+                   {"interpolation_multiplier": 2.5}, {"rife_scale_factor": 0},
+                   {"rife_clear_cache_after_n_frames": 0}):
+            with self.subTest(kw=kw), self.assertRaises(ValueError):
+                self.run_node(frame_interpolation=True, interpolation_config={**self.interpolation_node.configure()[0], **kw})
+        self.assertEqual(self.calls, [])
 
     def test_selflift_rejects_incompatible_inputs_before_sampling(self):
         config = self.selflift_config()

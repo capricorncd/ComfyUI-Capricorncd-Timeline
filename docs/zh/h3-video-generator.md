@@ -1,5 +1,10 @@
 # MiniMax H3 视频生成
 
+## RIFE 插帧
+
+新增 **H3 插帧配置** 节点，将输出连接主节点的 `interpolation_config`，再开启「插帧（RIFE）」。模型、倍数、计算比例、集成推理和缓存间隔都在配置节点中设置。开启后，在去模糊、面部修复及 Context latent 保存之后插帧。默认 rife426.pth、2 倍、计算比例 1.0、集成推理关闭、缓存间隔 10；支持 2–4 倍。需要 ComfyUI-Frame-Interpolation，首次运行可能由该插件下载所选模型；4.26 忽略集成推理。输出帧率同步翻倍（24 → 48），末帧补齐至原帧数乘倍数，保持时长及原音轨。返回的 data_json、H3 文件名和最终合成使用输出帧率及换算后的裁剪帧数，采样与 Context latent 仍使用原始帧率。关闭时忽略插帧参数。
+
+
 ## SelfLift 渐进采样（实验）
 
 安装 [facok/comfyui-SelfLift](https://github.com/facok/comfyui-SelfLift) 并重启 ComfyUI。连接 **H3 SelfLift 配置** 到 `selflift_config`，主节点的采样模式选择 `selflift`。本节点调用上游 `SelfLiftH3Sampler`，不复制其采样算法，也不自动下载模型。

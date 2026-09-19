@@ -23,6 +23,7 @@ from .cap_video_metadata import execution_graph
 from .h3_timing import timing_filename
 from .cap_h3_face_refine import FACE_NODES, validate_face_config
 from .cap_h3_selflift import validate_selflift_config
+from .cap_h3_interpolation import validate_interpolation_config
 
 
 REFINE_SIGMAS = "0.9035, 0.8000, 0.6316, 0.3158, 0.0000"
@@ -30,6 +31,11 @@ REFINE_SIGMAS = "0.9035, 0.8000, 0.6316, 0.3158, 0.0000"
 # https://github.com/matlowai/ComfyUI-MAINodes/blob/f4868b4a08e8a504ce86db54a17961d399ffa2bc/motion.py
 # Cap owns only this orchestration; the upstream node names and implementation remain unchanged.
 MOTION_NODES = ("H3JerkOracle", "H3TimeSmear", "H3V2VInit", "H3InjectSchedule", "H3ExactRecover")
+
+
+def _interpolated_timing(timing, multiplier):
+    return {key: value * multiplier if key == "fps" or key.endswith("_frames") or key in ("play_start_frame", "play_end_frame") else value
+            for key, value in timing.items()}
 
 
 def _node_class(name):
@@ -159,6 +165,8 @@ class CAP_H3VideoGenerator:
                 "face_refine_config": ("CAP_H3_FACE_REFINE_CONFIG", {"tooltip": "Connect H3 Face Refine Config. Ignored when face_refine is off."}),
                 "sampling_mode": (["standard", "selflift"], {"default": "standard", "tooltip": "standard preserves existing one/two-pass settings. selflift uses H3 SelfLift Config instead of second_sampling, first_pass_megapixels, upscaler_model and refine_sigmas. No Digital Human or Motion Context support yet."}),
                 "selflift_config": ("CAP_H3_SELFLIFT_CONFIG",),
+                "frame_interpolation": ("BOOLEAN", {"default": False, "tooltip": "RIFE interpolation after deblur/face repair. Multiplies output fps while preserving duration and audio. Requires ComfyUI-Frame-Interpolation; its first run may download the selected model."}),
+                "interpolation_config": ("CAP_H3_INTERPOLATION_CONFIG", {"tooltip": "Connect H3 Interpolation Config. Ignored when frame interpolation is off."}),
             },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "unique_id": "UNIQUE_ID", "dynprompt": "DYNPROMPT"},
         }
@@ -173,9 +181,19 @@ class CAP_H3VideoGenerator:
                  audio_refine=False, audio_refine_steps=3, normalize_audio=False, attention="keep",
                  prompt=None, extra_pnginfo=None,
                  unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False,
-                 face_refine=False, face_refine_config=None, sampling_mode="standard", selflift_config=None):
+                 face_refine=False, face_refine_config=None, sampling_mode="standard", selflift_config=None,
+                 frame_interpolation=False, interpolation_config=None):
         data = json.loads(data_json)
         width, height, fps = _validate(data)
+        interpolation = None
+        if frame_interpolation:
+            config = validate_interpolation_config(interpolation_config)
+            rife = _node_class("RIFE VFI")
+            if config["rife_model"] not in rife.INPUT_TYPES()["required"]["ckpt_name"][0]:
+                raise ValueError("Selected RIFE model is unavailable. Update ComfyUI-Frame-Interpolation or select another model.")
+            interpolation = dict(ckpt_name=config["rife_model"], multiplier=config["interpolation_multiplier"],
+                                 scale_factor=config["rife_scale_factor"], ensemble=config["rife_ensemble"] and config["rife_model"] != "rife426.pth",
+                                 fast_mode=True, clear_cache_after_n_frames=config["rife_clear_cache_after_n_frames"])
         audio_refine = bool(generate_audio and audio_refine)
         normalize_audio = bool(generate_audio and normalize_audio)
         if all(row.get("clip_role") == "digital_human" for row in data["clips"]):
@@ -282,6 +300,8 @@ class CAP_H3VideoGenerator:
             phases.append("deblur")
         if face_refine:
             phases.append("face")
+        if interpolation:
+            phases.append("interpolate")
         phases.append("save")
         clip_total = len(data["clips"])
         total_units = clip_total * len(phases) + int(compose_final)
@@ -315,7 +335,7 @@ class CAP_H3VideoGenerator:
                 fps, steps, row.get("clip_role") == "first_last", second_sampling, upscaler_model, refine_sigmas,
                 audio_refine, audio_refine_steps, normalize_audio, attention, prior_paths,
                 run_token, dict(records), extra_pnginfo,
-                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur, face_refine_config, selflift_config)
+                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur, face_refine_config, selflift_config, interpolation)
             filename = saved["result"][0]
             row["output_video"] = filename
             for owner in data["clips"]:
@@ -328,6 +348,15 @@ class CAP_H3VideoGenerator:
             notify_timeline("cat_h3_video_ready", node_id=display_id, workflow_id=workflow_id, video=info)
             if contexts:
                 context_paths[cid] = contexts
+        if interpolation:
+            interpolation_multiplier = interpolation["multiplier"]
+            data["fps"] = fps * interpolation_multiplier
+            for row in data["clips"]:
+                if row.get("h3_timing"):
+                    row["h3_timing"] = _interpolated_timing(row["h3_timing"], interpolation_multiplier)
+                for span in row.get("playback_spans", []):
+                    span["start_frame"] *= interpolation_multiplier
+                    span["frame_count"] *= interpolation_multiplier
         preview = videos[-1]
         composed_video = ""
         if compose_final:
@@ -350,7 +379,7 @@ class CAP_H3VideoGenerator:
     def _generate_clip(self, model, base_model, clip, vae, audio_vae, data, index, width, height, low_width, low_height,
                        fps, steps, strict_keyframes, second_sampling, upscaler_model, refine_sigmas,
                        audio_refine, audio_refine_steps, normalize_audio, attention, prior_paths,
-                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, motion_deblur=False, face_refine_config=None, selflift_config=None):
+                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, motion_deblur=False, face_refine_config=None, selflift_config=None, interpolation=None):
         if progress:
             progress("prepare")
         row = data["clips"][index]
@@ -494,14 +523,38 @@ class CAP_H3VideoGenerator:
             low_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=context, filename_prefix=context_prefix + "/low", clip_index=1)
             del context, context_video, context_audio, context_images
         del result
+        output_fps = fps
+        output_timing = row.get("h3_timing")
+        if interpolation:
+            if progress:
+                progress("interpolate")
+            original_count = images.shape[0]
+            if not output_timing:
+                start, end = row["start_ms"], row["end_ms"]
+                head = max(0, round((row.get("preview_start_ms", start + row.get("head_extend_sec", 0) * 1000) - start) * fps / 1000))
+                tail = max(0, round((end - row.get("preview_end_ms", end - row.get("tail_extend_sec", 0) * 1000)) * fps / 1000))
+                output_timing = dict(version=1, fps=fps, raw_frames=original_count, context_frames=trim_frames,
+                                     head_frames=head, tail_frames=tail, play_frames=original_count - trim_frames - head - tail,
+                                     save_latent=save_latent)
+                row["h3_timing"] = output_timing
+            multiplier = interpolation["multiplier"]
+            images, = _call("RIFE VFI", records, frames=images, **interpolation)
+            expected = (original_count - 1) * multiplier + 1
+            if images.shape[0] != expected:
+                raise ValueError(f"RIFE returned {images.shape[0]} frames; expected {expected}.")
+            # Hold the final frame for its remaining subframes to preserve exact duration.
+            images = torch.cat((images, images[-1:].repeat(multiplier - 1, 1, 1, 1)), dim=0)
+            output_fps *= multiplier
+            if output_timing:
+                output_timing = _interpolated_timing(output_timing, multiplier)
         if generate_audio and normalize_audio:
             audio, = _call("NormalizeAudioLoudness", records, audio=audio, lufs=-14.0)
         output = row["output_video"].strip()
-        if row.get("h3_timing"):
-            output = timing_filename(output, row["h3_timing"])
+        if output_timing:
+            output = timing_filename(output, output_timing)
         if progress:
             progress("save")
-        saved = CAP_SeqToVideo().execute("", fps, output, images=images, audio=audio,
+        saved = CAP_SeqToVideo().execute("", output_fps, output, images=images, audio=audio,
                                         metadata=json.dumps({"clip_id": cid, "strict_keyframes": strict_keyframes,
                                                              "generate_audio": generate_audio, "audio_refine": bool(generate_audio and audio_refine),
                                                              "digital_human": digital_human,
@@ -510,7 +563,8 @@ class CAP_H3VideoGenerator:
                                                              "motion_deblur": motion_deblur,
                                                              "face_refine": bool(face_refine_config), "face_refine_config": face_refine_config,
                                                              "first_pass_width": low_width, "first_pass_height": low_height,
-                                                             "h3_timing": row.get("h3_timing")}),
+                                                             "frame_interpolation": interpolation, "output_fps": output_fps,
+                                                             "h3_timing": output_timing}),
                                         save_sidecar=True, prompt=records, extra_pnginfo=extra_pnginfo, seed=seed, clip_id=cid)
         return saved, (low_path, high_path) if save_latent else None
 

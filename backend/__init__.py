@@ -103,6 +103,10 @@ from .cap_h3_video_generator import (
     NODE_CLASS_MAPPINGS as _H3VG_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _H3VG_NAMES,
 )
+from .cap_h3_interpolation import (
+    NODE_CLASS_MAPPINGS as _H3FI_CLASS,
+    NODE_DISPLAY_NAME_MAPPINGS as _H3FI_NAMES,
+)
 from .cap_h3_selflift import (
     NODE_CLASS_MAPPINGS as _H3SL_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _H3SL_NAMES,
@@ -153,6 +157,7 @@ NODE_CLASS_MAPPINGS = {
     **_H3VG_CLASS,
     **_H3FR_CLASS,
     **_H3SL_CLASS,
+    **_H3FI_CLASS,
     **_CVP_CLASS,
     "CAP_JoinStrings": CAP_JoinStrings,
 }
@@ -181,6 +186,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **_H3VG_NAMES,
     **_H3FR_NAMES,
     **_H3SL_NAMES,
+    **_H3FI_NAMES,
     **_CVP_NAMES,
     "CAP_JoinStrings": "Join Strings",
 }

@@ -685,6 +685,26 @@
       }
     }
   },
+  "CAP_H3InterpolationConfig": {
+    "display_name": "H3 Interpolation Config",
+    "inputs": {
+      "rife_model": {
+        "name": "RIFE model"
+      },
+      "interpolation_multiplier": {
+        "name": "Interpolation multiplier"
+      },
+      "rife_scale_factor": {
+        "name": "RIFE scale factor"
+      },
+      "rife_ensemble": {
+        "name": "RIFE ensemble"
+      },
+      "rife_clear_cache_after_n_frames": {
+        "name": "RIFE cache clear interval"
+      }
+    }
+  },
   "CAP_H3VideoGenerator": {
     "display_name": "MiniMax H3 Video Generator",
     "outputs": {
@@ -693,6 +713,11 @@
       }
     },
     "inputs": {
+      "interpolation_config": {"name": "Interpolation config"},
+      "frame_interpolation": {
+        "name": "Frame interpolation (RIFE)",
+        "tooltip": "Off by default. Runs after face/deblur repair. Multiplies output fps, preserves duration and audio. Requires ComfyUI-Frame-Interpolation; first use may download the selected model."
+      },
       "face_refine": {
         "name": "Face refinement",
         "tooltip": "Off by default. Requires H3 Face Refine Config and Carasibana H3-FaceRefine. Uses the current 4/8-step sampling model for one tracked face; keeps original audio and frame count. Costs extra time/memory."

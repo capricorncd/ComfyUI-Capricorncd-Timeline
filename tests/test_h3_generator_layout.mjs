@@ -74,3 +74,26 @@ node.configure({widgets_values: [...oldWidgets.map(name => values[name]), true]}
 pending.splice(0).forEach(cb => cb());
 assert.equal(node.widgets.find(w => w.name === 'motion_deblur').value, true);
 assert.equal(node.widgets.find(w => w.name === 'face_refine').value, false);
+
+const interpolationWidgets = ['frame_interpolation'];
+const defaults = [false];
+node.widgets.push(...interpolationWidgets.map((name, i) => ({name, value: defaults[i]})));
+node.onNodeCreated();
+const updatedOrder = [...expected];
+updatedOrder.splice(updatedOrder.indexOf('face_refine') + 1, 0, ...interpolationWidgets);
+assert.deepEqual(node.widgets.map(w => w.name), [...updatedOrder, 'stv_ui']);
+node.configure({properties: {cap_h3_widget_order: expected}, widgets_values: expected.map(name => values[name])});
+pending.splice(0).forEach(cb => cb());
+interpolationWidgets.forEach((name, i) => assert.equal(node.widgets.find(w => w.name === name).value, defaults[i]));
+node.widgets.find(w => w.name === 'frame_interpolation').value = true;
+const interpolated = {widgets_values: node.widgets.filter(w => w.name !== 'stv_ui').map(w => w.value)};
+node.onSerialize(interpolated);
+node.configure(interpolated);
+pending.splice(0).forEach(cb => cb());
+assert.equal(node.widgets.find(w => w.name === 'frame_interpolation').value, true);
+console.log('RIFE controls: ordering, old workflow defaults and saved settings passed.');
+
+node.inputs.push({name: 'interpolation_config', link: null});
+node.onNodeCreated();
+assert.equal(node.inputs.findIndex(i => i.name === 'interpolation_config'), 6);
+assert.ok(!node.widgets.some(w => w.name.startsWith('rife_')));

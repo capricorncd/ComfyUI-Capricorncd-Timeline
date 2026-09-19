@@ -13,14 +13,18 @@ execute = next(n for n in node.body if isinstance(n, ast.FunctionDef) and n.name
 
 class ParserModelOutputTests(unittest.TestCase):
     def test_name_position_and_type(self):
-        self.assertEqual(len(contract['RETURN_NAMES']), 20)
-        self.assertEqual(contract['RETURN_NAMES'][11:14], ('clip_role', 'model_type', 'detailed_description'))
-        self.assertEqual(contract['RETURN_TYPES'][12], 'STRING')
+        self.assertEqual(len(contract['RETURN_NAMES']), 15)
+        self.assertEqual(contract['RETURN_NAMES'][7:10], ('clip_role', 'model_type', 'clip_json'))
+        self.assertEqual(contract['RETURN_TYPES'][8], 'STRING')
         returned = next(n for n in ast.walk(execute) if isinstance(n, ast.Return))
-        self.assertEqual(returned.value.elts[12].id, 'model_type')
+        self.assertEqual(returned.value.elts[8].id, 'model_type')
+        self.assertEqual(len(returned.value.elts), len(contract['RETURN_TYPES']))
+        removed = {'run_timestamp', 'generate_preview_video', 'from_start', 'from_preview_start', 'detailed_description'}
+        self.assertFalse(removed.intersection(contract['RETURN_NAMES']))
         for language in ('en', 'zh', 'ja'):
             locale = json.loads((ROOT / 'locales' / language / 'nodeDefs.json').read_text(encoding='utf-8-sig'))
             outputs = locale['CAP_DataJsonClipParser']['outputs']
+            self.assertFalse(removed.intersection(outputs))
             self.assertIn('model_type', outputs)
             self.assertNotIn('model', outputs)
             self.assertNotIn('agent', outputs)

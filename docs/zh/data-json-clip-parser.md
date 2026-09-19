@@ -14,10 +14,7 @@
 - 按时间轴帧率计算的帧数
 - 首帧和尾帧图片
 - 按上游格式规则拼接得到的有效提示词
-- `run_prefix`（本次运行时间戳前缀）
-- `generate_preview_video`
 - `second_sample`
-- `from_start` / `from_preview_start`（`FROM_MMSS_帧_总帧数`，≥1 小时为 `FROM_HHMMSS_…`）
 
 节点加载并混音 clip 内 `audios[]` 中的各条音频切片。
 
@@ -94,16 +91,11 @@ Timeline Editor 使用固定的 `prepend_prompt` 和 `append_prompt` 包住 Clip
 | `first_frame` | IMAGE | 首帧关键帧图片；未分配时输出 64×64 空白图 |
 | `last_frame` | IMAGE | 尾帧关键帧图片；未分配时输出 64×64 空白图 |
 | `prompt` | STRING | 每片段提示词；无则使用 `global_prompt` |
-| `run_prefix` | STRING | 顶层 `run_prefix`（`YYYYMMDD_HHMMSS`），可作统一文件名前缀 |
-| `generate_preview_video` | BOOLEAN | 已移除的选项；保留输出槽位以兼容旧连线，固定 false |
 | `second_sample` | BOOLEAN | 是否启用二次采样 |
-| `from_start` | STRING | 扩展后开始时刻标签，如 `FROM_0010_12_480`；负时间用 `FROM_N…` |
-| `from_preview_start` | STRING | 预览（时间轴原始）开始时刻标签，如 `FROM_0012_12_432` |
 | `seq_filename_prefix` | STRING | Seq To Video 前缀（`run_timestamp/from_start` 或 `…/index`） |
 | `images` | IMAGE | 片段全部静帧组成的 IMAGE 批次 |
 | `clip_role` | STRING | 片段生成类型 |
-| `model_type` | STRING | 模型类型名称，如 MiniMaxH3、LTX，不是 MODEL 对象；兼容读取原有 `agent` 字段，输出位置和类型不变 |
-| `detailed_description` | STRING | 兼容输出，从 `prompt` 内的 `detailed_description` 段落提取 |
+| `model_type` | STRING | 模型类型名称，如 MiniMaxH3、LTX，不是 MODEL 对象；兼容读取原有 `agent` 字段 |
 | `clip_json` | STRING | 自包含片段 JSON：含 `fps`、`global_prompt`，以及 `images` / `videos` 绝对 `file` 路径、已解析的 `audios`、内嵌 `materials` |
 
 `clip_json` 供 [MiniMaxH3](minimax-h3.md) 等节点直接使用，无需再接完整 `data_json` + `index`。

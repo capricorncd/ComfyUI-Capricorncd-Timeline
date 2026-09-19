@@ -2,7 +2,6 @@ from __future__ import annotations
 import copy
 import json
 import os
-import re
 
 import numpy as np
 import torch
@@ -99,22 +98,17 @@ class CAP_DataJsonClipParser:
             },
         }
 
-    RETURN_TYPES = ("AUDIO", "INT", "IMAGE", "IMAGE", "STRING", "STRING", "BOOLEAN", "STRING", "STRING", "STRING", "IMAGE", "STRING", "STRING", "STRING", "STRING", "BOOLEAN", "STRING", "BOOLEAN", "BOOLEAN", "INT")
+    RETURN_TYPES = ("AUDIO", "INT", "IMAGE", "IMAGE", "STRING", "STRING", "IMAGE", "STRING", "STRING", "STRING", "BOOLEAN", "STRING", "BOOLEAN", "BOOLEAN", "INT")
     RETURN_NAMES = (
         "audio",
         "frame_count",
         "first_frame",
         "last_frame",
         "prompt",
-        "run_timestamp",
-        "generate_preview_video",
-        "from_start",
-        "from_preview_start",
         "seq_filename_prefix",
         "images",
         "clip_role",
         "model_type",
-        "detailed_description",
         "clip_json",
         "second_sample",
         "output_video",
@@ -127,10 +121,10 @@ class CAP_DataJsonClipParser:
     DESCRIPTION = (
         "Parse data_json from Timeline Editor and extract a clip by index. "
         "Outputs the clip audio segment, frame count, first/last keyframe images, prompt, "
-        "run_timestamp, generate_preview_video, FROM_ tags, seq_filename_prefix "
+        "seq_filename_prefix "
         "(run_timestamp/from_start or run_timestamp/index) for Seq To Video, "
         "images (all clip images in editor order as one IMAGE batch), "
-        "clip_role, model_type (STRING), detailed_description, clip_json (self-contained clip with resolved "
+        "clip_role, model_type (STRING), clip_json (self-contained clip with resolved "
         "image/video file paths and embedded materials), second_sample, output_video "
         "(CapTimelineEditor-specified save path when enabled), save_latent "
         "(whether to run H3 Motion Context Save Latent for this clip), and "
@@ -230,14 +224,6 @@ class CAP_DataJsonClipParser:
 
     def _normalize_prompt_concat_order(self, raw) -> list[str]:
         return _normalize_prompt_concat_order(raw)
-
-    def _prompt_section(self, prompt: str, section: str) -> str:
-        match = re.search(
-            rf"^{re.escape(section)}\s*:\s*(.*?)(?=^(?:subject_definitions|summary|retention_analysis|detailed_description|overall_soundscape|non_diegetic_music)\s*:|\Z)",
-            str(prompt or ""),
-            re.IGNORECASE | re.MULTILINE | re.DOTALL,
-        )
-        return match.group(1).strip() if match else ""
 
     def _timeline_prompt_includes(self, clip: dict) -> list[str]:
         raw = clip.get("prompt_includes")
@@ -684,7 +670,6 @@ class CAP_DataJsonClipParser:
             prepend_prompt=prepend_prompt,
             append_prompt=append_prompt,
         )
-        generate_preview_video = False  # Preserve output slot indices for existing workflows.
         second_sample = bool(clip.get("second_sample", False))
         save_latent = bool(clip.get("save_latent", False))
         try:
@@ -697,23 +682,10 @@ class CAP_DataJsonClipParser:
         except (TypeError, ValueError):
             seed = -1
 
-        preview_start_ms = clip.get("preview_start_ms", None)
-        preview_end_ms = clip.get("preview_end_ms", None)
-        try:
-            preview_start_ms = int(preview_start_ms) if preview_start_ms is not None else clip_start_ms
-        except (TypeError, ValueError):
-            preview_start_ms = clip_start_ms
-        try:
-            preview_end_ms = int(preview_end_ms) if preview_end_ms is not None else clip_end_ms
-        except (TypeError, ValueError):
-            preview_end_ms = clip_end_ms
-        preview_frame_count = self._frame_count(preview_start_ms, preview_end_ms, fps)
         if clip.get("h3_timing"):
             frame_count = int(clip["h3_timing"]["raw_frames"])
-            preview_frame_count = int(clip["h3_timing"]["play_frames"])
 
         from_start = self._from_tag(clip_start_ms, frame_count, fps)
-        from_preview_start = self._from_tag(preview_start_ms, preview_frame_count, fps)
         seq_filename_prefix = self._seq_filename_prefix(run_timestamp, from_start, index, seq_name_mode)
 
         if self._uses_master_audio(data, clip):
@@ -734,7 +706,6 @@ class CAP_DataJsonClipParser:
         images = self._load_images_batch(refs, materials, blank)
         clip_role = str(clip.get("clip_role") or "multi_ref").strip() or "multi_ref"
         model_type = str(clip.get("agent") or "MiniMaxH3").strip() or "MiniMaxH3"
-        detailed_description = self._prompt_section(clip.get("prompt") or "", "detailed_description")
         clip_json = self._build_clip_json(
             clip,
             materials,
@@ -756,15 +727,10 @@ class CAP_DataJsonClipParser:
             first_frame,
             last_frame,
             prompt,
-            run_timestamp,
-            generate_preview_video,
-            from_start,
-            from_preview_start,
             seq_filename_prefix,
             images,
             clip_role,
             model_type,
-            detailed_description,
             clip_json,
             second_sample,
             output_video,

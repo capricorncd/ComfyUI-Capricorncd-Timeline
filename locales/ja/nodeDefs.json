@@ -223,18 +223,6 @@
       "prompt": {
         "name": "プロンプト"
       },
-      "run_timestamp": {
-        "name": "実行タイムスタンプ"
-      },
-      "generate_preview_video": {
-        "name": "廃止（常に false）"
-      },
-      "from_start": {
-        "name": "FROM 開始"
-      },
-      "from_preview_start": {
-        "name": "FROM プレビュー開始"
-      },
       "seq_filename_prefix": {
         "name": "連番ファイル名接頭辞"
       },
@@ -246,9 +234,6 @@
       },
       "model_type": {
         "name": "モデル種類"
-      },
-      "detailed_description": {
-        "name": "詳細説明"
       },
       "clip_json": {
         "name": "クリップ JSON"

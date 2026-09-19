@@ -201,7 +201,7 @@
         "name": "索引"
       },
       "trim_offset": {
-        "name": "修剪偏移（秒）"
+        "name": "音频修剪偏移（秒）"
       },
       "seq_name_mode": {
         "name": "序列命名模式"
@@ -223,18 +223,6 @@
       "prompt": {
         "name": "提示词"
       },
-      "run_timestamp": {
-        "name": "运行时间戳"
-      },
-      "generate_preview_video": {
-        "name": "已停用（固定 false）"
-      },
-      "from_start": {
-        "name": "FROM开始"
-      },
-      "from_preview_start": {
-        "name": "FROM预览开始"
-      },
       "seq_filename_prefix": {
         "name": "序列帧合成前缀"
       },
@@ -246,9 +234,6 @@
       },
       "model_type": {
         "name": "模型类型"
-      },
-      "detailed_description": {
-        "name": "详细描述"
       },
       "clip_json": {
         "name": "片段JSON"

@@ -10,8 +10,8 @@ vm.runInNewContext(readFileSync(new URL('../js/cap_h3_video_generator.js', impor
 const oldWidgets = ['steps', 'strict_keyframes', 'second_sampling', 'first_pass_megapixels',
     'upscaler_model', 'refine_sigmas', 'audio_refine', 'audio_refine_steps', 'normalize_audio',
     'attention', 'compose_final', 'sampling_preview', 'preview_tiny_vae', 'generate_audio'];
-const currentWidgets = [...oldWidgets.filter(name => name !== 'strict_keyframes'), 'motion_deblur', 'sampling_mode'];
-const expected = ['sampling_mode', 'steps', 'attention', 'second_sampling', 'first_pass_megapixels',
+const currentWidgets = [...oldWidgets.filter(name => name !== 'strict_keyframes'), 'motion_deblur'];
+const expected = ['steps', 'attention', 'second_sampling', 'first_pass_megapixels',
     'upscaler_model', 'refine_sigmas', 'motion_deblur', 'sampling_preview', 'preview_tiny_vae', 'generate_audio',
     'audio_refine', 'audio_refine_steps', 'normalize_audio', 'compose_final'];
 const oldInputs = ['model', 'clip', 'vae', 'audio_vae', 'data_json', 'base_model']
@@ -32,7 +32,7 @@ class Node {
 }
 await extension.beforeRegisterNodeDef(Node, {name: 'CAP_H3VideoGenerator', input: {
     required: Object.fromEntries(oldWidgets.slice(0, 10).map(name => [name, {}])),
-    optional: Object.fromEntries([...oldWidgets.slice(10), 'motion_deblur', 'sampling_mode'].map(name => [name, {}])),
+    optional: Object.fromEntries([...oldWidgets.slice(10), 'motion_deblur'].map(name => [name, {}])),
 }});
 const node = new Node();
 node.onNodeCreated();
@@ -41,7 +41,6 @@ assert.deepEqual(node.widgets.map(w => w.name), [...expected, 'stv_ui']);
 const values = Object.fromEntries(oldWidgets.map(name => [name, `saved:${name}`]));
 values.motion_deblur = false;
 values.face_refine = false;
-values.sampling_mode = "standard";
 for (const inputs of [savedInputs, oldInputs, [...oldInputs, {name: 'steps', widget: {name: 'steps'}}]]) {
     node.configure({inputs, widgets_values: oldWidgets.map(name => values[name])});
     const links = new Map(oldInputs.map(input => [input.link, {target_id: 9, target_slot: -1}]));

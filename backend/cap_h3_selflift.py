@@ -10,7 +10,7 @@ class CAP_H3SelfLiftConfig:
     RETURN_TYPES = ("CAP_H3_SELFLIFT_CONFIG",)
     RETURN_NAMES = ("selflift_config",)
     DOC_SLUG = "h3-video-generator"
-    DESCRIPTION = "Experimental SelfLift progressive sampling. Connect to MiniMax H3 Video Generator and select selflift. Uses the installed facok/comfyui-SelfLift node; no model downloads. Low-resolution steps must be less than the generator's total steps. For 4 total steps, set 3 (3 low-res + 1 high-res; valid range 1–3). For 8 total steps, set 6 (6 low-res + 2 high-res; valid range 1–7). When changing total steps, update this value and select the matching 4/8-step LoRA; neither changes automatically."
+    DESCRIPTION = "Experimental SelfLift progressive sampling. Connect to MiniMax H3 Video Generator and enable this config. Disconnected or disabled uses standard sampling. Uses the installed facok/comfyui-SelfLift node; no model downloads. Low-resolution steps must be less than the generator's total steps. For 4 total steps, set 3 (3 low-res + 1 high-res; valid range 1–3). For 8 total steps, set 6 (6 low-res + 2 high-res; valid range 1–7). When changing total steps, update this value and select the matching 4/8-step LoRA; neither changes automatically."
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -24,16 +24,20 @@ class CAP_H3SelfLiftConfig:
             "rho": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05, "tooltip": "0 uses the external upscaler only. Without an upscaler, use a positive value (upstream suggests 0.6 with weights 1/1 for H3)."}),
             "w_min": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05}),
             "w_max": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05}),
+            "enabled": ("BOOLEAN", {"default": True}),
         }}
 
-    def configure(self, **kwargs):
+    def configure(self, enabled=True, **kwargs):
+        if not enabled:
+            return (None,)
         return (validate_selflift_config(kwargs, resolve_model=False),)
 
 
 def validate_selflift_config(config, steps=None, resolve_model=True):
-    if not isinstance(config, dict) or set(config) != set(CAP_H3SelfLiftConfig.INPUT_TYPES()["required"]):
+    schema = {name: value for name, value in CAP_H3SelfLiftConfig.INPUT_TYPES()["required"].items() if name != "enabled"}
+    if not isinstance(config, dict) or set(config) != set(schema):
         raise ValueError("SelfLift mode requires a connected H3 SelfLift Config.")
-    for name, (kind, options) in CAP_H3SelfLiftConfig.INPUT_TYPES()["required"].items():
+    for name, (kind, options) in schema.items():
         value = config[name]
         if kind in ("INT", "FLOAT"):
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):

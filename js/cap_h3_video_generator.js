@@ -2,7 +2,7 @@ import { app } from "../../scripts/app.js";
 
 const INPUT_ORDER = [
     "model", "base_model", "clip", "vae", "audio_vae", "data_json", "face_refine_config", "selflift_config", "interpolation_config",
-    "sampling_mode", "steps", "attention",
+    "steps", "attention",
     "second_sampling", "first_pass_megapixels", "upscaler_model", "refine_sigmas",
     "motion_deblur",
     "sampling_preview", "preview_tiny_vae",
@@ -55,7 +55,6 @@ app.registerExtension({
                 const values = new Map(savedOrder.map((name, i) => [name, info.widgets_values[i]]));
                 info = {...info, widgets_values: this.widgets.filter(widget => WIDGET_ORDER.includes(widget.name))
                     .map(widget => values.has(widget.name) ? values.get(widget.name)
-                        : widget.name === "sampling_mode" ? "standard"
                         : widget.name === "motion_deblur" ? false : widget.value)};
             }
             configure?.call(this, info);

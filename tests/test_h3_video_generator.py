@@ -96,11 +96,12 @@ class GeneratorTests(unittest.TestCase):
             get_filename_list=lambda name: ["h3_up.safetensors"], get_full_path_or_raise=lambda *args: "valid")
         config_scope = load_definitions("cap_h3_selflift.py", dict(math=math, folder_paths=folders))
         self.scope["validate_selflift_config"] = config_scope["validate_selflift_config"]
-        return {key: options["default"] for key, (_, options) in config_scope["CAP_H3SelfLiftConfig"].INPUT_TYPES()["required"].items()}
+        self.selflift_node = config_scope["CAP_H3SelfLiftConfig"]()
+        return self.selflift_node.configure(**{key: options["default"] for key, (_, options) in self.selflift_node.INPUT_TYPES()["required"].items()})[0]
 
     def test_selflift_replaces_two_pass_and_keeps_target_dimensions(self):
         config = self.selflift_config()
-        self.run_node(sampling_mode="selflift", selflift_config=config, second_sampling=True,
+        self.run_node(selflift_config=config, second_sampling=True,
                       upscaler_model="none", refine_sigmas="invalid")
         names = [name for name, _ in self.calls]
         self.assertIn("SelfLiftH3Sampler", names)
@@ -124,7 +125,7 @@ class GeneratorTests(unittest.TestCase):
                 self.enable_motion_deblur()
                 self.scope["nodes"].NODE_CLASS_MAPPINGS.update(registered)
                 self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, "seed": 42}],
-                              sampling_mode="selflift", selflift_config=config, motion_deblur=deblur,
+                              selflift_config=config, motion_deblur=deblur,
                               face_refine_config={"configured": True} if face else None)
                 self.assertEqual([kw["noise_seed"] for name, kw in self.calls if name == "RandomNoise"], [42])
                 if deblur:
@@ -200,7 +201,7 @@ class GeneratorTests(unittest.TestCase):
 
     def test_selflift_interpolation_and_disabled_interpolation(self):
         self.enable_interpolation()
-        self.run_node(sampling_mode="selflift", selflift_config=self.selflift_config(), interpolation_config=self.interpolation_node.configure()[0],
+        self.run_node(selflift_config=self.selflift_config(), interpolation_config=self.interpolation_node.configure()[0],
                       generate_audio=False, compose_final=False)
         self.assertEqual(self.saved_fps, [48])
         self.assertIsNone(self.saved[0][1]["audio"])
@@ -237,24 +238,24 @@ class GeneratorTests(unittest.TestCase):
                     {"h3_timing": {"context_frames": 22}}):
             with self.subTest(row=row), self.assertRaisesRegex(ValueError, "SelfLift"):
                 self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, **row}],
-                              sampling_mode="selflift", selflift_config=config)
-        for invalid in (None, {**config, "transition_step": 8}, {**config, "rho": float("nan")},
+                              selflift_config=config)
+        for invalid in ({}, {**config, "transition_step": 8}, {**config, "rho": float("nan")},
                         {**config, "w_min": 1, "w_max": 0.5}, {**config, "upscaler_model": "../outside"},
                         {**config, "upscaler_model": "none"}):
             with self.subTest(config=invalid), self.assertRaises(ValueError):
-                self.run_node(sampling_mode="selflift", selflift_config=invalid)
+                self.run_node(selflift_config=invalid)
         with self.assertRaisesRegex(ValueError, "less than 4"):
-            self.run_node(steps="4", sampling_mode="selflift", selflift_config=config)
+            self.run_node(steps="4", selflift_config=config)
         self.assertFalse(self.calls)
 
-    def test_selflift_four_steps_first_last_and_standard_config_ignored(self):
+    def test_selflift_four_steps_first_last_and_disabled_config(self):
         config = self.selflift_config()
         config["transition_step"] = 3
         self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, "clip_role": "first_last"}],
-                      steps="4", sampling_mode="selflift", selflift_config=config)
+                      steps="4", selflift_config=config)
         self.assertEqual(next(kw for name, kw in self.calls if name == "SelfLiftH3Sampler")["transition_step"], 3)
         self.calls.clear()
-        self.run_node(selflift_config={"invalid": True})
+        self.run_node(selflift_config=self.selflift_node.configure(enabled=False)[0])
         self.assertNotIn("SelfLiftH3Sampler", [name for name, _ in self.calls])
 
     def test_digital_human_locks_both_passes_and_saves_source_audio(self):
@@ -311,6 +312,7 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(schema["optional"]["base_model"][0], "MODEL")
         self.assertFalse(schema["optional"]["motion_deblur"][1]["default"])
         self.assertNotIn("face_refine", schema["optional"])
+        self.assertNotIn("sampling_mode", schema["optional"])
 
     def test_motion_deblur_disabled_does_not_require_mainodes(self):
         lookup = Mock(return_value=object)

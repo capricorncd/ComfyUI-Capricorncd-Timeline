@@ -162,7 +162,6 @@ class CAP_H3VideoGenerator:
                 "generate_audio": ("BOOLEAN", {"default": True, "tooltip": "Include generated audio in Clip and final videos. Off skips audio repair, decoding, normalization and audio encoding for silent MV footage. H3 still jointly samples the audio latent; reference audio is preserved."}),
                 "motion_deblur": ("BOOLEAN", {"default": False, "tooltip": "Experimental MAINodes motion repair after video sampling. Requires ComfyUI-MAINodes and base_model without acceleration LoRA. Extra sampling/encode/decode increases time and memory; motion details may change. Keeps original frame count, audio and context prefix."}),
                 "face_refine_config": ("CAP_H3_FACE_REFINE_CONFIG", {"tooltip": "Connect H3 Face Refine Config. Enable or disable repair on that config node."}),
-                "sampling_mode": (["standard", "selflift"], {"default": "standard", "tooltip": "standard preserves existing one/two-pass settings. selflift uses H3 SelfLift Config instead of second_sampling, first_pass_megapixels, upscaler_model and refine_sigmas. No Digital Human or Motion Context support yet."}),
                 "selflift_config": ("CAP_H3_SELFLIFT_CONFIG",),
                 "interpolation_config": ("CAP_H3_INTERPOLATION_CONFIG", {"tooltip": "Connect H3 Interpolation Config. Enable or disable interpolation on that config node."}),
             },
@@ -179,7 +178,7 @@ class CAP_H3VideoGenerator:
                  audio_refine=False, audio_refine_steps=3, normalize_audio=False, attention="keep",
                  prompt=None, extra_pnginfo=None,
                  unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False,
-                 face_refine_config=None, sampling_mode="standard", selflift_config=None,
+                 face_refine_config=None, selflift_config=None,
                  interpolation_config=None):
         data = json.loads(data_json)
         width, height, fps = _validate(data)
@@ -200,19 +199,15 @@ class CAP_H3VideoGenerator:
         if str(steps) not in ("4", "8"):
             raise ValueError("H3 steps must be 4 or 8.")
         steps = int(steps)
-        if sampling_mode not in ("standard", "selflift"):
-            raise ValueError("Sampling mode must be standard or selflift.")
-        if sampling_mode == "selflift":
+        if selflift_config is not None:
             selflift_config = validate_selflift_config(selflift_config, steps)
             for row in data["clips"]:
                 if row.get("clip_role") == "digital_human":
-                    raise ValueError("SelfLift does not support Digital Human audio locking yet. Select standard sampling mode.")
+                    raise ValueError("SelfLift does not support Digital Human audio locking yet. Disconnect or disable H3 SelfLift Config.")
                 if row.get("h3_motion_context_length") or (row.get("h3_timing") or {}).get("context_frames"):
-                    raise ValueError("SelfLift does not support Motion Context yet. Select standard sampling mode or disable context.")
+                    raise ValueError("SelfLift does not support Motion Context yet. Disconnect or disable H3 SelfLift Config, or disable context.")
             _node_class("SelfLiftH3Sampler")
             second_sampling = False
-        else:
-            selflift_config = None
         required = ["MiniMaxH3SigmaShift", "RandomNoise", "BasicGuider", "KSamplerSelect",
                     "BasicScheduler", "SamplerCustomAdvanced", "VAEDecode"]
         if selflift_config:

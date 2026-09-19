@@ -1,6 +1,6 @@
 # H3 Face Refine Config
 
-Connect this node to **H3 Video Generator → face_refine_config**, then enable **face_refine** (off by default). Restart ComfyUI after installing the optional [ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine) dependency.
+Connect this node to **H3 Video Generator → face_refine_config**, then use the enable switch on this config node (disconnect or disable to skip repair). Restart ComfyUI after installing the optional [ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine) dependency.
 
 Place `face_yolov8m.pt` in the upstream standard directory `models/ultralytics/bbox` (or an externally registered `ultralytics_bbox` directory); choose a face detector, not a hand/person detector. Nothing is downloaded automatically. Impact-Pack is not required for this integration.
 

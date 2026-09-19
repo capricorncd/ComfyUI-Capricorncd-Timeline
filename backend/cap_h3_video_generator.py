@@ -161,12 +161,10 @@ class CAP_H3VideoGenerator:
                 "preview_tiny_vae": (["none"] + folder_paths.get_filename_list("vae_approx"), {"default": "none", "tooltip": "Select taeh3.safetensors for H3 RGB previews if installed in models/vae_approx. none uses approximate latent colors; completed videos always use the full VAE."}),
                 "generate_audio": ("BOOLEAN", {"default": True, "tooltip": "Include generated audio in Clip and final videos. Off skips audio repair, decoding, normalization and audio encoding for silent MV footage. H3 still jointly samples the audio latent; reference audio is preserved."}),
                 "motion_deblur": ("BOOLEAN", {"default": False, "tooltip": "Experimental MAINodes motion repair after video sampling. Requires ComfyUI-MAINodes and base_model without acceleration LoRA. Extra sampling/encode/decode increases time and memory; motion details may change. Keeps original frame count, audio and context prefix."}),
-                "face_refine": ("BOOLEAN", {"default": False, "tooltip": "Refine one tracked face after motion deblur. Requires H3-FaceRefine and a connected H3 Face Refine Config. Uses the sampling model and its 4/8-step LoRA. Adds a crop sampling pass; keeps original audio and frame count."}),
-                "face_refine_config": ("CAP_H3_FACE_REFINE_CONFIG", {"tooltip": "Connect H3 Face Refine Config. Ignored when face_refine is off."}),
+                "face_refine_config": ("CAP_H3_FACE_REFINE_CONFIG", {"tooltip": "Connect H3 Face Refine Config. Enable or disable repair on that config node."}),
                 "sampling_mode": (["standard", "selflift"], {"default": "standard", "tooltip": "standard preserves existing one/two-pass settings. selflift uses H3 SelfLift Config instead of second_sampling, first_pass_megapixels, upscaler_model and refine_sigmas. No Digital Human or Motion Context support yet."}),
                 "selflift_config": ("CAP_H3_SELFLIFT_CONFIG",),
-                "frame_interpolation": ("BOOLEAN", {"default": False, "tooltip": "RIFE interpolation after deblur/face repair. Multiplies output fps while preserving duration and audio. Requires ComfyUI-Frame-Interpolation; its first run may download the selected model."}),
-                "interpolation_config": ("CAP_H3_INTERPOLATION_CONFIG", {"tooltip": "Connect H3 Interpolation Config. Ignored when frame interpolation is off."}),
+                "interpolation_config": ("CAP_H3_INTERPOLATION_CONFIG", {"tooltip": "Connect H3 Interpolation Config. Enable or disable interpolation on that config node."}),
             },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "unique_id": "UNIQUE_ID", "dynprompt": "DYNPROMPT"},
         }
@@ -181,12 +179,13 @@ class CAP_H3VideoGenerator:
                  audio_refine=False, audio_refine_steps=3, normalize_audio=False, attention="keep",
                  prompt=None, extra_pnginfo=None,
                  unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False,
-                 face_refine=False, face_refine_config=None, sampling_mode="standard", selflift_config=None,
-                 frame_interpolation=False, interpolation_config=None):
+                 face_refine_config=None, sampling_mode="standard", selflift_config=None,
+                 interpolation_config=None):
         data = json.loads(data_json)
         width, height, fps = _validate(data)
+        face_refine = face_refine_config is not None
         interpolation = None
-        if frame_interpolation:
+        if interpolation_config is not None:
             config = validate_interpolation_config(interpolation_config)
             rife = _node_class("RIFE VFI")
             if config["rife_model"] not in rife.INPUT_TYPES()["required"]["ckpt_name"][0]:

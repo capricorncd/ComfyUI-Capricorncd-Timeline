@@ -23,7 +23,7 @@ def register_face_detectors():
 def validate_face_config(config, resolve_detector=True):
     if not isinstance(config, dict):
         raise ValueError("Enable face_refine only with an H3 Face Refine Config connected.")
-    schema = CAP_H3FaceRefineConfig.INPUT_TYPES()["required"]
+    schema = {name: value for name, value in CAP_H3FaceRefineConfig.INPUT_TYPES()["required"].items() if name != "enabled"}
     if set(config) != set(schema):
         raise ValueError("Invalid face refinement configuration. Reconnect H3 Face Refine Config.")
     for name, (kind, options) in schema.items():
@@ -70,9 +70,12 @@ class CAP_H3FaceRefineConfig:
             "smooth_window": ("INT", {"default": 21, "min": 1, "max": 201, "step": 2}),
             "feather": ("INT", {"default": 6, "min": 0, "max": 256}),
             "blend": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05}),
+            "enabled": ("BOOLEAN", {"default": True}),
         }}
 
-    def configure(self, **kwargs):
+    def configure(self, enabled=True, **kwargs):
+        if not enabled:
+            return (None,)
         return (validate_face_config(kwargs, resolve_detector=False),)
 
 

@@ -2,7 +2,7 @@
 
 ## RIFE frame interpolation
 
-Connect **H3 Interpolation Config** to `interpolation_config`, then enable `frame_interpolation` to run the installed ComfyUI-Frame-Interpolation RIFE node after deblur, face repair and context latent saving. Model, multiplier, scale, ensemble and cache interval live on the config node. Defaults: rife426.pth, 2x, scale 1.0, ensemble off, cache interval 10. Supports integer 2–4x; the plugin may download the selected model on first use. RIFE 4.26 ignores ensemble. Output fps and timing snapshots are multiplied, including composition and returned data_json. Hold the final frame to preserve exact duration and original audio. Sampling and latent contexts retain the original frame rate. Disabled interpolation ignores its parameters.
+Connect **H3 Interpolation Config** to `interpolation_config`, then use the enable switch on the config node (disconnect or disable to skip interpolation) to run the installed ComfyUI-Frame-Interpolation RIFE node after deblur, face repair and context latent saving. Model, multiplier, scale, ensemble and cache interval live on the config node. Defaults: rife426.pth, 2x, scale 1.0, ensemble off, cache interval 10. Supports integer 2–4x; the plugin may download the selected model on first use. RIFE 4.26 ignores ensemble. Output fps and timing snapshots are multiplied, including composition and returned data_json. Hold the final frame to preserve exact duration and original audio. Sampling and latent contexts retain the original frame rate. Disabled interpolation ignores its parameters.
 
 
 ## SelfLift progressive sampling (experimental)

@@ -34,6 +34,10 @@
       },
       "blend": {
         "name": "融合比例"
+      },
+      "enabled": {
+        "name": "面部修复",
+        "tooltip": "默认关闭。需连接 H3 面部修复配置并安装 Carasibana 的 H3-FaceRefine。使用当前 4/8 步采样模型额外修复一个目标人脸，保留原音轨和帧数；会增加耗时与内存。"
       }
     },
     "outputs": {
@@ -702,20 +706,18 @@
       },
       "rife_clear_cache_after_n_frames": {
         "name": "RIFE 缓存清理间隔"
+      },
+      "enabled": {
+        "name": "插帧（RIFE）",
+        "tooltip": "默认关闭。在去模糊和面部修复后执行，按倍数提高输出帧率，保持时长和音频同步。需要 ComfyUI-Frame-Interpolation；首次使用可能下载所选模型。"
       }
     }
   },
   "CAP_H3VideoGenerator": {
     "display_name": "MiniMax H3 视频生成",
     "inputs": {
-      "interpolation_config": {"name": "插帧配置"},
-      "frame_interpolation": {
-        "name": "插帧（RIFE）",
-        "tooltip": "默认关闭。在去模糊和面部修复后执行，按倍数提高输出帧率，保持时长和音频同步。需要 ComfyUI-Frame-Interpolation；首次使用可能下载所选模型。"
-      },
-      "face_refine": {
-        "name": "面部修复",
-        "tooltip": "默认关闭。需连接 H3 面部修复配置并安装 Carasibana 的 H3-FaceRefine。使用当前 4/8 步采样模型额外修复一个目标人脸，保留原音轨和帧数；会增加耗时与内存。"
+      "interpolation_config": {
+        "name": "插帧配置"
       },
       "face_refine_config": {
         "name": "H3 面部修复配置"

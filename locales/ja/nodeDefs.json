@@ -34,6 +34,10 @@
       },
       "blend": {
         "name": "合成率"
+      },
+      "enabled": {
+        "name": "顔の修復",
+        "tooltip": "初期値はオフ。H3 顔修復設定と Carasibana の H3-FaceRefine が必要です。現在の 4/8 ステップモデルで一人の顔を修復し、元の音声とフレーム数を維持します。時間とメモリが増えます。"
       }
     },
     "outputs": {
@@ -702,6 +706,10 @@
       },
       "rife_clear_cache_after_n_frames": {
         "name": "RIFE キャッシュ解放間隔"
+      },
+      "enabled": {
+        "name": "フレーム補間（RIFE）",
+        "tooltip": "初期値はオフ。顔修復後に実行し、長さと音声を保ったまま出力 FPS を増やします。ComfyUI-Frame-Interpolation が必要です。初回は選択モデルをダウンロードする場合があります。"
       }
     }
   },
@@ -713,14 +721,8 @@
       }
     },
     "inputs": {
-      "interpolation_config": {"name": "フレーム補間設定"},
-      "frame_interpolation": {
-        "name": "フレーム補間（RIFE）",
-        "tooltip": "初期値はオフ。顔修復後に実行し、長さと音声を保ったまま出力 FPS を増やします。ComfyUI-Frame-Interpolation が必要です。初回は選択モデルをダウンロードする場合があります。"
-      },
-      "face_refine": {
-        "name": "顔の修復",
-        "tooltip": "初期値はオフ。H3 顔修復設定と Carasibana の H3-FaceRefine が必要です。現在の 4/8 ステップモデルで一人の顔を修復し、元の音声とフレーム数を維持します。時間とメモリが増えます。"
+      "interpolation_config": {
+        "name": "フレーム補間設定"
       },
       "face_refine_config": {
         "name": "H3 顔修復設定"

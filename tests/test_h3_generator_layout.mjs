@@ -10,9 +10,9 @@ vm.runInNewContext(readFileSync(new URL('../js/cap_h3_video_generator.js', impor
 const oldWidgets = ['steps', 'strict_keyframes', 'second_sampling', 'first_pass_megapixels',
     'upscaler_model', 'refine_sigmas', 'audio_refine', 'audio_refine_steps', 'normalize_audio',
     'attention', 'compose_final', 'sampling_preview', 'preview_tiny_vae', 'generate_audio'];
-const currentWidgets = [...oldWidgets.filter(name => name !== 'strict_keyframes'), 'motion_deblur', 'face_refine', 'sampling_mode'];
+const currentWidgets = [...oldWidgets.filter(name => name !== 'strict_keyframes'), 'motion_deblur', 'sampling_mode'];
 const expected = ['sampling_mode', 'steps', 'attention', 'second_sampling', 'first_pass_megapixels',
-    'upscaler_model', 'refine_sigmas', 'motion_deblur', 'face_refine', 'sampling_preview', 'preview_tiny_vae', 'generate_audio',
+    'upscaler_model', 'refine_sigmas', 'motion_deblur', 'sampling_preview', 'preview_tiny_vae', 'generate_audio',
     'audio_refine', 'audio_refine_steps', 'normalize_audio', 'compose_final'];
 const oldInputs = ['model', 'clip', 'vae', 'audio_vae', 'data_json', 'base_model']
     .map((name, i) => ({name, link: i + 1}));
@@ -22,7 +22,7 @@ class Node {
         this.id = 9;
         this.comfyClass = 'CAP_H3VideoGenerator';
         this.inputs = structuredClone(oldInputs);
-        this.widgets = currentWidgets.map(name => ({name, value: ['motion_deblur', 'face_refine'].includes(name) ? false : `default:${name}`}));
+        this.widgets = currentWidgets.map(name => ({name, value: ['motion_deblur'].includes(name) ? false : `default:${name}`}));
         this.widgets.push({name: 'stv_ui', serialize: false});
     }
     configure(info) {
@@ -32,7 +32,7 @@ class Node {
 }
 await extension.beforeRegisterNodeDef(Node, {name: 'CAP_H3VideoGenerator', input: {
     required: Object.fromEntries(oldWidgets.slice(0, 10).map(name => [name, {}])),
-    optional: Object.fromEntries([...oldWidgets.slice(10), 'motion_deblur', 'face_refine', 'sampling_mode'].map(name => [name, {}])),
+    optional: Object.fromEntries([...oldWidgets.slice(10), 'motion_deblur', 'sampling_mode'].map(name => [name, {}])),
 }});
 const node = new Node();
 node.onNodeCreated();
@@ -73,25 +73,13 @@ console.log('H3 layout: adjacent models, ordered options, preserved values/links
 node.configure({widgets_values: [...oldWidgets.map(name => values[name]), true]});
 pending.splice(0).forEach(cb => cb());
 assert.equal(node.widgets.find(w => w.name === 'motion_deblur').value, true);
-assert.equal(node.widgets.find(w => w.name === 'face_refine').value, false);
-
-const interpolationWidgets = ['frame_interpolation'];
-const defaults = [false];
-node.widgets.push(...interpolationWidgets.map((name, i) => ({name, value: defaults[i]})));
-node.onNodeCreated();
-const updatedOrder = [...expected];
-updatedOrder.splice(updatedOrder.indexOf('face_refine') + 1, 0, ...interpolationWidgets);
-assert.deepEqual(node.widgets.map(w => w.name), [...updatedOrder, 'stv_ui']);
-node.configure({properties: {cap_h3_widget_order: expected}, widgets_values: expected.map(name => values[name])});
+const previousOrder = [...expected];
+previousOrder.splice(previousOrder.indexOf('motion_deblur') + 1, 0, 'face_refine', 'frame_interpolation');
+node.configure({properties: {cap_h3_widget_order: previousOrder},
+    widgets_values: previousOrder.map(name => ['face_refine', 'frame_interpolation'].includes(name) ? true : values[name])});
 pending.splice(0).forEach(cb => cb());
-interpolationWidgets.forEach((name, i) => assert.equal(node.widgets.find(w => w.name === name).value, defaults[i]));
-node.widgets.find(w => w.name === 'frame_interpolation').value = true;
-const interpolated = {widgets_values: node.widgets.filter(w => w.name !== 'stv_ui').map(w => w.value)};
-node.onSerialize(interpolated);
-node.configure(interpolated);
-pending.splice(0).forEach(cb => cb());
-assert.equal(node.widgets.find(w => w.name === 'frame_interpolation').value, true);
-console.log('RIFE controls: ordering, old workflow defaults and saved settings passed.');
+expected.forEach(name => assert.equal(node.widgets.find(w => w.name === name).value, values[name]));
+assert.ok(!node.widgets.some(w => ['face_refine', 'frame_interpolation'].includes(w.name)));
 
 node.inputs.push({name: 'interpolation_config', link: null});
 node.onNodeCreated();

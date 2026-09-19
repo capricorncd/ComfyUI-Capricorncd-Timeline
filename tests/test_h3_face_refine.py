@@ -31,7 +31,7 @@ UPSTREAM = ROOT / "custom_nodes/ComfyUI-H3-FaceRefine/nodes.py"
 
 class ConfigTests(unittest.TestCase):
     def setUp(self):
-        self.config = {key: opts["default"] for key, (_, opts) in config_module.CAP_H3FaceRefineConfig.INPUT_TYPES()["required"].items()}
+        self.config = {key: opts["default"] for key, (_, opts) in config_module.CAP_H3FaceRefineConfig.INPUT_TYPES()["required"].items() if key != "enabled"}
 
     def test_standard_detector_directory_and_model(self):
         self.assertIn(str(ROOT / "models/ultralytics/bbox"), folder_paths.get_folder_paths("ultralytics_bbox"))
@@ -50,6 +50,11 @@ class ConfigTests(unittest.TestCase):
     def test_configuration_does_not_load_or_require_a_detector(self):
         config = {**self.config, "detector": "none"}
         self.assertEqual(config_module.CAP_H3FaceRefineConfig().configure(**config), (config,))
+
+
+class DisabledConfigTests(unittest.TestCase):
+    def test_disabled_config_needs_no_detector(self):
+        self.assertEqual(config_module.CAP_H3FaceRefineConfig().configure(enabled=False), (None,))
 
 
 class Model:
@@ -86,7 +91,7 @@ class FaceIntegrationTests(unittest.TestCase):
         self.images = torch.rand(22, 64, 64, 3, generator=torch.Generator().manual_seed(5))
         self.audio = torch.ones(1, 32, 2, 36)
         self.samples = {"samples": NestedTensor((torch.zeros(1, 24, 7, 4, 4), self.audio))}
-        self.config = {k: opts["default"] for k, (_, opts) in config_module.CAP_H3FaceRefineConfig.INPUT_TYPES()["required"].items()}
+        self.config = {k: opts["default"] for k, (_, opts) in config_module.CAP_H3FaceRefineConfig.INPUT_TYPES()["required"].items() if k != "enabled"}
         self.config.update(canvas_size=512)
         self.scope = load_definitions("cap_h3_video_generator.py", {
             "WrappersMP": SimpleNamespace(OUTER_SAMPLE="outer"),

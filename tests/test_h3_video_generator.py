@@ -125,7 +125,7 @@ class GeneratorTests(unittest.TestCase):
                 self.scope["nodes"].NODE_CLASS_MAPPINGS.update(registered)
                 self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, "seed": 42}],
                               sampling_mode="selflift", selflift_config=config, motion_deblur=deblur,
-                              face_refine=face, face_refine_config={"configured": True})
+                              face_refine_config={"configured": True} if face else None)
                 self.assertEqual([kw["noise_seed"] for name, kw in self.calls if name == "RandomNoise"], [42])
                 if deblur:
                     self.assertEqual(self.node._deblur_clip.call_args.args[7], "RandomNoise_output")
@@ -167,7 +167,7 @@ class GeneratorTests(unittest.TestCase):
                               head_frames=0, tail_frames=4, play_frames=120, save_latent=False)
                 rows = [dict(id="a", source_clip_id="a", start_ms=0, end_ms=5000, h3_timing=timing,
                              playback_spans=[dict(source_clip_id="a", start_frame=0, frame_count=120)])]
-                result = self.run_node(rows, frame_interpolation=True, interpolation_config=self.interpolation_node.configure(interpolation_multiplier=multiplier)[0])
+                result = self.run_node(rows, interpolation_config=self.interpolation_node.configure(interpolation_multiplier=multiplier)[0])
                 self.assertEqual(self.saved_fps, [24 * multiplier])
                 images = self.saved[0][1]["images"]
                 self.assertEqual(images.shape[0], 124 * multiplier)
@@ -191,7 +191,7 @@ class GeneratorTests(unittest.TestCase):
                      h3_timing=dict(version=2, fps=24, raw_frames=124, context_frames=22,
                                     context_carry_frames=0, head_frames=0, tail_frames=0,
                                     play_frames=102, save_latent=False, previous_source_clip_id="a"))]
-        self.run_node(rows, frame_interpolation=True, interpolation_config=self.interpolation_node.configure()[0])
+        self.run_node(rows, interpolation_config=self.interpolation_node.configure()[0])
         loaded = [kw for name, kw in self.calls if name == "MiniMaxH3MotionContextLoadLatent"]
         self.assertEqual(len(loaded), 1)
         self.assertEqual(self.prepared[1][2]["h3_timing"]["context_frames"], 22)
@@ -200,23 +200,23 @@ class GeneratorTests(unittest.TestCase):
 
     def test_selflift_interpolation_and_disabled_interpolation(self):
         self.enable_interpolation()
-        self.run_node(sampling_mode="selflift", selflift_config=self.selflift_config(), frame_interpolation=True, interpolation_config=self.interpolation_node.configure()[0],
+        self.run_node(sampling_mode="selflift", selflift_config=self.selflift_config(), interpolation_config=self.interpolation_node.configure()[0],
                       generate_audio=False, compose_final=False)
         self.assertEqual(self.saved_fps, [48])
         self.assertIsNone(self.saved[0][1]["audio"])
         self.assertEqual(json.loads(self.saved[0][1]["metadata"])["h3_timing"]["raw_frames"], 248)
         self.calls.clear()
-        self.run_node(frame_interpolation=False, interpolation_config={"rife_model": "../invalid"})
+        self.run_node(interpolation_config=self.interpolation_node.configure(enabled=False)[0])
         self.assertNotIn("RIFE VFI", [name for name, _ in self.calls])
 
-    def test_interpolation_requires_external_config_and_exposes_only_switch_and_socket(self):
+    def test_interpolation_rejects_invalid_config_and_exposes_only_socket(self):
         with self.assertRaisesRegex(ValueError, "connected H3 Interpolation Config"):
-            self.run_node(frame_interpolation=True)
+            self.run_node(interpolation_config={})
         self.assertEqual(self.calls, [])
         self.scope["folder_paths"].folder_names_and_paths = {}
         self.scope["folder_paths"].get_filename_list = lambda name: []
         inputs = self.node.INPUT_TYPES()["optional"]
-        self.assertIn("frame_interpolation", inputs)
+        self.assertNotIn("frame_interpolation", inputs)
         self.assertEqual(inputs["interpolation_config"][0], "CAP_H3_INTERPOLATION_CONFIG")
         self.assertNotIn("rife_model", inputs)
         self.assertNotIn("interpolation_multiplier", inputs)
@@ -228,7 +228,7 @@ class GeneratorTests(unittest.TestCase):
                    {"interpolation_multiplier": 2.5}, {"rife_scale_factor": 0},
                    {"rife_clear_cache_after_n_frames": 0}):
             with self.subTest(kw=kw), self.assertRaises(ValueError):
-                self.run_node(frame_interpolation=True, interpolation_config={**self.interpolation_node.configure()[0], **kw})
+                self.run_node(interpolation_config={**self.interpolation_node.configure()[0], **kw})
         self.assertEqual(self.calls, [])
 
     def test_selflift_rejects_incompatible_inputs_before_sampling(self):
@@ -264,7 +264,7 @@ class GeneratorTests(unittest.TestCase):
         self.scope["_lock_audio"] = Mock(return_value="locked_refine")
         self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, "seed": 1,
                              "clip_role": "digital_human"}], second_sampling=True, upscaler_model="upscaler",
-                      audio_refine=True, motion_deblur=True, face_refine=True)
+                      audio_refine=True, motion_deblur=True, face_refine_config={"configured": True})
         sampled = [kw["latent_image"] for name, kw in self.calls if name == "SamplerCustomAdvanced"]
         self.assertEqual(sampled, [self.digital_latent, "locked_refine"])
         self.assertIs(self.saved[0][1]["audio"], source)
@@ -310,7 +310,7 @@ class GeneratorTests(unittest.TestCase):
         self.assertNotIn("first_pass_steps", schema["required"])
         self.assertEqual(schema["optional"]["base_model"][0], "MODEL")
         self.assertFalse(schema["optional"]["motion_deblur"][1]["default"])
-        self.assertFalse(schema["optional"]["face_refine"][1]["default"])
+        self.assertNotIn("face_refine", schema["optional"])
 
     def test_motion_deblur_disabled_does_not_require_mainodes(self):
         lookup = Mock(return_value=object)
@@ -340,25 +340,25 @@ class GeneratorTests(unittest.TestCase):
         self.scope["validate_face_config"] = lambda config: config or (_ for _ in ()).throw(ValueError("config required"))
         self.node._refine_faces = Mock(return_value="face-images")
 
-    def test_face_disabled_ignores_connected_config(self):
+    def test_face_without_config_is_disabled(self):
         self.scope["validate_face_config"] = Mock(side_effect=AssertionError("must not validate"))
-        self.run_node(face_refine_config={"invalid": True})
+        self.run_node(face_refine_config=None)
         self.scope["validate_face_config"].assert_not_called()
         self.assertFalse(json.loads(self.saved[0][1]["metadata"])["face_refine"])
 
-    def test_face_missing_config_or_plugin_fails_before_sampling(self):
+    def test_face_invalid_config_or_missing_plugin_fails_before_sampling(self):
         self.enable_face_refine()
         with self.assertRaisesRegex(ValueError, "config"):
-            self.run_node(face_refine=True)
+            self.run_node(face_refine_config={})
         self.scope["nodes"].NODE_CLASS_MAPPINGS = {}
         with self.assertRaisesRegex(RuntimeError, "H3-FaceRefine"):
-            self.run_node(face_refine=True, face_refine_config={"configured": True})
+            self.run_node(face_refine_config={"configured": True})
         self.assertEqual(self.calls, [])
 
     def test_face_uses_repaired_audio_and_final_context_pixels(self):
         self.enable_face_refine()
         self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "save_latent": True}],
-                      face_refine=True, face_refine_config={"configured": True}, audio_refine=True)
+                      face_refine_config={"configured": True}, audio_refine=True)
         self.assertEqual(self.node._refine_faces.call_args.args[2], "H3AudioRefineSampler_output")
         self.assertEqual([kw["pixels"] for n, kw in self.calls if n == "VAEEncode"], ["face-images"])
         self.assertEqual(self.saved[0][1]["images"], "face-images")
@@ -371,7 +371,7 @@ class GeneratorTests(unittest.TestCase):
         self.enable_motion_deblur()
         self.scope["nodes"].NODE_CLASS_MAPPINGS.update(registered)
         self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "save_latent": True}],
-                      face_refine=True, face_refine_config={"configured": True}, motion_deblur=True,
+                      face_refine_config={"configured": True}, motion_deblur=True,
                       generate_audio=False, second_sampling=True, upscaler_model="up")
         self.assertEqual(self.node._refine_faces.call_args.args[3], "recovered-images")
         self.assertEqual([kw["pixels"] for n, kw in self.calls if n == "VAEEncode"], ["face-images", "ImageScale_output"])

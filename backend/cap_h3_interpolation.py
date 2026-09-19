@@ -19,10 +19,13 @@ class CAP_H3InterpolationConfig:
                 "rife_scale_factor": ([0.5, 1.0, 2.0], {"default": 1.0}),
                 "rife_ensemble": ("BOOLEAN", {"default": False, "tooltip": "Extra inference for supported models. Ignored by RIFE 4.26."}),
                 "rife_clear_cache_after_n_frames": ("INT", {"default": 10, "min": 1, "max": 1000}),
+            "enabled": ("BOOLEAN", {"default": True}),
         }}
 
     def configure(self, rife_model="rife426.pth", interpolation_multiplier=2, rife_scale_factor=1.0,
-                  rife_ensemble=False, rife_clear_cache_after_n_frames=10):
+                  rife_ensemble=False, rife_clear_cache_after_n_frames=10, enabled=True):
+        if not enabled:
+            return (None,)
         config = dict(rife_model=rife_model, interpolation_multiplier=interpolation_multiplier,
                       rife_scale_factor=rife_scale_factor, rife_ensemble=rife_ensemble,
                       rife_clear_cache_after_n_frames=rife_clear_cache_after_n_frames)
@@ -30,7 +33,7 @@ class CAP_H3InterpolationConfig:
 
 
 def validate_interpolation_config(config):
-    if not isinstance(config, dict) or set(config) != set(CAP_H3InterpolationConfig.INPUT_TYPES()["required"]):
+    if not isinstance(config, dict) or set(config) != (set(CAP_H3InterpolationConfig.INPUT_TYPES()["required"]) - {"enabled"}):
         raise ValueError("Frame interpolation requires a connected H3 Interpolation Config.")
     if config["rife_model"] not in RIFE_MODELS:
         raise ValueError("Select a supported RIFE model.")

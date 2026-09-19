@@ -4,8 +4,7 @@ const INPUT_ORDER = [
     "model", "base_model", "clip", "vae", "audio_vae", "data_json", "face_refine_config", "selflift_config", "interpolation_config",
     "sampling_mode", "steps", "attention",
     "second_sampling", "first_pass_megapixels", "upscaler_model", "refine_sigmas",
-    "motion_deblur", "face_refine",
-    "frame_interpolation",
+    "motion_deblur",
     "sampling_preview", "preview_tiny_vae",
     "generate_audio", "audio_refine", "audio_refine_steps", "normalize_audio",
     "compose_final",
@@ -57,7 +56,7 @@ app.registerExtension({
                 info = {...info, widgets_values: this.widgets.filter(widget => WIDGET_ORDER.includes(widget.name))
                     .map(widget => values.has(widget.name) ? values.get(widget.name)
                         : widget.name === "sampling_mode" ? "standard"
-                        : ["motion_deblur", "face_refine", "frame_interpolation"].includes(widget.name) ? false : widget.value)};
+                        : widget.name === "motion_deblur" ? false : widget.value)};
             }
             configure?.call(this, info);
             // Graph loading/paste installs links after node.configure returns.

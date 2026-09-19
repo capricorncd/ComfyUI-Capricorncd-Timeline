@@ -192,7 +192,7 @@ Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的
 | `swap_wh` | BOOLEAN | false | 切换时交换当前 width / height（如 1280×720 → 720×1280） |
 | `project_version` | STRING | 包版本 | 写入项目 / 运行时 JSON |
 | `project_json` | STRING | 空项目 | 完整可编辑时间轴文档（轨道、片段、资源、设置） |
-| `trim_offset` | INT | 1 | 预留给音频尾部流程；`data_json` 中的运行时时间不会因此延长 |
+| `trim_offset` | INT | 0 | 预留给音频尾部流程；`data_json` 中的运行时时间不会因此延长 |
 
 ## 输出参数
 

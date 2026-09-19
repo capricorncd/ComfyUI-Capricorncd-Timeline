@@ -288,7 +288,7 @@ class CAP_TimelineEditor:
                         "tooltip": "Track-nested editable timeline project.",
                     },
                 ),
-                "trim_offset": ("INT", {"default": 1, "min": 0, "max": 60, "step": 1}),
+                "trim_offset": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1}),
                 "schema_version": ("INT", {"default": SCHEMA_VERSION}),
             },
         }
@@ -679,7 +679,7 @@ class CAP_TimelineEditor:
         return segments
 
     def execute(self, fps, width, height,
-                project_version, project_json, trim_offset=1, **_):
+                project_version, project_json, trim_offset=0, **_):
         clear_clip_prompt_vl()
         project = self._project(project_json)
         settings = project["settings"]

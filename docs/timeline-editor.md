@@ -167,7 +167,7 @@ Click any member to select its group. Dragging preserves durations, relative tim
 | `swap_wh` | BOOLEAN | false | Toggling swaps the current width and height values |
 | `project_version` | STRING | package version | Written into project / runtime JSON |
 | `project_json` | STRING | empty project | Full editable timeline document (tracks, clips, resources, settings) |
-| `trim_offset` | INT | 1 | Reserved for audio tail workflows; runtime clip timings in `data_json` are not extended by this field |
+| `trim_offset` | INT | 0 | Reserved for audio tail workflows; runtime clip timings in `data_json` are not extended by this field |
 
 ## Outputs
 

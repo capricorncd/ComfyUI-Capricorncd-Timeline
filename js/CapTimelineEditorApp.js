@@ -4418,7 +4418,7 @@ export class CapTimelineEditorApp {
               </div>
               <cap-status-message class="cat-te-ai-generate-status" hidden></cap-status-message>
               <footer class="cat-te-modal-footer cat-te-ai-optimize-actions">
-                <span class="cat-te-ai-clip-duration">${T("clip_duration_label")} <span class="cat-te-ai-clip-duration-value">00:00.00</span></span>
+                <cap-button variant="ghost" size="small" class="cat-te-ai-clip-duration" title="${T("copy_clip_id")}"><span class="cat-te-ai-clip-id-label"></span> <span class="cat-te-ai-clip-duration-value">00:00.00</span></cap-button>
                 <cap-button class="cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></cap-button>
                 <cap-button variant="primary" class="cat-te-ai-run">${iconHtml("play", 12)}<span>${T("workflow_run_queue")}</span></cap-button>
                 <cap-button variant="danger" class="cat-te-workflow-stop" hidden>${iconHtml("stop", 12)}<span>${T("workflow_stop")}</span></cap-button>
@@ -5400,6 +5400,9 @@ export class CapTimelineEditorApp {
         });
         this.aiRunBtn = el.querySelector(".cat-te-ai-run");
         this.aiClipDurationEl = el.querySelector(".cat-te-ai-clip-duration-value");
+        this.aiClipIdLabel = el.querySelector(".cat-te-ai-clip-id-label");
+        this.aiClipIdBtn = el.querySelector(".cat-te-ai-clip-duration");
+        this.aiClipIdBtn.addEventListener("click", () => void this._copyPromptManagerClipId());
         this.workflowStopBtn = el.querySelector(".cat-te-workflow-stop");
         this.aiRunBtn.addEventListener("click", () => void this._runPromptManagerWorkflow());
         this.workflowStopBtn.addEventListener("click", () => void this._stopWorkflowPreview());
@@ -7496,9 +7499,25 @@ export class CapTimelineEditorApp {
             || !!app.processingQueue || !!this._modelPreviewPromptId || !!this._workflowPreview?.active;
     }
 
+    async _copyPromptManagerClipId() {
+        const clip = this._findClipById(this._aiOptimizeClipId);
+        if (!clip) return;
+        try {
+            await navigator.clipboard.writeText(String(clip.id));
+            this.aiClipIdBtn.title = T("copy_prompt_done_title");
+        } catch {
+            this.aiGenerateStatus.setStatus(T("copy_clip_id_failed"), "error");
+        }
+    }
+
     _syncWorkflowRunButton() {
         if (!this.aiRunBtn) return;
         const clip = this._findClipById(this._aiOptimizeClipId);
+        if (this.aiClipIdLabel) this.aiClipIdLabel.textContent = T("clip_id_duration_label", { id: clip?.id ?? "" });
+        if (this.aiClipIdBtn) {
+            this.aiClipIdBtn.disabled = !clip;
+            this.aiClipIdBtn.title = T("copy_clip_id");
+        }
         if (this.aiClipDurationEl) {
             this.aiClipDurationEl.textContent = formatTimecode((Number(clip?.duration) || 0) * 1000, this._timeline?.fps || 24);
         }

@@ -3826,10 +3826,7 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-ai-clip-duration {
     margin-right: auto;
-    color: var(--cat-muted);
-    font-size: 12px;
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
 }
 .cat-te-ai-optimize-actions > .cat-te-ai-run,
 .cat-te-ai-optimize-actions > .cat-te-workflow-stop {

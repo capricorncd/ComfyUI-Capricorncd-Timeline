@@ -448,9 +448,6 @@ function defaultImageMeta(trackIndex = 0) {
         visible: true,
         muted: false,
         volume: 1,
-        headExtendSec: 0,
-        tailExtendSec: 0,
-        generatePreviewVideo: false,
         secondSample: false,
         h3MotionContextLength: 0,
         saveLatent: false,
@@ -3641,18 +3638,6 @@ export class CapTimelineEditorApp {
                   <span>${T("custom_video_model_label")}</span>
                   <input class="cat-te-clip-agent-custom" type="text" placeholder="${T("enter_model_name_placeholder")}" disabled />
                 </label>
-                <label class="cat-te-clip-setting-row">
-                  <span>${T("head_extend_label")}</span>
-                  <input class="cat-te-head-extend" type="number" min="0" max="600" step="1" value="0" disabled />
-                </label>
-                <label class="cat-te-clip-setting-row">
-                  <span>${T("tail_extend_label")}</span>
-                  <input class="cat-te-tail-extend" type="number" min="0" max="600" step="1" value="0" disabled />
-                </label>
-                <label class="cat-te-clip-setting-check">
-                  <input class="cat-te-gen-preview-video" type="checkbox" disabled />
-                  <span>${T("gen_preview_video_label")}</span>
-                </label>
                 <label class="cat-te-clip-setting-check">
                   <input class="cat-te-second-sample" type="checkbox" disabled />
                   <span>${T("second_sample_label")}</span>
@@ -4677,9 +4662,6 @@ export class CapTimelineEditorApp {
         }
         this.promptIncludesHost = el.querySelector(".cat-te-prompt-includes");
         this.promptIncludeChips = el.querySelectorAll(".cat-te-prompt-include-chip");
-        this.headExtendInput = el.querySelector(".cat-te-head-extend");
-        this.tailExtendInput = el.querySelector(".cat-te-tail-extend");
-        this.genPreviewVideoCb = el.querySelector(".cat-te-gen-preview-video");
         this.secondSampleCb = el.querySelector(".cat-te-second-sample");
         this.h3MotionContextInput = el.querySelector(".cat-te-h3-motion-context");
         this.saveLatentCb = el.querySelector(".cat-te-save-latent");
@@ -5198,11 +5180,8 @@ export class CapTimelineEditorApp {
                 this._onPromptIncludeToggle(chip.dataset.include);
             });
         });
-        if (this.headExtendInput && !this.headExtendInput._catTeBound) {
-            this.headExtendInput._catTeBound = true;
-            this.headExtendInput.addEventListener("change", () => this._onHeadExtendChange());
-            this.tailExtendInput?.addEventListener("change", () => this._onTailExtendChange());
-            this.genPreviewVideoCb?.addEventListener("change", () => this._onGenPreviewVideoChange());
+        if (this.secondSampleCb && !this.secondSampleCb._catTeBound) {
+            this.secondSampleCb._catTeBound = true;
             this.secondSampleCb?.addEventListener("change", () => this._onSecondSampleChange());
             this.h3MotionContextInput?.addEventListener("change", () => this._onH3MotionContextChange());
             this.saveLatentCb?.addEventListener("change", () => this._onSaveLatentChange());
@@ -14525,9 +14504,6 @@ export class CapTimelineEditorApp {
                 clipRoleCustom: c.clip_role_custom ?? "",
                 agent: c.agent || "MiniMaxH3",
                 agentCustom: c.agent_custom ?? "",
-                headExtendSec: Math.max(0, Math.round(Number(c.head_extend_sec) || 0)),
-                tailExtendSec: Math.max(0, Math.round(Number(c.tail_extend_sec) || 0)),
-                generatePreviewVideo: !!c.generate_preview_video,
                 secondSample: !!c.second_sample,
                 h3MotionContextLength: Math.max(0, Math.round(Number(c.h3_motion_context_length) || 0)),
                 saveLatent: !!c.save_latent,
@@ -14607,9 +14583,6 @@ export class CapTimelineEditorApp {
                 sourceDuration: sourceDur,
                 muted: !!c.muted,
                 volume: normalizeClipVolume(c.volume),
-                headExtendSec: Math.max(0, Math.round(Number(c.head_extend_sec) || 0)),
-                tailExtendSec: Math.max(0, Math.round(Number(c.tail_extend_sec) || 0)),
-                generatePreviewVideo: !!c.generate_preview_video,
                 secondSample: !!c.second_sample,
             items: (Array.isArray(c.items) && c.items.length
                 ? c.items.map(normalizeClipItem).filter(Boolean)
@@ -14668,9 +14641,6 @@ export class CapTimelineEditorApp {
             disabled: !!c.disabled,
             visible: c.visible !== false,
             volume: normalizeClipVolume(c.volume),
-            headExtendSec: Math.max(0, Math.round(Number(c.head_extend_sec) || 0)),
-            tailExtendSec: Math.max(0, Math.round(Number(c.tail_extend_sec) || 0)),
-            generatePreviewVideo: !!c.generate_preview_video,
                 secondSample: !!c.second_sample,
             items: (Array.isArray(c.items) && c.items.length
                 ? c.items.map(normalizeClipItem).filter(Boolean)
@@ -18222,9 +18192,6 @@ export class CapTimelineEditorApp {
     _syncClipSettingRefs() {
         const el = this._overlay;
         if (!el) return;
-        const head = el.querySelector(".cat-te-head-extend");
-        const tail = el.querySelector(".cat-te-tail-extend");
-        const gen = el.querySelector(".cat-te-gen-preview-video");
         const secondSample = el.querySelector(".cat-te-second-sample");
         const h3Motion = el.querySelector(".cat-te-h3-motion-context");
         const saveLatent = el.querySelector(".cat-te-save-latent");
@@ -18232,10 +18199,7 @@ export class CapTimelineEditorApp {
         const seedRandom = el.querySelector(".cat-te-clip-seed-random");
         const role = el.querySelector(".cat-te-clip-role");
         const agent = el.querySelector(".cat-te-clip-agent");
-        if (!head) return;
-        this.headExtendInput = head;
-        this.tailExtendInput = tail;
-        this.genPreviewVideoCb = gen;
+        if (!secondSample) return;
         this.secondSampleCb = secondSample;
         this.h3MotionContextInput = h3Motion;
         this.saveLatentCb = saveLatent;
@@ -18247,11 +18211,8 @@ export class CapTimelineEditorApp {
         this.clipAgentSelect = agent;
         this.clipAgentCustomInput = el.querySelector(".cat-te-clip-agent-custom");
         this.clipAgentCustomRow = el.querySelector(".cat-te-clip-agent-custom-row");
-        if (!head._catTeBound) {
-            head._catTeBound = true;
-            head.addEventListener("change", () => this._onHeadExtendChange());
-            tail?.addEventListener("change", () => this._onTailExtendChange());
-            gen?.addEventListener("change", () => this._onGenPreviewVideoChange());
+        if (!secondSample._catTeBound) {
+            secondSample._catTeBound = true;
             secondSample?.addEventListener("change", () => this._onSecondSampleChange());
             h3Motion?.addEventListener("change", () => this._onH3MotionContextChange());
             saveLatent?.addEventListener("change", () => this._onSaveLatentChange());
@@ -18262,22 +18223,6 @@ export class CapTimelineEditorApp {
 
     _setVisualSettingsEnabled(enabled, m = null) {
         const disabled = !enabled;
-        if (this.headExtendInput) {
-            this.headExtendInput.disabled = disabled;
-            this.headExtendInput.value = enabled
-                ? String(Math.max(0, Math.round(Number(m?.headExtendSec) || 0)))
-                : "0";
-        }
-        if (this.tailExtendInput) {
-            this.tailExtendInput.disabled = disabled;
-            this.tailExtendInput.value = enabled
-                ? String(Math.max(0, Math.round(Number(m?.tailExtendSec) || 0)))
-                : "0";
-        }
-        if (this.genPreviewVideoCb) {
-            this.genPreviewVideoCb.disabled = disabled;
-            this.genPreviewVideoCb.checked = enabled && !!m?.generatePreviewVideo;
-        }
         if (this.secondSampleCb) {
             this.secondSampleCb.disabled = disabled;
             this.secondSampleCb.checked = enabled && !!m?.secondSample;
@@ -18800,12 +18745,6 @@ export class CapTimelineEditorApp {
             this._settingPromptUndoArmed[key] = false;
         }
         this._writeSettingPrompt(key, this._settingPromptInputs?.[key]?.value ?? "");
-    }
-
-    _parseExtendSec(input) {
-        const n = Math.round(Number(input?.value));
-        if (!Number.isFinite(n) || n < 0) return 0;
-        return Math.min(600, n);
     }
 
     _stripPromptComments(text) {
@@ -19733,32 +19672,6 @@ export class CapTimelineEditorApp {
         this._meta.set(this._selClip.id, m);
     }
 
-    _onHeadExtendChange() {
-        if (!this._selClip || this.headExtendInput?.disabled) return;
-        this._recordUndo();
-        const m = this._meta.get(this._selClip.id) ?? defaultImageMeta();
-        m.headExtendSec = this._parseExtendSec(this.headExtendInput);
-        this.headExtendInput.value = String(m.headExtendSec);
-        this._meta.set(this._selClip.id, m);
-    }
-
-    _onTailExtendChange() {
-        if (!this._selClip || this.tailExtendInput?.disabled) return;
-        this._recordUndo();
-        const m = this._meta.get(this._selClip.id) ?? defaultImageMeta();
-        m.tailExtendSec = this._parseExtendSec(this.tailExtendInput);
-        this.tailExtendInput.value = String(m.tailExtendSec);
-        this._meta.set(this._selClip.id, m);
-    }
-
-    _onGenPreviewVideoChange() {
-        if (!this._selClip || this.genPreviewVideoCb?.disabled) return;
-        this._recordUndo();
-        const m = this._meta.get(this._selClip.id) ?? defaultImageMeta();
-        m.generatePreviewVideo = !!this.genPreviewVideoCb.checked;
-        this._meta.set(this._selClip.id, m);
-    }
-
     _onSecondSampleChange() {
         if (!this._selClip || this.secondSampleCb?.disabled) return;
         this._recordUndo();
@@ -19969,9 +19882,6 @@ export class CapTimelineEditorApp {
                     row.use_prepend_prompt = m.usePrependPrompt !== false;
                     row.use_append_prompt = m.useAppendPrompt !== false;
                     row.media_enabled = items.map((item) => item.enabled !== false);
-                    row.head_extend_sec = Math.max(0, Math.round(Number(m.headExtendSec) || 0));
-                    row.tail_extend_sec = Math.max(0, Math.round(Number(m.tailExtendSec) || 0));
-                    row.generate_preview_video = !!m.generatePreviewVideo;
                     row.second_sample = !!m.secondSample;
                     row.h3_motion_context_length = this._clampH3MotionContextLength(m.h3MotionContextLength);
                     row.save_latent = !!m.saveLatent;

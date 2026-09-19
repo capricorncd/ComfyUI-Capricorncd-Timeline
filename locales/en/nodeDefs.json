@@ -227,7 +227,7 @@
         "name": "Run Timestamp"
       },
       "generate_preview_video": {
-        "name": "Generate Preview Video"
+        "name": "Deprecated (always false)"
       },
       "from_start": {
         "name": "FROM Start"

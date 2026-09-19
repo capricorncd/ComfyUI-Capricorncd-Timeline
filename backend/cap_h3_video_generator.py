@@ -544,8 +544,8 @@ class CAP_H3VideoGenerator:
             original_count = images.shape[0]
             if not output_timing:
                 start, end = row["start_ms"], row["end_ms"]
-                head = max(0, round((row.get("preview_start_ms", start + row.get("head_extend_sec", 0) * 1000) - start) * fps / 1000))
-                tail = max(0, round((end - row.get("preview_end_ms", end - row.get("tail_extend_sec", 0) * 1000)) * fps / 1000))
+                head = max(0, round((row.get("preview_start_ms", start) - start) * fps / 1000))
+                tail = max(0, round((end - row.get("preview_end_ms", end)) * fps / 1000))
                 output_timing = dict(version=1, fps=fps, raw_frames=original_count, context_frames=trim_frames,
                                      head_frames=head, tail_frames=tail, play_frames=original_count - trim_frames - head - tail,
                                      save_latent=save_latent)

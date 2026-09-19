@@ -227,7 +227,7 @@
         "name": "运行时间戳"
       },
       "generate_preview_video": {
-        "name": "生成预览时长视频"
+        "name": "已停用（固定 false）"
       },
       "from_start": {
         "name": "FROM开始"

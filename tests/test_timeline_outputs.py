@@ -29,7 +29,8 @@ class TimelineOutputsTests(unittest.TestCase):
         exec(compile(ast.Module(body=[execute], type_ignores=[]), '<timeline execute>', 'exec'), namespace)
         first = dict(id='a', prompt='First', save_latent=True, generated_videos=[
             dict(file='disabled.mp4', enabled=False), dict(file='existing.mp4'), dict(file='older.mp4')])
-        second = dict(id='b', prompt='Second', h3_motion_context_length=22)
+        second = dict(id='b', prompt='Second', h3_motion_context_length=22,
+                      head_extend_sec=2, tail_extend_sec=3, generate_preview_video=True)
         instance = SimpleNamespace(
             _project=lambda value: json.loads(value),
             _visual_segments=lambda clips: [(first, 0, 5000, 0), (second, 5000, 10000, 0)],
@@ -42,6 +43,11 @@ class TimelineOutputsTests(unittest.TestCase):
         self.assertEqual(rows[0]['source_clip_id'], 'b')
         self.assertEqual(rows[0]['previous_output_video'], 'existing.mp4')
         self.assertEqual(rows[0]['h3_timing']['context_frames'], 22)
+        self.assertEqual((rows[0]['start_ms'], rows[0]['end_ms']), (5000, 10000))
+        self.assertEqual(rows[0]['h3_timing']['head_frames'], 0)
+        self.assertEqual(rows[0]['h3_timing']['play_frames'], 120)
+        for removed in ('head_extend_sec', 'tail_extend_sec', 'generate_preview_video'):
+            self.assertNotIn(removed, rows[0])
 
     def test_execution_matches_output_contract_and_preserves_prompt_data(self):
         namespace = dict(json=json, datetime=datetime, PROJECT_VERSION='test', SCHEMA_VERSION=4,

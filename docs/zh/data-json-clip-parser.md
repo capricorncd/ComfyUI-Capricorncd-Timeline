@@ -95,7 +95,7 @@ Timeline Editor 使用固定的 `prepend_prompt` 和 `append_prompt` 包住 Clip
 | `last_frame` | IMAGE | 尾帧关键帧图片；未分配时输出 64×64 空白图 |
 | `prompt` | STRING | 每片段提示词；无则使用 `global_prompt` |
 | `run_prefix` | STRING | 顶层 `run_prefix`（`YYYYMMDD_HHMMSS`），可作统一文件名前缀 |
-| `generate_preview_video` | BOOLEAN | 是否另生成预览时长视频 |
+| `generate_preview_video` | BOOLEAN | 已移除的选项；保留输出槽位以兼容旧连线，固定 false |
 | `second_sample` | BOOLEAN | 是否启用二次采样 |
 | `from_start` | STRING | 扩展后开始时刻标签，如 `FROM_0010_12_480`；负时间用 `FROM_N…` |
 | `from_preview_start` | STRING | 预览（时间轴原始）开始时刻标签，如 `FROM_0012_12_432` |

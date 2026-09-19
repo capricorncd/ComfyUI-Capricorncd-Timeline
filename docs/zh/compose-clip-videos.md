@@ -6,7 +6,7 @@
 
 - `data_json`：Timeline Editor 输出，包含 fps、片段时间和 output_video。
 - `filename_prefix`：默认 `capricorncd-timeline/compose`。
-- `trim_extends`：去除重复上下文和显式首尾延长；保留 H3 对齐产生的有效尾帧用于连续衔接，因此总时长可能略长于时间轴；关闭则保留完整文件。
+- `trim_extends`：去除重复上下文和模型补齐帧；保留 H3 对齐产生的有效尾帧用于连续衔接，因此总时长可能略长于时间轴；关闭则保留完整文件。
 - `save_sidecar`：在 MP4 旁保存来源路径、提示词及工作流信息。
 - `audio`（可选 AUDIO 输入）：从最终视频开头播放。保留原声时与其混音；关闭原声时仅使用接入音频。音频过长则裁剪，过短则补静音，不改变视频时长。
 - `use_original_audio`（使用原视频的音频）：默认 true。保留各片段原声，无声片段补静音；关闭后不合入片段原声，此时未接入 `audio` 就输出无声视频。

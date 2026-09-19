@@ -91,7 +91,7 @@ Adds extra seconds to the clip's audio end time. This is useful when the generat
 | `last_frame` | IMAGE | End keyframe image; 64×64 blank if none assigned |
 | `prompt` | STRING | Per-clip prompt, or `global_prompt` if the clip has none |
 | `run_prefix` | STRING | Top-level `run_prefix` (`YYYYMMDD_HHMMSS`) for shared filename prefixes |
-| `generate_preview_video` | BOOLEAN | Whether to also generate a preview-duration video |
+| `generate_preview_video` | BOOLEAN | Deprecated output slot; always false to preserve workflow connections |
 | `second_sample` | BOOLEAN | Whether second-sample / secondary sampling is enabled for this clip |
 | `from_start` | STRING | Extended start tag, e.g. `FROM_0010_12_480`; negative times use `FROM_N…` |
 | `from_preview_start` | STRING | Preview (original timeline) start tag, e.g. `FROM_0012_12_432` |

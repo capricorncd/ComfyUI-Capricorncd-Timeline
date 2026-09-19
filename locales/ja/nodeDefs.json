@@ -227,7 +227,7 @@
         "name": "実行タイムスタンプ"
       },
       "generate_preview_video": {
-        "name": "プレビュー動画を生成"
+        "name": "廃止（常に false）"
       },
       "from_start": {
         "name": "FROM 開始"

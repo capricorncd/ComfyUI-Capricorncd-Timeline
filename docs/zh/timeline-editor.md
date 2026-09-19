@@ -319,8 +319,7 @@ Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的
 | `use_append_prompt` | 是否在该 Clip 的提示词内容之后拼接工程 `append_prompt`（默认 `true`） |
 | `use_media_prompts` | 兼容字段名；与 `media_ids` 等长，控制是否使用对应素材描述 |
 | `media_enabled` | 与 `media_ids` 等长的 bool[]：该槽位是否启用 |
-| `head_extend_sec` / `tail_extend_sec` | 首 / 尾扩展秒数 |
-| `generate_preview_video` / `second_sample` | 生成相关开关 |
+| `second_sample` | 生成相关开关 |
 | `clip_role` | `multi_ref` / `first_last` / `t2v` / `video_ref` / `video_edit` / `other` |
 | `clip_role_custom` | `clip_role === "other"` 时的自定义文案 |
 | `agent` | 视频模型：`MiniMaxH3` / `LTX` / `Bernini` / `Wan` / `other`；为兼容已有工程保留字段名 |
@@ -445,9 +444,6 @@ MV、漫剧项目生成器必须按以下方式拆分每个 MiniMax H3 结果：
           "use_append_prompt": true,
           "use_media_prompts": [true],
           "media_enabled": [true],
-          "head_extend_sec": 0,
-          "tail_extend_sec": 0,
-          "generate_preview_video": false,
           "second_sample": false,
           "clip_role": "multi_ref",
           "clip_role_custom": "",

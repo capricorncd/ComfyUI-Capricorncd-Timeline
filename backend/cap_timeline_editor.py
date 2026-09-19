@@ -773,22 +773,7 @@ class CAP_TimelineEditor:
                 if not entry.get("enabled"):
                     continue
                 _add_material(materials, seen_materials, entry.get("row") or {}, resolve_media)
-            try:
-                head_sec = max(0, int(clip.get("head_extend_sec", 0) or 0))
-            except (TypeError, ValueError):
-                head_sec = 0
-            try:
-                tail_sec = max(0, int(clip.get("tail_extend_sec", 0) or 0))
-            except (TypeError, ValueError):
-                tail_sec = 0
-            head_ms = int(round(head_sec * 1000))
-            tail_ms = int(round(tail_sec * 1000))
-            # Extended range may start before 0 (negative start_ms). Audio mix
-            # pads leading silence for that overhang; timeline geometry is unchanged.
-            ext_start = int(start) - head_ms
-            ext_end = int(end) + tail_ms
-            if ext_end <= ext_start:
-                ext_end = ext_start + 1
+            ext_start, ext_end = int(start), int(end)
             clip_role, clip_role_custom = _clip_role_fields(clip)
             agent, agent_custom = _clip_agent_fields(clip)
             source_clip_id = str(clip.get("id", ""))
@@ -807,9 +792,6 @@ class CAP_TimelineEditor:
                 "end_ms": ext_end,
                 "preview_start_ms": int(start),
                 "preview_end_ms": int(end),
-                "head_extend_sec": head_sec,
-                "tail_extend_sec": tail_sec,
-                "generate_preview_video": bool(clip.get("generate_preview_video", False)),
                 "second_sample": bool(clip.get("second_sample", False)),
                 "h3_motion_context_length": _h3_motion_context_length(clip),
                 "save_latent": bool(clip.get("save_latent", False)),

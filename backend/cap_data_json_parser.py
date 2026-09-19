@@ -684,7 +684,7 @@ class CAP_DataJsonClipParser:
             prepend_prompt=prepend_prompt,
             append_prompt=append_prompt,
         )
-        generate_preview_video = bool(clip.get("generate_preview_video", False))
+        generate_preview_video = False  # Preserve output slot indices for existing workflows.
         second_sample = bool(clip.get("second_sample", False))
         save_latent = bool(clip.get("save_latent", False))
         try:

@@ -208,11 +208,11 @@ class CAP_ComposeClipVideos:
                 }),
                 "trim_extends": ("BOOLEAN", {
                     "default": True,
-                    "label_on": "Trim extends",
+                    "label_on": "Trim generation padding",
                     "label_off": "No trim",
                     "tooltip": (
-                        "When a clip has a start/end extend and the video is the extended duration, "
-                        "trim the extend before composing, keeping only the preview-duration range."
+                        "Use H3 timing to trim repeated context and generation padding before composing. "
+                        "Disable to keep the complete source videos."
                     ),
                 }),
                 "save_sidecar": ("BOOLEAN", {
@@ -244,7 +244,7 @@ class CAP_ComposeClipVideos:
     CATEGORY = "Capricorncd/Video"
     DESCRIPTION = (
         "Compose data_json clip output_video files in list order into one MP4. "
-        "Trim repeated motion context and explicit extends, preserving continuation tails. "
+        "Trim repeated motion context and generation padding, preserving continuation tails. "
         "Optionally mix an AUDIO input with the original sound, or replace it. "
         "When save_sidecar is true, write a same-name JSON next to the video."
     )
@@ -355,8 +355,8 @@ class CAP_ComposeClipVideos:
                 return trim_h3_video(timing, actual, source_fps)
             aligned = frames + (5 - frames) % 17
             extended = aligned + context + (5 - aligned - context) % 17
-            head = max(0.0, float(clip.get("preview_start_ms", start + float(clip.get("head_extend_sec", 0) or 0) * 1000)) - start)
-            tail_end = float(clip.get("preview_end_ms", end - float(clip.get("tail_extend_sec", 0) or 0) * 1000))
+            head = max(0.0, float(clip.get("preview_start_ms", start)) - start)
+            tail_end = float(clip.get("preview_end_ms", end))
             keep = round((tail_end - start - head) * fps / 1000)
             if keep <= 0:
                 raise ValueError("Compose Clip Videos: trim removes the entire clip.")
@@ -373,45 +373,7 @@ class CAP_ComposeClipVideos:
             if keep <= 0:
                 raise ValueError("Compose Clip Videos: trim removes the entire clip.")
             return offset / fps + head / 1000, keep / fps
-        try:
-            head = max(0, int(clip.get("head_extend_sec", 0) or 0))
-        except (TypeError, ValueError):
-            head = 0
-        try:
-            tail = max(0, int(clip.get("tail_extend_sec", 0) or 0))
-        except (TypeError, ValueError):
-            tail = 0
-        if head <= 0 and tail <= 0:
-            return None, None
-
-        # Preview-duration videos already match timeline slot — skip trim.
-        if bool(clip.get("generate_preview_video", False)):
-            return None, None
-
-        start_ms = int(clip.get("start_ms", 0) or 0)
-        end_ms = int(clip.get("end_ms", start_ms) or start_ms)
-        preview_start = clip.get("preview_start_ms", None)
-        preview_end = clip.get("preview_end_ms", None)
-        try:
-            preview_start = int(preview_start) if preview_start is not None else start_ms + head * 1000
-        except (TypeError, ValueError):
-            preview_start = start_ms + head * 1000
-        try:
-            preview_end = int(preview_end) if preview_end is not None else end_ms - tail * 1000
-        except (TypeError, ValueError):
-            preview_end = end_ms - tail * 1000
-
-        preview_dur = max(1, preview_end - preview_start) / 1000.0
-        ext_dur = max(1, end_ms - start_ms) / 1000.0
-        vid_dur = _probe_duration_sec(video_path)
-
-        # Only trim when the file looks like the extended-length render.
-        if vid_dur is not None and vid_dur + 0.2 < ext_dur * 0.9:
-            return None, None
-        if vid_dur is not None and abs(vid_dur - preview_dur) <= 0.2 and head > 0:
-            return None, None
-
-        return float(head), float(preview_dur)
+        return None, None
 
     def _normalize_segment(
         self,

@@ -294,8 +294,7 @@ Times are milliseconds snapped to the project `fps` frame grid: `start_ms` / `du
 | `use_append_prompt` | Whether to place the project `append_prompt` after this Clip’s prompt parts (default `true`) |
 | `use_media_prompts` | Compatibility field name; bool[] aligned with `media_ids`, controlling their asset descriptions |
 | `media_enabled` | bool[] aligned with `media_ids` |
-| `head_extend_sec` / `tail_extend_sec` | Head / tail extend (seconds) |
-| `generate_preview_video` / `second_sample` | Generation flags |
+| `second_sample` | Generation flags |
 | `clip_role` | `multi_ref` / `first_last` / `t2v` / `video_ref` / `video_edit` / `other` |
 | `clip_role_custom` | Custom text when `clip_role === "other"` |
 | `agent` | Video model: `MiniMaxH3` / `LTX` / `Bernini` / `Wan` / `other`; field name retained for project compatibility |
@@ -420,9 +419,6 @@ MV and motion-comic project generators must split each MiniMax H3 result as foll
           "use_append_prompt": true,
           "use_media_prompts": [true],
           "media_enabled": [true],
-          "head_extend_sec": 0,
-          "tail_extend_sec": 0,
-          "generate_preview_video": false,
           "second_sample": false,
           "clip_role": "multi_ref",
           "clip_role_custom": "",

@@ -6842,7 +6842,7 @@ export class CapTimelineEditorApp {
             const priorRows = this._clipGeneratedVideos(priorMeta);
             const linked = replaceH3ContextTail(priorRows, adjacent ? this._clipGeneratedVideos(nextMeta) : [], previous.duration);
             if (JSON.stringify(linked) !== JSON.stringify(priorMeta.generatedVideos || [])) {
-                const linkedIds = new Set(linked.map(row => row.id));
+                const linkedIds = new Set(linked.filter(row => row.enabled !== false).map(row => row.id));
                 const replacedContextIds = new Set(priorRows.filter(row => row.h3_context_from && !linkedIds.has(row.id)).map(row => row.id));
                 for (const audio of priorMeta.genEditAudios || []) {
                     if (replacedContextIds.has(audio.from_gen_id)) audio.muted = true;

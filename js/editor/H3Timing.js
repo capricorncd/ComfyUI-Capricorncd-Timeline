@@ -38,8 +38,10 @@ export function applyH3VideoTrim(gen) {
 // Replace the preceding visible tail with the regenerated context from its successor.
 export function replaceH3ContextTail(previousRows, nextRows, previousDuration) {
     const rows = previousRows.filter(row => !row.h3_context_from).map(row => ({ ...row }));
+    const history = previousRows.filter(row => row.h3_context_from).map(row => ({ ...row, enabled: false }));
+    const retained = () => [...rows, ...history];
     for (const row of rows) {
-        if (row.h3_context_original_out != null) {
+        if (row.enabled !== false && row.h3_context_original_out != null) {
             row.trim_out_sec = row.h3_context_original_out;
             delete row.h3_context_original_out;
         }
@@ -48,12 +50,12 @@ export function replaceH3ContextTail(previousRows, nextRows, previousDuration) {
     const next = nextRows.find(row => row.enabled !== false && !row.h3_context_from);
     const a = previous && h3TimingFromFilename(previous.file);
     const b = next && h3TimingFromFilename(next.file);
-    if (!a?.save || !b?.context || a.fps !== b.fps || !previous.h3_trim_applied || !next.h3_trim_applied) return rows;
-    if (b.version === 2 && (a.version !== 2 || b.carry !== a.tail)) return rows;
-    if (Math.round(next.duration_sec * b.fps) !== b.raw || Math.round(previous.duration_sec * a.fps) !== a.raw) return rows;
+    if (!a?.save || !b?.context || a.fps !== b.fps || !previous.h3_trim_applied || !next.h3_trim_applied) return retained();
+    if (b.version === 2 && (a.version !== 2 || b.carry !== a.tail)) return retained();
+    if (Math.round(next.duration_sec * b.fps) !== b.raw || Math.round(previous.duration_sec * a.fps) !== a.raw) return retained();
     const end = Math.min(previous.trim_out_sec, previous.trim_in_sec + previousDuration - (previous.edit_start_sec || 0));
     const overlap = Math.min(end - previous.trim_in_sec, Math.max(0, end - (a.raw - b.context) / a.fps));
-    if (!(overlap > 0)) return rows;
+    if (!(overlap > 0)) return retained();
     previous.h3_context_original_out = previous.trim_out_sec;
     previous.trim_out_sec = end - overlap;
     const prefix = Math.max(0, previous.trim_out_sec - (a.raw - b.context) / a.fps);
@@ -63,7 +65,7 @@ export function replaceH3ContextTail(previousRows, nextRows, previousDuration) {
         enabled: (existing || next).enabled !== false, muted: (existing || next).muted === true,
         trim_in_sec: prefix, trim_out_sec: prefix + overlap,
         edit_start_sec: (previous.edit_start_sec || 0) + previous.trim_out_sec - previous.trim_in_sec });
-    return rows;
+    return [...rows, ...history.filter(row => row.id !== contextId)];
 }
 
 // One-time repair for projects saved by the removed automatic ripple feature.

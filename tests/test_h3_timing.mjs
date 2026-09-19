@@ -13,6 +13,18 @@ assert.equal(Math.round(linked[0].edit_start_sec * 24), 78);
 assert.equal(Math.round(linked.reduce((n, r) => n + r.trim_out_sec - r.trim_in_sec, 0) * 24), 100);
 assert.deepEqual(replaceH3ContextTail(linked, [next], 100 / 24), linked);
 assert.equal(replaceH3ContextTail(linked, [], 100 / 24)[0].trim_out_sec, 100 / 24);
+const secondRunPrior = {...prior, id: 'first-run2'};
+const secondRunNext = {...next, id: 'second-run2'};
+const archived = linked.map(row => ({...row, enabled: false}));
+const rerun = replaceH3ContextTail([secondRunPrior, ...archived], [secondRunNext], 100 / 24);
+assert.equal(rerun.length, 4, 'both old tracks remain alongside both new tracks');
+for (const row of archived) assert.deepEqual(rerun.find(item => item.id === row.id), row,
+    'old tracks retain their source, trims, placement and disabled state');
+assert.deepEqual(replaceH3ContextTail(rerun, [secondRunNext], 100 / 24), rerun,
+    'refreshing must not duplicate historical tracks');
+const unlinked = replaceH3ContextTail(linked, [], 100 / 24);
+assert.equal(unlinked.find(row => row.h3_context_from).enabled, false,
+    'removing a continuation archives its context track instead of deleting it');
 
 const chain = [
     {id:'a',file:'a__h3v2_c0_r124_h0_t4_f24000_s1_n0.mp4',duration_sec:124/24},

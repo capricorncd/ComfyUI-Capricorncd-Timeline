@@ -1463,6 +1463,7 @@ export class CapTimelineEditorApp {
         if (this.settingsModal) this.settingsModal.hidden = true;
         this._agentSettings?.cancel();
         void this._bgmSettings?.flush();
+        if (this.aiOptimizeModal && !this.aiOptimizeModal.hidden) void this._loadAiOptimizeModels();
     }
 
     _confirmOverwriteImport() {
@@ -4315,7 +4316,7 @@ export class CapTimelineEditorApp {
                       </select>
                     </label>
                   </div>
-                  <div class="cat-te-ai-field-row">
+                  <div class="cat-te-ai-field-row cat-te-ai-model-row">
                     <div class="cat-te-ai-field">
                       <span class="cat-te-ai-field-label">
                         ${T("model_label")}
@@ -4325,11 +4326,12 @@ export class CapTimelineEditorApp {
                             ${T("model_info_html")}
                           </span>
                         </span>
+                        <cap-button variant="ghost" size="small" class="cat-te-ai-model-settings">${T("settings_title")}</cap-button>
                       </span>
                       <select class="cat-te-ai-model"></select>
                     </div>
                     <label class="cat-te-ai-field">
-                      <span>${T("output_language_label")}</span>
+                      <span class="cat-te-ai-field-label">${T("output_language_label")}</span>
                       <select class="cat-te-ai-lang">
                         <option value="简体中文" selected>简体中文</option>
                         <option value="繁體中文">繁體中文</option>
@@ -4338,8 +4340,15 @@ export class CapTimelineEditorApp {
                       </select>
                     </label>
                   </div>
-                  <label class="cat-te-ai-field">
-                    <span>${T("agent_prompt_label")}</span>
+                  <label class="cat-te-ai-field cat-te-ai-system-field">
+                    <span class="cat-te-ai-skill-head">
+                      <span>${T("agent_prompt_label")}</span>
+                      <span class="cat-te-ai-skill-actions">
+                        <cap-button class="cat-te-agent-prompt-pick">${T("select_btn")}</cap-button>
+                        <cap-button class="cat-te-agent-prompt-refresh">${iconHtml("refresh", 12)}${T("agent_prompt_refresh")}</cap-button>
+                        <cap-button variant="ghost" class="cat-te-agent-prompt-clear">${T("prompt_clear")}</cap-button>
+                      </span>
+                    </span>
                     <textarea class="cat-te-ai-system" rows="6"></textarea>
                   </label>
                   <div class="cat-te-ai-skill-head">
@@ -4347,13 +4356,10 @@ export class CapTimelineEditorApp {
                     <div class="cat-te-ai-skill-actions">
                       <cap-button class="cat-te-skill-pick-btn">${T("select_btn")}</cap-button>
                       <cap-button class="cat-te-skill-sync-btn" title="${T("sync_latest_skill_title")}">${iconHtml("refresh", 12)}<span>${T("update_btn")}</span></cap-button>
+                      <cap-button variant="ghost" class="cat-te-skill-clear-btn">${T("prompt_clear")}</cap-button>
                     </div>
                   </div>
                   <textarea class="cat-te-ai-skill" rows="3" placeholder="${T("skill_placeholder")}"></textarea>
-                  <label class="cat-te-ai-field cat-te-ai-result-field">
-                    <span>${T("ai_instruction_label")}</span>
-                    <textarea class="cat-te-ai-result" rows="8" placeholder="${T("ai_instruction_placeholder")}"></textarea>
-                  </label>
                   </div>
                   <div class="cat-te-ai-right-pane cat-te-ai-right-preview" data-right-pane="preview" hidden>
                   <label class="cat-te-modal-row">
@@ -4410,6 +4416,7 @@ export class CapTimelineEditorApp {
                   </div>
                 </div>
               </div>
+              <cap-status-message class="cat-te-ai-generate-status" hidden></cap-status-message>
               <footer class="cat-te-modal-footer cat-te-ai-optimize-actions">
                 <span class="cat-te-ai-clip-duration">${T("clip_duration_label")} <span class="cat-te-ai-clip-duration-value">00:00.00</span></span>
                 <cap-button class="cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></cap-button>
@@ -4420,6 +4427,12 @@ export class CapTimelineEditorApp {
               <cap-button shape="circle" size="large" class="cat-te-ai-optimize-nav next" title="${T("ai_optimize_next_clip_title")}" aria-label="${T("ai_optimize_next_clip_title")}" disabled>${iconHtml("chevronLeft", 20)}</cap-button>
             </div>
           </div>
+          <cap-dialog class="cat-te-agent-prompt-picker" style="--cap-dialog-min-width: 420px; --cap-dialog-min-height: 240px;">
+            <span slot="title">${T("agent_prompt_label")}</span>
+            <p>${T("agent_prompt_directory_hint")}</p>
+            <p class="cat-te-agent-prompt-directory"></p>
+            <div class="cat-te-agent-list cat-te-agent-prompt-files"></div>
+          </cap-dialog>
           <div class="cat-te-modal-backdrop cat-te-skill-picker-modal" hidden>
             <div class="cat-te-modal cat-te-skill-picker-dialog">
               <div class="cat-te-modal-header">
@@ -4580,6 +4593,21 @@ export class CapTimelineEditorApp {
                     </div>
                   </div>
                   <div class="cat-te-agent-note">${T("agent_note")}</div>
+                  <div class="cat-te-agent-form">
+                    <label><span>${T("agent_prompt_directory_label")}</span><input class="cat-te-agent-prompt-directory-input" type="text" /></label>
+                    <div class="cat-te-agent-note">${T("agent_prompt_directory_default_hint")}</div>
+                    <div class="cat-te-agent-form-actions">
+                      <cap-button class="cat-te-agent-prompt-directory-reset" variant="ghost">${T("agent_prompt_directory_reset")}</cap-button>
+                      <cap-button class="cat-te-agent-prompt-directory-save">${T("save_btn")}</cap-button>
+                    </div>
+                    <cap-status-message class="cat-te-agent-prompt-directory-status" hidden></cap-status-message>
+                  </div>
+                  <div class="cat-te-agent-heading">
+                    <span>${T("local_qwen_group_label")}</span>
+                    <cap-button class="cat-te-local-model-scan">${T("local_prompt_models_scan")}</cap-button>
+                  </div>
+                  <div class="cat-te-agent-note">${T("local_prompt_models_note")}</div>
+                  <div class="cat-te-agent-list cat-te-local-model-list"></div>
                 </div>
                 <div class="cat-te-settings-panel" data-settings-panel="bgm" hidden></div>
                 </div>
@@ -4827,6 +4855,11 @@ export class CapTimelineEditorApp {
         this.aiContextInputs = el.querySelectorAll(".cat-te-ai-context input[data-context]");
         this.aiSystemInput = el.querySelector(".cat-te-ai-system");
         this.aiSkillInput = el.querySelector(".cat-te-ai-skill");
+        this.agentPromptPickBtn = el.querySelector(".cat-te-agent-prompt-pick");
+        this.agentPromptRefreshBtn = el.querySelector(".cat-te-agent-prompt-refresh");
+        this.agentPromptClearBtn = el.querySelector(".cat-te-agent-prompt-clear");
+        this.skillClearBtn = el.querySelector(".cat-te-skill-clear-btn");
+        this.agentPromptPicker = el.querySelector(".cat-te-agent-prompt-picker");
         this.skillPickBtn = el.querySelector(".cat-te-skill-pick-btn");
         this.skillSyncBtn = el.querySelector(".cat-te-skill-sync-btn");
         this.skillPickerModal = el.querySelector(".cat-te-skill-picker-modal");
@@ -4843,8 +4876,8 @@ export class CapTimelineEditorApp {
         this.mediaDeleteMessage = el.querySelector(".cat-te-media-delete-message");
         this.trackConvertModal = el.querySelector(".cat-te-track-convert-modal");
         this.trackConvertMessage = el.querySelector(".cat-te-track-convert-message");
-        this.aiResultInput = el.querySelector(".cat-te-ai-result");
         this.aiGenerateBtn = el.querySelector(".cat-te-ai-generate");
+        this.aiGenerateStatus = el.querySelector(".cat-te-ai-generate-status");
         this.aiPreviewBtn = el.querySelector(".cat-te-ai-preview-run");
         this.aiPreviewPanel = el.querySelector(".cat-te-ai-preview");
         this.aiPreviewStatus = el.querySelector(".cat-te-ai-preview-status");
@@ -4916,7 +4949,13 @@ export class CapTimelineEditorApp {
         this.modelPreviewMegapixelsInput = el.querySelector(".cat-te-model-preview-megapixels");
         this.modelPreviewFileInput = el.querySelector(".cat-te-model-preview-file");
         this.modelPreviewConfigName = el.querySelector(".cat-te-model-preview-config-name");
-        this._agentSettings = new AgentSettings(this.settingsModal, (message, action) => this._openDeleteConfirm(message, action));
+        this._agentSettings = new AgentSettings(this.settingsModal, (message, action) => this._openDeleteConfirm(message, action), {
+            getSelectedModel: () => localStorage.getItem(STORAGE_AI_PROMPT_MODEL) || "",
+            selectModel: async (name) => {
+                localStorage.setItem(STORAGE_AI_PROMPT_MODEL, `local:${name}`);
+                await this._loadAiOptimizeModels();
+            },
+        });
         this._bgmSettings = new BgmSettings(this.settingsModal.querySelector('[data-settings-panel="bgm"]'));
         this._subtitleSpeech = new SubtitleSpeech(this, el);
         this._localAudioJobs = new LocalAudioJobs(this, el);
@@ -5036,6 +5075,10 @@ export class CapTimelineEditorApp {
             input?.addEventListener("input", () => this._onSettingPromptInput(key));
         }
         el.querySelector(".cat-te-settings").addEventListener("click", () => this._openSettings());
+        el.querySelector(".cat-te-ai-model-settings").addEventListener("click", () => {
+            this._openSettings();
+            this._setSettingsCategory("agents");
+        });
         this.settingsModal.querySelector(".cat-te-modal-close").addEventListener("click", () => this._closeSettings());
         for (const button of this.settingsModal.querySelectorAll("[data-settings-category]")) {
             button.addEventListener("click", () => this._setSettingsCategory(button.dataset.settingsCategory));
@@ -5371,6 +5414,13 @@ export class CapTimelineEditorApp {
                 this._saveAiPromptContext();
                 this._syncAiPromptContextControls();
             });
+        });
+        this.agentPromptPickBtn.addEventListener("click", () => void this._openAgentPromptPicker());
+        this.agentPromptRefreshBtn.addEventListener("click", () => void this._openAgentPromptPicker());
+        this.agentPromptClearBtn.addEventListener("click", () => { this.aiSystemInput.value = ""; });
+        this.skillClearBtn.addEventListener("click", () => {
+            this.aiSkillInput.value = "";
+            localStorage.removeItem(STORAGE_AI_PROMPT_SKILL);
         });
         this.skillPickBtn?.addEventListener("click", (e) => {
             e.preventDefault();
@@ -10482,7 +10532,6 @@ export class CapTimelineEditorApp {
             ".cat-te-ai-src-text",
             ".cat-te-ai-system",
             ".cat-te-ai-skill",
-            ".cat-te-ai-result",
         ].join(",");
         for (const ta of root.querySelectorAll(selector)) {
             if (!(ta instanceof HTMLTextAreaElement) || ta.dataset.promptCopyAttached === "1") continue;
@@ -19153,6 +19202,10 @@ export class CapTimelineEditorApp {
 
     _syncAiPromptTargetControls() {
         const isH3 = this._aiPromptTargetAgent() === "MiniMaxH3";
+        for (const button of [this.agentPromptPickBtn, this.agentPromptRefreshBtn, this.agentPromptClearBtn]) {
+            if (button) button.disabled = !!this._aiOptimizeBusy;
+        }
+        if (this.skillClearBtn) this.skillClearBtn.disabled = !isH3 || this._aiOptimizeBusy;
         if (this.aiSkillInput) this.aiSkillInput.disabled = !isH3 || this._aiOptimizeBusy;
         if (this.skillPickBtn) this.skillPickBtn.disabled = !isH3 || this._aiOptimizeBusy;
         if (this.skillSyncBtn) this.skillSyncBtn.disabled = !isH3 || this._aiOptimizeBusy || this._skillSyncBusy;
@@ -19168,7 +19221,6 @@ export class CapTimelineEditorApp {
         this.aiOptimizeModal.hidden = false;
         this._aiOptimizeSrc = "clip";
         this._setAiOptimizeRightTab("ai");
-        if (this.aiResultInput) this.aiResultInput.value = "";
         await this._bindAiOptimizeToClip(clip, { reloadModels: true });
     }
 
@@ -19205,6 +19257,7 @@ export class CapTimelineEditorApp {
         this._stopModelPreviewAudio();
         if (!clip || !this.aiOptimizeModal) return;
         this._cancelAiOptimize();
+        this.aiGenerateStatus.setStatus("");
         const meta = this._ensureClipMeta(clip);
         this._aiOptimizeClipId = clip.id;
         this._syncPreviewSeedButton();
@@ -19366,10 +19419,11 @@ export class CapTimelineEditorApp {
     async _runAiOptimize() {
         const clip = this._findClipById(this._aiOptimizeClipId) || this._selClip;
         if (!clip || clip.track?.type === "audio" || this._aiOptimizeBusy) return;
+        this.aiGenerateStatus.setStatus("");
         const meta = this._ensureClipMeta(clip);
         const modelChoice = String(this.aiModelSelect?.value || "").trim();
         if (!modelChoice) {
-            alert(T("no_available_model_or_agent_alert"));
+            this.aiGenerateStatus.setStatus(T("no_available_model_or_agent_alert"), "error");
             return;
         }
         localStorage.setItem(STORAGE_AI_PROMPT_MODEL, modelChoice);
@@ -19380,7 +19434,7 @@ export class CapTimelineEditorApp {
         const targetAgent = this._aiPromptTargetAgent();
         const files = this._clipAiOptimizeFiles(clip, context);
         if (!isAgent && files.some((row) => row.kind === "audio" && row.include_data !== false)) {
-            alert(T("local_model_audio_unsupported"));
+            this.aiGenerateStatus.setStatus(T("local_model_audio_unsupported"), "error");
             return;
         }
         const skill = targetAgent === "MiniMaxH3" ? String(this.aiSkillInput?.value || "") : "";
@@ -19402,12 +19456,10 @@ export class CapTimelineEditorApp {
                 audio_mode: context.audio_data !== false
                     ? String(this.aiAudioModeSelect?.value || "auto")
                     : "none",
-                generate_bgm: false,
                 lyrics: "",
                 duration_sec: Number(clip.duration) || 0,
                 clip_prompt: context.clip_prompt !== false ? this._promptManagerValue("clip", clip) : "",
                 global_prompt: "",
-                user_prompt: String(this.aiResultInput?.value || "").trim(),
                 files,
                 keep_loaded: false,
             };
@@ -19426,12 +19478,50 @@ export class CapTimelineEditorApp {
             this._setAiOptimizeSrcTab("clip");
         } catch (error) {
             if (ac.signal.aborted || error?.name === "AbortError") return;
-            alert(T("ai_optimize_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            this.aiGenerateStatus.setStatus(T("ai_optimize_failed", { msg: error instanceof Error ? error.message : String(error) }), "error");
         } finally {
             if (this._aiOptimizeAbort === ac) {
                 this._aiOptimizeAbort = null;
                 this._setAiOptimizeBusy(false);
             }
+        }
+    }
+
+    async _openAgentPromptPicker() {
+        const dialog = this.agentPromptPicker;
+        const list = dialog.querySelector(".cat-te-agent-prompt-files");
+        if (!dialog.open) dialog.showModal();
+        list.textContent = T("loading_ellipsis");
+        try {
+            const response = await fetch(api.apiURL("/audio_keyframe_timeline/agent_prompts"));
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            dialog.querySelector(".cat-te-agent-prompt-directory").textContent = data.directory;
+            list.replaceChildren();
+            if (!data.files.length) list.textContent = T("agent_prompt_empty");
+            for (const name of data.files) {
+                const button = document.createElement("cap-button");
+                button.setAttribute("align", "start");
+                button.textContent = name;
+                button.addEventListener("click", async () => {
+                    button.disabled = true;
+                    try {
+                        const response = await fetch(api.apiURL(`/audio_keyframe_timeline/agent_prompts?name=${encodeURIComponent(name)}`));
+                        const data = await response.json();
+                        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+                        this.aiSystemInput.value = data.text;
+                        dialog.close();
+                    } catch (error) {
+                        this.aiGenerateStatus.setStatus(T("load_failed", { msg: error.message }), "error");
+                        dialog.close();
+                    } finally {
+                        button.disabled = false;
+                    }
+                });
+                list.appendChild(button);
+            }
+        } catch (error) {
+            list.textContent = T("load_failed", { msg: error.message });
         }
     }
 

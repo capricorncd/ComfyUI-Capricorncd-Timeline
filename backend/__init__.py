@@ -943,9 +943,9 @@ def _register_routes():
         return web.json_response({"files": files, "count": len(files)})
 
     @routes.get("/audio_keyframe_timeline/vl_models")
-    async def api_vl_models(_request: web.Request) -> web.Response:
-        from .cap_clip_prompt_vl import SKILL_URL, list_vl_models, public_agent_configs
-        models = list_vl_models()
+    async def api_vl_models(request: web.Request) -> web.Response:
+        from .cap_clip_prompt_vl import SKILL_URL, list_vl_models, scan_vl_models, public_agent_configs
+        models = scan_vl_models() if request.query.get("refresh") == "1" else list_vl_models()
         return web.json_response({
             "models": models,
             "agents": public_agent_configs(enabled_only=True),
@@ -1087,6 +1087,29 @@ def _register_routes():
         except Exception as exc:
             logging.exception("[CapricorncdTools] optimize_clip_prompt error")
             return web.json_response({"error": str(exc)}, status=500)
+
+    @routes.get("/audio_keyframe_timeline/agent_prompts")
+    async def api_agent_prompts(request: web.Request) -> web.Response:
+        from .agent_prompts import prompt_directory, list_prompts, read_prompt
+        try:
+            if "name" in request.query:
+                return web.json_response({"text": read_prompt(request.query["name"])})
+            return web.json_response({"directory": str(prompt_directory()), "files": list_prompts()})
+        except (ValueError, OSError) as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+
+    @routes.get("/audio_keyframe_timeline/agent_prompt_settings")
+    async def api_agent_prompt_settings(_request: web.Request) -> web.Response:
+        from .agent_prompts import prompt_settings
+        return web.json_response(prompt_settings())
+
+    @routes.post("/audio_keyframe_timeline/agent_prompt_settings")
+    async def api_save_agent_prompt_settings(request: web.Request) -> web.Response:
+        from .agent_prompts import save_prompt_settings
+        try:
+            return web.json_response(save_prompt_settings(await request.json()))
+        except (ValueError, OSError) as exc:
+            return web.json_response({"error": str(exc)}, status=400)
 
     @routes.get("/audio_keyframe_timeline/h3_skills")
     async def api_h3_skills(_request: web.Request) -> web.Response:

@@ -101,7 +101,7 @@ _CLIP_ROLE_LABELS = {
 _NO_INVENT_REF_AUDIO = (
     "Do not invent audio prompt text for the tagged timeline audio. "
     "Do not describe the SOUND of wind, rain, guitar, lyrics, or fading music. "
-    "overall_soundscape: N/A. non_diegetic_music: N/A unless Generate BGM is yes. "
+    "overall_soundscape: N/A. "
     "detailed_description must describe only the visible performance synchronized to the existing audio."
 )
 _NO_INVENT_SPEECH = (
@@ -144,15 +144,6 @@ _AUDIO_MODE_INSTRUCTIONS = {
 _NO_TIMELINE_AUDIO = (
     "No overlapping background audio was found on the timeline for this clip. "
     "Do not add <Audio n> tags or invent lip-sync / music performance from audio that is not there."
-)
-_GENERATE_BGM = (
-    "Generate BGM: yes. Write a non_diegetic_music section with newly generated background music "
-    "(instrumentation, tempo, mood) that fits the scene. This is generated music, not copied from a tagged audio file."
-)
-_NO_GENERATE_BGM = (
-    "Generate BGM: no. Do not invent or generate background music. "
-    "Set non_diegetic_music to N/A. Do not narrate tagged timeline audio as music or ambience. "
-    "Do not add generated BGM content anywhere in the prompt."
 )
 _LYRICS_RULE = (
     "Song lyrics guide mood, imagery, and action only. "
@@ -292,7 +283,14 @@ def agent_system_prompt(agent: str, clip_role: str) -> str:
     )
 
 
+_VL_MODEL_NAMES = []
+
+
 def list_vl_models() -> list[str]:
+    return list(_VL_MODEL_NAMES)
+
+
+def scan_vl_models() -> list[str]:
     try:
         import folder_paths
     except Exception:
@@ -309,9 +307,16 @@ def list_vl_models() -> list[str]:
                 continue
             if child.name in seen:
                 continue
+            try:
+                config = json.loads((child / "config.json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if not isinstance(config, dict) or config.get("model_type") not in {"qwen3_vl", "qwen3_vl_moe"}:
+                continue
             seen.add(child.name)
             names.append(child.name)
-    return names
+    _VL_MODEL_NAMES[:] = names
+    return list_vl_models()
 
 
 def _agent_config_path() -> Path:
@@ -537,10 +542,10 @@ class ClipPromptVLEngine:
             raise RuntimeError(_t("transformers_required", get_last_known_lang())) from exc
         dtype = torch.float16 if device == "cuda" else torch.float32
         self.model = AutoModelForImageTextToText.from_pretrained(
-            path, dtype=dtype, trust_remote_code=True,
+            path, dtype=dtype, trust_remote_code=True, local_files_only=True,
         ).to(device).eval()
-        self.processor = AutoProcessor.from_pretrained(path, trust_remote_code=True)
-        self.tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
+        self.processor = AutoProcessor.from_pretrained(path, trust_remote_code=True, local_files_only=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True, local_files_only=True)
         self.model_name = path
         self.device = device
 
@@ -1008,12 +1013,6 @@ def build_user_prompt(payload: dict) -> str:
         lines.append(_AUDIO_MODE_INSTRUCTIONS["none"] if audio_mode == "none" else _NO_TIMELINE_AUDIO)
     else:
         lines.append(_AUDIO_MODE_INSTRUCTIONS.get(audio_mode, _AUDIO_MODE_INSTRUCTIONS["auto"]))
-    generate_bgm = payload.get("generate_bgm")
-    if generate_bgm is None:
-        generate_bgm = audio_mode == "none" or not has_audio
-    else:
-        generate_bgm = generate_bgm is not False
-    lines.append(_GENERATE_BGM if generate_bgm else _NO_GENERATE_BGM)
     return "\n".join(lines)
 
 
@@ -1161,7 +1160,7 @@ def _generate_with_agent(payload: dict, agent_id: str) -> str:
     config = _agent_config(agent_id)
     provider = str(config.get("provider") or "")
     system_prompt = str(payload.get("system_prompt") or "").strip()
-    if not system_prompt:
+    if "system_prompt" not in payload:
         system_prompt = agent_system_prompt(
             str(payload.get("agent") or "MiniMaxH3"),
             str(payload.get("clip_role") or "multi_ref"),
@@ -1250,7 +1249,7 @@ def generate_from_payload(payload: dict) -> str:
     ):
         raise ValueError("The local Qwen3-VL prompt model does not support audio input. Use a configured ChatGPT or Gemini Agent, or disable audio data.")
     system_prompt = str(payload.get("system_prompt") or "").strip()
-    if not system_prompt:
+    if "system_prompt" not in payload:
         system_prompt = agent_system_prompt(
             str(payload.get("agent") or "MiniMaxH3"),
             str(payload.get("clip_role") or "multi_ref"),

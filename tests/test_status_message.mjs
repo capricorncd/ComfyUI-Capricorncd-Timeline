@@ -47,7 +47,7 @@ assert.equal(app.composeStatus.getAttribute('state'), 'error');
 appMethod('_setComposeStatus').call(app, '');
 appMethod('_setExportStatus').call(app, '');
 assert(app.composeStatus.hidden && newStatus.hidden);
-assert.equal((appSource.match(/<cap-status-message /g) || []).length, 2);
+assert.equal((appSource.match(/<cap-status-message /g) || []).length, 4);
 const css = readFileSync(new URL('../js/cap_timeline_editor.css', import.meta.url), 'utf8');
 assert(!/\.cat-te-(export|compose)-status\.is-(error|ok)/.test(css), 'status visuals belong only to the component');
 console.log('Status component: registration, text safety, state transitions, visibility and both caller adapters passed');

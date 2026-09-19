@@ -1,11 +1,28 @@
 import "../components/Button.js";
+import "../components/StatusMessage.js";
 import { api } from "../../../scripts/api.js";
 import { t as T } from "../i18n/timeline_editor.js";
 
 
 export class AgentSettings {
-    constructor(root, confirmDelete) {
+    constructor(root, confirmDelete, { getSelectedModel, selectModel }) {
         this._confirmDelete = confirmDelete;
+        this.promptDirectoryInput = root.querySelector(".cat-te-agent-prompt-directory-input");
+        this.promptDirectoryStatus = root.querySelector(".cat-te-agent-prompt-directory-status");
+        this.promptDirectorySaveBtn = root.querySelector(".cat-te-agent-prompt-directory-save");
+        this.promptDirectorySaveBtn.addEventListener("click", () => void this._savePromptDirectory());
+        root.querySelector(".cat-te-agent-prompt-directory-reset").addEventListener("click", () => {
+            this.promptDirectoryInput.value = "";
+            void this._savePromptDirectory();
+        });
+        this._getSelectedModel = getSelectedModel;
+        this._selectModel = selectModel;
+        this._localModels = null;
+        this._localModelTests = new Map();
+        this._localTestAbort = null;
+        this.localModelList = root.querySelector(".cat-te-local-model-list");
+        this.localModelScanBtn = root.querySelector(".cat-te-local-model-scan");
+        this.localModelScanBtn.addEventListener("click", () => void this._loadLocalModels());
         this._agentConfigs = [];
         this._editingAgentId = "";
         this.agentList = root.querySelector(".cat-te-agent-list");
@@ -25,6 +42,44 @@ export class AgentSettings {
 
     async load() {
         if (!this.agentList) return;
+        this._renderLocalModels();
+        await Promise.all([this._loadAgents(), this._loadPromptDirectory()]);
+    }
+
+    async _loadPromptDirectory() {
+        this.promptDirectoryStatus.setStatus("");
+        try {
+            const response = await fetch(api.apiURL("/audio_keyframe_timeline/agent_prompt_settings"));
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            this.promptDirectoryInput.value = data.directory;
+            this.promptDirectoryInput.placeholder = data.default_directory;
+        } catch (error) {
+            this.promptDirectoryStatus.setStatus(T("load_failed", { msg: error.message }), "error");
+        }
+    }
+
+    async _savePromptDirectory() {
+        if (this.promptDirectorySaveBtn.disabled) return;
+        this.promptDirectorySaveBtn.disabled = true;
+        try {
+            const response = await fetch(api.apiURL("/audio_keyframe_timeline/agent_prompt_settings"), {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ directory: this.promptDirectoryInput.value.trim() }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            this.promptDirectoryInput.value = data.directory;
+            this.promptDirectoryInput.placeholder = data.default_directory;
+            this.promptDirectoryStatus.setStatus(T("agent_prompt_directory_saved"), "success");
+        } catch (error) {
+            this.promptDirectoryStatus.setStatus(T("save_agent_failed", { msg: error.message }), "error");
+        } finally {
+            this.promptDirectorySaveBtn.disabled = false;
+        }
+    }
+
+    async _loadAgents() {
         this.agentList.textContent = T("loading_ellipsis");
         try {
             const response = await fetch(api.apiURL("/audio_keyframe_timeline/agents"));
@@ -34,6 +89,94 @@ export class AgentSettings {
             this._render();
         } catch (error) {
             this.agentList.textContent = T("load_failed", { msg: error instanceof Error ? error.message : String(error) });
+        }
+    }
+
+    async _loadLocalModels() {
+        if (this.localModelScanBtn.disabled) return;
+        this.localModelScanBtn.disabled = true;
+        this.localModelList.textContent = T("loading_ellipsis");
+        try {
+            const response = await fetch(api.apiURL("/audio_keyframe_timeline/vl_models?refresh=1"));
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            this._localModels = Array.isArray(data.models) ? data.models : [];
+            this._renderLocalModels();
+        } catch (error) {
+            this.localModelList.textContent = T("load_failed", { msg: error instanceof Error ? error.message : String(error) });
+        } finally {
+            this.localModelScanBtn.disabled = false;
+        }
+    }
+
+    _renderLocalModels() {
+        this.localModelList.replaceChildren();
+        if (this._localModels === null) {
+            this.localModelList.textContent = T("local_prompt_models_scan_hint");
+            return;
+        }
+        if (!this._localModels.length) {
+            this.localModelList.textContent = T("local_prompt_models_empty");
+            return;
+        }
+        const selected = this._getSelectedModel();
+        for (const name of this._localModels) {
+            const row = document.createElement("div");
+            row.className = "cat-te-agent-row";
+            const text = document.createElement("div");
+            text.className = "cat-te-agent-row-text";
+            const title = document.createElement("strong");
+            title.textContent = name;
+            text.appendChild(title);
+            const status = document.createElement("cap-status-message");
+            const result = this._localModelTests.get(name);
+            status.setStatus(result?.text || T("local_prompt_model_untested"), result?.state);
+            text.appendChild(status);
+            const test = document.createElement("cap-button");
+            test.textContent = T("local_prompt_model_test");
+            test.disabled = !!this._localTestAbort;
+            test.addEventListener("click", () => void this._testLocalModel(name));
+            const select = document.createElement("cap-button");
+            const active = selected === `local:${name}` || selected === name;
+            select.textContent = T(active ? "local_prompt_model_selected" : "select_btn");
+            select.setAttribute("aria-pressed", String(active));
+            select.addEventListener("click", async () => {
+                await this._selectModel(name);
+                this._renderLocalModels();
+            });
+            row.append(text, test, select);
+            this.localModelList.appendChild(row);
+        }
+    }
+
+    async _testLocalModel(name) {
+        if (this._localTestAbort) return;
+        const controller = new AbortController();
+        this._localTestAbort = controller;
+        this._localModelTests.set(name, { text: T("local_prompt_model_testing"), state: "info" });
+        this._renderLocalModels();
+        try {
+            const response = await fetch(api.apiURL("/audio_keyframe_timeline/optimize_clip_prompt"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                signal: controller.signal,
+                body: JSON.stringify({
+                    model: name, files: [], keep_loaded: false, max_new_tokens: 64,
+                    system_prompt: "Reply briefly.",
+                    user_prompt: "Write one short sentence describing a sunny forest.",
+                    output_language: "English",
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            if (!String(data.prompt || "").trim()) throw new Error(T("model_no_prompt_returned"));
+            this._localModelTests.set(name, { text: T("local_prompt_model_passed"), state: "success" });
+        } catch (error) {
+            if (controller.signal.aborted) this._localModelTests.delete(name);
+            else this._localModelTests.set(name, { text: T("load_failed", { msg: error instanceof Error ? error.message : String(error) }), state: "error" });
+        } finally {
+            this._localTestAbort = null;
+            this._renderLocalModels();
         }
     }
 
@@ -80,6 +223,7 @@ export class AgentSettings {
     }
 
     cancel() {
+        this._localTestAbort?.abort();
         this._editingAgentId = "";
         if (this.agentForm) this.agentForm.hidden = true;
         if (this.agentKeyInput) this.agentKeyInput.value = "";

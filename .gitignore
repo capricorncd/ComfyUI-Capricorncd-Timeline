@@ -225,3 +225,5 @@ config.local.yml
 config.local.yml.*
 
 desktop.ini
+agent_prompts/*
+!agent_prompts/.gitkeep

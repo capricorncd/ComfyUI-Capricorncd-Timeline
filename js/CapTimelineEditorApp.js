@@ -454,6 +454,7 @@ function defaultImageMeta(trackIndex = 0) {
         seed: -1,
         trackIndex,
         clipRole: "multi_ref",
+        useAudioTrackAudio: false,
         clipRoleCustom: "",
         agent: "MiniMaxH3",
         agentCustom: "",
@@ -3639,6 +3640,10 @@ export class CapTimelineEditorApp {
                   <input class="cat-te-clip-agent-custom" type="text" placeholder="${T("enter_model_name_placeholder")}" disabled />
                 </label>
                 <label class="cat-te-clip-setting-check">
+                  <input class="cat-te-use-audio-track" type="checkbox" disabled />
+                  <span>${T("use_audio_track_audio_label")}</span>
+                </label>
+                <label class="cat-te-clip-setting-check">
                   <input class="cat-te-second-sample" type="checkbox" disabled />
                   <span>${T("second_sample_label")}</span>
                 </label>
@@ -4662,6 +4667,7 @@ export class CapTimelineEditorApp {
         }
         this.promptIncludesHost = el.querySelector(".cat-te-prompt-includes");
         this.promptIncludeChips = el.querySelectorAll(".cat-te-prompt-include-chip");
+        this.useAudioTrackAudioCb = el.querySelector(".cat-te-use-audio-track");
         this.secondSampleCb = el.querySelector(".cat-te-second-sample");
         this.h3MotionContextInput = el.querySelector(".cat-te-h3-motion-context");
         this.saveLatentCb = el.querySelector(".cat-te-save-latent");
@@ -5188,6 +5194,12 @@ export class CapTimelineEditorApp {
             this.clipSeedInput?.addEventListener("change", () => this._onClipSeedChange());
             this.clipSeedRandomBtn?.addEventListener("click", () => this._randomizeClipSeed());
         }
+        this.useAudioTrackAudioCb?.addEventListener("change", () => {
+            if (!this._selClip || this.useAudioTrackAudioCb.disabled) return;
+            this._recordUndo();
+            this._ensureClipMeta(this._selClip).useAudioTrackAudio = this.useAudioTrackAudioCb.checked;
+            this._saveToWidgets();
+        });
         this.clipRoleSelect?.addEventListener("change", () => this._onClipRoleChange());
         this.clipRoleCustomInput?.addEventListener("change", () => this._onClipRoleCustomChange());
         this.clipAgentSelect?.addEventListener("change", () => this._onClipAgentChange());
@@ -14500,6 +14512,7 @@ export class CapTimelineEditorApp {
                 volume: normalizeClipVolume(c.volume),
                 items,
                 mediaIds: items.map((item) => item.id).filter(Boolean),
+                useAudioTrackAudio: c.use_audio_track_audio ?? (c.clip_role === "digital_human"),
                 clipRole: c.clip_role || (items.length ? "multi_ref" : "t2v"),
                 clipRoleCustom: c.clip_role_custom ?? "",
                 agent: c.agent || "MiniMaxH3",
@@ -14569,6 +14582,7 @@ export class CapTimelineEditorApp {
             this._meta.set(clip.id, {
                 ...defaultImageMeta(trackIdx),
                 mediaKind: "clip",
+                useAudioTrackAudio: c.use_audio_track_audio ?? (c.clip_role === "digital_human"),
                 clipRole: c.clip_role || "video_ref",
                 clipRoleCustom: c.clip_role_custom ?? "",
                 agent: c.agent || "MiniMaxH3",
@@ -14629,6 +14643,7 @@ export class CapTimelineEditorApp {
         this._meta.set(clip.id, {
             ...defaultImageMeta(trackIdx),
             mediaKind: "clip",
+            useAudioTrackAudio: c.use_audio_track_audio ?? (c.clip_role === "digital_human"),
             clipRole: c.clip_role || (c.end_image ? "first_last" : "multi_ref"),
             clipRoleCustom: c.clip_role_custom ?? "",
             agent: c.agent || "MiniMaxH3",
@@ -18223,6 +18238,10 @@ export class CapTimelineEditorApp {
 
     _setVisualSettingsEnabled(enabled, m = null) {
         const disabled = !enabled;
+        if (this.useAudioTrackAudioCb) {
+            this.useAudioTrackAudioCb.disabled = disabled;
+            this.useAudioTrackAudioCb.checked = enabled && !!m?.useAudioTrackAudio;
+        }
         if (this.secondSampleCb) {
             this.secondSampleCb.disabled = disabled;
             this.secondSampleCb.checked = enabled && !!m?.secondSample;
@@ -19169,6 +19188,9 @@ export class CapTimelineEditorApp {
         const targetAgent = this._aiPromptTargetAgent();
         if (meta.agent !== targetAgent) meta.agentCustom = "";
         meta.agent = targetAgent;
+        if (this.aiTargetRoleSelect?.value === "digital_human" && meta.clipRole !== "digital_human") {
+            meta.useAudioTrackAudio = true;
+        }
         meta.clipRole = String(this.aiTargetRoleSelect?.value || "multi_ref");
         meta.clipRoleCustom = "";
         this._meta.set(clip.id, meta);
@@ -19638,8 +19660,11 @@ export class CapTimelineEditorApp {
         this._recordUndo();
         const m = this._ensureClipMeta(this._selClip);
         m.clipRole = this._knownClipRole(this.clipRoleSelect.value);
+        if (m.clipRole === "digital_human") m.useAudioTrackAudio = true;
         if (m.clipRole !== "other") m.clipRoleCustom = "";
         this._meta.set(this._selClip.id, m);
+        this._setVisualSettingsEnabled(true, m);
+        this._saveToWidgets();
         this._updatePromptPanel();
     }
 
@@ -19887,6 +19912,7 @@ export class CapTimelineEditorApp {
                     row.save_latent = !!m.saveLatent;
                     row.seed = this._normalizeClipSeed(m.seed);
                     row.clip_role = m.clipRole || "multi_ref";
+                    row.use_audio_track_audio = !!m.useAudioTrackAudio;
                     row.clip_role_custom = m.clipRole === "other" ? (m.clipRoleCustom || "") : "";
                     row.agent = m.agent || "MiniMaxH3";
                     row.agent_custom = m.agent === "other" ? (m.agentCustom || "") : "";

@@ -8,6 +8,7 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        use_audio_track_audio_label: "Use audio track audio",
         slider_reset: "Reset to default",
         preview_seed_use: "Use preview seed",
         preview_seed_hint: "Save this preview's confirmed sampling seed to the Clip. With seed -1, Run and Preview generates a seed for this run only; connect the Timeline/Cap MiniMaxH3 seed output to the sampler. Disabled until a preview and an unambiguous, safely representable seed are available. Unknown dynamic inputs or different seeds across sampling passes cannot be copied as one seed. Reuse the same models and sampling settings to reproduce the result.",
@@ -821,6 +822,7 @@ export const DICT = {
         apply_skill_failed: "Failed to apply Skill: {msg}",
     },
     zh: {
+        use_audio_track_audio_label: "使用音频轨音频",
         slider_reset: "恢复默认值",
         preview_seed_use: "使用本次种子",
         preview_seed_hint: "将本次预览已确认的采样种子保存到当前 Clip。seed 为 -1 时，运行与预览仅为本次运行生成种子；需将时间轴/Cap MiniMaxH3 的 seed 输出接到采样器。收到预览且种子唯一、可精确保存后才可点击；未知动态输入或多次采样使用不同种子时不回填。复现还需保持模型及采样参数一致。",
@@ -1626,6 +1628,7 @@ export const DICT = {
         apply_skill_failed: "应用 Skill 失败：{msg}",
     },
     ja: {
+        use_audio_track_audio_label: "音声トラックの音声を使用",
         slider_reset: "既定値に戻す",
         preview_seed_use: "今回のシードを使用",
         preview_seed_hint: "確認できたプレビューのシードを Clip に保存します。-1 の場合は今回の実行だけにシードを生成します。Timeline/Cap MiniMaxH3 の seed 出力をサンプラーに接続してください。プレビューと一意かつ正確に保存可能なシードが揃うまで無効です。不明な動的入力やパスごとに異なるシードはコピーしません。再現には同じモデルとサンプリング設定も必要です。",

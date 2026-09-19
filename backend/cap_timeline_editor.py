@@ -775,6 +775,7 @@ class CAP_TimelineEditor:
                 _add_material(materials, seen_materials, entry.get("row") or {}, resolve_media)
             ext_start, ext_end = int(start), int(end)
             clip_role, clip_role_custom = _clip_role_fields(clip)
+            use_audio_track_audio = bool(clip.get("use_audio_track_audio", clip_role == "digital_human"))
             agent, agent_custom = _clip_agent_fields(clip)
             source_clip_id = str(clip.get("id", ""))
             generated_outputs[source_clip_id] = next((str(video["file"]) for video in clip.get("generated_videos", [])
@@ -786,6 +787,7 @@ class CAP_TimelineEditor:
                 "clip_type": str(clip.get("type") or "image"),
                 "clip_role": clip_role,
                 "clip_role_custom": clip_role_custom,
+                "use_audio_track_audio": use_audio_track_audio,
                 "agent": agent,
                 "agent_custom": agent_custom,
                 "start_ms": ext_start,
@@ -804,7 +806,7 @@ class CAP_TimelineEditor:
                 "z_index": z_index,
                 "audios": self._audio_slices(
                     ext_start, ext_end, audio_clips, resolve_media, project, materials, seen_materials,
-                ),
+                ) if use_audio_track_audio else [],
             }
             if use_clip_video_name:
                 clip_id_safe = _safe_filename_part(source_clip_id, "clip")

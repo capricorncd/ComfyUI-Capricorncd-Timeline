@@ -32,7 +32,7 @@ for (const kind of [null, 'image', 'video']) {
         const track = { id: 'track', type: 'image', clips: [clip] };
         const app = {
             _timeline: { tracks: [track], getZoom: () => 1 }, _trackInfo: new Map(),
-            _meta: new Map([[clip.id, { muted, items }]]), getFps: () => 24, _trackIndex: () => 0,
+            _meta: new Map([[clip.id, { muted, items, useAudioTrackAudio: true }]]), getFps: () => 24, _trackIndex: () => 0,
             _normalizeVisualMeta() {}, _clipItems: meta => meta.items, _canChangeClipSpeed: () => false,
             _clampH3MotionContextLength: () => 0, _normalizeClipSeed: () => 42,
             _clipGeneratedVideos: () => [], _normalizeGenEditAudioDraft: () => [],
@@ -48,12 +48,24 @@ for (const kind of [null, 'image', 'video']) {
         app._meta.clear();
         await method('_addClipFromJson').call(app, row);
         assert.equal(app._meta.get(clip.id).muted, !!muted, `Restore ${kind || 'empty'} director mute`);
+        assert.equal(app._meta.get(clip.id).useAudioTrackAudio, true, 'audio track opt-in survives save and restore');
         delete row.muted;
         await method('_addClipFromJson').call(app, row);
         assert.equal(app._meta.get(clip.id).muted, false, 'Old projects default to unmuted');
     }
 }
 console.log('Director mute survives project JSON save and restore for empty, image and video source clips');
+
+{
+    const meta = {clipRole: 'multi_ref', useAudioTrackAudio: false};
+    let saved = 0;
+    const app = {_selClip: {id: 'director'}, clipRoleSelect: {value: 'digital_human'},
+        _recordUndo() {}, _ensureClipMeta: () => meta, _knownClipRole: value => value,
+        _meta: new Map(), _setVisualSettingsEnabled() {}, _saveToWidgets() {saved++;}, _updatePromptPanel() {}};
+    method('_onClipRoleChange').call(app);
+    assert.equal(meta.useAudioTrackAudio, true);
+    assert.equal(saved, 1);
+}
 
 {
     const clip = { id: 'audio', name: '旁白：第一句', src: 'folder/original.wav', startTime: 2, duration: 5 };

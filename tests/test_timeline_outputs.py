@@ -22,7 +22,7 @@ class TimelineOutputsTests(unittest.TestCase):
                          _safe_filename_part=lambda name, default: name or default,
                          plan_h3_clips=h3.plan_h3_clips, _is_subtitle_clip=lambda c: False,
                          _clip_visual_entries=lambda *a: [], _strip_comment_lines=lambda s: s,
-                         _clip_role_fields=lambda c: ('multi_ref', ''), _clip_agent_fields=lambda c: ('MiniMaxH3', ''),
+                         _clip_role_fields=lambda c: (c.get('clip_role', 'multi_ref'), ''), _clip_agent_fields=lambda c: ('MiniMaxH3', ''),
                          _timeline_prompt_includes=lambda c: ['clip'], _clip_seed=lambda c: 1,
                          _h3_motion_context_length=lambda c: c.get('h3_motion_context_length', 0),
                          _clip_image_refs=lambda e: [])
@@ -48,6 +48,22 @@ class TimelineOutputsTests(unittest.TestCase):
         self.assertEqual(rows[0]['h3_timing']['play_frames'], 120)
         for removed in ('head_extend_sec', 'tail_extend_sec', 'generate_preview_video'):
             self.assertNotIn(removed, rows[0])
+        audio_rows = [{'id': 'audio-reference'}]
+        calls = []
+        instance._audio_slices = lambda *a: calls.append(a) or audio_rows
+        for role, option, expected in [('multi_ref', None, False), ('multi_ref', True, True),
+                                       ('digital_human', None, True), ('digital_human', False, False)]:
+            with self.subTest(role=role, option=option):
+                second['clip_role'] = role
+                second.pop('use_audio_track_audio', None)
+                if option is not None:
+                    second['use_audio_track_audio'] = option
+                calls.clear()
+                result = namespace['execute'](instance, 24, 864, 480, 'test', json.dumps(project))
+                row = json.loads(result[3])['clips'][0]
+                self.assertEqual(row['use_audio_track_audio'], expected)
+                self.assertEqual(row['audios'], audio_rows if expected else [])
+                self.assertEqual(len(calls), int(expected), 'disabled clips must not collect or mix track audio')
 
     def test_execution_matches_output_contract_and_preserves_prompt_data(self):
         namespace = dict(json=json, datetime=datetime, PROJECT_VERSION='test', SCHEMA_VERSION=4,

@@ -283,11 +283,8 @@ def agent_system_prompt(agent: str, clip_role: str) -> str:
     )
 
 
-_VL_MODEL_NAMES = []
-
-
 def list_vl_models() -> list[str]:
-    return list(_VL_MODEL_NAMES)
+    return read_config(CONFIG_PATH, "local_language_models", [])
 
 
 def scan_vl_models() -> list[str]:
@@ -315,8 +312,8 @@ def scan_vl_models() -> list[str]:
                 continue
             seen.add(child.name)
             names.append(child.name)
-    _VL_MODEL_NAMES[:] = names
-    return list_vl_models()
+    write_config(CONFIG_PATH, "local_language_models", names)
+    return names
 
 
 def _agent_config_path() -> Path:

@@ -2,6 +2,7 @@ import { api } from '../../../scripts/api.js';
 import { t as T } from '../i18n/timeline_editor.js';
 import '../components/Dialog.js';
 import '../components/ExportRange.js';
+import { AudioOptions } from './AudioOptions.js';
 
 export class LocalAudioJobs {
     constructor(app, host) {
@@ -74,8 +75,13 @@ export class LocalAudioJobs {
             <div class="cat-te-modal-body"><p data-description></p>
             ${denoise ? `<label>${T('local_audio_source')}<select data-source></select><span data-source-file></span></label><label>${T('local_audio_scope')}<select data-scope><option value="clip">${T('local_audio_clip_scope')}</option><option value="full">${T('local_audio_full_scope')}</option></select></label>` : `<label>${T('local_audio_lyrics')}<textarea data-lyrics rows="4" readonly></textarea></label><label>${T('local_audio_style')}<textarea data-style rows="2" readonly></textarea></label><label>${T('local_audio_duration')}<input data-duration type="number" min="0.001" step="any" /></label>`}
             ${voice ? `<label>${T('local_voice_preset')}<select data-voice></select></label><p data-voice-description></p><audio data-voice-preview controls preload="none" hidden></audio><label>${T('local_voice_reference')}<select data-reference><option value="">${T('local_voice_use_preset')}</option></select></label><audio data-reference-preview preload="metadata" hidden></audio><div data-reference-trim hidden><cap-export-range data-reference-range></cap-export-range></div>${kind === 'tts' ? `<label>${T('local_voice_language')}<select data-language>${['Auto','Chinese','English','Japanese','Korean','German','French','Russian','Portuguese','Spanish','Italian'].map(language => `<option>${language}</option>`).join('')}</select></label><label>${T('local_voice_instruct')}<textarea data-instruct maxlength="1000" rows="2"></textarea></label><label>${T('local_voice_reference_text')}<textarea data-reference-text maxlength="4000" rows="2"></textarea></label>` : ''}` : ''}
-            </div>
+            ${kind === 'tts' ? `<label>${T('audio_option_model')}<select data-model><option value="qwen3-tts">Qwen3-TTS</option><option value="breeze-tts2">Breeze TTS 2</option></select></label>` : ''}
+            <details data-options></details></div>
             <div slot="footer"><p role="status"></p><div class="cat-te-confirm-actions"><cap-button data-settings>${T('voice_configure')}</cap-button><cap-button data-cancel>${T('close_title')}</cap-button><cap-button variant="primary" data-submit>${T(titleKey)}</cap-button></div></div>`;
+        const options = new AudioOptions(this.dialog.querySelector('[data-options]'), kind);
+        const model = this.dialog.querySelector('[data-model]');
+        if (model) model.value = defaults.model === 'breeze-tts2' ? defaults.model : 'qwen3-tts';
+        const breeze = () => kind === 'tts' && model.value === 'breeze-tts2';
         this.dialog.querySelector('[data-description]').textContent = denoise ? T('local_audio_denoise_note') : clip.name + '\n' + T('local_audio_bgm_note');
         if (kind === 'separation' || sfx) this.dialog.querySelector('[data-description]').textContent = T(sfx ? 'local_audio_sfx_note' : 'local_audio_separation_note');
         if (denoise) {
@@ -107,6 +113,12 @@ export class LocalAudioJobs {
             this.dialog.querySelector('[data-style]').parentElement.hidden = true;
             const duration = this.dialog.querySelector('[data-duration]');
             duration.value = payload.seconds;
+            duration.min = 1;
+            duration.max = 30;
+        }
+        if (kind === 'music') {
+            this.dialog.querySelector('[data-duration]').min = 1;
+            this.dialog.querySelector('[data-duration]').max = 900;
         }
         if (kind === 'tts') {
             const text = this.dialog.querySelector('[data-lyrics]');
@@ -183,10 +195,11 @@ export class LocalAudioJobs {
                 referencePreview.removeAttribute('src');
                 if (row) referencePreview.src = row.kind === 'video' ? app._videoUrl(row.file) : app._audioUrl(row.file);
                 referencePreview.load();
-                this.dialog.querySelector('[data-voice]').disabled = !!reference.value;
+                this.dialog.querySelector('[data-voice]').disabled = !!reference.value || breeze();
+                this.dialog.querySelector('[data-voice]').parentElement.hidden = breeze();
                 this.dialog.querySelector('[data-voice]').onchange?.();
                 if (kind === 'tts') {
-                    this.dialog.querySelector('[data-instruct]').parentElement.hidden = !!reference.value;
+                    this.dialog.querySelector('[data-instruct]').parentElement.hidden = !!reference.value && !breeze();
                     this.dialog.querySelector('[data-reference-text]').parentElement.hidden = !reference.value;
                 }
             };
@@ -210,16 +223,27 @@ export class LocalAudioJobs {
                 select.onchange = () => {
                     preview.pause();
                     const row = rows.find(row => row.id === select.value);
-                    const enabled = row?.preview_url && !reference.value;
+                    const enabled = row?.preview_url && !reference.value && !breeze();
                     preview.hidden = !enabled;
                     preview.removeAttribute('src');
                     if (enabled) preview.src = api.apiURL('/audio_keyframe_timeline/local_audio/voice_preview/' + encodeURIComponent(row.id) + '?kind=' + kind);
                     preview.load();
-                    this.dialog.querySelector('[data-voice-description]').textContent = reference.value ? '' : row ? (row.description || row.language || '') + (row.preview_url ? '' : ' · ' + T('local_voice_no_preview')) : T('local_voice_choose');
+                    this.dialog.querySelector('[data-voice-description]').textContent = reference.value || breeze() ? '' : row ? (row.description || row.language || '') + (row.preview_url ? '' : ' · ' + T('local_voice_no_preview')) : T('local_voice_choose');
                 };
                 preview.onerror = () => { this.dialog.querySelector('[role="status"]').textContent = T('local_voice_no_preview'); };
                 select.onchange();
             }).catch(error => { if (this.dialog.querySelector('[data-voice]') === select) this.dialog.querySelector('[role="status"]').textContent = error.message; });
+        }
+        if (kind === 'tts') {
+            model.onchange = () => {
+                options.setModel(model.value);
+                const language = this.dialog.querySelector('[data-language]');
+                for (const option of language.options) option.disabled = breeze() && !['Auto', 'Chinese', 'English'].includes(option.value);
+                if (breeze() && !['Auto', 'Chinese', 'English'].includes(language.value)) language.value = 'Auto';
+                this.dialog.querySelector('[data-reference]').onchange();
+                remember({ model: model.value });
+            };
+            model.onchange();
         }
         const status = this.dialog.querySelector('[role="status"]');
         const submit = this.dialog.querySelector('[data-submit]');
@@ -238,6 +262,8 @@ export class LocalAudioJobs {
         submit.onclick = async () => {
             if (this.busy) return;
             if (!valid()) { status.textContent = T('local_audio_target_changed'); return; }
+            const optional = options.values();
+            if (!optional) return;
             if (!denoise && kind !== 'tts') {
                 const duration = this.dialog.querySelector('[data-duration]');
                 if (!duration.reportValidity()) return;
@@ -246,7 +272,7 @@ export class LocalAudioJobs {
                     payload.prompt = this.dialog.querySelector('[data-lyrics]').value.trim();
                     payload.seconds = Number(duration.value);
                     if (!payload.prompt || payload.prompt.length > 4000) { status.textContent = T('local_audio_sfx_prompt_required'); return; }
-                } else if (!payload.lyrics.trim() || !payload.style.trim()) { status.textContent = T('local_audio_missing_prompt'); return; }
+                }
             }
             if (voice && !this.jobId) {
                 payload.reference_file = this.dialog.querySelector('[data-reference]').value;
@@ -259,13 +285,17 @@ export class LocalAudioJobs {
                     payload.reference_end_sec = range.endFrame / 1000;
                 }
                 payload.speaker = this.dialog.querySelector('[data-voice]').value;
-                if (!payload.reference_file && !payload.speaker) { status.textContent = T('local_voice_choose'); return; }
+                if (!payload.reference_file && !payload.speaker && !breeze()) { status.textContent = T('local_voice_choose'); return; }
                 if (kind === 'tts') {
+                    payload.model = model.value;
                     payload.text = this.dialog.querySelector('[data-lyrics]').value.trim();
                     if (!payload.text || payload.text.length > 2000) { status.textContent = T('local_voice_text_limit'); return; }
                     payload.language = this.dialog.querySelector('[data-language]').value;
                     payload.instruct = this.dialog.querySelector('[data-instruct]').value;
                     payload.reference_text = this.dialog.querySelector('[data-reference-text]').value;
+                    if (breeze() && !(payload.reference_file ? payload.reference_text.trim() : payload.instruct.trim())) {
+                        status.textContent = T('audio_breeze_required'); return;
+                    }
                     remember({ speaker: payload.speaker, reference: payload.reference_file, language: payload.language });
                     if (payload.reference_file) {
                         const range = this.dialog.querySelector('[data-reference-range]');
@@ -291,7 +321,7 @@ export class LocalAudioJobs {
             status.textContent = T('local_audio_submitting');
             let finished = false;
             try {
-                let job = this.jobId ? await this.request('status/' + this.jobId) : await this.request('start', payload);
+                let job = this.jobId ? await this.request('status/' + this.jobId) : await this.request('start', { ...payload, ...optional });
                 this.jobId = job.id;
                 if (this.cancelRequested) await this.request('cancel/' + job.id, {});
                 while (!this.cancelRequested && ['queued', 'running'].includes(job.status)) {

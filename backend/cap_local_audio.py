@@ -6,6 +6,7 @@ import math
 import shutil
 import subprocess
 import tempfile
+import uuid
 from urllib.parse import urlsplit
 
 import aiohttp
@@ -189,19 +190,31 @@ def register_local_audio_routes(routes):
                                 uploaded = await request_json(session, 'POST', url + '/v1/uploads', data=form)
                                 reference_id = uploaded['upload_id']
                     if kind == 'music':
-                        params = {key: payload[key] for key in ('lyrics', 'style', 'count', 'seed', 'mode', 'max_duration') if key in payload}
+                        params = {key: payload[key] for key in ('lyrics', 'style', 'count', 'seed', 'mode', 'max_duration',
+                                  'workspace', 'title', 'generate_score', 'steps', 'cfg', 'temperature', 'top_p', 'top_k',
+                                  'repetition_penalty', 'lora_provider', 'acoustic_lora', 'planner_lora',
+                                  'acoustic_strength', 'planner_strength') if key in payload}
                         job = await request_json(session, 'POST', endpoint + '?wait=false', json=params)
                     elif kind == 'sfx':
                         params = {key: payload[key] for key in ('prompt', 'seconds', 'seed') if key in payload}
                         params.update(count=1, num_inference_steps=config.get('services', {}).get('sfx', {}).get('num_inference_steps', 100), cfg_scale=config.get('services', {}).get('sfx', {}).get('cfg_scale', 4))
+                        params.update({key: payload[key] for key in ('negative_prompt', 'count', 'num_inference_steps', 'cfg_scale', 'sigma_shift') if key in payload})
                         job = await request_json(session, 'POST', endpoint + '?wait=false', json=params)
                     elif kind == 'tts':
                         text = str(payload.get('text', '')).strip()
                         if not 1 <= len(text) <= 2000:
                             raise ValueError('TTS requires 1–2000 characters; shorten the text before submitting.')
                         params = {'text': text, 'language': payload.get('language', 'Auto'), 'seed': payload.get('seed', 42)}
+                        model = payload.get('model', 'qwen3-tts')
+                        if model not in ('qwen3-tts', 'breeze-tts2'):
+                            raise ValueError('Unsupported TTS model.')
+                        params.update({key: payload[key] for key in ('model', 'temperature', 'max_new_tokens', 'cfg_scale') if key in payload})
                         if reference_id:
                             params.update(reference_upload_id=reference_id, reference_text=payload.get('reference_text', ''))
+                            if model == 'breeze-tts2':
+                                params['instruct'] = payload.get('instruct', '')
+                        elif model == 'breeze-tts2':
+                            params['instruct'] = payload.get('instruct', '')
                         else:
                             params.update(speaker=payload.get('speaker', 'vivian'), instruct=payload.get('instruct', ''))
                         job = await request_json(session, 'POST', endpoint + '?wait=false', json=params)
@@ -216,10 +229,18 @@ def register_local_audio_routes(routes):
                                 form = aiohttp.FormData()
                                 form.add_field('file', stream, filename='source.wav', content_type='audio/wav')
                                 if kind == 'separation':
-                                    form.add_field('segment_seconds', str(config.get('services', {}).get('separation', {}).get('segment_seconds', 2)))
+                                    form.add_field('segment_seconds', str(payload.get('segment_seconds', config.get('services', {}).get('separation', {}).get('segment_seconds', 2))))
+                                    for key in ('mode', 'title'):
+                                        if key in payload:
+                                            form.add_field(key, str(payload[key]))
+                                if kind in ('denoise', 'separation'):
+                                    for key in ('max_duration', *(['segment_seconds'] if kind == 'denoise' else [])):
+                                        if key in payload:
+                                            form.add_field(key, str(payload[key]))
                                 if kind == 'vc':
                                     uploaded = await request_json(session, 'POST', url + '/v1/uploads', data=form)
                                     params = {'source_upload_id': uploaded['upload_id'], 'seed': payload.get('seed', 42)}
+                                    params.update({key: payload[key] for key in ('diffusion_steps', 'inference_cfg_rate', 'length_adjust') if key in payload})
                                     if reference_id:
                                         params['reference_upload_id'] = reference_id
                                     else:
@@ -227,11 +248,15 @@ def register_local_audio_routes(routes):
                                     job = await request_json(session, 'POST', endpoint + '?wait=false', json=params)
                                 else:
                                     job = await request_json(session, 'POST', endpoint + '?wait=false', data=form)
-                job_id = str(job.get('id', ''))
-                if not re.fullmatch(r'[a-zA-Z0-9_-]+', job_id):
+                remote_jobs = job.get('jobs') if kind == 'separation' and payload.get('mode') == 'both' else [job]
+                if not isinstance(remote_jobs, list) or not 1 <= len(remote_jobs) <= 2 or any(
+                    not isinstance(row, dict) or not re.fullmatch(r'[a-zA-Z0-9_-]+', str(row.get('id', ''))) for row in remote_jobs
+                ):
                     raise ValueError('Invalid service task ID.')
-                jobs[job_id] = {'url': url, 'headers': headers, 'kind': kind, 'lock': asyncio.Lock()}
-                return web.json_response({'id': job_id, 'status': job['status']})
+                job_id = remote_jobs[0]['id'] if len(remote_jobs) == 1 else uuid.uuid4().hex
+                jobs[job_id] = {'url': url, 'headers': headers, 'kind': kind, 'lock': asyncio.Lock(),
+                                'remote_ids': [row['id'] for row in remote_jobs], 'mode': payload.get('mode', 'speakers')}
+                return web.json_response({'id': job_id, 'status': remote_jobs[0]['status'] if len(remote_jobs) == 1 else 'queued'})
             job_id = request.match_info['job_id']
             entry = jobs.get(job_id)
             if entry is None:
@@ -242,22 +267,27 @@ def register_local_audio_routes(routes):
                 if action == 'status' and 'files' in entry:
                     return web.json_response({'id': job_id, 'status': 'succeeded', 'error': None})
                 async with aiohttp.ClientSession(headers=entry['headers'], timeout=aiohttp.ClientTimeout(total=600)) as session:
-                    job_url = entry['url'] + '/v1/jobs/' + job_id
+                    job_urls = [entry['url'] + '/v1/jobs/' + remote_id for remote_id in entry['remote_ids']]
                     if action == 'cancel':
-                        await request_json(session, 'DELETE', job_url)
+                        for job_url in job_urls:
+                            await request_json(session, 'DELETE', job_url)
                         jobs.pop(job_id, None)
                         return web.json_response({'status': 'cancelled'})
-                    job = await request_json(session, 'GET', job_url)
+                    remote_jobs = [await request_json(session, 'GET', job_url) for job_url in job_urls]
+                    job = next((row for row in remote_jobs if row['status'] in ('queued', 'running')),
+                               next((row for row in remote_jobs if row['status'] != 'succeeded'), remote_jobs[0]))
                     if action == 'status':
                         entry['terminal'] = job['status'] not in ('queued', 'running')
                         return web.json_response({'id': job_id, 'status': job['status'], 'error': job.get('error')})
                     if action != 'result' or job['status'] != 'succeeded':
                         raise ValueError('Task has not completed successfully.')
-                    files = (job.get('result') or {}).get('files') or []
-                    if not files or len(files) > 2:
-                        raise ValueError('Unexpected number of output files.')
-                    if entry['kind'] == 'separation' and len(files) != 2:
-                        raise ValueError('Expected two separated speaker tracks.')
+                    files = []
+                    for remote_job, job_url in zip(remote_jobs, job_urls):
+                        rows = (remote_job.get('result') or {}).get('files') or []
+                        limit = 4 if entry['kind'] == 'sfx' else 2
+                        if not rows or len(rows) > limit or (entry['kind'] == 'separation' and len(rows) != 2):
+                            raise ValueError('Unexpected number of output files.')
+                        files.extend((job_url, index) for index in range(len(rows)))
                     processed = entry['kind'] in ('denoise', 'separation', 'tts', 'vc')
                     root = Path(folder_paths.get_input_directory() if processed else folder_paths.get_output_directory())
                     directory = root / 'CapTimelineEditor' / {'denoise': 'denoised', 'separation': 'separated', 'music': 'bgm', 'sfx': 'sfx', 'tts': 'speech', 'vc': 'voice_converted'}[entry['kind']]
@@ -266,9 +296,9 @@ def register_local_audio_routes(routes):
                     created = []
                     try:
                         with tempfile.TemporaryDirectory(prefix='cap_local_audio_') as temporary:
-                            for index, item in enumerate(files):
+                            for index, (job_url, remote_index) in enumerate(files):
                                 audio = Path(temporary) / f'{index}.wav'
-                                async with session.get(job_url + f'/files/{index}', allow_redirects=False) as response:
+                                async with session.get(job_url + f'/files/{remote_index}', allow_redirects=False) as response:
                                     if response.status != 200:
                                         raise ValueError(f'Result download failed: HTTP {response.status}')
                                     size = 0
@@ -282,6 +312,8 @@ def register_local_audio_routes(routes):
                                 if not duration:
                                     raise ValueError('Service returned invalid audio.')
                                 suffix = f'speaker_{index + 1}' if entry['kind'] == 'separation' else str(index)
+                                if entry['kind'] == 'separation' and (entry['mode'] == 'music' or index >= 2):
+                                    suffix = 'vocals' if remote_index == 0 else 'accompaniment'
                                 destination = directory / f'{job_id}_{suffix}.wav'
                                 created.append(destination)
                                 await asyncio.to_thread(shutil.copyfile, audio, destination)

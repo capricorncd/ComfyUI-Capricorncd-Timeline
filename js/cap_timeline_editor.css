@@ -2976,6 +2976,8 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-local-audio-dialog audio { width: 100%; }
 .cat-te-local-audio-dialog select[hidden] { display: none; }
 .cat-te-local-audio-dialog label[hidden] { display: none; }
+.cat-te-local-audio-dialog [data-options] > label { margin-top: 12px; }
+.cat-te-local-audio-dialog [data-options] > p { margin-top: 8px; color: var(--cat-muted); }
 .cat-te-audio-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 12px 0; }
 [data-audio-panel][hidden] { display: none; }
 .cat-te-local-audio-dialog p { margin: 0; }

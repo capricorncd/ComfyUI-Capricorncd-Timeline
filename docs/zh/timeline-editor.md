@@ -25,12 +25,14 @@ Timeline Editor 保存**按轨道嵌套的 `project_json`**，并输出精简的
 - 语音接口与其他音频服务共用地址及密钥：`/v1/voices`、`/v1/tts/generate`、`/v1/uploads`、`/v1/voice/convert`。TTS 结果保存至 `input/CapTimelineEditor/speech/`，音色转换至 `input/CapTimelineEditor/voice_converted/`。
 
 - 在“设置 → 音频服务”配置 Local AI Service 地址（默认 `http://127.0.0.1:19876`）与 API Key，各功能默认继承通用连接，可在各 Tab 单独覆盖。保存后输入框不回显密钥，并显示是否已保存；同一服务地址下留空保留原密钥。音效支持配置采样步数与提示词引导系数；人声分离支持配置分段时长。
-- **配音轨 Clip 右键 → 生成音效**：默认读取 Clip 提示词，可在确认弹窗编辑音效描述，使用填写或 Clip 的实际时长。通过 `/v1/sfx/generate` 生成一条音效并绑定至 Clip，文件保存在 `output/CapTimelineEditor/sfx/`。
-- **音频 Clip 或带音频的视频 Clip 右键 → 人声分离**：通过 `/v1/separate/file` 处理完整音频或 Clip 区间，返回两位说话人的 16 kHz 单声道音轨。修剪窗口的结果插入该窗口音频轨道，其他结果插入主时间轴音频轨道，起点与源 Clip 对齐，成功插入后静音原音频。结果保存在 `input/CapTimelineEditor/separated/`。这是双人语音分离，不是歌曲的人声/伴奏分离；说话人编号不代表固定人物身份。
+- **配音轨 Clip 右键 → 生成音效**：默认读取 Clip 提示词，可在确认弹窗编辑音效描述，时长支持 1–30 秒。通过 `/v1/sfx/generate` 生成音效并绑定至 Clip，默认一条，可选 1–4 条，文件保存在 `output/CapTimelineEditor/sfx/`。
+- **音频 Clip 或带音频的视频 Clip 右键 → 人声分离**：通过 `/v1/separate/file` 处理完整音频或 Clip 区间，默认分离两位说话人，也可选择人声/伴奏或同时执行两种模式（四条结果）。修剪窗口的结果插入该窗口音频轨道，其他结果插入主时间轴音频轨道，起点与源 Clip 对齐，成功插入后静音原音频。结果保存在 `input/CapTimelineEditor/separated/`；说话人编号不代表固定人物身份。
 - **配音轨 Clip 右键 → 生成 BGM**：发送该 Clip 的歌词 `prompt` 和风格 `stylePrompt`，一次生成一首并绑定至该 Clip。生成时长上限默认取 Clip 时长，可在提交前调整；不会拉伸音频来凑时长。结果保存在 `output/CapTimelineEditor/bgm/`。
 - **有音频的 Clip 右键 → 音频降噪**（导演 Clip 除外）：确认时选择“Clip 区间内的音频”（默认，保留裁剪与播放速度）或“完整音频”。配音 Clip 有多个音频时可选择来源。以 MossFormer2 处理第一条音轨，保存独立 WAV 到 `input/CapTimelineEditor/denoised/`，输出为 48 kHz 单声道，主要用于语音。
 - 视频修剪窗口内的降噪结果插入该窗口的音频轨道；其他 Clip 的结果插入主时间轴音频轨道。新音频起点与对应 Clip 一致，插入成功后静音原音频，保留原文件。
 - 上述操作显示排队、处理、保存状态，可取消服务任务。项目或目标已改变时只保存结果，不绑定到其他 Clip。ComfyUI 重启后未完成任务可在 Local AI Service 的任务记录中查看。
+- 各处理弹窗可展开“可选参数”，留空沿用原默认设置。音乐支持数量、采样、乐谱规划/曲谱、工作区/标题和 LoRA；LoRA 文件名相对服务端配置目录，曲谱保存在音频服务中。音效支持负向提示词、采样参数和 Sigma shift；降噪/分离支持分段时长与处理时长上限；变声支持步数、引导系数与时长倍率。参数按本地服务 2026-09-21 的 `/openapi.json` 核对。
+- 文本转音频可选 Qwen3-TTS 或 Breeze TTS 2，并记住上次模型。Qwen 支持温度及 Token 上限；Breeze 支持 CFG，只接受中英/自动语言，无参考时需音色描述，有参考时需准确参考原文，可同时填写表演指令。模型需预先在音频服务配置就绪。
 - 请求用户配置的本地或第三方 HTTP(S) 地址。密钥由后台发送 Bearer 认证，不写入工程；使用异步任务接口轮询，结果从认证下载接口取得，不读取服务返回的任意文件路径或远程 URL。
 
 ---

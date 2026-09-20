@@ -154,13 +154,80 @@ class LocalAudioTests(unittest.IsolatedAsyncioTestCase):
                 self.form[field.name] = await field.text()
             if request.path == '/v1/uploads':
                 return web.json_response({'upload_id': 'upload_' + str(len(self.calls))})
+            if self.form.get('mode') == 'both':
+                return web.json_response({'mode': 'both', 'jobs': [
+                    {'id': 'separate_123', 'status': 'queued'}, {'id': 'music_separate_123', 'status': 'queued'},
+                ]}, status=202)
             return web.json_response({'id': 'separate_123' if request.path == '/v1/separate/file' else 'denoise_123', 'status': 'queued'}, status=202)
         if request.method == 'DELETE':
             return web.json_response({'status': 'cancelled'})
         if '/files/' in request.path:
             return web.Response(body=b'audio data', content_type='audio/wav')
         return web.json_response({'status': self.status, 'error': 'worker failed' if self.status == 'failed' else None,
-                                  'result': {'files': [{'path': 'DO NOT READ', 'url': 'http://example.invalid/DO-NOT-FETCH', 'duration': 2}] * (2 if 'separate_123' in request.path else 1)}})
+                                  'result': {'files': [{'path': 'DO NOT READ', 'url': 'http://example.invalid/DO-NOT-FETCH', 'duration': 2}] * (2 if 'separate_123' in request.path else getattr(self, 'result_count', 1))}})
+
+    async def test_new_generation_parameters(self):
+        for kind, options in (
+            ('music', dict(title='Song', workspace='Test', generate_score=True, steps=20, cfg=3,
+                           temperature=0.8, top_p=0.9, top_k=50, repetition_penalty=1.1,
+                           lora_provider='speedyrulz', acoustic_lora='sound.safetensors', acoustic_strength=0.5,
+                           planner_lora='plan.safetensors', planner_strength=0.8)),
+            ('sfx', dict(negative_prompt='voices', count=4, num_inference_steps=15, cfg_scale=2, sigma_shift=3)),
+            ('tts', dict(model='breeze-tts2', cfg_scale=4, instruct='Warm voice')),
+            ('tts', dict(model='qwen3-tts', temperature=0.6, max_new_tokens=1024)),
+        ):
+            status, result = await self.call('start', dict(kind=kind, text='Hello', prompt='Rain', speaker='vivian', **options))
+            self.assertEqual(status, 200, result)
+            for key, value in options.items():
+                self.assertEqual(self.params[key], value)
+            if options.get('model') == 'breeze-tts2':
+                self.assertNotIn('speaker', self.params)
+        self.result_count = 4
+        status, job = await self.call('start', dict(kind='sfx', prompt='Rain', count=4))
+        status, result = await self.call('result/' + job['id'], {})
+        self.assertEqual(status, 200, result)
+        self.assertEqual(len(result['files']), 4)
+
+    async def test_processing_options_and_combined_separation(self):
+        (self.root / 'source.wav').write_bytes(b'audio')
+        source = dict(file='source.wav', location='input', scope='full')
+        status, result = await self.call('start', dict(kind='denoise', segment_seconds=8, max_duration=100, **source))
+        self.assertEqual(status, 200, result)
+        self.assertEqual(self.form, dict(segment_seconds='8', max_duration='100'))
+        status, result = await self.call('start', dict(kind='vc', speaker='vivian', diffusion_steps=50,
+                                                     inference_cfg_rate=0.6, length_adjust=1.5, **source))
+        self.assertEqual(status, 200, result)
+        self.assertEqual(self.params['length_adjust'], 1.5)
+        self.assertEqual(self.params['diffusion_steps'], 50)
+        self.assertEqual(self.params['inference_cfg_rate'], 0.6)
+        status, job = await self.call('start', dict(kind='separation', mode='both', title='Song', segment_seconds=8,
+                                                  max_duration=100, **source))
+        self.assertEqual(status, 200, job)
+        self.assertEqual(self.form, dict(mode='both', title='Song', segment_seconds='8', max_duration='100'))
+        status, result = await self.call('status/' + job['id'])
+        self.assertEqual(result['status'], 'succeeded')
+        status, result = await self.call('result/' + job['id'], {})
+        self.assertEqual(status, 200, result)
+        self.assertEqual(len(result['files']), 4)
+        self.assertEqual(len({row['file'] for row in result['files']}), 4)
+        self.assertIn('vocals', result['files'][2]['file'])
+        self.assertIn('accompaniment', result['files'][3]['file'])
+        for remote_id in ('separate_123', 'music_separate_123'):
+            self.assertIn(('GET', f'/v1/jobs/{remote_id}/files/0'), self.calls)
+        status, job = await self.call('start', dict(kind='separation', mode='both', **source))
+        status, result = await self.call('cancel/' + job['id'], {})
+        self.assertEqual(status, 200, result)
+        for remote_id in ('separate_123', 'music_separate_123'):
+            self.assertIn(('DELETE', f'/v1/jobs/{remote_id}'), self.calls)
+
+    async def test_breeze_reference_keeps_performance_instruction(self):
+        (self.root / 'ref.wav').write_bytes(b'audio')
+        status, result = await self.call('start', dict(kind='tts', model='breeze-tts2', text='Hello', speaker='vivian',
+                                                    reference_file='ref.wav', reference_text='Original', instruct='Whisper', cfg_scale=3))
+        self.assertEqual(status, 200, result)
+        self.assertIn('reference_upload_id', self.params)
+        self.assertNotIn('speaker', self.params)
+        self.assertEqual(self.params['instruct'], 'Whisper')
 
     async def test_voice_preview_uses_service_credentials(self):
         self.config['services'] = {'vc': {'url': self.config['url'] + '/v1/voice/convert', 'api_key': 'voice-secret'}}

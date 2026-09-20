@@ -33,7 +33,7 @@ assert.equal(sources.call(context, { track: { type: 'voiceover' }, duration: 10 
 
 const uiSource = readFileSync(new URL('../js/editor/LocalAudioJobs.js', import.meta.url), 'utf8');
 class Element {
-    constructor() { this.fields = new Map(); this.children = []; this.handlers = {}; this.parentElement = { firstChild: {} }; }
+    constructor() { this.fields = new Map(); this.children = []; this.handlers = {}; this.parentElement = { firstChild: {} }; this.options = []; }
     setAttribute() {}
     append(child) { this.children.push(child); }
     addEventListener(name, handler) { this.handlers[name] = handler; }
@@ -50,9 +50,10 @@ class Element {
     removeAttribute(name) { delete this[name]; }
 }
 const storage = new Map();
-const LocalAudioJobs = new Function('document', 'T', 'setTimeout', 'api', 'localStorage', uiSource.slice(uiSource.indexOf('export class')).replace('export class', 'class') + '; return LocalAudioJobs;')(
+const LocalAudioJobs = new Function('document', 'T', 'setTimeout', 'api', 'localStorage', 'AudioOptions', uiSource.slice(uiSource.indexOf('export class')).replace('export class', 'class') + '; return LocalAudioJobs;')(
     { createElement: () => new Element() }, key => key, callback => callback(), { apiURL: path => path },
-    { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) });
+    { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
+    class { setModel() {} values() { return {}; } });
 async function music(stale = false, failure = false) {
     const target = { id: 'voice', name: 'music', duration: 1200.25, track: {} };
     const calls = [], attached = [];

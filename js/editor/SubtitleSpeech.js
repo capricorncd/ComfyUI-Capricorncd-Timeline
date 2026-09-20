@@ -108,7 +108,7 @@ export class SubtitleSpeech {
                     if (!canInsert()) throw new Error(`${T("speech_changed")} ${result.file}`);
                     completed++;
                 }
-                status.textContent = `${T("speech_done")} ${completed} / ${rows.length}`;
+                this.dialog.close();
             } catch (error) { status.textContent = `${completed} / ${rows.length}: ${error.message}`; }
             finally {
                 this.busy = false;

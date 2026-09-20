@@ -320,8 +320,8 @@ export class LocalAudioJobs {
                 } else {
                     app._addGeneratedAudiosToClip(clip, result.files);
                 }
-                status.textContent = T('local_audio_done');
                 finished = true;
+                this.dialog.close();
             } catch (error) {
                 status.textContent = this.cancelRequested ? T('local_audio_cancelled') : error.message;
                 if (this.cancelRequested) this.jobId = null;

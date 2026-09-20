@@ -802,6 +802,7 @@ export class CapTimelineEditorApp {
         this._videoThumbCache = new Map();
         this._mediaTab = "image";
         this._mediaStarFilter = "all";
+        this._mediaUsageFilter = "all";
         this._mediaTypeFilters = new Set();
         this._mediaTagFilters = new Set();
         this._mediaFilterOpen = false;
@@ -5176,6 +5177,7 @@ export class CapTimelineEditorApp {
                 if (!MEDIA_LIBRARY_TABS.some((item) => item.id === kind) || kind === this._mediaTab) return;
                 this._mediaTab = kind;
                 this._mediaStarFilter = "all";
+                this._mediaUsageFilter = "all";
                 this._mediaTypeFilters.clear();
                 this._mediaTagFilters.clear();
                 this._mediaBatchSelected.clear();
@@ -12319,6 +12321,7 @@ export class CapTimelineEditorApp {
     _activeMediaFilterCount() {
         let n = 0;
         if (this._mediaStarFilter && this._mediaStarFilter !== "all") n += 1;
+        if (this._mediaUsageFilter && this._mediaUsageFilter !== "all") n += 1;
         n += this._mediaTypeFilters.size;
         n += this._mediaTagFilters.size;
         return n;
@@ -12326,6 +12329,7 @@ export class CapTimelineEditorApp {
 
     _clearMediaFilters() {
         this._mediaStarFilter = "all";
+        this._mediaUsageFilter = "all";
         this._mediaTypeFilters.clear();
         this._mediaTagFilters.clear();
         this._renderMediaGrid();
@@ -12383,8 +12387,11 @@ export class CapTimelineEditorApp {
             : null;
         const types = this._mediaTypeFilters;
         const tags = this._mediaTagFilters;
-        if (!(Number.isFinite(star) || types.size || tags.size)) return files;
+        const usage = this._mediaUsageFilter;
+        const filterUsage = usage === "added" || usage === "not_added";
+        if (!(Number.isFinite(star) || types.size || tags.size || filterUsage)) return files;
         return files.filter((file) => {
+            if (filterUsage && this._isMediaOnTimeline(file, kind) !== (usage === "added")) return false;
             if (this._mediaStatus.get(`${kind}:${file}`)?.location === "missing") return true;
             const meta = this._getMediaMeta(kind, file);
             if (Number.isFinite(star) && meta.stars !== star) return false;
@@ -12642,6 +12649,27 @@ export class CapTimelineEditorApp {
         }
         starRow.append(starTitle, starGroup);
         panel.appendChild(starRow);
+
+        const usageRow = document.createElement("div");
+        usageRow.className = "cat-te-media-filter-section";
+        const usageTitle = document.createElement("div");
+        usageTitle.className = "cat-te-media-filter-label";
+        usageTitle.textContent = T("media_usage_filter");
+        const usageGroup = document.createElement("div");
+        usageGroup.className = "cat-te-media-filter-chips";
+        for (const [value, label] of [["added", "added_tag"], ["not_added", "not_added_tag"]]) {
+            const button = document.createElement("cap-button");
+            button.textContent = T(label);
+            button.setAttribute("size", "small");
+            button.setAttribute("aria-pressed", String(this._mediaUsageFilter === value));
+            button.addEventListener("click", () => {
+                this._mediaUsageFilter = this._mediaUsageFilter === value ? "all" : value;
+                this._renderMediaGrid();
+            });
+            usageGroup.appendChild(button);
+        }
+        usageRow.append(usageTitle, usageGroup);
+        panel.appendChild(usageRow);
 
         const typeRow = document.createElement("div");
         typeRow.className = "cat-te-media-filter-section";

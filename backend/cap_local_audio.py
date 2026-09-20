@@ -213,6 +213,10 @@ def register_local_audio_routes(routes):
                             params.update(reference_upload_id=reference_id, reference_text=payload.get('reference_text', ''))
                             if model == 'breeze-tts2':
                                 params['instruct'] = payload.get('instruct', '')
+                                if not params['instruct'].strip():
+                                    params.setdefault('cfg_scale', 1)
+                                    if params['cfg_scale'] != 1:
+                                        raise ValueError('Breeze 普通参考克隆的提示词引导系数必须为 1；如需其他系数，请填写表达方式提示词。')
                         elif model == 'breeze-tts2':
                             params['instruct'] = payload.get('instruct', '')
                         else:

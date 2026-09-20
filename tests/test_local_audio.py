@@ -228,6 +228,13 @@ class LocalAudioTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('reference_upload_id', self.params)
         self.assertNotIn('speaker', self.params)
         self.assertEqual(self.params['instruct'], 'Whisper')
+        status, result = await self.call('start', dict(kind='tts', model='breeze-tts2', text='Hello',
+                                                    reference_file='ref.wav', reference_text='Original'))
+        self.assertEqual(status, 200, result)
+        self.assertEqual(self.params['cfg_scale'], 1)
+        status, result = await self.call('start', dict(kind='tts', model='breeze-tts2', text='Hello',
+                                                    reference_file='ref.wav', reference_text='Original', cfg_scale=4))
+        self.assertEqual(status, 400, result)
 
     async def test_voice_preview_uses_service_credentials(self):
         self.config['services'] = {'vc': {'url': self.config['url'] + '/v1/voice/convert', 'api_key': 'voice-secret'}}

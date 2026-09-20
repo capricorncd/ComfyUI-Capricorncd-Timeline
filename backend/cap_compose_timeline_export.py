@@ -660,6 +660,7 @@ def compose_timeline_project(
     export_video: bool = True,
     audio_output_path: str | None = None,
     audio_format: str = "wav",
+    output_fps: float | None = None,
 ) -> dict:
     if not export_video and not audio_output_path:
         raise ValueError("Select video or audio for export")
@@ -681,6 +682,9 @@ def compose_timeline_project(
     height = plan["height"]
     render_scale = height / max(16, int(_as_dict(project.get("settings")).get("height") or 768))
     fps = plan["fps"]
+    output_fps = fps if output_fps is None else float(output_fps)
+    if not 1 <= output_fps <= 120:
+        raise ValueError("Export frame rate must be between 1 and 120 fps")
     total = plan["total_sec"]
     range_start_frame = 0
     range_end_frame = max(1, round(total * fps))
@@ -705,7 +709,9 @@ def compose_timeline_project(
     os.makedirs(os.path.dirname(os.path.abspath(output_path)) or ".", exist_ok=True)
 
     fallback_reason = "range_or_audio_export" if export_video and export_quality == "auto" and (export_range is not None or audio_output_path) else ""
-    if export_video and not audio_output_path and export_range is None and export_quality == "auto":
+    if output_fps != fps:
+        fallback_reason = "frame_rate_changed"
+    if export_video and not audio_output_path and export_range is None and export_quality == "auto" and output_fps == fps:
         segments, fallback_reason = stream_copy_plan(plan, _resolve_watermark_mode(_as_dict(watermark)) != "none")
         if segments:
             copy_segments(segments, output_path, _run_ffmpeg)
@@ -891,7 +897,7 @@ def compose_timeline_project(
         cmd += [
             *video_args, "-c:v", "libx264",
             "-crf", str(quality_crf[export_quality]), "-preset", "medium",
-            "-pix_fmt", "yuv420p", "-r", str(fps), "-t", f"{duration:.9f}",
+            "-pix_fmt", "yuv420p", "-r", str(output_fps), "-t", f"{duration:.9f}",
             "-movflags", "+faststart", _ffmpeg_path(output_path),
         ]
     cmd += audio_args
@@ -915,7 +921,7 @@ def compose_timeline_project(
     return {
         "width": width,
         "height": height,
-        "fps": fps,
+        "fps": output_fps,
         "duration_sec": duration,
         "video_count": len(video_segs),
         "audio_count": len(audio_segs) + sum(1 for s in video_segs if not s["muted"]),
@@ -988,6 +994,7 @@ def compose_to_output(
     export_video: bool = True,
     export_audio: bool = False,
     audio_format: str = "wav",
+    output_fps: float | None = None,
 ) -> dict:
     if type(export_video) is not bool or type(export_audio) is not bool:
         raise ValueError("Video and audio selections must be booleans")
@@ -1008,7 +1015,7 @@ def compose_to_output(
         output_resolution=output_resolution, export_quality=export_quality,
         export_range=export_range, export_video=export_video,
         audio_output_path=outputs[-1]["output_path"] if export_audio else None,
-        audio_format=audio_format,
+        audio_format=audio_format, output_fps=output_fps,
     )
     meta.update(primary)
     meta["outputs"] = outputs

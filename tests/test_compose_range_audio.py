@@ -69,6 +69,24 @@ class ComposeRangeAudioTests(unittest.TestCase):
         for index in range(25):
             self.assertAlmostEqual(pixels[index * stride], 40 + 17 + index, delta=2)
 
+    def test_output_fps_keeps_project_range_duration(self):
+        for fps in (30, 60):
+            meta = self.compose(export_range=dict(start_frame=24, end_frame=72), output_fps=fps, export_quality='auto')
+            streams = probe(self.directory / 'out.mp4')['streams']
+            video = next(s for s in streams if s['codec_type'] == 'video')
+            audio = next(s for s in streams if s['codec_type'] == 'audio')
+            self.assertEqual(video['r_frame_rate'], f'{fps}/1')
+            self.assertEqual(int(video['nb_frames']), fps * 2)
+            self.assertAlmostEqual(float(audio['duration']), 2, delta=0.03)
+            self.assertEqual(meta['fps'], fps)
+            self.assertEqual(meta['duration_sec'], 2)
+            self.assertEqual(self.project['settings']['fps'], 24)
+
+    def test_invalid_output_fps(self):
+        for fps in (0, -1, 121, float('nan'), float('inf')):
+            with self.assertRaises(ValueError):
+                self.compose(output_fps=fps)
+
     def test_director_video_speed_changes_frames_and_audio_duration(self):
         clip = self.project['tracks'][0]['clips'][0]
         gen = clip['generated_videos'][0]

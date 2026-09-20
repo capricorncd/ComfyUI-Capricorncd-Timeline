@@ -43,6 +43,7 @@ export class ClipExport {
                 <p data-summary></p>
                 <label>${T('filename_label')}<input data-filename /></label>
                 <label>${T('filename_prefix_label')}<input data-folder value="cap_clip_exports/" /></label>
+                <label data-fps-option>${T('compose_fps_label')}<input data-fps type="number" required min="1" max="120" step="0.001" /></label>
                 <label data-video-option><span><input data-video type="checkbox" checked /> ${T('compose_video_section')} (MP4)</span></label>
                 <label><span><input data-audio type="checkbox" /> ${T('compose_audio_section')}</span></label>
                 <label>${T('compose_audio_format')}<select data-format><option value="wav">WAV</option><option value="mp3">MP3</option></select></label>
@@ -58,6 +59,9 @@ export class ClipExport {
         filename.value = `${selected.project.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')}_${stamp}`;
         const video = dialog.querySelector('[data-video]');
         const audio = dialog.querySelector('[data-audio]');
+        const fps = dialog.querySelector('[data-fps]');
+        fps.value = selected.project.settings.fps;
+        dialog.querySelector('[data-fps-option]').hidden = selected.audio;
         const format = dialog.querySelector('[data-format]');
         const submit = dialog.querySelector('[data-export]');
         const close = dialog.querySelector('[data-close]');
@@ -73,6 +77,7 @@ export class ClipExport {
         close.onclick = () => dialog.close();
         submit.onclick = async () => {
             if (this.busy || (!video.checked && !audio.checked)) return;
+            if (video.checked && !fps.reportValidity()) return;
             this.busy = true;
             dialog.closeDisabled = close.disabled = submit.disabled = true;
             reveal.hidden = true;
@@ -83,7 +88,7 @@ export class ClipExport {
                     body: JSON.stringify({ project: selected.project, filename: filename.value,
                         filename_prefix: dialog.querySelector('[data-folder]').value || 'cap_clip_exports/',
                         export_video: video.checked, export_audio: audio.checked, audio_format: format.value,
-                        output_resolution: 'project', export_quality: 'maximum',
+                        output_resolution: 'project', export_quality: 'maximum', output_fps: video.checked ? Number(fps.value) : null,
                         export_range: { start_frame: 0, end_frame: Math.max(1, Math.round(selected.duration * selected.project.settings.fps)) },
                     }),
                 });

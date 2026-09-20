@@ -719,6 +719,7 @@ def _register_routes():
                 filename=filename,
                 watermark=watermark if isinstance(watermark, dict) else None,
                 output_resolution=output_resolution,
+                output_fps=payload.get("output_fps"),
                 export_quality=str(payload.get("export_quality") or "maximum"),
                 export_range=payload.get("export_range"),
                 export_video=payload.get("export_video", True),

@@ -2729,6 +2729,7 @@ export class CapTimelineEditorApp {
             filename: this.composeFilenameInput?.value || "",
             output_resolution: this.composeResolutionSelect?.value || "project",
             export_quality: this.composeQualitySelect?.value || "maximum",
+            output_fps: Number(this.composeFpsInput?.value) || this.getFps(),
             watermark: this._watermark,
             export_video: this.composeVideoCheck?.checked !== false,
             export_audio: this.composeAudioCheck?.checked === true,
@@ -2767,6 +2768,7 @@ export class CapTimelineEditorApp {
         if (this.composeFilenameInput) this.composeFilenameInput.value = this._composeDefaultFilename();
         if (this.composeResolutionSelect) this.composeResolutionSelect.value = "project";
         if (this.composeQualitySelect) this.composeQualitySelect.value = "maximum";
+        if (this.composeFpsInput) this.composeFpsInput.value = this.getFps();
         this._setComposeStatus("");
         this._composeDone = false;
         this._lastComposeOutput = null;
@@ -2839,6 +2841,7 @@ export class CapTimelineEditorApp {
         if (this._composeBusy || !this.composeModal
             || (this.composeVideoCheck?.checked === false && !this.composeAudioCheck?.checked)
             || this.composeRange?.totalFrames === 0) return;
+        if (this.composeVideoCheck?.checked !== false && this.composeFpsInput && !this.composeFpsInput.reportValidity()) return;
         let filenamePrefix = String(this.composePrefixInput?.value || "").trim() || "cap_timeline_compose/";
         filenamePrefix = filenamePrefix.replace(/\\/g, "/");
         if (this.composePrefixInput) this.composePrefixInput.value = filenamePrefix;
@@ -4073,6 +4076,9 @@ export class CapTimelineEditorApp {
                   <details class="cat-te-disclosure cat-te-compose-video-section" open>
                     <summary><label class="cat-te-compose-check"><input class="cat-te-compose-video-enabled" type="checkbox" checked /><span>${T("compose_video_section")}</span></label><span class="cat-te-disclosure-chevron" aria-hidden="true">${iconHtml("chevronRight", 16)}</span></summary>
                     <div class="cat-te-compose-video-fields">
+                  <label class="cat-te-compose-field"><span>${T("compose_fps_label")}</span>
+                    <input class="cat-te-compose-fps" type="number" min="1" max="120" step="0.001" />
+                  </label>
                   <label class="cat-te-compose-field">
                     <span>${T("compose_resolution_label")}</span>
                     <select class="cat-te-compose-resolution">
@@ -4814,6 +4820,7 @@ export class CapTimelineEditorApp {
         this.composeFilenameInput = el.querySelector(".cat-te-compose-filename");
         this.composeResolutionSelect = el.querySelector(".cat-te-compose-resolution");
         this.composeQualitySelect = el.querySelector(".cat-te-compose-quality");
+        this.composeFpsInput = el.querySelector(".cat-te-compose-fps");
         this.composeStatus = el.querySelector(".cat-te-compose-status");
         this.composeRunBtn = el.querySelector(".cat-te-compose-run");
         this.composePreviewCanvas = el.querySelector(".cat-te-compose-preview-canvas");

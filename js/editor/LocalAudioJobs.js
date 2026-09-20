@@ -78,7 +78,7 @@ export class LocalAudioJobs {
             ${kind === 'tts' ? `<label>${T('audio_option_model')}<select data-model><option value="qwen3-tts">Qwen3-TTS</option><option value="breeze-tts2">Breeze TTS 2</option></select></label>` : ''}
             ${voice ? `<label>${T('local_voice_preset')}<select data-voice></select></label><p data-voice-description></p><audio data-voice-preview controls preload="none" hidden></audio><label>${T('local_voice_reference')}<select data-reference><option value="">${T('local_voice_use_preset')}</option></select></label><audio data-reference-preview preload="metadata" hidden></audio><div data-reference-trim hidden><cap-export-range data-reference-range></cap-export-range></div>${kind === 'tts' ? `<label>${T('local_voice_language')}<select data-language>${['Auto','Chinese','English','Japanese','Korean','German','French','Russian','Portuguese','Spanish','Italian'].map(language => `<option>${language}</option>`).join('')}</select></label><label>${T('local_voice_instruct')}<textarea data-instruct maxlength="1000" rows="2"></textarea></label><label>${T('local_voice_reference_text')}<textarea data-reference-text maxlength="4000" rows="2"></textarea></label>` : ''}` : ''}
             <details data-options></details></div>
-            <div slot="footer"><cap-status-message role="status"></cap-status-message><div class="cat-te-confirm-actions"><cap-button data-settings>${T('voice_configure')}</cap-button><cap-button data-cancel>${T('close_title')}</cap-button><cap-button variant="primary" data-submit>${T(titleKey)}</cap-button></div></div>`;
+            <div slot="footer"><cap-status-message role="status" copyable copy-label="${T('copy_status_message')}" copied-label="${T('copy_prompt_done_title')}" copy-failed-label="${T('copy_status_failed')}"></cap-status-message><div class="cat-te-confirm-actions"><cap-button data-settings>${T('voice_configure')}</cap-button><cap-button data-cancel>${T('close_title')}</cap-button><cap-button variant="primary" data-submit>${T(titleKey)}</cap-button></div></div>`;
         const options = new AudioOptions(this.dialog.querySelector('[data-options]'), kind);
         const model = this.dialog.querySelector('[data-model]');
         if (model) model.value = defaults.model === 'breeze-tts2' ? defaults.model : 'qwen3-tts';
@@ -132,6 +132,9 @@ export class LocalAudioJobs {
             language.value = speech.language || defaults.language || 'Auto';
             if (!language.value) language.value = 'Auto';
             language.onchange = () => remember({ language: language.value });
+            const transcript = this.dialog.querySelector('[data-reference-text]');
+            transcript.value = typeof defaults.referenceText === 'string' ? defaults.referenceText : '';
+            transcript.oninput = () => remember({ referenceText: transcript.value });
         }
         if (voice) {
             this.dialog.querySelector('[data-description]').textContent = T(kind === 'tts' ? 'local_voice_tts_note' : 'local_voice_vc_note');

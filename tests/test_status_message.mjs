@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 
 globalThis.HTMLElement = class {
     constructor() { this.attributes = new Map(); this.textContent = ''; }
-    attachShadow(options) { this.shadowRoot = { mode: options.mode }; return this.shadowRoot; }
+    attachShadow(options) {
+        const button = { addEventListener(name, handler) { this[name] = handler; }, setAttribute() {}, removeAttribute() {} };
+        this.shadowRoot = { mode: options.mode, querySelector: () => button };
+        return this.shadowRoot;
+    }
     setAttribute(name, value) { this.attributes.set(name, value); }
     getAttribute(name) { return this.attributes.get(name) ?? null; }
 };
@@ -12,6 +16,17 @@ globalThis.customElements = { get: name => registry.get(name), define: (name, el
 const { StatusMessage } = await import('../js/components/StatusMessage.js');
 assert.equal(customElements.get('cap-status-message'), StatusMessage);
 const status = new StatusMessage();
+let copied;
+Object.defineProperty(globalThis, 'navigator', {value: {clipboard: {async writeText(text) { copied = text; }}}, configurable: true});
+status.setStatus('Full error\n' + 'details '.repeat(300), 'error');
+await status.copyButton.click();
+assert.equal(copied, status.textContent);
+assert.equal(status.copyButton.title, 'Copied');
+assert.match(status.copyButton.innerHTML, /<svg/);
+navigator.clipboard.writeText = async () => { throw new Error('Denied'); };
+await status.copyButton.click();
+assert.equal(status.copyButton.title, 'Copy failed');
+assert.equal(status.textContent, copied, 'Copy failures must preserve the error message');
 assert.equal(status.shadowRoot.mode, 'open');
 assert.match(status.shadowRoot.innerHTML, /role="status" aria-live="polite" aria-atomic="true"/);
 assert.match(status.shadowRoot.innerHTML, /:host\(\[hidden\]\)/);

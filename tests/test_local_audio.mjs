@@ -292,7 +292,17 @@ console.log('Reference clip titles, original file submission and visible failure
     range.startFrame = 2000;
     range.endFrame = 6000;
     range.handlers.rangechange({ detail: { frame: 2000 } });
+    const transcript = dialog.querySelector('[data-reference-text]');
+    transcript.value = 'Original words\nSecond line';
+    transcript.oninput();
+    dialog.close();
     dialog = await open();
+    assert.equal(dialog.querySelector('[data-reference-text]').value, 'Original words\nSecond line');
+    dialog.querySelector('[data-reference-text]').value = '';
+    dialog.querySelector('[data-reference-text]').oninput();
+    dialog.close();
+    dialog = await open();
+    assert.equal(dialog.querySelector('[data-reference-text]').value, '', 'Clearing the transcript also persists');
     assert.equal(dialog.querySelector('[data-voice]').value, 'last');
     assert.equal(dialog.querySelector('[data-language]').value, 'Chinese');
     assert.equal(dialog.querySelector('[data-reference]').value, 'voice.wav');

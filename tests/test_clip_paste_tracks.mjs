@@ -13,8 +13,8 @@ function method(name) {
     const start = source.indexOf(`    ${name}(`);
     assert(start >= 0, name);
     const body = source.slice(start, source.indexOf('\n    }', start) + 6);
-    return new Function('CapTimelineEditorApp', 'uid', 'pickSubtitleStyle',
-        `${helpers}\nreturn ({${body}}).${name}`)(ClipApp, () => `id_${++serial}`, value => ({...value}));
+    return new Function('CapTimelineEditorApp', 'uid', 'pickSubtitleStyle', 'defaultSubtitleMeta',
+        `${helpers}\nreturn ({${body}}).${name}`)(ClipApp, () => `id_${++serial}`, value => ({...value}), () => ({}));
 }
 function fixture() {
     const tracks = [], selected = [];
@@ -91,4 +91,45 @@ for (const reason of ['occupied', 'removed', 'locked', 'hidden']) {
     assert.notEqual(pasted.track, original.track);
     assert.equal(pasted.startTime, tl.currentTime);
 }
-console.log('Clip copy/paste track types: original tracks, occupied/missing/locked/hidden media tracks, timing and audio metadata passed');
+for (const reason of ['removed', 'locked', 'hidden']) {
+    const {app, tl, tracks, addTrack, copy} = fixture();
+    const fallback = addTrack('text');
+    const first = copy('text');
+    const second = copy('text');
+    const adjacent = tl.addClip(second.track.id, {name:'adjacent', startTime:7, duration:2});
+    app._meta.set(adjacent.id, {clipType:'subtitle'});
+    tl.selectClip(first);
+    tl.selectClip(second, {additive:true});
+    tl.selectClip(adjacent, {additive:true});
+    app._copySelectedClips();
+    for (const track of [first.track, second.track]) {
+        if (reason === 'removed') tracks.splice(tracks.indexOf(track), 1);
+        if (reason === 'locked') track.locked = true;
+        if (reason === 'hidden') track.visible = false;
+    }
+    assert(app._pasteClips());
+    const pasted = [...tl.getSelectedClips()];
+    assert.equal(pasted.length, 3);
+    assert.equal(pasted[0].track, fallback);
+    assert.notEqual(pasted[0].track, pasted[1].track, `${reason}: overlapping subtitles retain separate tracks`);
+    assert.equal(pasted[1].track, pasted[2].track, `${reason}: adjacent subtitles stay together`);
+    assert.deepEqual(pasted.map(c => c.startTime), [12, 12, 17]);
+    assert(app._pasteClips());
+    for (const track of tracks.filter(t => !t.locked && t.visible)) {
+        const ordered = [...track.clips].sort((a,b) => a.startTime - b.startTime);
+        for (let i = 1; i < ordered.length; i++) assert(ordered[i - 1].endTime <= ordered[i].startTime);
+    }
+}
+{
+    const {app, tl, copy} = fixture();
+    const original = copy('text');
+    // Also handle overlapping snapshots already present in an imported project.
+    ClipApp._clipClipboard.push(structuredClone(ClipApp._clipClipboard[0]));
+    assert(app._pasteClips());
+    const [first, second] = tl.getSelectedClips();
+    assert.notEqual(first.track, second.track);
+    assert.equal(original.startTime, 2);
+    assert.equal(first.startTime, 12);
+    assert.equal(second.startTime, 12);
+}
+console.log('Clip copy/paste: track types, timing, metadata, subtitle collisions and repeated paste passed');

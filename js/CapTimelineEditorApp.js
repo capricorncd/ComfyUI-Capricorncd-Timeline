@@ -16558,6 +16558,11 @@ export class CapTimelineEditorApp {
         for (let i = 0; i < snaps.length; i++) {
             const start = base + (snaps[i].startTime - minStart);
             if (!this._trackHasRoom(tracks[i], start, snaps[i].duration)) return false;
+            for (let j = 0; j < i; j++) {
+                const otherStart = base + (snaps[j].startTime - minStart);
+                if (tracks[i] === tracks[j] && start < otherStart + snaps[j].duration
+                    && otherStart < start + snaps[i].duration) return false;
+            }
         }
         return true;
     }
@@ -16574,10 +16579,9 @@ export class CapTimelineEditorApp {
         if (!snaps?.length || !tl) return false;
 
         const minStart = Math.min(...snaps.map(s => s.startTime));
+        this._recordUndo();
         const tracks = snaps.map(s => this._resolvePasteTrack(s));
         if (tracks.some(t => !t)) return false;
-
-        this._recordUndo();
 
         const seek = typeof tl._snapTime === "function"
             ? tl._snapTime(tl.currentTime)
@@ -16591,15 +16595,18 @@ export class CapTimelineEditorApp {
                 indices.push(i);
                 groups.set(key, indices);
             }
+            const assigned = [];
             for (const indices of groups.values()) {
-                const fits = indices.every((i) => {
-                    const start = pasteBase + (snaps[i].startTime - minStart);
-                    return this._trackHasRoom(tracks[i], start, snaps[i].duration);
-                });
-                if (fits) continue;
-                const newTrack = this._createPasteTrack(snaps[indices[0]]);
-                if (!newTrack) return false;
-                for (const i of indices) tracks[i] = newTrack;
+                const candidates = [...assigned, ...indices];
+                const fits = this._pasteGroupFitsAt(
+                    candidates.map(i => snaps[i]), candidates.map(i => tracks[i]), minStart, pasteBase,
+                );
+                if (!fits) {
+                    const newTrack = this._createPasteTrack(snaps[indices[0]]);
+                    if (!newTrack) return false;
+                    for (const i of indices) tracks[i] = newTrack;
+                }
+                assigned.push(...indices);
             }
         }
 
@@ -16610,8 +16617,12 @@ export class CapTimelineEditorApp {
         const created = [];
         for (let i = 0; i < snaps.length; i++) {
             const snap = snaps[i];
-            const track = tracks[i];
+            let track = tracks[i];
             const start = pasteBase + (snap.startTime - minStart);
+            if (!this._trackHasRoom(track, start, snap.duration)) {
+                track = this._createPasteTrack(snap);
+                if (!track) return false;
+            }
             this._ensureTimelineLength(start + snap.duration);
             const clip = tl.addClip(track.id, {
                 name: snap.name,

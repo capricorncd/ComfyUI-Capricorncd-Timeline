@@ -18,6 +18,7 @@ class Element {
     load() {}
     removeAttribute() {}
     setAttribute() {}
+    setStatus(text, state = 'info') { this.textContent = text; this.state = state; }
     showModal() { this.open = true; }
     close() { this.open = false; }
 }

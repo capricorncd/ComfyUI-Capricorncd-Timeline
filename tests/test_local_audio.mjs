@@ -33,8 +33,9 @@ assert.equal(sources.call(context, { track: { type: 'voiceover' }, duration: 10 
 
 const uiSource = readFileSync(new URL('../js/editor/LocalAudioJobs.js', import.meta.url), 'utf8');
 class Element {
-    constructor() { this.fields = new Map(); this.children = []; this.handlers = {}; this.parentElement = { firstChild: {} }; this.options = []; }
+    constructor() { this.fields = new Map(); this.children = []; this.handlers = {}; this.parentElement = { firstChild: {} }; this.options = [{}]; }
     setAttribute() {}
+    setStatus(text, state = 'info') { this.textContent = text; this.state = state; }
     append(child) { this.children.push(child); }
     addEventListener(name, handler) { this.handlers[name] = handler; }
     configure(totalFrames) { this.totalFrames = this.endFrame = totalFrames; this.startFrame = 0; }
@@ -46,6 +47,7 @@ class Element {
     close() { this.open = false; }
     reportValidity() { return true; }
     pause() { this.paused = true; }
+    focus() {}
     load() {}
     removeAttribute(name) { delete this[name]; }
 }
@@ -80,6 +82,7 @@ async function music(stale = false, failure = false) {
     if (attached.length) assert.equal(attached[0][0], target);
     assert.equal(ui.busy, false);
     assert.equal(ui.dialog.closeDisabled, false);
+    assert.equal(ui.dialog.querySelector('[role="status"]').state, failure ? 'error' : stale ? 'warning' : 'info');
 }
 await music();
 await music(true);

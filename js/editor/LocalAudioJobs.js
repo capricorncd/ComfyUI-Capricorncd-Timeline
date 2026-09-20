@@ -1,6 +1,7 @@
 import { api } from '../../../scripts/api.js';
 import { t as T } from '../i18n/timeline_editor.js';
 import '../components/Dialog.js';
+import '../components/StatusMessage.js';
 import '../components/ExportRange.js';
 import { AudioOptions } from './AudioOptions.js';
 
@@ -74,10 +75,10 @@ export class LocalAudioJobs {
         this.dialog.innerHTML = `<span slot="title">${T(titleKey)}</span>
             <div class="cat-te-modal-body"><p data-description></p>
             ${denoise ? `<label>${T('local_audio_source')}<select data-source></select><span data-source-file></span></label><label>${T('local_audio_scope')}<select data-scope><option value="clip">${T('local_audio_clip_scope')}</option><option value="full">${T('local_audio_full_scope')}</option></select></label>` : `<label>${T('local_audio_lyrics')}<textarea data-lyrics rows="4" readonly></textarea></label><label>${T('local_audio_style')}<textarea data-style rows="2" readonly></textarea></label><label>${T('local_audio_duration')}<input data-duration type="number" min="0.001" step="any" /></label>`}
-            ${voice ? `<label>${T('local_voice_preset')}<select data-voice></select></label><p data-voice-description></p><audio data-voice-preview controls preload="none" hidden></audio><label>${T('local_voice_reference')}<select data-reference><option value="">${T('local_voice_use_preset')}</option></select></label><audio data-reference-preview preload="metadata" hidden></audio><div data-reference-trim hidden><cap-export-range data-reference-range></cap-export-range></div>${kind === 'tts' ? `<label>${T('local_voice_language')}<select data-language>${['Auto','Chinese','English','Japanese','Korean','German','French','Russian','Portuguese','Spanish','Italian'].map(language => `<option>${language}</option>`).join('')}</select></label><label>${T('local_voice_instruct')}<textarea data-instruct maxlength="1000" rows="2"></textarea></label><label>${T('local_voice_reference_text')}<textarea data-reference-text maxlength="4000" rows="2"></textarea></label>` : ''}` : ''}
             ${kind === 'tts' ? `<label>${T('audio_option_model')}<select data-model><option value="qwen3-tts">Qwen3-TTS</option><option value="breeze-tts2">Breeze TTS 2</option></select></label>` : ''}
+            ${voice ? `<label>${T('local_voice_preset')}<select data-voice></select></label><p data-voice-description></p><audio data-voice-preview controls preload="none" hidden></audio><label>${T('local_voice_reference')}<select data-reference><option value="">${T('local_voice_use_preset')}</option></select></label><audio data-reference-preview preload="metadata" hidden></audio><div data-reference-trim hidden><cap-export-range data-reference-range></cap-export-range></div>${kind === 'tts' ? `<label>${T('local_voice_language')}<select data-language>${['Auto','Chinese','English','Japanese','Korean','German','French','Russian','Portuguese','Spanish','Italian'].map(language => `<option>${language}</option>`).join('')}</select></label><label>${T('local_voice_instruct')}<textarea data-instruct maxlength="1000" rows="2"></textarea></label><label>${T('local_voice_reference_text')}<textarea data-reference-text maxlength="4000" rows="2"></textarea></label>` : ''}` : ''}
             <details data-options></details></div>
-            <div slot="footer"><p role="status"></p><div class="cat-te-confirm-actions"><cap-button data-settings>${T('voice_configure')}</cap-button><cap-button data-cancel>${T('close_title')}</cap-button><cap-button variant="primary" data-submit>${T(titleKey)}</cap-button></div></div>`;
+            <div slot="footer"><cap-status-message role="status"></cap-status-message><div class="cat-te-confirm-actions"><cap-button data-settings>${T('voice_configure')}</cap-button><cap-button data-cancel>${T('close_title')}</cap-button><cap-button variant="primary" data-submit>${T(titleKey)}</cap-button></div></div>`;
         const options = new AudioOptions(this.dialog.querySelector('[data-options]'), kind);
         const model = this.dialog.querySelector('[data-model]');
         if (model) model.value = defaults.model === 'breeze-tts2' ? defaults.model : 'qwen3-tts';
@@ -166,7 +167,7 @@ export class LocalAudioJobs {
                 if (!referencePreview.paused) { referencePreview.pause(); return; }
                 if (referencePreview.currentTime < range.startFrame / 1000 || referencePreview.currentTime >= range.endFrame / 1000) referencePreview.currentTime = range.startFrame / 1000;
                 try { await referencePreview.play(); }
-                catch { this.dialog.querySelector('[role="status"]').textContent = T('local_voice_no_preview'); }
+                catch { this.dialog.querySelector('[role="status"]').setStatus(T('local_voice_no_preview'), 'warning'); }
             });
             const seek = event => { referencePreview.currentTime = event.detail.frame / 1000; syncRange(); };
             range.addEventListener('seek', seek);
@@ -174,7 +175,7 @@ export class LocalAudioJobs {
                 seek(event);
                 remember({ trim: { file: reference.value, startFrame: range.startFrame, endFrame: range.endFrame } });
             });
-            referencePreview.onerror = () => { configureRange(0); this.dialog.querySelector('[role="status"]').textContent = T('local_voice_no_preview'); };
+            referencePreview.onerror = () => { configureRange(0); this.dialog.querySelector('[role="status"]').setStatus(T('local_voice_no_preview'), 'warning'); };
             const clips = (timeline.tracks || []).flatMap(track => track.clips);
             for (const row of resources.filter(row => row.kind === 'audio' || row.kind === 'video')) {
                 const option = document.createElement('option');
@@ -199,8 +200,16 @@ export class LocalAudioJobs {
                 this.dialog.querySelector('[data-voice]').parentElement.hidden = breeze();
                 this.dialog.querySelector('[data-voice]').onchange?.();
                 if (kind === 'tts') {
-                    this.dialog.querySelector('[data-instruct]').parentElement.hidden = !!reference.value && !breeze();
-                    this.dialog.querySelector('[data-reference-text]').parentElement.hidden = !reference.value;
+                    const instruct = this.dialog.querySelector('[data-instruct]');
+                    instruct.parentElement.hidden = !!reference.value && !breeze();
+                    instruct.required = breeze() && !reference.value;
+                    instruct.parentElement.firstChild.textContent = T(instruct.required ? 'audio_voice_description_required' : 'local_voice_instruct');
+                    const transcript = this.dialog.querySelector('[data-reference-text]');
+                    transcript.parentElement.hidden = !reference.value;
+                    transcript.required = breeze() && !!reference.value;
+                    transcript.parentElement.firstChild.textContent = T(transcript.required ? 'audio_reference_text_required' : 'local_voice_reference_text');
+                    transcript.placeholder = transcript.required ? T('audio_reference_text_hint') : '';
+                    reference.options[0].textContent = T(breeze() ? 'audio_no_reference' : 'local_voice_use_preset');
                 }
             };
             reference.addEventListener('change', () => remember({ reference: reference.value }));
@@ -230,9 +239,9 @@ export class LocalAudioJobs {
                     preview.load();
                     this.dialog.querySelector('[data-voice-description]').textContent = reference.value || breeze() ? '' : row ? (row.description || row.language || '') + (row.preview_url ? '' : ' · ' + T('local_voice_no_preview')) : T('local_voice_choose');
                 };
-                preview.onerror = () => { this.dialog.querySelector('[role="status"]').textContent = T('local_voice_no_preview'); };
+                preview.onerror = () => { this.dialog.querySelector('[role="status"]').setStatus(T('local_voice_no_preview'), 'warning'); };
                 select.onchange();
-            }).catch(error => { if (this.dialog.querySelector('[data-voice]') === select) this.dialog.querySelector('[role="status"]').textContent = error.message; });
+            }).catch(error => { if (this.dialog.querySelector('[data-voice]') === select) this.dialog.querySelector('[role="status"]').setStatus(error.message, 'error'); });
         }
         if (kind === 'tts') {
             model.onchange = () => {
@@ -256,12 +265,12 @@ export class LocalAudioJobs {
             cancel.disabled = true;
             if (this.jobId) {
                 try { await this.request('cancel/' + this.jobId, {}); }
-                catch (error) { this.cancelRequested = false; status.textContent = error.message; cancel.disabled = false; }
+                catch (error) { this.cancelRequested = false; status.setStatus(error.message, 'error'); cancel.disabled = false; }
             }
         };
         submit.onclick = async () => {
             if (this.busy) return;
-            if (!valid()) { status.textContent = T('local_audio_target_changed'); return; }
+            if (!valid()) { status.setStatus(T('local_audio_target_changed'), 'warning'); return; }
             const optional = options.values();
             if (!optional) return;
             if (!denoise && kind !== 'tts') {
@@ -271,7 +280,7 @@ export class LocalAudioJobs {
                 if (sfx) {
                     payload.prompt = this.dialog.querySelector('[data-lyrics]').value.trim();
                     payload.seconds = Number(duration.value);
-                    if (!payload.prompt || payload.prompt.length > 4000) { status.textContent = T('local_audio_sfx_prompt_required'); return; }
+                    if (!payload.prompt || payload.prompt.length > 4000) { status.setStatus(T('local_audio_sfx_prompt_required'), 'warning'); return; }
                 }
             }
             if (voice && !this.jobId) {
@@ -280,21 +289,23 @@ export class LocalAudioJobs {
                 delete payload.reference_end_sec;
                 if (payload.reference_file) {
                     const range = this.dialog.querySelector('[data-reference-range]');
-                    if (!range.totalFrames) { status.textContent = T('local_voice_trim_not_ready'); return; }
+                    if (!range.totalFrames) { status.setStatus(T('local_voice_trim_not_ready'), 'warning'); return; }
                     payload.reference_start_sec = range.startFrame / 1000;
                     payload.reference_end_sec = range.endFrame / 1000;
                 }
                 payload.speaker = this.dialog.querySelector('[data-voice]').value;
-                if (!payload.reference_file && !payload.speaker && !breeze()) { status.textContent = T('local_voice_choose'); return; }
+                if (!payload.reference_file && !payload.speaker && !breeze()) { status.setStatus(T('local_voice_choose'), 'warning'); return; }
                 if (kind === 'tts') {
                     payload.model = model.value;
                     payload.text = this.dialog.querySelector('[data-lyrics]').value.trim();
-                    if (!payload.text || payload.text.length > 2000) { status.textContent = T('local_voice_text_limit'); return; }
+                    if (!payload.text || payload.text.length > 2000) { status.setStatus(T('local_voice_text_limit'), 'warning'); return; }
                     payload.language = this.dialog.querySelector('[data-language]').value;
                     payload.instruct = this.dialog.querySelector('[data-instruct]').value;
                     payload.reference_text = this.dialog.querySelector('[data-reference-text]').value;
                     if (breeze() && !(payload.reference_file ? payload.reference_text.trim() : payload.instruct.trim())) {
-                        status.textContent = T('audio_breeze_required'); return;
+                        status.setStatus(T(payload.reference_file ? 'audio_reference_text_hint' : 'audio_voice_description_required'), 'warning');
+                        this.dialog.querySelector(payload.reference_file ? '[data-reference-text]' : '[data-instruct]').focus();
+                        return;
                     }
                     remember({ speaker: payload.speaker, reference: payload.reference_file, language: payload.language });
                     if (payload.reference_file) {
@@ -318,42 +329,42 @@ export class LocalAudioJobs {
             this.dialog.closeDisabled = true;
             submit.disabled = settings.disabled = true;
             cancel.textContent = T('cancel_btn');
-            status.textContent = T('local_audio_submitting');
+            status.setStatus(T('local_audio_submitting'), 'info');
             let finished = false;
             try {
                 let job = this.jobId ? await this.request('status/' + this.jobId) : await this.request('start', { ...payload, ...optional });
                 this.jobId = job.id;
                 if (this.cancelRequested) await this.request('cancel/' + job.id, {});
                 while (!this.cancelRequested && ['queued', 'running'].includes(job.status)) {
-                    status.textContent = T(job.status === 'queued' ? 'local_audio_queued' : 'local_audio_running');
+                    status.setStatus(T(job.status === 'queued' ? 'local_audio_queued' : 'local_audio_running'), 'info');
                     await new Promise(resolve => setTimeout(resolve, 2000));
                     if (!this.cancelRequested) job = await this.request('status/' + job.id);
                 }
-                if (this.cancelRequested) { this.jobId = null; status.textContent = T('local_audio_cancelled'); return; }
+                if (this.cancelRequested) { this.jobId = null; status.setStatus(T('local_audio_cancelled'), 'warning'); return; }
                 if (job.status !== 'succeeded') {
                     this.jobId = null;
                     throw new Error(job.error || job.status);
                 }
-                status.textContent = T('local_audio_saving');
+                status.setStatus(T('local_audio_saving'), 'info');
                 cancel.disabled = true;
                 const result = await this.request('result/' + job.id, {});
-                if (!valid()) { status.textContent = T('local_audio_detached'); finished = true; return; }
+                if (!valid()) { status.setStatus(T('local_audio_detached'), 'warning'); finished = true; return; }
                 if (denoise) {
                     for (const file of result.files) {
                         if (!await app._insertDenoisedAudio(clip, { ...denoise, start: denoise.start + (denoise.source?.edit_start_sec || 0) }, file, valid)) {
-                            status.textContent = T('local_audio_detached'); finished = true; return;
+                            status.setStatus(T('local_audio_detached'), 'warning'); finished = true; return;
                         }
                     }
                 } else if (kind === 'tts') {
                     await app._addAudioAtTime(result.files[0].file, speech.start, null, { canInsert: valid, duration: result.files[0].duration_sec });
-                    if (!valid()) { status.textContent = T('local_audio_detached'); finished = true; return; }
+                    if (!valid()) { status.setStatus(T('local_audio_detached'), 'warning'); finished = true; return; }
                 } else {
                     app._addGeneratedAudiosToClip(clip, result.files);
                 }
                 finished = true;
                 this.dialog.close();
             } catch (error) {
-                status.textContent = this.cancelRequested ? T('local_audio_cancelled') : error.message;
+                status.setStatus(this.cancelRequested ? T('local_audio_cancelled') : error.message, this.cancelRequested ? 'warning' : 'error');
                 if (this.cancelRequested) this.jobId = null;
             } finally {
                 this.busy = false;

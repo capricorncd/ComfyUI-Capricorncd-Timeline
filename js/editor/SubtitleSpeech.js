@@ -1,6 +1,7 @@
 import { api } from "../../../scripts/api.js";
 import { t as T } from "../i18n/timeline_editor.js";
 import "../components/Dialog.js";
+import '../components/StatusMessage.js';
 
 export function subtitleTiming(clip) {
     const start_ms = Math.round(clip.startTime * 1000);
@@ -29,7 +30,7 @@ export class SubtitleSpeech {
         const valid = () => app._timeline === timeline && app._projectResources === resources && this.dialog.open && app._isNodeOnLiveGraph();
         app._timeline.pause();
         this.dialog.setAttribute("aria-label", T(bindOnly ? "speech_bind" : "speech_convert"));
-        this.dialog.innerHTML = `<span slot="title">${T(bindOnly ? "speech_bind" : "speech_convert")}</span><div class="cat-te-modal-body"><div class="speech-rows"></div><p role="status"></p></div><div slot="footer" class="cat-te-confirm-actions"><cap-button data-action="settings">${T("voice_configure")}</cap-button><cap-button data-action="close">${T("close_title")}</cap-button><cap-button variant="primary" data-action="submit">${T(bindOnly ? "save_btn" : "speech_convert")}</cap-button></div>`;
+        this.dialog.innerHTML = `<span slot="title">${T(bindOnly ? "speech_bind" : "speech_convert")}</span><div class="cat-te-modal-body"><div class="speech-rows"></div><cap-status-message role="status"></cap-status-message></div><div slot="footer" class="cat-te-confirm-actions"><cap-button data-action="settings">${T("voice_configure")}</cap-button><cap-button data-action="close">${T("close_title")}</cap-button><cap-button variant="primary" data-action="submit">${T(bindOnly ? "save_btn" : "speech_convert")}</cap-button></div>`;
         const candidates = resources.filter(row => row.kind === "image" || row.kind === "video");
         const rows = clips.map(clip => {
             const meta = app._meta.get(clip.id);
@@ -62,7 +63,7 @@ export class SubtitleSpeech {
             return { clip, meta, text, timing, select, prompt };
         });
         const status = this.dialog.querySelector('[role="status"]');
-        status.textContent = T("speech_note");
+        status.setStatus(T("speech_note"), 'info');
         this.dialog.querySelector('[data-action="close"]').onclick = () => { if (!this.busy) this.dialog.close(); };
         this.dialog.querySelector('[data-action="settings"]').onclick = () => {
             if (this.busy) return;
@@ -97,7 +98,7 @@ export class SubtitleSpeech {
                     const canInsert = () => unchanged(row) && app._findMediaById(character.id) === character
                         && character.voice_audio_id === reference.id && app._findMediaById(reference.id) === reference;
                     if (!canInsert()) throw new Error(T("speech_changed"));
-                    status.textContent = `${completed + 1} / ${rows.length} …`;
+                    status.setStatus(`${completed + 1} / ${rows.length} …`, 'info');
                     const response = await api.fetchApi("/audio_keyframe_timeline/subtitle_speech", {
                         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
                     });
@@ -109,7 +110,7 @@ export class SubtitleSpeech {
                     completed++;
                 }
                 this.dialog.close();
-            } catch (error) { status.textContent = `${completed} / ${rows.length}: ${error.message}`; }
+            } catch (error) { status.setStatus(`${completed} / ${rows.length}: ${error.message}`, 'error'); }
             finally {
                 this.busy = false;
                 this.dialog.closeDisabled = false;

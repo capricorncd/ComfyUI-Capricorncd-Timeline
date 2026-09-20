@@ -16,6 +16,7 @@ from comfy_extras.nodes_minimax_h3 import FPS as H3_FPS, MiniMaxH3ImageToVideo, 
 from .cap_data_json_parser import CAP_DataJsonClipParser
 from .cap_timeline_project_io import _resolve_output_file
 from .timecode import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
+from .media_speed import playback_rate
 
 MAX_REF_IMAGES = 9
 MAX_REF_VIDEOS = 3
@@ -24,6 +25,22 @@ REF_VIDEO_FPS = 24
 REF_VIDEO_MAX_SEC = 15.0
 
 _LOG = logging.getLogger("cap_minimax_h3")
+
+
+def _h3_audio_clip(clip, duration_ms):
+    start_ms = int(clip.get("start_ms", 0))
+    original_ms = max(1, int(clip.get("end_ms", start_ms)) - start_ms)
+    extra_ms = max(0, duration_ms - original_ms)
+    rows = []
+    for row in clip.get("audios") or []:
+        row = dict(row)
+        rate = playback_rate(row.get("playback_rate"))
+        end = int(row["source_end_ms"])
+        span = (end - int(row.get("source_start_ms", 0))) / rate
+        if int(row.get("clip_offset_ms", 0)) + span >= original_ms - 1:
+            row["source_end_ms"] = end + round(extra_ms * rate)
+        rows.append(row)
+    return {**clip, "end_ms": start_ms + duration_ms, "audios": rows}
 
 
 def _lock_audio(latent, encoded):
@@ -66,12 +83,12 @@ def _kind_of(row: dict, path: str) -> str:
     return "image"
 
 
-def _frames_at_fps(frames: torch.Tensor, src_fps: float, dst_fps: float = REF_VIDEO_FPS) -> torch.Tensor:
+def _frames_at_fps(frames: torch.Tensor, src_fps: float, dst_fps: float = REF_VIDEO_FPS, max_duration: float = REF_VIDEO_MAX_SEC) -> torch.Tensor:
     n = int(frames.shape[0])
     if n <= 0:
         return frames
     src_fps = max(1e-6, float(src_fps) or dst_fps)
-    duration = min(n / src_fps, REF_VIDEO_MAX_SEC)
+    duration = min(n / src_fps, max_duration)
     target_n = max(1, int(round(duration * dst_fps)))
     if abs(src_fps - dst_fps) < 0.01 and n <= target_n:
         return frames[:target_n]
@@ -363,9 +380,18 @@ class CAP_MiniMaxH3ReferenceToVideo:
             path = parser._resolve_file_path(path, location)
         return os.path.normpath(path) if path else "", row if isinstance(row, dict) else {}
 
-    def _load_video_ref(self, path: str):
+    def _load_video_ref(self, path: str, trim=None, extra_frames=0, max_frames=None):
+        start, rate, target = 0.0, 1.0, None
+        if trim and trim.get("file"):
+            path = trim["file"]
+            start = max(0.0, float(trim["start"]))
+            rate = float(trim["rate"])
+            selected = min(REF_VIDEO_MAX_SEC, float(trim["duration"]) / rate)
+            target = align_frame_count(max(5, round(selected * REF_VIDEO_FPS) + extra_frames))
+            target = min(target, max_frames or target, align_frame_count(round(REF_VIDEO_MAX_SEC * REF_VIDEO_FPS)))
+        duration = target / REF_VIDEO_FPS * rate if target else REF_VIDEO_MAX_SEC
         try:
-            video = VideoFromFile(path, start_time=0, duration=REF_VIDEO_MAX_SEC)
+            video = VideoFromFile(path, start_time=start, duration=duration)
             components = video.get_components()
         except Exception:
             return None, None
@@ -373,30 +399,45 @@ class CAP_MiniMaxH3ReferenceToVideo:
         if frames is None or not isinstance(frames, torch.Tensor) or frames.ndim != 4 or frames.shape[0] < 1:
             return None, None
         src_fps = float(components.frame_rate) if components.frame_rate else REF_VIDEO_FPS
-        frames = _pad_video_frames(_frames_at_fps(frames, src_fps))
+        frames = _frames_at_fps(frames, src_fps * rate, max_duration=duration / rate)
+        if target is None:
+            target = align_frame_count(max(5, int(frames.shape[0])))
+            target = min(target, max_frames or target)
+        frames = _pad_video_frames(frames[:target], target)
         audio = components.audio
         if not isinstance(audio, dict) or audio.get("waveform") is None:
             audio = None
         elif int(audio["waveform"].shape[-1]) < 1:
             audio = None
+        else:
+            waveform = audio["waveform"]
+            sample_rate = audio["sample_rate"]
+            if rate != 1:
+                waveform = torchaudio.functional.resample(waveform, round(sample_rate * rate), sample_rate)
+            samples = round(target / REF_VIDEO_FPS * sample_rate)
+            waveform = waveform[..., :samples].clone()
+            waveform = torch.nn.functional.pad(waveform, (0, samples - waveform.shape[-1]))
+            audio = {"waveform": waveform, "sample_rate": sample_rate}
         return frames, audio
 
-    def _load_audio_ref(self, row: dict, materials: dict, parser: CAP_DataJsonClipParser,
-                        extra_end_ms: int = 0, clip_duration_ms: int = 0):
+    def _load_audio_ref(self, row: dict, materials: dict, parser: CAP_DataJsonClipParser):
         path = os.path.normpath(parser._audio_row_path(row, materials))
         if not path or not os.path.isfile(path):
             return None
         src_start = max(0, int(row.get("source_start_ms", 0) or 0))
         src_end = max(src_start + 1, int(row.get("source_end_ms", src_start) or src_start))
-        offset_ms = max(0, int(row.get("clip_offset_ms", 0) or 0))
-        slice_ms = src_end - src_start
-        if extra_end_ms > 0 and (clip_duration_ms <= 0 or offset_ms + slice_ms >= clip_duration_ms - 1):
-            src_end += extra_end_ms
         try:
             waveform, sample_rate = parser._load_waveform(path)
         except Exception:
             return None
-        return parser._trim(waveform, sample_rate, src_start, src_end)
+        audio = parser._trim(waveform, sample_rate, src_start, src_end)
+        rate = playback_rate(row.get("playback_rate"))
+        if rate != 1:
+            audio["waveform"] = parser._resample_waveform(audio["waveform"], round(sample_rate * rate), sample_rate)
+        samples = max(1, round((src_end - src_start) / rate / 1000 * sample_rate))
+        waveform = audio["waveform"][..., :samples].clone()
+        audio["waveform"] = torch.nn.functional.pad(waveform, (0, samples - waveform.shape[-1]))
+        return audio
 
     def _letterbox_frames(self, image: torch.Tensor, height: int, width: int) -> torch.Tensor:
         src_h, src_w = int(image.shape[1]), int(image.shape[2])
@@ -496,7 +537,7 @@ class CAP_MiniMaxH3ReferenceToVideo:
         length = align_frame_count(clip_frames + pin) if use_context else clip_frames
         if timing:
             length = int(timing["raw_frames"])
-        extra_end_ms = max(0, int(round(length * 1000 / fps)) - clip_duration_ms)
+        audio_clip = _h3_audio_clip(clip_row, round((length - (pin if use_context else 0)) * 1000 / H3_FPS))
 
         ref_images = {}
         ref_videos = {}
@@ -517,7 +558,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
             if kind == "video":
                 if len(ref_videos) >= MAX_REF_VIDEOS:
                     continue
-                frames, soundtrack = self._load_video_ref(path)
+                frames, soundtrack = self._load_video_ref(path, row.get("video_trim"),
+                    max(0, length - round(clip_duration_ms * fps / 1000)), length)
                 if frames is None:
                     continue
                 n = len(ref_videos) + 1
@@ -537,15 +579,12 @@ class CAP_MiniMaxH3ReferenceToVideo:
             ref_images[f"ref_image_{n}"] = img
             image_frames.append(img)
 
-        for row in clip_row.get("audios") if isinstance(clip_row.get("audios"), list) else []:
+        for row in audio_clip.get("audios") if isinstance(audio_clip.get("audios"), list) else []:
             if len(ref_audios) >= MAX_REF_AUDIOS:
                 break
             if not isinstance(row, dict):
                 continue
-            audio = self._load_audio_ref(
-                row, materials, parser,
-                extra_end_ms=extra_end_ms, clip_duration_ms=clip_duration_ms,
-            )
+            audio = self._load_audio_ref(row, materials, parser)
             if audio is None:
                 continue
             n = len(ref_audios) + 1
@@ -566,11 +605,11 @@ class CAP_MiniMaxH3ReferenceToVideo:
         if parser._uses_master_audio(data, clip_row):
             if clip_row.get("clip_role") == "digital_human" and not os.path.isfile(str(data.get("audio_path") or "")):
                 raise ValueError("Digital Human requires a readable source audio track.")
-            audio_out = parser._clip_audio_from_master(data, clip_row, 0)
+            audio_out = parser._clip_audio_from_master(data, audio_clip, 0)
         else:
             if clip_row.get("clip_role") == "digital_human" and not ref_audios:
                 raise ValueError("Digital Human requires an audio clip on the corresponding timeline audio track.")
-            audio_out = parser._clip_audio_from_audios(clip_row, 0, materials=materials)
+            audio_out = parser._clip_audio_from_audios(audio_clip, 0, materials=materials)
         if clip_row.get("clip_role") == "digital_human":
             prompt += ("\nPerformance instruction: Lip-sync only to the audible lead voice in the supplied audio, "
                        "matching its words, syllables and pauses. During instrumental passages and vocal pauses, "

@@ -113,7 +113,7 @@ export class ExportRange extends HTMLElement {
     }
 
     update(frame, playing) {
-        this.currentFrame = Math.max(this.startFrame, Math.min(Math.max(this.startFrame, this.endFrame - 1), Math.floor(frame)));
+        this.currentFrame = Math.max(this.startFrame, Math.min(Math.max(this.startFrame, this.endFrame - 1), Math.floor(frame + 1e-9)));
         this.playing = playing;
         const percent = value => `${100 * value / Math.max(1, this.totalFrames)}%`;
         const nominalFps = Math.ceil(this.fps);

@@ -24,6 +24,7 @@ import { api } from "../../scripts/api.js";
 import { BgmSettings } from "./editor/BgmSettings.js";
 import { LocalAudioJobs } from "./editor/LocalAudioJobs.js";
 import { ClipExport } from "./editor/ClipExport.js";
+import { VideoTrim, cutVideo, videoTrimSource } from "./editor/VideoTrim.js";
 import { SubtitleSpeech } from "./editor/SubtitleSpeech.js";
 import { CharacterVoice } from "./editor/CharacterVoice.js";
 import { Timeline, ICONS } from "./timeline/index.js";
@@ -1303,6 +1304,7 @@ export class CapTimelineEditorApp {
     }
 
     _closeInternal(save) {
+        this._videoTrim?.stop();
         // Invalidate any in-flight _openEditor so it won't rebuild after close.
         this._openGen += 1;
         this._historyReady = false;
@@ -1920,7 +1922,7 @@ export class CapTimelineEditorApp {
         this._scheduleProgramPreview();
     }
 
-    _convertVisualTrackType(track, type) {
+    async _convertVisualTrackType(track, type) {
         if (!track || track.type === type || !["image", "video"].includes(type)) return;
         const toMedia = isMediaTrackType(type);
         if (toMedia) {
@@ -1936,7 +1938,10 @@ export class CapTimelineEditorApp {
                 return;
             }
         }
+        const prepared = !toMedia ? await this._prepareDirectorVideos(track.clips) : [];
+        if (!prepared) return;
         this._recordUndo();
+        for (const row of prepared) this._replaceDirectorVideo(row.clip, 0, row.file, row.trim);
         const oldType = track.type;
         track.type = type;
         track.name = T(toMedia ? "media_track_name" : "director_track_name");
@@ -4953,6 +4958,7 @@ export class CapTimelineEditorApp {
         this._subtitleSpeech = new SubtitleSpeech(this, el);
         this._localAudioJobs = new LocalAudioJobs(this, el);
         this._clipExport = new ClipExport(el);
+        this._videoTrim = new VideoTrim(this, el);
         this._characterVoice = new CharacterVoice(this, el.querySelector(".cat-te-character-voice"));
         this.importZipInput = el.querySelector(".cat-te-import-zip");
         el.querySelector(".cat-te-import").bindMenu(e => this._showImportMenu(e));
@@ -6210,6 +6216,7 @@ export class CapTimelineEditorApp {
                 media_type: String(row.media_type || "").trim(),
                 ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
                 ...(row.voice_language ? { voice_language: String(row.voice_language) } : {}),
+                ...(row.video_trim ? { video_trim: { ...row.video_trim } } : {}),
                 tags: Array.isArray(row.tags) ? row.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
             };
             const stars = Number(row.stars);
@@ -6309,6 +6316,7 @@ export class CapTimelineEditorApp {
                 media_type: String(row.media_type || row.mediaType || local.mediaType || "").trim(),
                 ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
                 ...(row.voice_language ? { voice_language: String(row.voice_language) } : {}),
+                ...(row.video_trim ? { video_trim: { ...row.video_trim } } : {}),
                 tags: tags.map((t) => String(t || "").trim()).filter(Boolean),
             };
             const stars = Number(row.stars ?? local.stars);
@@ -16226,6 +16234,7 @@ export class CapTimelineEditorApp {
                 { label: T("menu_ai_optimize_prompt"), icon: "sparkles", fn: () => void this._openAiOptimizeModal(clip) },
             );
             if (this._clipGeneratedVideos(m).length) media.push({ label: T("menu_trim_video"), icon: "scissors", fn: () => void this._openGenEditModal(clip) });
+            if (this._clipItems(m).some(item => item.kind === "video")) media.push({ label: T("trim_reference_video"), icon: "scissors", fn: () => this._videoTrim.open(clip) });
             media.push({ label: T("linked_generated_videos_title"), icon: "link", fn: () => void this._openOutputVideosPicker(clip) });
             if (this._clipGeneratedVideos(m).length || m.genEditAudios?.length) audio.push({
                 icon: m.muted ? "volume" : "volumeOff", label: m.muted ? T("unmute_label") : T("mute_label"), fn: () => this._setDirectorClipMuted(clip, !m.muted),
@@ -16263,11 +16272,73 @@ export class CapTimelineEditorApp {
         this._buildCtxMenu(items, e.clientX, e.clientY);
     }
 
-    _convertMediaClipToDirector(clip) {
+    async _prepareDirectorVideos(clips) {
+        if (this._preparingDirectorVideos) return null;
+        this._preparingDirectorVideos = true;
+        this._videoTrim.progress(true);
+        const snapshots = clips.map(clip => ({ clip, track: clip.track, start: clip.startTime,
+            offset: clip.sourceOffset || 0, duration: clip.duration, rate: clip.playbackRate || 1,
+            item: this._clipItems(this._ensureClipMeta(clip))[0] }));
+        try {
+            const prepared = [];
+            for (const row of snapshots) {
+                if (row.item?.kind !== "video") continue;
+                const source = videoTrimSource(this, row.item);
+                const result = await cutVideo(this, source.item, source.start + row.offset * source.rate,
+                    row.duration * row.rate * source.rate, row.rate * source.rate);
+                prepared.push({ clip: row.clip, ...result });
+            }
+            if (this._destroyed || snapshots.some(row => this._findClipById(row.clip.id) !== row.clip
+                || row.clip.track !== row.track || row.track.locked || row.clip.startTime !== row.start
+                || row.clip.duration !== row.duration || (row.clip.sourceOffset || 0) !== row.offset
+                || (row.clip.playbackRate || 1) !== row.rate
+                || this._clipItems(this._ensureClipMeta(row.clip))[0]?.file !== row.item?.file)) {
+                throw new Error(T("local_audio_target_changed"));
+            }
+            return prepared;
+        } catch (error) {
+            alert(error.message);
+            return null;
+        } finally {
+            this._preparingDirectorVideos = false;
+            this._videoTrim.progress(false);
+        }
+    }
+
+    _replaceDirectorVideo(clip, index, file, trim) {
+        const meta = this._ensureClipMeta(clip);
+        const items = this._clipItems(meta);
+        const previous = this._findMediaById(items[index]?.id);
+        const media = this._ensureMedia("video", file);
+        if (previous) {
+            const { id, file: oldFile, location, ...description } = previous;
+            Object.assign(media, description, { location: "input" });
+        }
+        media.video_trim = { ...trim };
+        items[index] = { ...items[index], id: media.id, file };
+        meta.items = items;
+        meta.mediaIds = items.map(item => item.id);
+        if (index === 0) {
+            clip.src = file;
+            clip.sourceOffset = 0;
+            clip.playbackRate = 1;
+            clip.sourceDuration = Infinity;
+            meta.trimIn = 0;
+        }
+        this._normalizeVisualMeta(clip, meta, { seedFromClip: false });
+        this._syncClipPrimaryAppearance(clip);
+        this._decorateClip(clip);
+        if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
+    }
+
+    async _convertMediaClipToDirector(clip) {
         const timeline = this._timeline;
         const from = clip?.track;
         if (!timeline || !isMediaTrackType(from?.type) || from.locked) return;
+        const prepared = await this._prepareDirectorVideos([clip]);
+        if (!prepared) return;
         this._recordUndo();
+        for (const row of prepared) this._replaceDirectorVideo(row.clip, 0, row.file, row.trim);
         const to = timeline.tracks.find(track => isDirectorTrackType(track.type)
             && this._trackHasRoom(track, clip.startTime, clip.duration)) || this._createInsertTrack("image");
         const meta = this._ensureClipMeta(clip);

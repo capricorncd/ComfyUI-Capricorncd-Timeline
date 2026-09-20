@@ -736,10 +736,10 @@ class StrictKeyframeTests(unittest.TestCase):
     def setUp(self):
         path = BACKEND / "cap_minimax_h3.py"
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        tree.body = [n for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef)) and n.name in ("CAP_MiniMaxH3ReferenceToVideo", "_snap_h3_grid")]
+        tree.body = [n for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef)) and n.name in ("CAP_MiniMaxH3ReferenceToVideo", "_snap_h3_grid", "_h3_audio_clip")]
         self.native = Mock(return_value=SimpleNamespace(args=("positive", "latent")))
         self.reference = Mock(return_value=SimpleNamespace(args=("positive", "latent")))
-        self.scope = dict(nodes=SimpleNamespace(MAX_RESOLUTION=16384), H3_FPS=24, align_frame_count=lambda x: x,
+        self.scope = dict(playback_rate=lambda value: float(value or 1), nodes=SimpleNamespace(MAX_RESOLUTION=16384), H3_FPS=24, align_frame_count=lambda x: x,
                           os=SimpleNamespace(path=SimpleNamespace(isfile=lambda p: True)),
                           CAP_DataJsonClipParser=object, torch=SimpleNamespace(Tensor=object, zeros=lambda *a: "blank"), MAX_REF_IMAGES=9, MAX_REF_VIDEOS=3, MAX_REF_AUDIOS=3,
                           _kind_of=lambda row, path: row.get("kind", "image"),

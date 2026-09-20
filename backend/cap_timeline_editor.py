@@ -166,6 +166,7 @@ def _material_row(row: dict, resolve_media) -> dict | None:
         "media_type": str(row.get("media_type") or "").strip(),
         "tags": [str(tag).strip() for tag in tags if str(tag).strip()],
         "location": str(row.get("location") or "input"),
+        **({"video_trim": dict(row["video_trim"])} if isinstance(row.get("video_trim"), dict) else {}),
     }
     try:
         stars = int(row.get("stars"))
@@ -826,6 +827,13 @@ class CAP_TimelineEditor:
             int(round((clip["end_ms"] - clip["start_ms"]) * fps / 1000))
             for clip in runtime_clips
         ))
+        media_by_id = {row.get("id"): row for row in project.get("media", [])}
+        for material in materials:
+            trim = material.get("video_trim")
+            if trim:
+                original = media_by_id.get(trim.get("source_id"))
+                if original:
+                    trim["file"] = resolve_media(original["file"])
         # Concatenate audio for each visual runtime segment (no gap filler),
         # matching the frame sequence / total_frame_count timeline.
         clips_audio_out = self._concat_runtime_clips_audio(runtime_clips, materials=materials)

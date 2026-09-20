@@ -39,6 +39,7 @@ from .cap_seq_to_video import (
     NODE_DISPLAY_NAME_MAPPINGS as _STV_NAMES,
 )
 from .cap_compose_clip_videos import (
+    trim_video_file,
     NODE_CLASS_MAPPINGS as _CCV_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _CCV_NAMES,
 )
@@ -745,6 +746,29 @@ def _register_routes():
             return web.json_response({"error": str(exc)}, status=500)
         except Exception as exc:
             logging.exception("[CapricorncdTools] compose_video error")
+            return web.json_response({"error": str(exc)}, status=500)
+
+    @routes.post("/audio_keyframe_timeline/trim_video")
+    async def api_trim_video(request: web.Request) -> web.Response:
+        try:
+            payload = await request.json()
+            if not isinstance(payload, dict):
+                raise ValueError("Invalid video trim request.")
+            location = payload.get("location", "input")
+            if location not in ("input", "output"):
+                raise ValueError("Invalid media location.")
+            base = folder_paths.get_input_directory() if location == "input" else folder_paths.get_output_directory()
+            src = _safe_join(base, str(payload.get("file") or ""))
+            if not src or not os.path.isfile(src):
+                raise ValueError("Video file not found.")
+            dest = _unique_destination(os.path.join(folder_paths.get_input_directory(), "capricorncd-timeline", "videos"),
+                                       os.path.splitext(os.path.basename(src))[0] + f"_trim_{uuid.uuid4().hex[:8]}.mp4")
+            await asyncio.to_thread(trim_video_file, src, dest, start=payload.get("start", 0),
+                                    duration=payload.get("duration"), rate=payload.get("rate", 1))
+            return web.json_response({"file": os.path.relpath(dest, folder_paths.get_input_directory()).replace(os.sep, "/")})
+        except (ValueError, TypeError) as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        except (RuntimeError, OSError) as exc:
             return web.json_response({"error": str(exc)}, status=500)
 
     @routes.post("/audio_keyframe_timeline/extract_audio")

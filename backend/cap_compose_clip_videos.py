@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+import math
 import os
 import re
 import shutil
@@ -18,6 +19,7 @@ from .cap_save_sidecar import build_sidecar_payload, clip_prompts_from_data_json
 from .cap_seq_to_video import _ffmpeg_path, _write_audio_tmp
 from .h3_timing import timing_from_filename, trim_h3_video
 from .cap_video_metadata import embed_video_generation, read_video_generation
+from .media_speed import audio_speed_filter
 
 log = logging.getLogger(__name__)
 
@@ -108,6 +110,26 @@ def _probe_has_audio(path: str) -> bool:
         return result.returncode == 0 and "audio" in (result.stdout or "").lower()
     except Exception:
         return False
+
+
+def trim_video_file(src_path, dest_path, *, start, duration, rate=1):
+    start, duration, rate = float(start), float(duration), float(rate)
+    if not all(math.isfinite(v) for v in (start, duration, rate)) or start < 0 or duration <= 0 or not 0.25 <= rate <= 4:
+        raise ValueError("Invalid video trim range or playback speed.")
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+           "-ss", str(start), "-t", str(duration), "-i", _ffmpeg_path(src_path),
+           "-map", "0:v:0", "-map", "0:a:0?",
+           "-vf", f"setpts=(PTS-STARTPTS)/{rate},pad=ceil(iw/2)*2:ceil(ih/2)*2",
+           "-af", "asetpts=PTS-STARTPTS" + audio_speed_filter(rate),
+           "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
+           "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", _ffmpeg_path(dest_path)]
+    try:
+        _run_ffmpeg(cmd)
+    except RuntimeError:
+        if os.path.isfile(dest_path):
+            os.remove(dest_path)
+        raise
 
 
 def extract_audio_file(

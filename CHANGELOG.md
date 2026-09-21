@@ -1,5 +1,27 @@
 # Release notes / 更新记录
 
+## 0.17.22 — 2026-09-21
+
+### English
+
+- Add H3 SelfLift and RIFE configuration, improve Context continuation and preserve previous generation tracks.
+- Preserve original sources for repeatable video trimming, align H3 reference video/audio lengths, and add export frame rate selection.
+- Unify video/audio Clip controls in Trim Video; disable the source after voice conversion and fix overlapping pasted Clips.
+- Support optional audio API parameters and TTS models, remember reference transcripts, and improve copyable status messages.
+- Add director Clip audio-track input control, media usage filters, and local Agent templates and model selection.
+- Fix timeline audio/video synchronization, restored audio waveforms, and hidden widgets blocking canvas gestures.
+- Remove obsolete Clip settings and parser outputs; store H3 generation details in video metadata without JSON sidecars.
+
+### 简体中文
+
+- 新增 H3 SelfLift 和 RIFE 配置，完善 Context 续接并保留历史生成轨道。
+- 视频裁剪保留原始素材以支持重复调整，对齐 H3 参考视频与音频时长，导出新增帧率设置。
+- 统一修剪视频中的视频、音频 Clip 操作；变声后禁用原片段，修复粘贴片段重叠。
+- 支持音频 API 可选参数和 TTS 模型，记住参考录音原文，优化状态提示及消息复制。
+- 新增导演 Clip 音频轨输入开关、素材使用情况筛选，以及本地 Agent 模板和模型选择。
+- 修复主时间轴音画同步、恢复后的音频波形，以及隐藏控件阻挡画布缩放和拖动的问题。
+- 移除废弃 Clip 设置及解析节点输出；H3 生成信息保存在视频元数据中，不再额外保存 JSON 文件。
+
 ## 0.17.21 — 2026-09-19
 
 ### English

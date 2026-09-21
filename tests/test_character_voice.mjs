@@ -64,3 +64,45 @@ assert.equal(row.voice_language, undefined);
 assert.equal(app.undo, 5);
 assert.equal(app.saved, 5);
 console.log('Character language: empty default, immediate save, restoration and clearing passed');
+
+class Picker extends Element {
+    constructor() { super(); this.fields = new Map(); this.style = {setProperty() {}}; }
+    setAttribute() {}
+    querySelector(key) {
+        if (!this.fields.has(key)) this.fields.set(key, new Element());
+        return this.fields.get(key);
+    }
+    showModal() { this.open = true; }
+    close() { this.open = false; this.handlers.close(); }
+    remove() { this.removed = true; }
+}
+let picker;
+document.createElement = tag => tag === 'cap-dialog' ? (picker = new Picker()) : new Element();
+app._overlay = {append() {}};
+app._timeline = {pause() {}};
+app._openMediaPreview = (file, kind) => { app.preview = {file, kind}; };
+ui.openForAudioClip({src:'replacement.wav'});
+assert.equal(picker.querySelector('select').children.length, 1, 'only visual assets are character candidates');
+picker.querySelector('select').value = row.id;
+const saves = app.saved;
+picker.querySelector('[data-action="bind"]').handlers.click();
+assert.equal(row.voice_audio_id, replacement.id);
+assert.equal(app.saved, saves + 1);
+assert.deepEqual(app.preview, {file:'girl.png', kind:'image'});
+assert.equal(picker.removed, true);
+ui.refresh();
+assert.equal(ui.audio.src, '/local/replacement.wav', 'preview auditions the newly bound recording');
+ui.openForAudioClip({src:'voice.wav'});
+picker.querySelector('select').value = row.id;
+app._projectResources = [row, reference, replacement];
+picker.querySelector('[data-action="bind"]').handlers.click();
+assert.equal(row.voice_audio_id, replacement.id, 'project switch must not bind a stale selection');
+assert.equal(app.saved, saves + 1);
+ui.openForAudioClip({src:'voice.wav'});
+picker.querySelector('[data-action="close"]').handlers.click();
+assert.equal(app.saved, saves + 1, 'cancel must not change the binding');
+app._projectResources = [reference];
+ui.openForAudioClip({src:'voice.wav'});
+assert.equal(picker.querySelector('[data-action="bind"]').disabled, true);
+assert.equal(picker.querySelector('[role="status"]').textContent, 'audio_bind_no_character');
+console.log('Audio Clip character picker: binding, audition, cancellation, project switch and empty candidates passed.');

@@ -2641,6 +2641,25 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-shortcuts-dialog { --cap-dialog-min-width: 400px; --cap-dialog-min-height: 240px; }
 .cat-te-subtitle-batch-dialog { --cap-dialog-min-width: 460px; --cap-dialog-min-height: 360px; }
 .cat-te-speech-dialog { --cap-dialog-width: 760px; --cap-dialog-min-width: 560px; --cap-dialog-min-height: 360px; }
+.cat-te-bind-character-dialog {
+    --cap-dialog-width: 480px;
+    --cap-dialog-height: fit-content;
+    --cap-dialog-min-width: 320px;
+    --cap-dialog-min-height: 200px;
+}
+.cat-te-bind-character-body { padding: 20px; }
+.cat-te-bind-character-body label { display: flex; flex-direction: column; gap: 8px; }
+.cat-te-bind-character-body select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 12px;
+    border: 1px solid var(--cat-border);
+    border-radius: 6px;
+    background: var(--cat-surface);
+    color: var(--cat-text);
+    font: inherit;
+}
+.cat-te-bind-character-body p { margin: 12px 0 0; color: var(--cat-muted); }
 
 /* Launcher widget on the node */
 .cat-te-launcher {

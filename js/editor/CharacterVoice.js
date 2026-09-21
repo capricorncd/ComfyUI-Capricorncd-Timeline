@@ -1,4 +1,5 @@
 import "../components/Button.js";
+import "../components/Dialog.js";
 import { t as T } from "../i18n/timeline_editor.js";
 
 export class CharacterVoice {
@@ -72,6 +73,58 @@ export class CharacterVoice {
             finally { button("import").disabled = false; }
         });
         this.audio.addEventListener("error", () => { this.status.textContent = T("voice_audio_failed"); });
+    }
+
+    openForAudioClip(clip) {
+        if (!clip.src) return;
+        const app = this.app;
+        const resources = app._projectResources;
+        const timeline = app._timeline;
+        const file = clip.src;
+        const candidates = resources.filter(row => row.kind === "image" || row.kind === "video");
+        const dialog = document.createElement("cap-dialog");
+        dialog.className = "cat-te-bind-character-dialog";
+        dialog.setAttribute("close-label", T("close_title"));
+        dialog.innerHTML = `<span slot="title">${T("audio_bind_character")}</span>
+          <div class="cat-te-bind-character-body">
+            <label>${T("voice_character")}<select></select></label>
+            <p role="status" hidden></p>
+          </div>
+          <div slot="footer" class="cat-te-confirm-actions"><cap-button data-action="close">${T("cancel_btn")}</cap-button>
+          <cap-button data-action="bind" variant="primary">${T("audio_bind_character")}</cap-button></div>`;
+        const select = dialog.querySelector("select");
+        for (const character of candidates) {
+            const option = document.createElement("option");
+            option.value = character.id;
+            option.textContent = character.name || character.file;
+            select.append(option);
+        }
+        const bind = dialog.querySelector('[data-action="bind"]');
+        bind.disabled = !candidates.length;
+        if (!candidates.length) {
+            const status = dialog.querySelector('[role="status"]');
+            status.hidden = false;
+            status.textContent = T("audio_bind_no_character");
+        }
+        dialog.querySelector('[data-action="close"]').addEventListener("click", () => dialog.close());
+        bind.addEventListener("click", () => {
+            const character = candidates.find(row => row.id === select.value);
+            if (app._timeline !== timeline || app._projectResources !== resources
+                || !character || app._findMediaById(character.id) !== character) {
+                dialog.close();
+                return;
+            }
+            app._recordUndo();
+            const audio = app._ensureMedia("audio", file);
+            character.voice_audio_id = audio.id;
+            app._saveToWidgets();
+            dialog.close();
+            app._openMediaPreview(character.file, character.kind);
+        });
+        dialog.addEventListener("close", () => dialog.remove(), { once: true });
+        app._overlay.append(dialog);
+        timeline.pause();
+        dialog.showModal();
     }
 
     current() {

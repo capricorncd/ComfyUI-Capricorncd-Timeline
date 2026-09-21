@@ -9434,9 +9434,14 @@ export class CapTimelineEditorApp {
                 { label: T("menu_copy_shortcut"), icon: "copy", fn: () => this._copyGenEditClips() },
                 { label: T("menu_paste_shortcut"), icon: "clipboard", disabled: !st.clipClipboard?.length, fn: () => this._pasteGenEditClips() },
             );
-            items.unshift({ label: T("local_audio_denoise"), icon: "filter", fn: () => this._openGenEditDenoise(c) });
+            items.unshift({ label: T("local_audio_denoise"), icon: "audioLines", fn: () => this._openGenEditDenoise(c) });
             if (isAudioClip || c.hasAudio) items.unshift({ label: T("local_audio_separation"), icon: "micVocal", fn: () => this._openGenEditDenoise(c, 'separation') });
-            if (isAudioClip || c.hasAudio) items.unshift({ label: T("voice_convert"), icon: "micVocal", fn: () => this._openGenEditDenoise(c, 'vc') });
+            if (isAudioClip || c.hasAudio) items.unshift({ label: T("voice_convert"), icon: "userRoundPen", fn: () => this._openGenEditDenoise(c, 'vc') });
+            if (isAudioClip) items.unshift({ label: T("audio_bind_character"), icon: "userRoundCog", disabled: !c.src,
+                fn: () => {
+                    tl.pause();
+                    this._characterVoice.openForAudioClip(c);
+                } });
             this._buildCtxMenu(items, e.clientX, e.clientY);
         });
     }
@@ -11015,7 +11020,7 @@ export class CapTimelineEditorApp {
             if (!item || !row || !parent) return;
             event.preventDefault();
             event.stopPropagation();
-            this._buildCtxMenu(['denoise', 'separation', 'vc'].map(kind => ({ icon: kind === 'denoise' ? 'filter' : 'micVocal', label: T({ denoise: 'local_audio_denoise', separation: 'local_audio_separation', vc: 'voice_convert' }[kind]), fn: () => this._localAudioJobs.open(parent, {
+            this._buildCtxMenu(['denoise', 'separation', 'vc'].map(kind => ({ icon: { denoise: 'audioLines', separation: 'micVocal', vc: 'userRoundPen' }[kind], label: T({ denoise: 'local_audio_denoise', separation: 'local_audio_separation', vc: 'voice_convert' }[kind]), fn: () => this._localAudioJobs.open(parent, {
                 start: parent.startTime + item.startTime,
                 sources: [{ id: row.id, file: row.file, location: "output", trim_in_sec: item.sourceOffset || 0,
                     duration_sec: item.duration, playback_rate: item.playbackRate || 1 }],
@@ -16284,6 +16289,8 @@ export class CapTimelineEditorApp {
             { label: T("menu_set_title"), icon: "pencil", fn: () => this._renameClip(clip) },
         ];
         if (isAudio) {
+            audio.push({ label: T("audio_bind_character"), icon: "userRoundCog", disabled: !clip.src,
+                fn: () => this._characterVoice.openForAudioClip(clip) });
             audio.push({ icon: m.muted ? "volume" : "volumeOff", label: (m.muted ? T("unmute_label") : T("mute_label")) + "  Ctrl+B",
                 fn: () => this._setMediaClipMuted(clip, !this._ensureClipMeta(clip).muted) });
         } else if (isVoiceover) {
@@ -16330,8 +16337,8 @@ export class CapTimelineEditorApp {
         const denoiseSources = this._clipDenoiseSources(clip, true);
         if (denoiseSources.length) audio.push(
             { label: T("local_audio_separation"), icon: "micVocal", fn: () => this._localAudioJobs.open(clip, { start: clip.startTime, sources: this._clipDenoiseSources(clip, true) }, 'separation') },
-            { label: T("local_audio_denoise"), icon: "filter", fn: () => this._localAudioJobs.open(clip, { start: clip.startTime, sources: this._clipDenoiseSources(clip, true) }) },
-            { label: T("voice_convert"), icon: "micVocal", fn: () => this._localAudioJobs.open(clip, { start: clip.startTime, sources: this._clipDenoiseSources(clip, true) }, 'vc') },
+            { label: T("local_audio_denoise"), icon: "audioLines", fn: () => this._localAudioJobs.open(clip, { start: clip.startTime, sources: this._clipDenoiseSources(clip, true) }) },
+            { label: T("voice_convert"), icon: "userRoundPen", fn: () => this._localAudioJobs.open(clip, { start: clip.startTime, sources: this._clipDenoiseSources(clip, true) }, 'vc') },
         );
         if (canExport) media.push({ label: T("clip_export_title"), icon: "save", fn: () => {
             this._timeline.pause();

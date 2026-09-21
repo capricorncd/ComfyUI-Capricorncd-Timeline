@@ -412,13 +412,16 @@ function markNoSerialize(node, named = null) {
         }
         if (w.name === "audioUI" || w.name === "audio") {
             w.serialize = false;
-            if (w.element) w.element.style.display = "none";
-            w.computeSize = () => [0, -4];
         }
-        if (w.name === "project_json" || w.name === "project_version" || w.name === "schema_version") {
+        if (["audioUI", "audio", "project_json", "project_version", "schema_version"].includes(w.name)) {
             if (w.name === "project_version" || w.name === "schema_version") w.serialize = false;
+            // Hide the DOM widget wrapper too, so it cannot intercept canvas gestures.
+            w.hidden = true;
+            w.options ??= {};
+            w.options.hidden = true;
             if (w.element) w.element.style.display = "none";
             w.computeSize = () => [0, -4];
+            w.computeLayoutSize = () => ({ minHeight: 0, maxHeight: 0, minWidth: 0 });
         }
     }
 }

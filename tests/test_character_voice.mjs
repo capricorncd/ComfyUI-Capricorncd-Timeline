@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('../js/editor/CharacterVoice.js', import.meta.url), 'utf8');
 const CharacterVoice = new Function('T', source.replace(/^import .*;\r?\n/gm, '').replace('export class', 'class') + '; return CharacterVoice;')(key => key);
 class Element {
+    setAttribute(key, value) { this[key] = value; }
     constructor() { this.children=[]; this.handlers={}; this.paused=0; this.value=''; }
     addEventListener(key, handler) { this.handlers[key]=handler; }
     pause() { this.paused++; }
@@ -79,30 +80,73 @@ class Picker extends Element {
 let picker;
 document.createElement = tag => tag === 'cap-dialog' ? (picker = new Picker()) : new Element();
 app._overlay = {append() {}};
+const excerpt = {id:'excerpt', kind:'audio', file:'excerpt.wav'};
+app._extractAudioFromMedia = async (file, options) => {
+    assert.equal(options.durationSec, 2);
+    assert.deepEqual(options.mix, [{file, location:'input', trim_in_sec:3, duration_sec:2, playback_rate:1.5}]);
+    return excerpt.file;
+};
+const ensureMedia = app._ensureMedia;
+app._ensureMedia = (kind, file) => {
+    if (file !== excerpt.file) return ensureMedia(kind, file);
+    if (!app._projectResources.includes(excerpt)) app._projectResources.push(excerpt);
+    return excerpt;
+};
+app._imgUrl = file => '/images/' + file;
+app._getVideoThumbnail = async file => '/thumbnails/' + file;
+app._getMediaMeta = (kind, file) => ({mediaType: file === 'girl.png' ? 'character' : file === 'prop.png' ? 'prop' : file === 'scene.mp4' ? 'scene' : ''});
 app._timeline = {pause() {}};
 app._openMediaPreview = (file, kind) => { app.preview = {file, kind}; };
-ui.openForAudioClip({src:'replacement.wav'});
+ui.openForAudioClip({duration:2, sourceOffset:3, playbackRate:1.5, src:'replacement.wav'});
 assert.equal(picker.querySelector('select').children.length, 1, 'only visual assets are character candidates');
 picker.querySelector('select').value = row.id;
 const saves = app.saved;
-picker.querySelector('[data-action="bind"]').handlers.click();
-assert.equal(row.voice_audio_id, replacement.id);
+await picker.querySelector('[data-action="bind"]').handlers.click();
+assert.equal(row.voice_audio_id, excerpt.id);
 assert.equal(app.saved, saves + 1);
 assert.deepEqual(app.preview, {file:'girl.png', kind:'image'});
 assert.equal(picker.removed, true);
 ui.refresh();
-assert.equal(ui.audio.src, '/local/replacement.wav', 'preview auditions the newly bound recording');
-ui.openForAudioClip({src:'voice.wav'});
+assert.equal(ui.audio.src, '/local/excerpt.wav', 'preview auditions the newly bound recording');
+ui.openForAudioClip({duration:2, sourceOffset:3, playbackRate:1.5, src:'voice.wav'});
 picker.querySelector('select').value = row.id;
 app._projectResources = [row, reference, replacement];
-picker.querySelector('[data-action="bind"]').handlers.click();
-assert.equal(row.voice_audio_id, replacement.id, 'project switch must not bind a stale selection');
+await picker.querySelector('[data-action="bind"]').handlers.click();
+assert.equal(row.voice_audio_id, excerpt.id, 'project switch must not bind a stale selection');
 assert.equal(app.saved, saves + 1);
-ui.openForAudioClip({src:'voice.wav'});
+ui.openForAudioClip({duration:2, sourceOffset:3, playbackRate:1.5, src:'voice.wav'});
 picker.querySelector('[data-action="close"]').handlers.click();
 assert.equal(app.saved, saves + 1, 'cancel must not change the binding');
 app._projectResources = [reference];
-ui.openForAudioClip({src:'voice.wav'});
+ui.openForAudioClip({duration:2, sourceOffset:3, playbackRate:1.5, src:'voice.wav'});
 assert.equal(picker.querySelector('[data-action="bind"]').disabled, true);
-assert.equal(picker.querySelector('[role="status"]').textContent, 'audio_bind_no_character');
+assert.equal(picker.querySelector('[role="status"]').textContent, 'audio_bind_empty_category');
 console.log('Audio Clip character picker: binding, audition, cancellation, project switch and empty candidates passed.');
+
+app._projectResources = [row, reference, {id:'prop', kind:'image', file:'prop.png'}, {id:'scene', kind:'video', file:'scene.mp4'}, {id:'other', kind:'image', file:'unknown.png'}];
+ui.openForAudioClip({duration:2, sourceOffset:3, playbackRate:1.5, src:'voice.wav'});
+assert.equal(picker.querySelector('select').value, 'character');
+assert.equal(picker.querySelector('.cat-te-bind-character-preview').children[0].src, '/images/girl.png');
+for (const type of ['prop', 'scene', 'other', 'character']) {
+    picker.querySelector(`[data-type="${type}"]`).handlers.click();
+    assert.equal(picker.querySelector('select').value, type);
+    assert.equal(picker.querySelector('select').children.length, 1);
+    assert.equal(picker.querySelector(`[data-type="${type}"]`)['aria-selected'], 'true');
+    assert.equal(picker.querySelector('[data-action="bind"]').disabled, false);
+}
+picker.querySelector('[data-type="prop"]').handlers.click();
+assert.equal(picker.querySelector('.cat-te-bind-character-preview').children[0].src, '/images/prop.png');
+await picker.querySelector('[data-action="bind"]').handlers.click();
+assert.equal(app._projectResources.find(r => r.id === 'prop').voice_audio_id, excerpt.id);
+assert.deepEqual(app.preview, {file:'prop.png', kind:'image'});
+console.log('Asset tabs: category filtering, default character, uncategorized assets and binding passed.');
+
+app._extractAudioFromMedia = async () => { throw new Error('Extraction failed'); };
+ui.openForAudioClip({src:'voice.wav', duration:2});
+const beforeFailure = app.saved;
+await picker.querySelector('[data-action="bind"]').handlers.click();
+assert.equal(app.saved, beforeFailure);
+assert.equal(picker.open, true);
+assert.equal(picker.querySelector('[role="status"]').textContent, 'Extraction failed');
+assert.equal(picker.querySelector('[data-action="bind"]').disabled, false);
+console.log('Trimmed reference extraction: offset, duration, speed, separate asset and failure handling passed.');

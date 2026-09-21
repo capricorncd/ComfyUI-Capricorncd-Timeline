@@ -3,6 +3,7 @@ import { t as T } from '../i18n/timeline_editor.js';
 import '../components/Dialog.js';
 import '../components/StatusMessage.js';
 import '../components/ExportRange.js';
+import '../components/TabButton.js';
 import { AudioOptions } from './AudioOptions.js';
 
 export class LocalAudioJobs {
@@ -40,6 +41,7 @@ export class LocalAudioJobs {
         const meta = app._ensureClipMeta(clip);
         const sfx = kind === 'sfx';
         const voice = kind === 'tts' || kind === 'vc';
+        let voiceSource = kind === 'vc' ? 'character' : null;
         let defaults = {};
         if (kind === 'tts') {
             try {
@@ -76,7 +78,8 @@ export class LocalAudioJobs {
             <div class="cat-te-modal-body"><p data-description></p>
             ${denoise ? `<label>${T('local_audio_source')}<select data-source></select><span data-source-file></span></label><label>${T('local_audio_scope')}<select data-scope><option value="clip">${T('local_audio_clip_scope')}</option><option value="full">${T('local_audio_full_scope')}</option></select></label>` : `<label>${T('local_audio_lyrics')}<textarea data-lyrics rows="4" readonly></textarea></label><label>${T('local_audio_style')}<textarea data-style rows="2" readonly></textarea></label><label>${T('local_audio_duration')}<input data-duration type="number" min="0.001" step="any" /></label>`}
             ${kind === 'tts' ? `<label>${T('audio_option_model')}<select data-model><option value="qwen3-tts">Qwen3-TTS</option><option value="breeze-tts2">Breeze TTS 2</option></select></label>` : ''}
-            ${voice ? `<label>${T('local_voice_preset')}<select data-voice></select></label><p data-voice-description></p><audio data-voice-preview controls preload="none" hidden></audio><label>${T('local_voice_reference')}<select data-reference><option value="">${T('local_voice_use_preset')}</option></select></label><audio data-reference-preview preload="metadata" hidden></audio><div data-reference-trim hidden><cap-export-range data-reference-range></cap-export-range></div>${kind === 'tts' ? `<label>${T('local_voice_language')}<select data-language>${['Auto','Chinese','English','Japanese','Korean','German','French','Russian','Portuguese','Spanish','Italian'].map(language => `<option>${language}</option>`).join('')}</select></label><label>${T('local_voice_instruct')}<textarea data-instruct maxlength="1000" rows="2"></textarea></label><label>${T('local_voice_reference_text')}<textarea data-reference-text maxlength="4000" rows="2"></textarea></label>` : ''}` : ''}
+            ${kind === 'vc' ? `<div class="cat-te-audio-tabs" role="tablist">${[['character','asset_type_character'],['preset','local_voice_preset'],['reference','local_voice_reference']].map(([id, label]) => `<cap-tab-button data-voice-source="${id}">${T(label)}</cap-tab-button>`).join('')}</div><label data-character-field><select data-character aria-label="${T('asset_type_character')}"></select></label>` : ''}
+            ${voice ? `<div data-preset-panel><label>${kind === 'vc' ? '' : T('local_voice_preset')}<select data-voice aria-label="${T('local_voice_preset')}"></select></label><p data-voice-description></p><audio data-voice-preview controls preload="none" hidden></audio></div><label>${kind === 'vc' ? '' : T('local_voice_reference')}<select data-reference aria-label="${T('local_voice_reference')}"><option value="">${T('local_voice_use_preset')}</option></select></label><audio data-reference-preview preload="metadata" hidden></audio><div data-reference-trim hidden><cap-export-range data-reference-range></cap-export-range></div>${kind === 'tts' ? `<label>${T('local_voice_language')}<select data-language>${['Auto','Chinese','English','Japanese','Korean','German','French','Russian','Portuguese','Spanish','Italian'].map(language => `<option>${language}</option>`).join('')}</select></label><label>${T('local_voice_instruct')}<textarea data-instruct maxlength="1000" rows="2"></textarea></label><label>${T('local_voice_reference_text')}<textarea data-reference-text maxlength="4000" rows="2"></textarea></label>` : ''}` : ''}
             <details data-options></details></div>
             <div slot="footer"><cap-status-message role="status" copyable copy-label="${T('copy_status_message')}" copied-label="${T('copy_prompt_done_title')}" copy-failed-label="${T('copy_status_failed')}"></cap-status-message><div class="cat-te-confirm-actions"><cap-button data-settings>${T('voice_configure')}</cap-button><cap-button data-cancel>${T('close_title')}</cap-button><cap-button variant="primary" data-submit>${T(titleKey)}</cap-button></div></div>`;
         const options = new AudioOptions(this.dialog.querySelector('[data-options]'), kind);
@@ -235,7 +238,7 @@ export class LocalAudioJobs {
                 select.onchange = () => {
                     preview.pause();
                     const row = rows.find(row => row.id === select.value);
-                    const enabled = row?.preview_url && !reference.value && !breeze();
+                    const enabled = row?.preview_url && !reference.value && !breeze() && (kind !== 'vc' || voiceSource === 'preset');
                     preview.hidden = !enabled;
                     preview.removeAttribute('src');
                     if (enabled) preview.src = api.apiURL('/audio_keyframe_timeline/local_audio/voice_preview/' + encodeURIComponent(row.id) + '?kind=' + kind);
@@ -245,6 +248,58 @@ export class LocalAudioJobs {
                 preview.onerror = () => { this.dialog.querySelector('[role="status"]').setStatus(T('local_voice_no_preview'), 'warning'); };
                 select.onchange();
             }).catch(error => { if (this.dialog.querySelector('[data-voice]') === select) this.dialog.querySelector('[role="status"]').setStatus(error.message, 'error'); });
+        }
+        if (kind === 'vc') {
+            const reference = this.dialog.querySelector('[data-reference]');
+            const character = this.dialog.querySelector('[data-character]');
+            const characters = resources.filter(row => (row.kind === 'image' || row.kind === 'video')
+                && app._getMediaMeta(row.kind, row.file).mediaType === 'character');
+            const recordingFor = row => resources.find(item => item.id === row?.voice_audio_id && item.kind === 'audio' && item.file);
+            const empty = document.createElement('option');
+            empty.value = '';
+            empty.disabled = true;
+            empty.textContent = T('voice_character');
+            character.append(empty);
+            for (const row of characters) {
+                const option = document.createElement('option');
+                option.value = row.id;
+                option.textContent = row.name || row.file;
+                option.disabled = !recordingFor(row);
+                character.append(option);
+            }
+            character.value = characters.find(row => recordingFor(row))?.id || '';
+            let savedReference = '';
+            const modes = ['character', 'preset', 'reference'];
+            const tabs = modes.map(id => this.dialog.querySelector(`[data-voice-source="${id}"]`));
+            const syncSource = () => {
+                this.stopPreview();
+                this.dialog.querySelector('[data-preset-panel]').hidden = voiceSource !== 'preset';
+                this.dialog.querySelector('[data-character-field]').hidden = voiceSource !== 'character';
+                reference.parentElement.hidden = voiceSource !== 'reference';
+                const row = characters.find(row => row.id === character.value);
+                const recording = recordingFor(row);
+                reference.value = voiceSource === 'character' ? recording?.file || '' : voiceSource === 'reference' ? savedReference : '';
+                reference.onchange();
+                const status = this.dialog.querySelector('[role="status"]');
+                status.setStatus(voiceSource === 'character' && !recording ? T('voice_reference_missing') : '', 'warning');
+                tabs.forEach((tab, index) => {
+                    tab.setAttribute('aria-selected', String(modes[index] === voiceSource));
+                    tab.setAttribute('tabindex', modes[index] === voiceSource ? '0' : '-1');
+                });
+            };
+            reference.options[0].textContent = T('voice_choose_audio');
+            reference.addEventListener('change', () => { if (voiceSource === 'reference') savedReference = reference.value; });
+            character.onchange = syncSource;
+            tabs.forEach((tab, index) => {
+                const activate = next => { if (this.busy) return; voiceSource = modes[next]; syncSource(); };
+                tab.addEventListener('click', () => activate(index));
+                tab.addEventListener('keydown', event => {
+                    const next = event.key === 'ArrowRight' ? (index + 1) % 3 : event.key === 'ArrowLeft' ? (index + 2) % 3 : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : -1;
+                    if (next < 0) return;
+                    event.preventDefault(); activate(next); tabs[next].focus();
+                });
+            });
+            syncSource();
         }
         if (kind === 'tts') {
             model.onchange = () => {
@@ -296,7 +351,10 @@ export class LocalAudioJobs {
                     payload.reference_start_sec = range.startFrame / 1000;
                     payload.reference_end_sec = range.endFrame / 1000;
                 }
-                payload.speaker = this.dialog.querySelector('[data-voice]').value;
+                payload.speaker = kind === 'vc' && voiceSource !== 'preset' ? '' : this.dialog.querySelector('[data-voice]').value;
+                if (kind === 'vc' && voiceSource !== 'preset' && !payload.reference_file) {
+                    status.setStatus(T(voiceSource === 'character' ? 'voice_reference_missing' : 'voice_choose_audio'), 'warning'); return;
+                }
                 if (!payload.reference_file && !payload.speaker && !breeze()) { status.setStatus(T('local_voice_choose'), 'warning'); return; }
                 if (kind === 'tts') {
                     payload.model = model.value;

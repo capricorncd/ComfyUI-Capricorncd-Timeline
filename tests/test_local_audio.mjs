@@ -176,6 +176,11 @@ for (const kind of ['tts', 'vc']) {
     ui.open(target, kind === 'vc' ? {start: 5, sources: [{file: 'video.mp4', duration_sec: 2}]} : null, kind,
         { text: 'First\nSecond', start: 5, valid: () => true });
     ui.dialog.querySelector('[data-voice]').value = 'vivian';
+    if (kind === 'vc') {
+        await ui.dialog.querySelector('[data-submit]').onclick();
+        assert.equal(submitted, undefined, 'Missing character audio must not fall back to a preset');
+        ui.dialog.querySelector('[data-voice-source="preset"]').handlers.click();
+    }
     await ui.dialog.querySelector('[data-submit]').onclick();
     assert.equal(submitted.kind, kind);
     assert.equal(submitted.speaker, 'vivian');
@@ -360,3 +365,46 @@ assert.equal(directorSources[0].mix[0].trim_in_sec, 2);
 assert.equal(directorSources[0].mix[0].volume, 0.5);
 assert.equal(directorSources[0].mix[1].location, 'input');
 console.log('Director processing submits one timeline mix with offsets and volume');
+
+{
+    const target = {id:'vc-target', track:{}, duration:2};
+    const resources = [{id:'unbound', kind:'image', file:'unbound.png'}, {id:'missing', kind:'image', file:'missing.png', voice_audio_id:'deleted'}, {id:'girl', kind:'image', file:'girl.png', voice_audio_id:'voice'}, {id:'voice', kind:'audio', file:'excerpt.wav'}];
+    const application = {_timeline:{pause() {}}, _projectResources:resources, _findClipById:()=>target,
+        _ensureClipMeta:()=>({}), _getMediaMeta:()=>({mediaType:'character'}), _audioUrl:file=>'/audio/'+file,
+        _insertDenoisedAudio:async()=>true};
+    const ui = new LocalAudioJobs(application,{append() {}});
+    let submitted;
+    ui.request = async (path, payload) => {
+        if (path.startsWith('voices')) return [{id:'preset',vc_available:true}];
+        if (path === 'start') {submitted=payload;return {id:'job',status:'succeeded'};}
+        return {files:[{file:'converted.wav',duration_sec:2}]};
+    };
+    ui.open(target,{start:0,sources:[{file:'source.wav',duration_sec:2}]},'vc');
+    const reference=ui.dialog.querySelector('[data-reference]');
+    const characterSelect = ui.dialog.querySelector('[data-character]');
+    assert.equal(characterSelect.value, 'girl');
+    assert.equal(characterSelect.children.find(option => option.value === 'unbound').disabled, true);
+    assert.equal(characterSelect.children.find(option => option.value === 'missing').disabled, true);
+    assert.equal(characterSelect.children.find(option => option.value === 'girl').disabled, false);
+    assert.equal(reference.value,'excerpt.wav');
+    assert.equal(reference.parentElement.hidden,true);
+    assert.equal(ui.dialog.querySelector('[data-preset-panel]').hidden,true);
+    ui.dialog.querySelector('[data-voice-source="reference"]').handlers.click();
+    assert.equal(reference.value,'');
+    assert.equal(reference.parentElement.hidden,false);
+    await ui.dialog.querySelector('[data-submit]').onclick();
+    assert.equal(submitted,undefined);
+    reference.value='excerpt.wav'; reference.onchange(); reference.handlers.change();
+    ui.dialog.querySelector('[data-voice-source="preset"]').handlers.click();
+    assert.equal(reference.value,'');
+    ui.dialog.querySelector('[data-voice-source="reference"]').handlers.click();
+    assert.equal(reference.value,'excerpt.wav','Restore independent reference selection');
+    ui.dialog.querySelector('[data-voice-source="character"]').handlers.click();
+    const audio=ui.dialog.querySelector('[data-reference-preview]');
+    audio.duration=3; audio.onloadedmetadata();
+    await ui.dialog.querySelector('[data-submit]').onclick();
+    assert.equal(submitted.reference_file,'excerpt.wav');
+    assert.equal(submitted.speaker,'');
+    assert.equal(submitted.reference_end_sec,3);
+    console.log('VC source tabs: default character, preset isolation, reference restoration and request routing passed');
+}

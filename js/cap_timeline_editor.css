@@ -2648,7 +2648,7 @@ body.cat-te-media-dnd-over-tl {
     --cap-dialog-min-height: 200px;
 }
 .cat-te-bind-character-body { padding: 20px; }
-.cat-te-bind-character-body label { display: flex; flex-direction: column; gap: 8px; }
+.cat-te-bind-character-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
 .cat-te-bind-character-body select {
     width: 100%;
     box-sizing: border-box;
@@ -2660,6 +2660,19 @@ body.cat-te-media-dnd-over-tl {
     font: inherit;
 }
 .cat-te-bind-character-body p { margin: 12px 0 0; color: var(--cat-muted); }
+.cat-te-bind-character-preview {
+    margin-top: 16px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--cat-surface);
+}
+.cat-te-bind-character-preview img {
+    display: block;
+    width: 100%;
+    height: 240px;
+    max-height: 35vh;
+    object-fit: contain;
+}
 
 /* Launcher widget on the node */
 .cat-te-launcher {
@@ -2995,6 +3008,8 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-local-audio-dialog audio { width: 100%; }
 .cat-te-local-audio-dialog select[hidden] { display: none; }
 .cat-te-local-audio-dialog label[hidden] { display: none; }
+.cat-te-local-audio-dialog [data-preset-panel] { display: flex; flex-direction: column; gap: 12px; }
+.cat-te-local-audio-dialog [data-preset-panel][hidden] { display: none; }
 .cat-te-local-audio-dialog [data-options] > label { margin-top: 12px; }
 .cat-te-local-audio-dialog [data-options] > p { margin-top: 8px; color: var(--cat-muted); }
 .cat-te-audio-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 12px 0; }

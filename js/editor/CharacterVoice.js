@@ -1,5 +1,6 @@
 import "../components/Button.js";
 import "../components/Dialog.js";
+import "../components/TabButton.js";
 import { t as T } from "../i18n/timeline_editor.js";
 
 export class CharacterVoice {
@@ -81,45 +82,108 @@ export class CharacterVoice {
         const resources = app._projectResources;
         const timeline = app._timeline;
         const file = clip.src;
+        const duration = Number(clip.duration);
+        if (!Number.isFinite(duration) || duration <= 0) return;
+        const source = { file, location: "input", trim_in_sec: Math.max(0, Number(clip.sourceOffset) || 0),
+            duration_sec: duration, playback_rate: Number(clip.playbackRate) || 1 };
         const candidates = resources.filter(row => row.kind === "image" || row.kind === "video");
+        const types = ["character", "prop", "scene", "other"];
         const dialog = document.createElement("cap-dialog");
         dialog.className = "cat-te-bind-character-dialog";
         dialog.setAttribute("close-label", T("close_title"));
         dialog.innerHTML = `<span slot="title">${T("audio_bind_character")}</span>
           <div class="cat-te-bind-character-body">
-            <label>${T("voice_character")}<select></select></label>
+            <div class="cat-te-bind-character-tabs" role="tablist">${types.map(type => `<cap-tab-button data-type="${type}" id="voice-bind-tab-${type}" aria-controls="voice-bind-panel">${T(`asset_type_${type}`)}</cap-tab-button>`).join("")}</div>
+            <div id="voice-bind-panel" role="tabpanel"><select></select><div class="cat-te-bind-character-preview" hidden></div></div>
             <p role="status" hidden></p>
           </div>
           <div slot="footer" class="cat-te-confirm-actions"><cap-button data-action="close">${T("cancel_btn")}</cap-button>
           <cap-button data-action="bind" variant="primary">${T("audio_bind_character")}</cap-button></div>`;
         const select = dialog.querySelector("select");
-        for (const character of candidates) {
-            const option = document.createElement("option");
-            option.value = character.id;
-            option.textContent = character.name || character.file;
-            select.append(option);
-        }
+        const preview = dialog.querySelector(".cat-te-bind-character-preview");
+        const updatePreview = () => {
+            preview.replaceChildren();
+            const row = candidates.find(item => item.id === select.value);
+            preview.hidden = !row;
+            if (!row) return;
+            const image = document.createElement("img");
+            image.alt = row.name || row.file;
+            image.draggable = false;
+            preview.append(image);
+            if (row.kind === "image") image.src = app._imgUrl(row.file);
+            else app._getVideoThumbnail(row.file).then(url => {
+                if (url) image.src = url;
+            });
+        };
+        select.addEventListener("change", updatePreview);
         const bind = dialog.querySelector('[data-action="bind"]');
-        bind.disabled = !candidates.length;
-        if (!candidates.length) {
+        const tabs = types.map(type => dialog.querySelector(`[data-type="${type}"]`));
+        const selectType = type => {
+            tabs.forEach((tab, index) => {
+                tab.setAttribute("aria-selected", String(types[index] === type));
+                tab.setAttribute("tabindex", types[index] === type ? "0" : "-1");
+            });
+            dialog.querySelector('[role="tabpanel"]').setAttribute("aria-labelledby", `voice-bind-tab-${type}`);
+            select.setAttribute("aria-label", T(`asset_type_${type}`));
+            select.replaceChildren();
+            const matches = candidates.filter(row => {
+                const category = app._getMediaMeta(row.kind, row.file).mediaType;
+                return (types.includes(category) ? category : "other") === type;
+            });
+            for (const row of matches) {
+                const option = document.createElement("option");
+                option.value = row.id;
+                option.textContent = row.name || row.file;
+                select.append(option);
+            }
+            select.value = matches[0]?.id || "";
+            select.disabled = bind.disabled = !matches.length;
             const status = dialog.querySelector('[role="status"]');
-            status.hidden = false;
-            status.textContent = T("audio_bind_no_character");
-        }
+            status.hidden = !!matches.length;
+            status.textContent = matches.length ? "" : T("audio_bind_empty_category");
+            updatePreview();
+        };
+        tabs.forEach((tab, index) => {
+            tab.addEventListener("click", () => selectType(types[index]));
+            tab.addEventListener("keydown", event => {
+                const next = event.key === "ArrowRight" ? (index + 1) % types.length : event.key === "ArrowLeft" ? (index + types.length - 1) % types.length : event.key === "Home" ? 0 : event.key === "End" ? types.length - 1 : -1;
+                if (next < 0) return;
+                event.preventDefault();
+                selectType(types[next]);
+                tabs[next].focus();
+            });
+        });
+        selectType("character");
         dialog.querySelector('[data-action="close"]').addEventListener("click", () => dialog.close());
-        bind.addEventListener("click", () => {
+        bind.addEventListener("click", async () => {
             const character = candidates.find(row => row.id === select.value);
-            if (app._timeline !== timeline || app._projectResources !== resources
-                || !character || app._findMediaById(character.id) !== character) {
+            const valid = () => app._timeline === timeline && app._projectResources === resources
+                && character && app._findMediaById(character.id) === character;
+            if (!valid()) {
                 dialog.close();
                 return;
             }
-            app._recordUndo();
-            const audio = app._ensureMedia("audio", file);
-            character.voice_audio_id = audio.id;
-            app._saveToWidgets();
-            dialog.close();
-            app._openMediaPreview(character.file, character.kind);
+            const status = dialog.querySelector('[role="status"]');
+            const close = dialog.querySelector('[data-action="close"]');
+            dialog.closeDisabled = close.disabled = bind.disabled = select.disabled = true;
+            tabs.forEach(tab => { tab.disabled = true; });
+            status.hidden = false;
+            status.textContent = T("loading_ellipsis");
+            try {
+                const excerpt = await app._extractAudioFromMedia(file, { location: "input", durationSec: duration, mix: [source] });
+                if (!valid()) { dialog.close(); return; }
+                app._recordUndo();
+                const audio = app._ensureMedia("audio", excerpt);
+                character.voice_audio_id = audio.id;
+                app._saveToWidgets();
+                dialog.close();
+                app._openMediaPreview(character.file, character.kind);
+            } catch (error) {
+                status.textContent = error.message;
+            } finally {
+                dialog.closeDisabled = close.disabled = bind.disabled = select.disabled = false;
+                tabs.forEach(tab => { tab.disabled = false; });
+            }
         });
         dialog.addEventListener("close", () => dialog.remove(), { once: true });
         app._overlay.append(dialog);

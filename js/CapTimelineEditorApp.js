@@ -1048,13 +1048,20 @@ export class CapTimelineEditorApp {
         if (!this.genEditModal || this.genEditModal.hidden) return false;
         if (e.target?.closest?.("input, textarea, select, [contenteditable='true']")) return false;
         const key = this._shortcutModKey(e);
-        if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (key === "c" || key === "v")) {
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && ["c", "v", "x", "b"].includes(key)) {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation?.();
             if (!e.repeat) {
-                if (key === "c") this._copyGenEditAudioClips();
-                else this._pasteGenEditAudioClips();
+                if (key === "c") this._copyGenEditClips();
+                else if (key === "v") this._pasteGenEditClips();
+                else {
+                    const selected = this._genEditState?.timeline?.getSelectedClips() || [];
+                    if (selected.length === 1) {
+                        if (key === "x") this._splitGenEditClip(selected[0]);
+                        else this._toggleGenEditClipState(selected[0], selected[0].track.type === "audio" ? "muted" : "enabled");
+                    }
+                }
             }
             return true;
         }
@@ -1102,7 +1109,7 @@ export class CapTimelineEditorApp {
 
         const key = this._shortcutModKey(e);
         const inField = !!e.target?.closest?.("input, textarea, select, [contenteditable='true']");
-        if (this.genEditModal && !this.genEditModal.hidden && (key === "c" || key === "v")) return this.handleGenEditKey(e);
+        if (this.genEditModal && !this.genEditModal.hidden && ["c", "v", "x", "b"].includes(key)) return this.handleGenEditKey(e);
 
         // Claim the shortcut so other bubble handlers skip; tracker undo is
         // patched while fullscreen is open (see _capTePatchChangeTrackerUndo).
@@ -9260,7 +9267,7 @@ export class CapTimelineEditorApp {
                 aTrack.height = TRACK_HEIGHT;
                 aTrack.el.style.height = `${TRACK_HEIGHT}px`;
                 aTrack.headerEl.style.height = `${TRACK_HEIGHT}px`;
-                aTrack.setMuted(row.muted === true);
+                aTrack.setMuted(audioRows.filter(a => (a.track_id || `gen-audio-${a.id}`) === trackId).every(a => a.muted === true));
                 this._setupGenEditAudioTrackControls(aTrack);
                 audioTracks.set(trackId, aTrack);
             }
@@ -9283,7 +9290,8 @@ export class CapTimelineEditorApp {
             if (c) {
                 st.audioMap.set(c.id, row.id);
                 c.el.dataset.audioId = row.id;
-                c.el.classList.toggle("cat-te-clip-muted", aTrack.muted);
+                c.el.classList.toggle("cat-te-clip-muted", row.muted === true);
+                this._syncGenEditClipDisabled(c, row.enabled !== false);
                 c.hasAudio = true;
                 c.waveformVolume = normalizeClipVolume(row.volume);
                 c.audioEnvelope.points = normalizeVolumePoints(row.volume_points);
@@ -9380,8 +9388,8 @@ export class CapTimelineEditorApp {
             if (!clipEl) {
                 e.preventDefault();
                 e.stopPropagation();
-                this._buildCtxMenu([{ label: T("menu_paste_shortcut"), icon: "clipboard", disabled: !st.audioClipboard?.length,
-                    fn: () => this._pasteGenEditAudioClips() }], e.clientX, e.clientY);
+                this._buildCtxMenu([{ label: T("menu_paste_shortcut"), icon: "clipboard", disabled: !st.clipClipboard?.length,
+                    fn: () => this._pasteGenEditClips() }], e.clientX, e.clientY);
                 return;
             }
             e.preventDefault();
@@ -9414,10 +9422,17 @@ export class CapTimelineEditorApp {
                     },
                 ];
             if (canSplit) items.unshift({ label: T("menu_split"), icon: "scissors", fn: () => this._splitGenEditClip(c) });
+            const row = isAudioClip ? st.audioDraft.find(a => a.id === st.audioMap.get(c.id)) : st.draft.find(g => g.id === gid);
+            if (row) items.unshift(
+                { label: T(row.enabled === false ? "enabled_label" : "disable_label"), icon: row.enabled === false ? "eye" : "eyeOff", disabled: c.track.locked,
+                    fn: () => this._toggleGenEditClipState(c, "enabled") },
+                { label: T(row.muted ? "unmute_label" : "mute_label"), icon: row.muted ? "volume" : "volumeOff", disabled: c.track.locked,
+                    fn: () => this._toggleGenEditClipState(c, "muted") },
+            );
             items.push({ label: T("clip_export_title"), icon: "save", fn: () => this._exportGenEditClip(c) });
-            if (isAudioClip) items.unshift(
-                { label: T("menu_copy_shortcut"), icon: "copy", fn: () => this._copyGenEditAudioClips() },
-                { label: T("menu_paste_shortcut"), icon: "clipboard", disabled: !st.audioClipboard?.length, fn: () => this._pasteGenEditAudioClips() },
+            items.unshift(
+                { label: T("menu_copy_shortcut"), icon: "copy", fn: () => this._copyGenEditClips() },
+                { label: T("menu_paste_shortcut"), icon: "clipboard", disabled: !st.clipClipboard?.length, fn: () => this._pasteGenEditClips() },
             );
             items.unshift({ label: T("local_audio_denoise"), icon: "filter", fn: () => this._openGenEditDenoise(c) });
             if (isAudioClip || c.hasAudio) items.unshift({ label: T("local_audio_separation"), icon: "micVocal", fn: () => this._openGenEditDenoise(c, 'separation') });
@@ -9617,7 +9632,8 @@ export class CapTimelineEditorApp {
                         source_duration: Number.isFinite(Number(c.sourceDuration)) && c.sourceDuration > 0
                             ? Number(c.sourceDuration)
                             : (prev?.source_duration ?? null),
-                        muted: track.muted === true,
+                        muted: prev ? prev.muted === true : track.muted === true,
+                        enabled: prev?.enabled !== false,
                         from_gen_id: prev?.from_gen_id || null,
                         volume_points: normalizeVolumePoints(c.audioEnvelope?.points ?? prev?.volume_points),
                         volume: normalizeClipVolume(prev?.volume),
@@ -9672,26 +9688,37 @@ export class CapTimelineEditorApp {
         this._clipExport.open(project, clip.id);
     }
 
-    _copyGenEditAudioClips() {
+    _copyGenEditClips() {
         const st = this._genEditState;
         if (!st?.timeline) return false;
         this._pullGenEditDraftFromTimeline();
-        const ids = new Set(st.timeline.getSelectedClips().map(clip => st.audioMap.get(clip.id)));
-        const rows = st.audioDraft.filter(row => ids.has(row.id));
+        const selected = st.timeline.getSelectedClips();
+        const ids = new Set(selected.map(clip => st.audioMap.get(clip.id)));
+        const videoIds = new Set(selected.map(clip => st.clipMap.get(clip.id)));
+        const rows = [
+            ...st.audioDraft.filter(row => ids.has(row.id)),
+            ...st.draft.filter(row => videoIds.has(row.id)).map(row => ({ ...row, clipboardType: "video" })),
+        ];
         if (!rows.length) return false;
-        st.audioClipboard = structuredClone(rows);
+        st.clipClipboard = structuredClone(rows);
         return true;
     }
 
-    _pasteGenEditAudioClips() {
+    _pasteGenEditClips() {
         const st = this._genEditState;
-        if (!st?.timeline || !st.audioClipboard?.length) return false;
+        if (!st?.timeline || !st.clipClipboard?.length) return false;
         this._pullGenEditDraftFromTimeline();
         const time = st.timeline.currentTime;
-        const start = Math.min(...st.audioClipboard.map(row => row.edit_start_sec));
-        const rows = structuredClone(st.audioClipboard).map(row => ({ ...row, id: genAudioUid(),
+        const start = Math.min(...st.clipClipboard.map(row => row.edit_start_sec));
+        const rows = structuredClone(st.clipClipboard).map(row => ({ ...row, id: row.clipboardType === "video" ? genVideoUid() : genAudioUid(),
             from_gen_id: null, edit_start_sec: time + row.edit_start_sec - start }));
         for (const row of rows) {
+            if (row.clipboardType === "video") {
+                delete row.clipboardType;
+                delete row.from_gen_id;
+                st.draft.push(row);
+                continue;
+            }
             const tracks = st.timeline.tracks.filter(track => track.type === "audio" && !track.locked
                 && (track.muted === true) === (row.muted === true));
             tracks.sort((a, b) => Number(b.id === row.track_id) - Number(a.id === row.track_id));
@@ -9707,12 +9734,32 @@ export class CapTimelineEditorApp {
         const ids = new Set(rows.map(row => row.id));
         for (const track of st.timeline.tracks) {
             for (const clip of track.clips) {
-                if (ids.has(st.audioMap.get(clip.id))) st.timeline.selectClip(clip, { additive: true });
+                if (ids.has(st.audioMap.get(clip.id)) || ids.has(st.clipMap.get(clip.id))) st.timeline.selectClip(clip, { additive: true });
             }
         }
         this._syncGenEditInspector();
         this._scheduleGenEditPreview();
         return true;
+    }
+
+    _toggleGenEditClipState(clip, field) {
+        const st = this._genEditState;
+        if (!st || !clip || clip.track?.locked) return;
+        const time = st.timeline.currentTime;
+        this._pullGenEditDraftFromTimeline();
+        const row = st.audioDraft.find(a => a.id === st.audioMap.get(clip.id))
+            || st.draft.find(g => g.id === st.clipMap.get(clip.id));
+        if (!row) return;
+        row[field] = field === "enabled" ? row.enabled === false : !row.muted;
+        this._applyGenEditChanges();
+        this._buildGenEditTimeline();
+        st.timeline.setCurrentTime(time);
+        for (const track of st.timeline.tracks) {
+            const selected = track.clips.find(c => st.audioMap.get(c.id) === row.id || st.clipMap.get(c.id) === row.id);
+            if (selected) st.timeline.selectClip(selected);
+        }
+        this._syncGenEditInspector();
+        this._scheduleGenEditPreview();
     }
 
     _splitGenEditClip(clip) {
@@ -9735,6 +9782,7 @@ export class CapTimelineEditorApp {
             st.audioDraft.splice(index + 1, 0, right);
             this._applyGenEditChanges();
             this._buildGenEditTimeline();
+            st.timeline.setCurrentTime(t);
             this._syncGenEditInspector();
             this._scheduleGenEditPreview();
             return;
@@ -9762,6 +9810,7 @@ export class CapTimelineEditorApp {
         st.selectedId = right.id;
         this._applyGenEditChanges();
         this._buildGenEditTimeline();
+        st.timeline.setCurrentTime(t);
         this._syncGenEditInspector();
         this._scheduleGenEditPreview();
     }
@@ -9874,7 +9923,7 @@ export class CapTimelineEditorApp {
                     duration_sec: this._genEffectiveDurationSec(row) || clip.duration, playback_rate: normalizePlaybackRate(row.playback_rate),
                     edit_start_sec: row.edit_start_sec || 0,
                 })),
-                ...this._normalizeGenEditAudioDraft(meta.genEditAudios).map(row => ({
+                ...this._normalizeGenEditAudioDraft(meta.genEditAudios).filter(row => row.enabled !== false).map(row => ({
                     detachedId: row.id, file: row.file, location: 'input', trim_in_sec: row.source_offset,
                     duration_sec: row.duration, playback_rate: 1, edit_start_sec: row.edit_start_sec,
                 })),
@@ -9900,7 +9949,7 @@ export class CapTimelineEditorApp {
         const source = videoId ? state.draft.find(row => row.id === videoId) : state.audioDraft.find(row => row.id === audioId);
         const clip = this._findClipById(state.clipId);
         if (!source || !clip) return;
-        this._localAudioJobs.open(clip, { state, videoId, audioId, start: timelineClip.startTime,
+        this._localAudioJobs.open(clip, { state, videoId, audioId, disableSource: kind === 'vc', start: timelineClip.startTime,
             sources: [{ file: source.file, location: videoId ? "output" : "input", trim_in_sec: timelineClip.sourceOffset || 0,
                 duration_sec: timelineClip.duration, playback_rate: timelineClip.playbackRate || 1 }] }, kind);
     }
@@ -9917,6 +9966,7 @@ export class CapTimelineEditorApp {
                 duration: result.duration_sec, source_offset: 0, source_duration: result.duration_sec,
                 muted: false, from_gen_id: context.videoId || null });
             source.muted = true;
+            if (context.disableSource) source.enabled = false;
             this._applyGenEditChanges();
             this._buildGenEditTimeline();
             this._syncGenEditInspector();
@@ -9966,6 +10016,7 @@ export class CapTimelineEditorApp {
                     ? Number(row.source_duration ?? row.sourceDuration)
                     : null,
                 muted: row.muted === true,
+                enabled: row.enabled !== false,
                 from_gen_id: row.from_gen_id || row.fromGenId || null,
                 volume_points: normalizeVolumePoints(row.volume_points),
                 volume: normalizeClipVolume(row.volume),
@@ -10421,7 +10472,7 @@ export class CapTimelineEditorApp {
 
         const jobs = [];
         for (const row of st.audioDraft || []) {
-            if (row.muted === true || !row.file) continue;
+            if (row.enabled === false || row.muted === true || !row.file) continue;
             const start = Math.max(0, Number(row.edit_start_sec) || 0);
             const end = Math.min(clipDur, start + Math.max(0.05, Number(row.duration) || 0.05));
             if (end <= startPlayhead + 1e-6) continue;
@@ -13835,8 +13886,8 @@ export class CapTimelineEditorApp {
                 if (onlyClip && clip !== onlyClip) continue;
                 const m = this._meta.get(clip.id) ?? defaultImageMeta();
                 if (m.disabled || m.visible === false || m.muted) continue;
-                if (!onlyClip && !this._clipUsesGeneratedPreview(m)) continue;
-                const gens = this._clipGeneratedVideos(m).filter((g) => g.enabled !== false);
+                const gens = onlyClip || this._clipUsesGeneratedPreview(m)
+                    ? this._clipGeneratedVideos(m).filter((g) => g.enabled !== false) : [];
                 for (const gen of gens) {
                     if (gen.muted === true || !gen.file) continue;
                     const editStart = Math.max(0, Number(gen.edit_start_sec) || 0);
@@ -13855,7 +13906,7 @@ export class CapTimelineEditorApp {
                 }
                 // Detached audios from gen-edit modal (saved on the clip).
                 for (const row of this._normalizeGenEditAudioDraft(m.genEditAudios)) {
-                    if (row.muted === true || !row.file) continue;
+                    if (row.enabled === false || row.muted === true || !row.file) continue;
                     const absStart = clip.startTime + Math.max(0, Number(row.edit_start_sec) || 0);
                     const absEnd = Math.min(clip.endTime, absStart + Math.max(0.05, Number(row.duration) || 0.05));
                     if (absEnd <= absStart || absEnd <= t0 + 1e-6) continue;
@@ -20075,6 +20126,7 @@ export class CapTimelineEditorApp {
                             volume_points: normalizeVolumePoints(a.volume_points),
                             ...(a.source_duration != null ? { source_duration: a.source_duration } : {}),
                             muted: a.muted === true,
+                            enabled: a.enabled !== false,
                             ...(a.from_gen_id ? { from_gen_id: a.from_gen_id } : {}),
                         }));
                     }

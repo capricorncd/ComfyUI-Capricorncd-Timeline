@@ -36,6 +36,15 @@ def probe(path):
 
 @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg required")
 class ComposeRangeAudioTests(unittest.TestCase):
+    def test_disabled_detached_audio_is_excluded(self):
+        project = dict(settings=dict(width=32, height=32, fps=24), tracks=[dict(type='director', clips=[dict(
+            start_ms=0, duration_ms=1000, gen_edit_audios=[
+                dict(file='missing-disabled.wav', enabled=False, muted=False, duration=1),
+                dict(file=str(self.audio), enabled=True, muted=False, duration=1),
+            ])])])
+        plan = scope['_collect_plan'](project)
+        self.assertEqual(len(plan['audio_segs']), 1)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="cap_export_test_")
         self.addCleanup(self.temp.cleanup)

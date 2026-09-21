@@ -17,6 +17,8 @@ assert.equal(state.audioDraft[0].edit_start_sec, 3);
 assert.equal(state.audioDraft[0].duration, 5);
 assert.equal(original.muted, true);
 assert.equal(original.file, 'old.mp4');
+assert(await insert.call(app, clip, { state, videoId: 'original', start: 3, disableSource: true }, { file: 'voice.wav', duration_sec: 5 }, () => true));
+assert.equal(original.enabled, false, 'Successful voice conversion disables the original clip');
 assert.equal(await insert.call(app, clip, { state: {}, videoId: 'original', start: 3 }, { file: 'unused.wav' }, () => true), false);
 let added;
 const meta = {};

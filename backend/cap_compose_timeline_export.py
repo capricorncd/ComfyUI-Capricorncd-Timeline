@@ -244,7 +244,7 @@ def _collect_plan(
                     })
                 if not track.get("muted") and not clip.get("muted"):
                     for audio in _as_list(clip.get("gen_edit_audios")):
-                        if not isinstance(audio, dict) or audio.get("muted"):
+                        if not isinstance(audio, dict) or audio.get("muted") or audio.get("enabled") is False:
                             continue
                         offset = max(0.0, float(audio.get("edit_start_sec") or 0))
                         duration = min(float(audio.get("duration") or 0), clip_duration - offset)

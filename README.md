@@ -80,3 +80,7 @@ See the [node documentation index](docs/nodes.md) for supporting prompt, image, 
 [MIT](LICENSE)
 
 Icons in `js/cap_icons.js` include [Lucide](https://lucide.dev/icons) icons (ISC) and Feather-derived icons (MIT). See [the full third-party license notices](js/LICENSE.lucide).
+
+### H3 音频修复配置
+
+添加 `H3 Audio Refine Config`，连接生成器的 `audio_refine_config`。配置节点控制启用、步数、音频修复强度和缓存模式（off/auto/ram/vram）；默认关闭缓存、保留音频修复。不连接或关闭 enabled 时跳过修复。旧工作流的音频修复开关与步数请迁移到配置节点。`generate_audio` 关闭或数字人片段仍会跳过修复，响度归一化保留在生成器。

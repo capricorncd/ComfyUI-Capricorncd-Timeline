@@ -1,15 +1,15 @@
 import { app } from "../../scripts/app.js";
 
 const INPUT_ORDER = [
-    "model", "base_model", "clip", "vae", "audio_vae", "data_json", "face_refine_config", "selflift_config", "interpolation_config",
+    "model", "base_model", "clip", "vae", "audio_vae", "data_json", "audio_refine_config", "face_refine_config", "selflift_config", "interpolation_config",
     "steps", "attention",
     "second_sampling", "first_pass_megapixels", "upscaler_model", "refine_sigmas",
     "motion_deblur",
     "sampling_preview", "preview_tiny_vae",
-    "generate_audio", "audio_refine", "audio_refine_steps", "normalize_audio",
+    "generate_audio", "normalize_audio",
     "compose_final",
 ];
-const WIDGET_ORDER = INPUT_ORDER.slice(9);
+const WIDGET_ORDER = INPUT_ORDER.slice(10);
 const rank = name => {
     const index = INPUT_ORDER.indexOf(name);
     return index < 0 ? INPUT_ORDER.length : index;
@@ -43,11 +43,14 @@ app.registerExtension({
         const configure = nodeType.prototype.configure;
         nodeType.prototype.configure = function (info) {
             // LiteGraph saves widget values positionally; restore by the saved names.
-            const inputWidgets = info.inputs?.filter(input => WIDGET_ORDER.includes(input.widget?.name) || input.widget?.name === "strict_keyframes")
+            const inputWidgets = info.inputs?.filter(input => WIDGET_ORDER.includes(input.widget?.name) || ["strict_keyframes", "audio_refine", "audio_refine_steps"].includes(input.widget?.name))
                 .map(input => input.widget.name) ?? [];
             const legacyOrder = [...schemaOrder];
-            if (!legacyOrder.includes("strict_keyframes") && info.widgets_values?.length === schemaOrder.length + 1) {
-                legacyOrder.splice(legacyOrder.indexOf("steps") + 1, 0, "strict_keyframes");
+            if (!info.properties?.cap_h3_widget_order && info.widgets_values?.length >= schemaOrder.length + 1) {
+                legacyOrder.splice(legacyOrder.indexOf("normalize_audio"), 0, "audio_refine", "audio_refine_steps");
+                if (typeof info.widgets_values[2] === "boolean") {
+                    legacyOrder.splice(legacyOrder.indexOf("steps") + 1, 0, "strict_keyframes");
+                }
             }
             const savedOrder = info.properties?.cap_h3_widget_order
                 ?? (inputWidgets.length === info.widgets_values?.length ? inputWidgets : legacyOrder.slice(0, info.widgets_values?.length));

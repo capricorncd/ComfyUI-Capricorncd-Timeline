@@ -2673,6 +2673,16 @@ body.cat-te-media-dnd-over-tl {
     max-height: 35vh;
     object-fit: contain;
 }
+.cat-te-image-crop-dialog {
+    --cap-dialog-width: 1000px;
+    --cap-dialog-height: fit-content;
+    --cap-dialog-min-width: 360px;
+    --cap-dialog-min-height: 280px;
+}
+.cat-te-image-crop-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.cat-te-image-crop-body label { display: flex; gap: 12px; align-items: center; }
+.cat-te-image-crop-body p { margin: 0; color: var(--cat-muted); }
+.cat-te-image-crop-body canvas { max-width: 100%; max-height: 48vh; width: auto; height: auto; touch-action: none; cursor: move; }
 
 /* Launcher widget on the node */
 .cat-te-launcher {

@@ -19,6 +19,7 @@ from aiohttp import web
 import folder_paths
 
 from .cap_reveal_file import reveal_file
+from .cap_image_crop import crop_image_file
 from .cap_i18n import resolve_lang, t
 from .cap_video_metadata import read_video_generation
 from .cap_local_audio import register_local_audio_routes, prepare_clip_mix
@@ -112,6 +113,10 @@ from .cap_h3_selflift import (
     NODE_CLASS_MAPPINGS as _H3SL_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _H3SL_NAMES,
 )
+from .cap_h3_audio_refine import (
+    NODE_CLASS_MAPPINGS as _H3AR_CLASS,
+    NODE_DISPLAY_NAME_MAPPINGS as _H3AR_NAMES,
+)
 from .cap_h3_face_refine import (
     NODE_CLASS_MAPPINGS as _H3FR_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _H3FR_NAMES,
@@ -157,6 +162,7 @@ NODE_CLASS_MAPPINGS = {
     **_H3FAR_CLASS,
     **_H3VG_CLASS,
     **_H3FR_CLASS,
+    **_H3AR_CLASS,
     **_H3SL_CLASS,
     **_H3FI_CLASS,
     **_CVP_CLASS,
@@ -186,6 +192,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **_H3FAR_NAMES,
     **_H3VG_NAMES,
     **_H3FR_NAMES,
+    **_H3AR_NAMES,
     **_H3SL_NAMES,
     **_H3FI_NAMES,
     **_CVP_NAMES,
@@ -747,6 +754,28 @@ def _register_routes():
             return web.json_response({"error": str(exc)}, status=500)
         except Exception as exc:
             logging.exception("[CapricorncdTools] compose_video error")
+            return web.json_response({"error": str(exc)}, status=500)
+
+    @routes.post("/audio_keyframe_timeline/crop_image")
+    async def api_crop_image(request: web.Request) -> web.Response:
+        try:
+            payload = await request.json()
+            if not isinstance(payload, dict):
+                raise ValueError("Invalid crop request.")
+            location = payload.get("location", "input")
+            if location not in ("input", "assets"):
+                raise ValueError("Invalid image location.")
+            base = folder_paths.get_input_directory() if location == "input" else resolve_assets_dir(payload.get("dir", ""))
+            src = _safe_join(base, str(payload.get("file") or "")) if base else None
+            if not src or not os.path.isfile(src):
+                raise ValueError("Original image not found.")
+            dest = _unique_destination(os.path.join(folder_paths.get_input_directory(), "capricorncd-timeline", "images"),
+                                       os.path.splitext(os.path.basename(src))[0] + f"_crop_{uuid.uuid4().hex[:8]}.png")
+            size = await asyncio.to_thread(crop_image_file, src, dest, payload.get("rect"))
+            return web.json_response({"file": os.path.relpath(dest, folder_paths.get_input_directory()).replace(os.sep, "/"), **size})
+        except (ValueError, TypeError, KeyError) as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        except OSError as exc:
             return web.json_response({"error": str(exc)}, status=500)
 
     @routes.post("/audio_keyframe_timeline/trim_video")

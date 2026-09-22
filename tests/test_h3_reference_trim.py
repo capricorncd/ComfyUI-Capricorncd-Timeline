@@ -11,6 +11,31 @@ cls = next(n for n in TREE.body if isinstance(n, ast.ClassDef) and n.name == 'CA
 load = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == '_load_video_ref')
 
 class H3ReferenceTrimTests(unittest.TestCase):
+    def test_reference_calls_match_installed_comfyui_signature(self):
+        upstream = ast.parse((ROOT.parents[1] / 'comfy_extras/nodes_minimax_h3.py').read_text(encoding='utf-8'))
+        node = next(n for n in upstream.body if isinstance(n, ast.ClassDef) and n.name == 'MiniMaxH3ReferenceToVideo')
+        execute = next(n for n in node.body if isinstance(n, ast.FunctionDef) and n.name == 'execute')
+        execute.decorator_list = []
+        execute.returns = None
+        execute.body = ast.parse('return locals()').body
+        scope = {}
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[execute], type_ignores=[])), '<upstream signature>', 'exec'), scope)
+        values = dict(clip=object(), vae=object(), audio_vae=object(), prompt='A walking cat',
+                      width=768, height=512, length=124, ref_image_size='match',
+                      ref_images={'ref_image_1': object()}, ref_videos={'ref_video_1': object()},
+                      ref_video_audios={'ref_video_audio_1': object()}, ref_audios={'ref_audio_1': object()})
+        values['MiniMaxH3ReferenceToVideo'] = SimpleNamespace(execute=lambda *a, **kw: scope['execute'](None, *a, **kw))
+        calls = [n for n in ast.walk(cls) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                 and isinstance(n.func.value, ast.Name) and n.func.value.id == 'MiniMaxH3ReferenceToVideo'
+                 and n.func.attr == 'execute']
+        self.assertEqual(len(calls), 2)
+        for call in calls:
+            with self.subTest(line=call.lineno):
+                bound = eval(compile(ast.Expression(body=call), '<reference call>', 'eval'), values)
+                for name in ('clip', 'vae', 'audio_vae', 'prompt', 'width', 'height', 'length',
+                             'ref_image_size', 'ref_images', 'ref_videos', 'ref_video_audios', 'ref_audios'):
+                    self.assertEqual(bound[name], values[name])
+
     def load(self, trim, extra=0, available=1000):
         calls = []
         def video(path, start_time, duration):

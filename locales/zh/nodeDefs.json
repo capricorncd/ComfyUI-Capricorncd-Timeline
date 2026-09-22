@@ -1,4 +1,30 @@
 {
+  "CAP_H3AudioRefineConfig": {
+    "display_name": "H3 音频修复配置",
+    "description": "配置视频生成器的音频修复。默认关闭视频缓存，但保留音频修复；不连接或关闭启用开关时跳过修复。",
+    "inputs": {
+      "steps": {
+        "name": "修复步数"
+      },
+      "audio_denoise": {
+        "name": "音频修复强度",
+        "tooltip": "默认 0.5。数值越大，重新生成音频的程度越高。"
+      },
+      "cache_mode": {
+        "name": "视频缓存模式",
+        "tooltip": "off：关闭缓存（默认）；auto：自动选择；ram：系统内存；vram：显存。关闭缓存仍会执行音频修复，可避开缓存构建过程。"
+      },
+      "enabled": {
+        "name": "启用音频修复",
+        "tooltip": "关闭时输出空配置，视频生成器跳过额外音频修复。"
+      }
+    },
+    "outputs": {
+      "audio_refine_config": {
+        "name": "H3 音频修复配置"
+      }
+    }
+  },
   "CAP_H3FaceRefineConfig": {
     "display_name": "H3 面部修复配置",
     "inputs": {
@@ -701,6 +727,10 @@
   "CAP_H3VideoGenerator": {
     "display_name": "MiniMax H3 视频生成",
     "inputs": {
+      "audio_refine_config": {
+        "name": "H3 音频修复配置",
+        "tooltip": "连接 H3 音频修复配置节点，在该节点设置启用、步数、强度和缓存模式。"
+      },
       "interpolation_config": {
         "name": "插帧配置"
       },

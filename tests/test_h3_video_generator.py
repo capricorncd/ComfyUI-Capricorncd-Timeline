@@ -300,6 +300,23 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(next(kw["model"] for name, kw in self.calls if name == "BasicScheduler"), "with-lora")
         self.assertTrue(any(name == "H3AudioRefineSampler" for name, _ in self.calls))
 
+    def test_audio_config_without_cache_preserves_repair(self):
+        config = dict(steps=5, audio_denoise=0.3, cache_mode="off")
+        self.run_node(audio_refine_config=config)
+        self.assertNotIn("H3FrozenVideoCache", [name for name, _ in self.calls])
+        repair = next(kw for name, kw in self.calls if name == "H3AudioRefineSampler")
+        self.assertEqual(repair["steps"], 5)
+        self.assertEqual(repair["audio_denoise"], 0.3)
+
+    def test_audio_config_selects_cache_backend(self):
+        self.run_node(audio_refine_config=dict(steps=3, audio_denoise=0.5, cache_mode="ram"))
+        cache = next(kw for name, kw in self.calls if name == "H3FrozenVideoCache")
+        self.assertEqual(cache["backend"], "ram")
+
+    def test_silent_mode_ignores_audio_config(self):
+        self.run_node(generate_audio=False, audio_refine_config=dict(steps=3, audio_denoise=0.5, cache_mode="off"))
+        self.assertNotIn("H3AudioRefineSampler", [name for name, _ in self.calls])
+
     def test_silent_mode_still_skips_repair_without_base(self):
         self.run_node(audio_refine=True, generate_audio=False, base_model=None)
         self.assertFalse(any(name == "H3AudioRefineSampler" for name, _ in self.calls))

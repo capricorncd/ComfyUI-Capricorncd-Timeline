@@ -149,8 +149,6 @@ class CAP_H3VideoGenerator:
                 "first_pass_megapixels": ("FLOAT", {"default": 0.2, "min": 0.01, "max": 8.0, "step": 0.01, "tooltip": "Only used with second sampling: sets first-pass resolution before upscale to data_json dimensions. Without second sampling, generate directly at data_json width/height and ignore this value."}),
                 "upscaler_model": (["none"] + upscale_models,),
                 "refine_sigmas": ("STRING", {"default": REFINE_SIGMAS}),
-                "audio_refine": ("BOOLEAN", {"default": False, "tooltip": "Run the extra audio-only repair pass. Ignored when generate_audio is off."}),
-                "audio_refine_steps": ("INT", {"default": 3, "min": 1, "max": 12}),
                 "normalize_audio": ("BOOLEAN", {"default": False, "tooltip": "Normalize to -14 LUFS; requires WanVideoWrapper NormalizeAudioLoudness."}),
                 "attention": (["keep", "pytorch attention", "comfy kitchen attention"], {"default": "keep"}),
             },
@@ -161,6 +159,7 @@ class CAP_H3VideoGenerator:
                 "preview_tiny_vae": (["none"] + folder_paths.get_filename_list("vae_approx"), {"default": "none", "tooltip": "Select taeh3.safetensors for H3 RGB previews if installed in models/vae_approx. none uses approximate latent colors; completed videos always use the full VAE."}),
                 "generate_audio": ("BOOLEAN", {"default": True, "tooltip": "Include generated audio in Clip and final videos. Off skips audio repair, decoding, normalization and audio encoding for silent MV footage. H3 still jointly samples the audio latent; reference audio is preserved."}),
                 "motion_deblur": ("BOOLEAN", {"default": False, "tooltip": "Experimental MAINodes motion repair after video sampling. Requires ComfyUI-MAINodes and base_model without acceleration LoRA. Extra sampling/encode/decode increases time and memory; motion details may change. Keeps original frame count, audio and context prefix."}),
+                "audio_refine_config": ("CAP_H3_AUDIO_REFINE_CONFIG", {"tooltip": "Connect H3 Audio Refine Config. Disconnected or disabled skips audio repair."}),
                 "face_refine_config": ("CAP_H3_FACE_REFINE_CONFIG", {"tooltip": "Connect H3 Face Refine Config. Enable or disable repair on that config node."}),
                 "selflift_config": ("CAP_H3_SELFLIFT_CONFIG",),
                 "interpolation_config": ("CAP_H3_INTERPOLATION_CONFIG", {"tooltip": "Connect H3 Interpolation Config. Enable or disable interpolation on that config node."}),
@@ -179,7 +178,7 @@ class CAP_H3VideoGenerator:
                  prompt=None, extra_pnginfo=None,
                  unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False,
                  face_refine_config=None, selflift_config=None,
-                 interpolation_config=None):
+                 interpolation_config=None, audio_refine_config=None):
         data = json.loads(data_json)
         width, height, fps = _validate(data)
         face_refine = face_refine_config is not None
@@ -192,6 +191,14 @@ class CAP_H3VideoGenerator:
             interpolation = dict(ckpt_name=config["rife_model"], multiplier=config["interpolation_multiplier"],
                                  scale_factor=config["rife_scale_factor"], ensemble=config["rife_ensemble"] and config["rife_model"] != "rife426.pth",
                                  fast_mode=True, clear_cache_after_n_frames=config["rife_clear_cache_after_n_frames"])
+        if audio_refine_config is not None:
+            audio_refine_config = dict(audio_refine_config)
+            audio_refine_steps = audio_refine_config["steps"]
+            audio_refine = True
+        elif audio_refine:
+            audio_refine_config = dict(steps=audio_refine_steps, audio_denoise=0.5, cache_mode="auto")
+        if audio_refine_config is not None and audio_refine_config["cache_mode"] not in ("off", "auto", "ram", "vram"):
+            raise ValueError("Invalid audio repair cache mode.")
         audio_refine = bool(generate_audio and audio_refine)
         normalize_audio = bool(generate_audio and normalize_audio)
         if all(row.get("clip_role") == "digital_human" for row in data["clips"]):
@@ -257,7 +264,9 @@ class CAP_H3VideoGenerator:
         if any(row.get("save_latent") for row in data["clips"]):
             required += ["MiniMaxH3MotionContextSaveLatent", "MiniMaxH3MotionContextLoadLatent"]
         if audio_refine:
-            required += ["H3FrozenVideoCache", "H3AudioRefineSampler"]
+            required.append("H3AudioRefineSampler")
+            if audio_refine_config["cache_mode"] != "off":
+                required.append("H3FrozenVideoCache")
         if normalize_audio:
             required.append("NormalizeAudioLoudness")
         for name in required:
@@ -348,7 +357,7 @@ class CAP_H3VideoGenerator:
                 fps, steps, row.get("clip_role") == "first_last", second_sampling, upscaler_model, refine_sigmas,
                 audio_refine, audio_refine_steps, normalize_audio, attention, prior_paths,
                 run_token, dict(records), extra_pnginfo,
-                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur, face_refine_config, selflift_config, interpolation)
+                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur, face_refine_config, selflift_config, interpolation, audio_refine_config)
             filename = saved["result"][0]
             row["output_video"] = filename
             for owner in data["clips"]:
@@ -392,7 +401,7 @@ class CAP_H3VideoGenerator:
     def _generate_clip(self, model, base_model, clip, vae, audio_vae, data, index, width, height, low_width, low_height,
                        fps, steps, strict_keyframes, second_sampling, upscaler_model, refine_sigmas,
                        audio_refine, audio_refine_steps, normalize_audio, attention, prior_paths,
-                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, motion_deblur=False, face_refine_config=None, selflift_config=None, interpolation=None):
+                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, motion_deblur=False, face_refine_config=None, selflift_config=None, interpolation=None, audio_refine_config=None):
         if progress:
             progress("prepare")
         row = data["clips"][index]
@@ -490,12 +499,13 @@ class CAP_H3VideoGenerator:
             repair_model, = _call("MiniMaxH3SigmaShift", records, model=base_model, shift_video=12.0, shift_audio=3.0)
             if attention != "keep":
                 repair_model, = _call("ModelAttentionBackend", records, model=repair_model, attention=attention)
-            repair_model, = _call("H3FrozenVideoCache", records, model=repair_model, enabled=True,
-                                 cache_contents="hidden", backend="auto", precision="int4", refresh_interval=0,
-                                 verbose=False, allow_disk=False, vram_margin_gb=1.0)
+            if audio_refine_config["cache_mode"] != "off":
+                repair_model, = _call("H3FrozenVideoCache", records, model=repair_model, enabled=True,
+                                     cache_contents="hidden", backend=audio_refine_config["cache_mode"], precision="int4", refresh_interval=0,
+                                     verbose=False, allow_disk=False, vram_margin_gb=1.0)
             audio_result, = _call("H3AudioRefineSampler", records, model=repair_model, positive=positive, negative=positive,
                                  latent=result, seed=seed, steps=audio_refine_steps, cfg=1.0, sampler_name="euler",
-                                 scheduler="simple", audio_denoise=0.5, video_denoise=0.0)
+                                 scheduler="simple", audio_denoise=audio_refine_config["audio_denoise"], video_denoise=0.0)
             del repair_model
         else:
             audio_result = result
@@ -570,6 +580,7 @@ class CAP_H3VideoGenerator:
         saved = CAP_SeqToVideo().execute("", output_fps, output, images=images, audio=audio,
                                         metadata=json.dumps({"clip_id": cid, "strict_keyframes": strict_keyframes,
                                                              "generate_audio": generate_audio, "audio_refine": bool(generate_audio and audio_refine),
+                                                             "audio_refine_config": audio_refine_config if generate_audio and audio_refine else None,
                                                              "digital_human": digital_human,
                                                              "normalize_audio": bool(generate_audio and normalize_audio),
                                                              "second_sampling": second_sampling, "width": width, "height": height,

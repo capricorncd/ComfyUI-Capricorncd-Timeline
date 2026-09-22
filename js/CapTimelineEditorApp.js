@@ -26,6 +26,7 @@ import { LocalAudioJobs } from "./editor/LocalAudioJobs.js";
 import { ClipExport } from "./editor/ClipExport.js";
 import { VideoTrim, cutVideo, videoTrimSource } from "./editor/VideoTrim.js";
 import { SubtitleSpeech } from "./editor/SubtitleSpeech.js";
+import { ImageCrop } from "./editor/ImageCrop.js";
 import { CharacterVoice } from "./editor/CharacterVoice.js";
 import { Timeline, ICONS } from "./timeline/index.js";
 import { isEditingField, normalizePlaybackRate } from "./timeline/utils.js";
@@ -3850,6 +3851,7 @@ export class CapTimelineEditorApp {
               <div class="cat-te-modal-header cat-te-media-preview-header">
                 <span class="cat-te-media-preview-title">${T("media_preview_title")}</span>
                 <div class="cat-te-media-preview-stars"></div>
+                <cap-button class="cat-te-media-crop" hidden>${T("image_crop_title")}</cap-button>
                 <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-media-preview-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
               </div>
               <div class="cat-te-media-preview-body">
@@ -4974,6 +4976,11 @@ export class CapTimelineEditorApp {
         this._localAudioJobs = new LocalAudioJobs(this, el);
         this._clipExport = new ClipExport(el);
         this._videoTrim = new VideoTrim(this, el);
+        this._imageCrop = new ImageCrop(this, el);
+        el.querySelector(".cat-te-media-crop").addEventListener("click", () => {
+            const item = this._mediaPreviewItem();
+            if (item?.kind === "image") void this._imageCrop.open(item);
+        });
         this._characterVoice = new CharacterVoice(this, el.querySelector(".cat-te-character-voice"));
         this.importZipInput = el.querySelector(".cat-te-import-zip");
         el.querySelector(".cat-te-import").bindMenu(e => this._showImportMenu(e));
@@ -6233,6 +6240,7 @@ export class CapTimelineEditorApp {
                 ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
                 ...(row.voice_language ? { voice_language: String(row.voice_language) } : {}),
                 ...(row.video_trim ? { video_trim: { ...row.video_trim } } : {}),
+                ...(row.image_crop ? { image_crop: structuredClone(row.image_crop) } : {}),
                 tags: Array.isArray(row.tags) ? row.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
             };
             const stars = Number(row.stars);
@@ -6333,6 +6341,7 @@ export class CapTimelineEditorApp {
                 ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
                 ...(row.voice_language ? { voice_language: String(row.voice_language) } : {}),
                 ...(row.video_trim ? { video_trim: { ...row.video_trim } } : {}),
+                ...(row.image_crop ? { image_crop: structuredClone(row.image_crop) } : {}),
                 tags: tags.map((t) => String(t || "").trim()).filter(Boolean),
             };
             const stars = Number(row.stars ?? local.stars);
@@ -15275,6 +15284,7 @@ export class CapTimelineEditorApp {
         const item = this._mediaPreviewItem();
         if (!item) return;
         const { file, kind } = item;
+        this._overlay.querySelector(".cat-te-media-crop").hidden = kind !== "image";
 
         for (const media of this.mediaPreviewStage.querySelectorAll("audio, video")) {
             media.pause();

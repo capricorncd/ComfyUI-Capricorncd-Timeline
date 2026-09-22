@@ -630,7 +630,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
             )
         else:
             out = MiniMaxH3ReferenceToVideo.execute(
-                clip, vae, audio_vae, prompt, width, height, length, ref_image_size,
+                clip=clip, prompt=prompt, width=width, height=height, length=length,
+                ref_image_size=ref_image_size, vae=vae, audio_vae=audio_vae,
                 ref_images=ref_images or None,
                 ref_videos=ref_videos or None,
                 ref_video_audios=ref_video_audios or None,
@@ -666,7 +667,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 )
                 length = clip_frames
                 out = MiniMaxH3ReferenceToVideo.execute(
-                    clip, vae, audio_vae, prompt, width, height, length, ref_image_size,
+                    clip=clip, prompt=prompt, width=width, height=height, length=length,
+                    ref_image_size=ref_image_size, vae=vae, audio_vae=audio_vae,
                     ref_images=ref_images or None,
                     ref_videos=ref_videos or None,
                     ref_video_audios=ref_video_audios or None,

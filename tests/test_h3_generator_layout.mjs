@@ -10,10 +10,10 @@ vm.runInNewContext(readFileSync(new URL('../js/cap_h3_video_generator.js', impor
 const oldWidgets = ['steps', 'strict_keyframes', 'second_sampling', 'first_pass_megapixels',
     'upscaler_model', 'refine_sigmas', 'audio_refine', 'audio_refine_steps', 'normalize_audio',
     'attention', 'compose_final', 'sampling_preview', 'preview_tiny_vae', 'generate_audio'];
-const currentWidgets = [...oldWidgets.filter(name => name !== 'strict_keyframes'), 'motion_deblur'];
+const currentWidgets = [...oldWidgets.filter(name => !['strict_keyframes', 'audio_refine', 'audio_refine_steps'].includes(name)), 'motion_deblur'];
 const expected = ['steps', 'attention', 'second_sampling', 'first_pass_megapixels',
     'upscaler_model', 'refine_sigmas', 'motion_deblur', 'sampling_preview', 'preview_tiny_vae', 'generate_audio',
-    'audio_refine', 'audio_refine_steps', 'normalize_audio', 'compose_final'];
+    'normalize_audio', 'compose_final'];
 const oldInputs = ['model', 'clip', 'vae', 'audio_vae', 'data_json', 'base_model']
     .map((name, i) => ({name, link: i + 1}));
 const savedInputs = [...oldInputs, ...oldWidgets.map(name => ({name, widget: {name}, link: null}))];
@@ -31,14 +31,16 @@ class Node {
     }
 }
 await extension.beforeRegisterNodeDef(Node, {name: 'CAP_H3VideoGenerator', input: {
-    required: Object.fromEntries(oldWidgets.slice(0, 10).map(name => [name, {}])),
-    optional: Object.fromEntries([...oldWidgets.slice(10), 'motion_deblur'].map(name => [name, {}])),
+    required: Object.fromEntries(currentWidgets.slice(0, 7).map(name => [name, {}])),
+    optional: Object.fromEntries(currentWidgets.slice(7).map(name => [name, {}])),
 }});
 const node = new Node();
 node.onNodeCreated();
 assert.deepEqual(node.inputs.map(i => i.name), ['model', 'base_model', 'clip', 'vae', 'audio_vae', 'data_json']);
 assert.deepEqual(node.widgets.map(w => w.name), [...expected, 'stv_ui']);
 const values = Object.fromEntries(oldWidgets.map(name => [name, `saved:${name}`]));
+values.second_sampling = true;
+values.strict_keyframes = false;
 values.motion_deblur = false;
 values.face_refine = false;
 for (const inputs of [savedInputs, oldInputs, [...oldInputs, {name: 'steps', widget: {name: 'steps'}}]]) {

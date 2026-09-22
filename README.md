@@ -81,6 +81,8 @@ See the [node documentation index](docs/nodes.md) for supporting prompt, image, 
 
 Icons in `js/cap_icons.js` include [Lucide](https://lucide.dev/icons) icons (ISC) and Feather-derived icons (MIT). See [the full third-party license notices](js/LICENSE.lucide).
 
-### H3 音频修复配置
+### H3 audio repair configuration
 
-添加 `H3 Audio Refine Config`，连接生成器的 `audio_refine_config`。配置节点控制启用、步数、音频修复强度和缓存模式（off/auto/ram/vram）；默认关闭缓存、保留音频修复。不连接或关闭 enabled 时跳过修复。旧工作流的音频修复开关与步数请迁移到配置节点。`generate_audio` 关闭或数字人片段仍会跳过修复，响度归一化保留在生成器。
+This release targets **ComfyUI 0.37.0**. Update ComfyUI to **0.37.0 or newer** and install its matching `requirements.txt` dependencies before use. Also update this node pack and [ComfyUI-H3-AudioRefine](https://github.com/Adudeguyman/ComfyUI-H3-AudioRefine) (at least **1.0.4**, which includes the compiler compatibility fix). Restart ComfyUI and refresh the browser.
+
+Connect `H3 Audio Refine Config` to the generator's `audio_refine_config`. It controls enabled, steps, audio denoise strength and cache mode (`off`/`auto`/`ram`/`vram`). Cache defaults to off while audio repair remains enabled. A disconnected or disabled configuration skips repair. Move the old audio repair settings to this node in existing workflows. Silent generation and Digital Human clips still skip repair; loudness normalization stays on the generator.

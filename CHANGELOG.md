@@ -1,5 +1,23 @@
 # Release notes / 更新记录
 
+## 0.17.23 — 2026-09-22
+
+### English
+
+- Add image cropping with preserved original sources and repeatable edits.
+- Fix MiniMax H3 reference-node calls for the updated ComfyUI input signature.
+- Move audio repair settings into H3 Audio Refine Config, with steps, denoise strength, an enable switch and cache selection (off by default); add Chinese labels.
+- This release targets ComfyUI **0.37.0**. Before use, update ComfyUI to 0.37.0 or newer and install its matching `requirements.txt` dependencies; also update this node pack and ComfyUI-H3-AudioRefine (at least **1.0.4**). Restart ComfyUI and refresh the browser. Older AudioRefine versions lack the compiler compatibility fix and can fail during cached refinement.
+- In existing workflows, connect H3 Audio Refine Config to audio_refine_config and move the previous audio repair settings to it.
+
+### 简体中文
+
+- 新增图片裁剪，保留原始素材，支持重复调整。
+- 修复 MiniMax H3 参考节点调用，适配新版 ComfyUI 参数顺序。
+- 音频修复设置独立为「H3 音频修复配置」，支持步数、修复强度、启用开关和缓存模式（默认关闭缓存），补齐中文标签。
+- 本次按 **ComfyUI 0.37.0** 适配。使用前请更新至 0.37.0 或更新版本，并同步安装对应 `requirements.txt` 依赖；同时更新本节点包和 ComfyUI-H3-AudioRefine（至少 **1.0.4**），重启 ComfyUI 并刷新浏览器。旧版 AudioRefine 缺少编译器兼容修复，使用缓存修复音频时可能失败。
+- 旧工作流需将「H3 音频修复配置」连接到 audio_refine_config，并迁移原来的音频修复设置。
+
 ## 0.17.22 — 2026-09-21
 
 ### English

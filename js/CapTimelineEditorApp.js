@@ -2607,7 +2607,20 @@ export class CapTimelineEditorApp {
         return JSON.parse(JSON.stringify(graph.serialize()));
     }
 
-    async _runProjectExport({ format, includeWorkflow = true, includeGenerated = true }) {
+    _buildExportProject(includeUnused = false) {
+        const project = this._buildProject();
+        if (includeUnused || !project.media) return project;
+        const used = new Set((project.tracks || []).flatMap(track =>
+            (track.clips || []).flatMap(clip => [...(clip.media_ids || []), clip.character_media_id].filter(Boolean))).map(String));
+        const mediaById = new Map(project.media.map(media => [String(media.id), media]));
+        for (const id of used) {
+            const reference = mediaById.get(id)?.voice_audio_id;
+            if (reference) used.add(String(reference));
+        }
+        return { ...project, media: project.media.filter(media => used.has(String(media.id))) };
+    }
+
+    async _runProjectExport({ format, includeWorkflow = true, includeGenerated = true, includeUnused = false }) {
         if (this._projectExportBusy) return;
         this._projectExportBusy = true;
         this.exportDialog.closeDisabled = true;
@@ -2618,14 +2631,14 @@ export class CapTimelineEditorApp {
         try {
             const directory = this.exportDialog.querySelector(".cat-te-export-directory").value.trim();
             if (!directory) {
-                await this._exportProjectInBrowser({ format, includeWorkflow, includeGenerated });
+                await this._exportProjectInBrowser({ format, includeWorkflow, includeGenerated, includeUnused });
                 return;
             }
             const workflow = includeWorkflow ? this._exportWorkflowSnapshot() : null;
             const response = await fetch(api.apiURL("/audio_keyframe_timeline/export_save"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ project: this._buildProject(), directory, format, workflow, include_generated: includeGenerated }),
+                body: JSON.stringify({ project: this._buildExportProject(includeUnused), directory, format, workflow, include_generated: includeGenerated }),
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || T("export_prepare_failed"));
@@ -2664,7 +2677,7 @@ export class CapTimelineEditorApp {
         return `${name}.zip`;
     }
 
-    async _exportProjectInBrowser({ format, includeWorkflow, includeGenerated }) {
+    async _exportProjectInBrowser({ format, includeWorkflow, includeGenerated, includeUnused = false }) {
         let directory;
         this._setExportStatus(T("export_browser_select_directory"));
         try {
@@ -2680,7 +2693,7 @@ export class CapTimelineEditorApp {
             ? "/audio_keyframe_timeline/export_zip" : "/audio_keyframe_timeline/export_prepare"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ project: this._buildProject(), workflow, include_generated: includeGenerated }),
+            body: JSON.stringify({ project: this._buildExportProject(includeUnused), workflow, include_generated: includeGenerated }),
         });
         if (!response.ok) {
             const data = await response.json();
@@ -4550,6 +4563,7 @@ export class CapTimelineEditorApp {
               </label>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-workflow" type="checkbox" checked /><span>${T("export_workflow")}</span></label>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-generated" type="checkbox" checked /><span>${T("export_generated")}</span></label>
+              <label class="cat-te-modal-check-row"><input class="cat-te-export-unused" type="checkbox" /><span>${T("export_unused")}</span></label>
               <cap-status-message class="cat-te-export-status" hidden></cap-status-message>
             </div>
             <div slot="footer" class="cat-te-confirm-actions"><cap-button variant="primary" class="cat-te-export-start">${T("export_title")}</cap-button></div>
@@ -4951,6 +4965,7 @@ export class CapTimelineEditorApp {
             const options = {
                 includeWorkflow: this.exportDialog.querySelector(".cat-te-export-workflow").checked,
                 includeGenerated: this.exportDialog.querySelector(".cat-te-export-generated").checked,
+                includeUnused: this.exportDialog.querySelector(".cat-te-export-unused").checked,
             };
             const format = this.exportDialog.querySelector('[data-format].is-active').dataset.format;
             void this._runProjectExport({ format, ...options });

@@ -33,16 +33,16 @@ function fixture(fetch) {
         this.state = state === 'success' || state === 'error' ? state : 'info';
         this.hidden = !this.textContent;
     };
-    const workflow = element({ checked: true }), generated = element({ checked: true });
+    const workflow = element({ checked: true }), generated = element({ checked: true }), unused = element({ checked: false });
     const formats = ['directory', 'zip'].map(format => element({ dataset: { format } }));
     formats[0].classList.add('is-active');
-    const controls = [path, workflow, generated, startButton, close, ...formats];
+    const controls = [path, workflow, generated, unused, startButton, close, ...formats];
     const dialog = element({
         querySelector(selector) {
             return ({
                 '.cat-te-export-status': status, '.cat-te-export-start': startButton,
                 '.cat-te-export-directory': path, '.cat-te-export-workflow': workflow,
-                '.cat-te-export-generated': generated, '.cat-te-modal-close': close,
+                '.cat-te-export-unused': unused, '.cat-te-export-generated': generated, '.cat-te-modal-close': close,
                 '[data-format].is-active': formats.find(b => b.classList.contains('is-active')),
             })[selector];
         },
@@ -52,7 +52,7 @@ function fixture(fetch) {
     const app = { exportDialog: dialog, _projectExportBusy: false, _exportRevealToken: null,
         _safeProjectFilename: () => '特别篇',
         _buildProject: () => ({ name: '特别篇', tracks: [] }), _exportWorkflowSnapshot: () => ({ nodes: [] }) };
-    for (const name of ['_setExportStatus', '_resetProjectExport', '_projectExportSaved', '_projectZipFilename', '_runProjectExport', '_exportProjectInBrowser', '_openExportDirectory', '_openExportDialog']) {
+    for (const name of ['_buildExportProject', '_setExportStatus', '_resetProjectExport', '_projectExportSaved', '_projectZipFilename', '_runProjectExport', '_exportProjectInBrowser', '_openExportDirectory', '_openExportDialog']) {
         app[name] = method(name, fetch);
     }
     const setup = source.slice(source.indexOf('        this.exportDialog = el.querySelector('), source.indexOf('        this.shortcutsDialog = el.querySelector('));
@@ -245,3 +245,27 @@ for (const path of ['../escape', '/absolute', 'media/../../escape', 'C:/escape']
     await assert.rejects(method('_writeExportFile').call({}, {}, path, new Blob()), /invalid_export_path/);
 }
 console.log('Project export: optional directory routing, browser saves/cancellation, backend reveal, busy/error/success state and modal dragging passed');
+
+// Export only referenced media, including bound voice audio, without changing the editor.
+{
+    const project = { media: [
+        { id: 'character', voice_audio_id: 'voice' }, { id: 'voice' },
+        { id: 'unused' }, { id: 'disabled' }, { id: 'speaker', voice_audio_id: 'voice' },
+    ], tracks: [{ clips: [{ media_ids: ['character', 'disabled'], media_enabled: [true, false] }, { character_media_id: 'speaker' }] }] };
+    const build = method('_buildExportProject').bind({ _buildProject: () => project });
+    assert.deepEqual(build().media.map(row => row.id), ['character', 'voice', 'disabled', 'speaker']);
+    assert.equal(project.media.length, 5);
+    assert.equal(build(true), project);
+    assert.deepEqual(method('_buildExportProject').call({ _buildProject: () => ({ media: project.media, tracks: [] }) }).media, []);
+}
+
+for (const includeUnused of [false, true]) {
+    let body;
+    const f = fixture(async (url, options) => {
+        body = JSON.parse(options.body);
+        return { ok: true, json: async () => success };
+    });
+    f.app._buildProject = () => ({ media: [{ id: 'used' }, { id: 'unused' }], tracks: [{ clips: [{ media_ids: ['used'] }] }] });
+    await f.app._runProjectExport({ format: 'directory', includeWorkflow: false, includeUnused });
+    assert.deepEqual(body.project.media.map(row => row.id), includeUnused ? ['used', 'unused'] : ['used']);
+}

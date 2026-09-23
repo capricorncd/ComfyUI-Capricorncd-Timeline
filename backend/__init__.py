@@ -23,7 +23,7 @@ from .cap_image_crop import crop_image_file
 from .cap_i18n import resolve_lang, t
 from .cap_video_metadata import read_video_generation
 from .cap_local_audio import register_local_audio_routes, prepare_clip_mix
-from .cap_timeline_project_io import save_project_export
+from .cap_timeline_project_io import save_project_export, parse_storyboard_document, read_storyboard_from_zip
 from .cap_load_image_metadata import (
     NODE_CLASS_MAPPINGS as _CLM_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _CLM_NAMES,
@@ -615,6 +615,7 @@ def _register_routes():
             path, missing = await asyncio.to_thread(
                 save_project_export, payload["project"], directory, payload.get("format", "directory"), workflow,
                 include_generated=payload.get("include_generated", True) is not False,
+                storyboard=payload.get("storyboard"),
             )
             token = uuid.uuid4().hex
             export_destinations[token] = os.path.join(path, "project.json") if os.path.isdir(path) else path
@@ -658,6 +659,7 @@ def _register_routes():
             exported, entries, missing = build_export_entries(project, include_generated=include_generated)
             return web.json_response({
                 "project": exported,
+                "storyboard": parse_storyboard_document(payload.get("storyboard"), project.get("storyboards")),
                 "files": [
                     {
                         "kind": e["kind"],
@@ -687,7 +689,7 @@ def _register_routes():
                 return web.json_response({"error": t("invalid_project", lang)}, status=400)
             if workflow is not None and not isinstance(workflow, dict):
                 return web.json_response({"error": "Invalid workflow"}, status=400)
-            data, filename, missing = build_export_zip_bytes(project, workflow=workflow, include_generated=payload.get("include_generated", True) is not False)
+            data, filename, missing = build_export_zip_bytes(project, workflow=workflow, include_generated=payload.get("include_generated", True) is not False, storyboard=payload.get("storyboard"))
             headers = {
                 "Content-Disposition": f"attachment; filename=\"timeline-project.zip\"; filename*=UTF-8''{quote(filename, safe='')}",
                 "X-Export-Missing": ",".join(missing) if missing else "",
@@ -905,8 +907,10 @@ def _register_routes():
             data = await upload.read()
             if not data:
                 return web.json_response({"error": t("empty_zip", lang)}, status=400)
+            storyboard = read_storyboard_from_zip(data)
             project, warnings = import_project_from_zip_bytes(data)
-            return web.json_response({"project": project, "warnings": warnings})
+            project.pop("storyboards", None)
+            return web.json_response({"project": project, "storyboard": storyboard, "warnings": warnings})
         except ValueError as exc:
             return web.json_response({"error": str(exc)}, status=400)
         except Exception as exc:

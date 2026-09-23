@@ -16,6 +16,8 @@ import "./components/ContextMenu.js";
 import { FontCatalog } from "./editor/FontCatalog.js";
 import { previewSeedValue, workflowPreviewSeed } from "./editor/PreviewSeed.js";
 import { TimelineHistory } from "./editor/TimelineHistory.js";
+import { StoryboardPage, normalizeStoryboards, storyboardT } from "./editor/StoryboardPage.js";
+import { parseStoryboardDocument, buildStoryboardDocument } from "./editor/StoryboardDocument.js";
 import { FontPicker } from "./editor/FontPicker.js";
 import { stripH3Timing, h3TimingFromFilename, applyH3VideoTrim, restoreH3ClipTiming, replaceH3ContextTail } from "./editor/H3Timing.js";
 import { planClipRunLayout, clipLayoutList, relatedH3ClipIds } from "./editor/ClipRunValidation.js";
@@ -820,6 +822,8 @@ export class CapTimelineEditorApp {
         this._audioTrack = null;
         this._selClip = null;
         this._selClips = [];
+        this._storyboards = [];
+        this._storyboardMode = false;
         this._history = new TimelineHistory({
             capture: () => this._captureSnapshot(),
             restore: (snapshot) => this._restoreSnapshot(snapshot),
@@ -1103,6 +1107,12 @@ export class CapTimelineEditorApp {
      */
     handleShortcutKey(e) {
         if (!this._overlay?.classList.contains("open")) return false;
+        if (this._storyboardMode && e.target?.closest?.(".cat-te-storyboard, .cat-te-storyboard-settings")
+            && !((e.ctrlKey || e.metaKey) && ["z", "y"].includes(this._shortcutModKey(e)))) {
+            e.stopPropagation();
+            e.stopImmediatePropagation?.();
+            return true;
+        }
         if (this.shortcutsDialog?.open || this.exportDialog?.open || this._subtitleSpeech?.dialog.open) return false;
         if (e.repeat) return false;
         const mod = e.ctrlKey || e.metaKey;
@@ -1225,7 +1235,7 @@ export class CapTimelineEditorApp {
     async _openEditor(gen = this._openGen) {
         this._historyReady = false;
         this._openedWidgetValues = Object.fromEntries(
-            ["fps", "width", "height"].map(name => [name, this._w(name)?.value]),
+            ["fps", "width", "height", "storyboard_json"].map(name => [name, this._w(name)?.value]),
         );
         // Re-apply panel layout each open (window size / localStorage may have changed).
         this._applySavedMediaPanelWidth();
@@ -1264,7 +1274,7 @@ export class CapTimelineEditorApp {
         });
         this._history.clear();
         this._historyReady = true;
-        this._openedProjectJson = JSON.stringify(this._buildProject());
+        this._openedProjectJson = this._editorContentJson();
         this._updateHistoryButtons();
         this._selClip = null;
         this._selClips = [];
@@ -1299,12 +1309,16 @@ export class CapTimelineEditorApp {
         if (!this._timeline || !this._historyReady) return;
         if (!this._hasUnsavedChanges()) return;
         this._saveToWidgets();
-        this._openedProjectJson = JSON.stringify(this._buildProject());
+        this._openedProjectJson = this._editorContentJson();
     }
 
     _hasUnsavedChanges() {
         if (!this._timeline) return false;
-        return JSON.stringify(this._buildProject()) !== this._openedProjectJson;
+        return this._editorContentJson() !== this._openedProjectJson;
+    }
+
+    _editorContentJson() {
+        return JSON.stringify({ project: this._buildProject(), storyboard: this._buildStoryboardDocument() });
     }
 
     close() {
@@ -1608,6 +1622,9 @@ export class CapTimelineEditorApp {
             const widget = this._w(name);
             if (widget) widget.value = value;
         }
+        this._storyboards = [];
+        const storyboardWidget = this._w("storyboard_json");
+        if (storyboardWidget) storyboardWidget.value = JSON.stringify(this._buildStoryboardDocument());
         this._writeProjectJson(JSON.stringify(project));
         this._resetProjectExport();
         this.open();
@@ -2258,7 +2275,7 @@ export class CapTimelineEditorApp {
                 this._genVideoStamp = null;
             }
             this._saveToWidgets();
-            this._openedProjectJson = JSON.stringify(this._buildProject());
+            this._openedProjectJson = this._editorContentJson();
             this._runAllClipsBusy = false;
         }
     }
@@ -2510,13 +2527,14 @@ export class CapTimelineEditorApp {
         return this._migrateProjectDocument(project);
     }
 
-    async _applyImportedProject(project, warnings = []) {
+    async _applyImportedProject(project, warnings = [], storyboard = null) {
+        const document = parseStoryboardDocument(storyboard, project.storyboards);
         project = this._validateImportedProject(project);
         this._historyReady = false;
         this._stopAudioPlayback();
         this._timeline?.destroy();
         this._timeline = null;
-        await this._initTimelineFromWidgets(project, { applySettingsFromProject: true });
+        await this._initTimelineFromWidgets(project, { applySettingsFromProject: true, storyboard: document });
         await this._reloadMediaLibrary();
         this._history.clear();
         this._historyReady = true;
@@ -2612,6 +2630,7 @@ export class CapTimelineEditorApp {
         if (includeUnused || !project.media) return project;
         const used = new Set((project.tracks || []).flatMap(track =>
             (track.clips || []).flatMap(clip => [...(clip.media_ids || []), clip.character_media_id].filter(Boolean))).map(String));
+        for (const shot of this._storyboards || []) if (shot.image_id) used.add(String(shot.image_id));
         const mediaById = new Map(project.media.map(media => [String(media.id), media]));
         for (const id of used) {
             const reference = mediaById.get(id)?.voice_audio_id;
@@ -2638,7 +2657,7 @@ export class CapTimelineEditorApp {
             const response = await fetch(api.apiURL("/audio_keyframe_timeline/export_save"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ project: this._buildExportProject(includeUnused), directory, format, workflow, include_generated: includeGenerated }),
+                body: JSON.stringify({ project: this._buildExportProject(includeUnused), storyboard: this._buildStoryboardDocument(), directory, format, workflow, include_generated: includeGenerated }),
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || T("export_prepare_failed"));
@@ -2693,7 +2712,7 @@ export class CapTimelineEditorApp {
             ? "/audio_keyframe_timeline/export_zip" : "/audio_keyframe_timeline/export_prepare"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ project: this._buildExportProject(includeUnused), workflow, include_generated: includeGenerated }),
+            body: JSON.stringify({ project: this._buildExportProject(includeUnused), storyboard: this._buildStoryboardDocument(), workflow, include_generated: includeGenerated }),
         });
         if (!response.ok) {
             const data = await response.json();
@@ -2723,6 +2742,8 @@ export class CapTimelineEditorApp {
                 new Blob([JSON.stringify(workflow, null, 2)], { type: "application/json" }));
             await this._writeExportFile(directory, "project.json",
                 new Blob([JSON.stringify(data.project, null, 2)], { type: "application/json" }));
+            await this._writeExportFile(directory, "storyboard.json",
+                new Blob([JSON.stringify(data.storyboard, null, 2)], { type: "application/json" }));
             message = T("export_saved_path", { path: directory.name });
         }
         if (missing.length) message += "\n" + T("export_missing_assets", {
@@ -3381,6 +3402,13 @@ export class CapTimelineEditorApp {
             const dir = await this._pickDirectory("read");
             const projectFile = await this._readRelativeFile(dir, "project.json");
             const project = this._validateImportedProject(JSON.parse(await projectFile.text()));
+            let storyboardFile;
+            try {
+                storyboardFile = await this._readRelativeFile(dir, "storyboard.json");
+            } catch (error) {
+                if (error?.name !== "NotFoundError") throw error;
+            }
+            const storyboard = parseStoryboardDocument(storyboardFile ? await storyboardFile.text() : null, project.storyboards);
             const mapping = new Map();
             const warnings = [];
             for (const row of this._iterProjectMedia(project)) {
@@ -3402,7 +3430,7 @@ export class CapTimelineEditorApp {
             if (!clipCount) {
                 alert(T("import_no_clips"));
             }
-            await this._applyImportedProject(remapped, warnings);
+            await this._applyImportedProject(remapped, warnings, storyboard);
         } catch (error) {
             if (error?.name === "AbortError") return;
             alert(T("import_failed", { msg: error instanceof Error ? error.message : String(error) }));
@@ -3422,7 +3450,7 @@ export class CapTimelineEditorApp {
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || T("import_zip_failed"));
-            await this._applyImportedProject(data.project, data.warnings || []);
+            await this._applyImportedProject(data.project, data.warnings || [], data.storyboard);
         } catch (error) {
             alert(T("import_failed", { msg: error instanceof Error ? error.message : String(error) }));
         }
@@ -4693,6 +4721,21 @@ export class CapTimelineEditorApp {
         this.programCanvas = el.querySelector(".cat-te-program-canvas");
         this.programEmpty = el.querySelector(".cat-te-program-empty");
         this.programMeta = el.querySelector(".cat-te-program-meta");
+        this._storyboardPage = new StoryboardPage({
+            getClips: () => (this._timeline?.tracks || []).filter(track => isDirectorTrackType(track.type))
+                .flatMap(track => track.clips).sort((a, b) => a.startTime - b.startTime)
+                .map(clip => ({ id: clip.id, name: clip.name || clip.id })),
+            onChange: (items) => {
+                this._recordUndo();
+                this._storyboards = items;
+                this._storyboardPage.setItems(items);
+                this._saveToWidgets();
+            },
+            onSelect: () => this._syncSidebarMode(!!this._selClip),
+            onGenerate: () => this._generateStoryboardsFromDirectorClips(),
+        });
+        this.programRoot.append(this._storyboardPage.el);
+        this.sidebarPanel.append(this._storyboardPage.panel);
         this.promptInput = el.querySelector(".cat-te-clip-panel .cat-te-prompt-input");
         this.aiOptimizeBtn = el.querySelector(".cat-te-ai-optimize-btn");
         this._attachPromptCopyButtons(el);
@@ -8600,7 +8643,7 @@ export class CapTimelineEditorApp {
         if (this._timeline && this._timelineReady) {
             this._saveToWidgets();
             if (this._historyReady) {
-                this._openedProjectJson = JSON.stringify(this._buildProject());
+                this._openedProjectJson = this._editorContentJson();
             }
             this._decorateClip(clip);
             this._syncClipPrimaryAppearance(clip, { refreshVideo: true });
@@ -14167,7 +14210,8 @@ export class CapTimelineEditorApp {
         this._syncProjectScalarDisplay();
     }
 
-    async _initTimelineFromWidgetsAsync(projectOverride = null, { applySettingsFromProject = false } = {}) {
+    async _initTimelineFromWidgetsAsync(projectOverride = null, { applySettingsFromProject = false, storyboard = null } = {}) {
+        if (!this._w("storyboard_json")) throw new Error(storyboardT("restart_required"));
         const loadSeq = ++this._loadSeq;
         this._timelineReady = false;
         this._meta.clear();
@@ -14198,6 +14242,8 @@ export class CapTimelineEditorApp {
             };
         }
         project = this._migrateProjectDocument(project);
+        this._loadStoryboards(parseStoryboardDocument(storyboard ?? (projectOverride ? null : this._w("storyboard_json")?.value), project.storyboards));
+        delete project.storyboards;
         this._applyMediaCatalogFromProject(project);
         this.projectNameInput.value = String(project.name || T("untitled_project")).trim() || T("untitled_project");
         this._syncBrandProjectName();
@@ -16832,7 +16878,7 @@ export class CapTimelineEditorApp {
         this._genVideoStamp = stamp;
         try {
             this._saveToWidgets();
-            this._openedProjectJson = JSON.stringify(this._buildProject());
+            this._openedProjectJson = this._editorContentJson();
             await this._waitForQueueIdle();
             for (const current of clips) {
                 this._notePendingGeneratedJob({
@@ -16872,7 +16918,7 @@ export class CapTimelineEditorApp {
                 this._genVideoStamp = null;
             }
             this._saveToWidgets();
-            this._openedProjectJson = JSON.stringify(this._buildProject());
+            this._openedProjectJson = this._editorContentJson();
         }
     }
 
@@ -17237,6 +17283,7 @@ export class CapTimelineEditorApp {
 
     _scheduleProgramPreview() {
         this._scheduleComposePreview();
+        if (this._storyboardMode) return;
         if (!this.programCanvas || !this._overlay?.classList.contains("open")) return;
         // Gen-edit owns the shared preview decoders while its modal is open.
         if (this._isGenEditModalOpen()) return;
@@ -17699,6 +17746,7 @@ export class CapTimelineEditorApp {
     }
 
     async _renderProgramPreview() {
+        if (this._storyboardMode) return;
         if (this._isGenEditModalOpen()) return;
         if (this._resourceGenPreview?.merged) {
             this._renderClipHoverPreview();
@@ -17830,6 +17878,7 @@ export class CapTimelineEditorApp {
         moreBtn.bindMenu(e => {
             const rect = e.currentTarget.getBoundingClientRect();
             return this._buildCtxMenu([
+                { label: storyboardT(this._storyboardMode ? "playback" : "mode"), icon: "image", fn: () => this._setStoryboardMode(!this._storyboardMode) },
                 { label: T("reset_track_order"), icon: "refresh", fn: () => this._resetTrackOrder() },
                 {
                     label: T("clear_generated_video_links"), icon: "close",
@@ -18521,6 +18570,10 @@ export class CapTimelineEditorApp {
     }
 
     _updatePromptPanel() {
+        if (this._storyboardMode) {
+            this._syncSidebarMode(false);
+            return;
+        }
         const clip = this._syncSelectedClip();
         this._syncClipSettingRefs();
         this._syncSidebarMode(!!clip);
@@ -18871,6 +18924,14 @@ export class CapTimelineEditorApp {
     }
 
     _syncSidebarMode(hasClip) {
+        if (this._storyboardPage) this._storyboardPage.panel.hidden = !this._storyboardMode;
+        if (this._storyboardMode) {
+            this.sidebarTitle.textContent = storyboardT("settings");
+            this.projectPanel.hidden = true;
+            this.clipPanel.hidden = true;
+            this.multiSelectionPanel.hidden = true;
+            return;
+        }
         const count = this._timeline?.getSelectedClips().length || 0;
         const multiple = hasClip && count > 1;
         if (this.multiSelectionPanel) {
@@ -18914,6 +18975,65 @@ export class CapTimelineEditorApp {
         const sizeText = `${width} × ${height}`;
         const fpsLabel = `${fpsText} fps`;
         if (this.programMeta) this.programMeta.textContent = `${sizeText} · ${fpsLabel}`;
+        if (this._storyboardMode) this._configureStoryboardPage();
+    }
+
+    _loadStoryboards(document) {
+        this._storyboards = parseStoryboardDocument(document).shots;
+        this._storyboardPage?.setItems(this._storyboards);
+    }
+
+    _buildStoryboardDocument() {
+        return buildStoryboardDocument(this._storyboards);
+    }
+
+    _generateStoryboardsFromDirectorClips() {
+        const clips = (this._timeline?.tracks || []).filter(track => isDirectorTrackType(track.type))
+            .flatMap(track => track.clips).sort((a, b) => a.startTime - b.startTime);
+        const generated = new Set(this._storyboards.map(shot => shot.source_clip_id));
+        const pending = clips.filter(clip => !generated.has(clip.id));
+        if (!pending.length) return { added: 0, total: clips.length };
+        this._recordUndo();
+        const shots = normalizeStoryboards(pending.map(clip => {
+            const meta = this._meta.get(clip.id);
+            const image = this._enabledClipItems(meta).find(item => item.kind === "image");
+            return {
+                id: crypto.randomUUID(), title: clip.name || "", duration: clip.duration,
+                description: meta?.prompt || "", image_id: image?.id || "",
+                source_clip_id: clip.id,
+            };
+        }));
+        this._storyboards = [...this._storyboards, ...shots];
+        this._storyboardPage.selectedId = shots[0].id;
+        this._storyboardPage.setItems(this._storyboards);
+        this._configureStoryboardPage();
+        this._syncSidebarMode(!!this._selClip);
+        this._saveToWidgets();
+        return { added: shots.length, total: clips.length };
+    }
+
+    _configureStoryboardPage() {
+        if (!this._storyboardPage) return;
+        const { w, h } = this.getPreviewSize();
+        this._storyboardPage.configure({ width: w, height: h, fps: this._timeline.fps || 24,
+            images: this._projectResources.filter(row => row.kind === "image").map(row => ({
+                id: row.id, name: row.name || row.file, url: this._assetFileUrl(row.file, "image", row.location || "input"),
+            })),
+        });
+    }
+
+    _setStoryboardMode(enabled) {
+        this._storyboardMode = !!enabled;
+        if (enabled) {
+            this._timeline?.pause();
+            this._stopResourceGenProgramPreview();
+            this._configureStoryboardPage();
+        }
+        this.programStage.hidden = !!enabled;
+        this.programMeta.hidden = !!enabled;
+        this._storyboardPage.el.hidden = !enabled;
+        this._updatePromptPanel();
+        if (!enabled) this._scheduleProgramPreview();
     }
 
     _readSettingPrompt(key) {
@@ -20260,6 +20380,8 @@ export class CapTimelineEditorApp {
         if (this._destroyed) return;
         if (!this._isNodeOnLiveGraph()) return;
         if (!this._timeline || !this._timelineReady) return;
+        const storyboardWidget = this._w("storyboard_json");
+        if (storyboardWidget) storyboardWidget.value = JSON.stringify(this._buildStoryboardDocument());
         this._writeProjectJson(JSON.stringify(this._buildProject()));
         try { this._persistViewToLocalCache(); } catch { /* ignore */ }
         try { this._persistPanelLayout(); } catch { /* ignore */ }
@@ -20371,6 +20493,7 @@ export class CapTimelineEditorApp {
     _captureSnapshot() {
         return {
             project: this._buildProject(),
+            storyboard: this._buildStoryboardDocument(),
             currentTime: this._timeline?.currentTime ?? 0,
         };
     }
@@ -20413,6 +20536,7 @@ export class CapTimelineEditorApp {
         this._audioTrack = null;
 
         const project = this._migrateProjectDocument(snapshot.project || {});
+        this._loadStoryboards(snapshot.storyboard);
         this._applyMediaCatalogFromProject(project);
         this.projectNameInput.value = String(project.name || T("untitled_project")).trim() || T("untitled_project");
         this._syncBrandProjectName();

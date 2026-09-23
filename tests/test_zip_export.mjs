@@ -51,6 +51,7 @@ function fixture(fetch) {
     });
     const app = { exportDialog: dialog, _projectExportBusy: false, _exportRevealToken: null,
         _safeProjectFilename: () => '特别篇',
+        _buildStoryboardDocument: () => ({ schema_version: 1, shots: [] }),
         _buildProject: () => ({ name: '特别篇', tracks: [] }), _exportWorkflowSnapshot: () => ({ nodes: [] }) };
     for (const name of ['_buildExportProject', '_setExportStatus', '_resetProjectExport', '_projectExportSaved', '_projectZipFilename', '_runProjectExport', '_exportProjectInBrowser', '_openExportDirectory', '_openExportDialog']) {
         app[name] = method(name, fetch);
@@ -68,7 +69,7 @@ for (const format of ['directory', 'zip']) {
     });
     await f.app._runProjectExport({ format, includeGenerated: false, includeWorkflow: false });
     assert.equal(requests[0].url, '/audio_keyframe_timeline/export_save');
-    assert.deepEqual(requests[0].body, { project: { name: '特别篇', tracks: [] }, directory: f.path.value, format, workflow: null, include_generated: false });
+    assert.deepEqual(requests[0].body, { project: { name: '特别篇', tracks: [] }, storyboard: { schema_version: 1, shots: [] }, directory: f.path.value, format, workflow: null, include_generated: false });
     assert.equal(f.app._exportRevealToken, 'saved-token');
     assert.match(f.startButton.textContent, /open_folder_btn/);
     assert.match(f.status.textContent, /export_saved_path.*特别篇/);
@@ -181,7 +182,7 @@ assert(source.includes('this.wmTabs = this.composeModal.querySelectorAll'), 'exp
         requests.push(url);
         if (!options) return { ok: true, blob: async () => new Blob(['image bytes']) };
         assert.equal(JSON.parse(options.body).include_generated, true);
-        return { ok: true, json: async () => ({ project, files: [{ file: '场景.png', kind: 'image', arcname: 'media/images/场景.png' }] }) };
+        return { ok: true, json: async () => ({ project, storyboard: { schema_version: 1, shots: [] }, files: [{ file: '场景.png', kind: 'image', arcname: 'media/images/场景.png' }] }) };
     });
     f.path.value = '';
     const directory = { name: '浏览器目录' };
@@ -192,9 +193,10 @@ assert(source.includes('this.wmTabs = this.composeModal.querySelectorAll'), 'exp
     };
     await f.app._runProjectExport({ format: 'directory' });
     assert.deepEqual(requests, ['/audio_keyframe_timeline/export_prepare', 'asset/场景.png']);
-    assert.deepEqual(writes.map(w => w.path), ['media/images/场景.png', 'workflow.json', 'project.json']);
+    assert.deepEqual(writes.map(w => w.path), ['media/images/场景.png', 'workflow.json', 'project.json', 'storyboard.json']);
     assert.equal(writes[0].content, 'image bytes');
     assert.deepEqual(JSON.parse(writes[2].content), project);
+    assert.deepEqual(JSON.parse(writes[3].content), { schema_version: 1, shots: [] });
     assert.equal(f.app._exportRevealToken, null);
     assert.match(f.startButton.textContent, /export_title/);
     assert((f.status.state === 'success'));
@@ -257,6 +259,10 @@ console.log('Project export: optional directory routing, browser saves/cancellat
     assert.equal(project.media.length, 5);
     assert.equal(build(true), project);
     assert.deepEqual(method('_buildExportProject').call({ _buildProject: () => ({ media: project.media, tracks: [] }) }).media, []);
+    assert.deepEqual(method('_buildExportProject').call({
+        _buildProject: () => ({ media: project.media, tracks: [] }),
+        _storyboards: [{ image_id: 'unused' }],
+    }).media.map(row => row.id), ['unused']);
 }
 
 for (const includeUnused of [false, true]) {

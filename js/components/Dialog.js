@@ -154,6 +154,10 @@ export class Dialog extends HTMLElement {
                 ::slotted(*) { flex-shrink: 0; }
                 footer { flex-shrink: 0; padding: 10px 14px 14px; border-top: 1px solid var(--cat-border, #34464b); }
                 footer[hidden] { display: none; }
+                ::slotted([slot="footer"]) { text-align: right; }
+                ::slotted([slot="footer"][data-dialog-actions]) {
+                    display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px;
+                }
                 .is-dragging, .is-resizing { user-select: none; }
             </style>
             <dialog aria-labelledby="title">
@@ -166,6 +170,9 @@ export class Dialog extends HTMLElement {
         const footerSlot = root.querySelector('slot[name="footer"]');
         footerSlot.addEventListener("slotchange", () => {
             footerSlot.parentElement.hidden = footerSlot.assignedElements().length === 0;
+            for (const element of footerSlot.assignedElements()) {
+                element.toggleAttribute('data-dialog-actions', [...element.children].some(child => child.matches('cap-button')));
+            }
         });
         this._closeButton = root.querySelector("cap-button");
         this._closeButton.addEventListener("click", () => this.requestClose());

@@ -57,7 +57,7 @@ function configuredNamedValues(info) {
     const named = { ...(info?.properties?.cat_named || {}) };
     const inputs = Array.isArray(info?.inputs) ? info.inputs : [];
     const values = Array.isArray(info?.widgets_values) ? info.widgets_values : [];
-    for (const key of ["project_json", ...LEGACY_PROMPT_FIELDS]) {
+    for (const key of ["project_json", "storyboard_json", ...LEGACY_PROMPT_FIELDS]) {
         if (named[key] != null) continue;
         const index = inputs.findIndex((row) => row?.name === key && row?.widget);
         if (index >= 0 && values[index] != null) named[key] = values[index];
@@ -413,7 +413,7 @@ function markNoSerialize(node, named = null) {
         if (w.name === "audioUI" || w.name === "audio") {
             w.serialize = false;
         }
-        if (["audioUI", "audio", "project_json", "project_version", "schema_version"].includes(w.name)) {
+        if (["audioUI", "audio", "project_json", "storyboard_json", "project_version", "schema_version"].includes(w.name)) {
             if (w.name === "project_version" || w.name === "schema_version") w.serialize = false;
             // Hide the DOM widget wrapper too, so it cannot intercept canvas gestures.
             w.hidden = true;

@@ -21,6 +21,11 @@ tree = ast.parse(source.read_text(encoding="utf-8-sig"))
 function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "build_export_zip_bytes")
 
 
+storyboard_scope = {"STORYBOARD_SCHEMA_VERSION": 1, "PACKAGE_STORYBOARD_NAME": "storyboard.json"}
+helper = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "parse_storyboard_document")
+exec(compile(ast.Module(body=[helper], type_ignores=[]), str(source), "exec"), storyboard_scope)
+
+
 class ExportWorkflowTests(unittest.TestCase):
     def test_reveal_audio_output_opens_containing_folder(self):
         routes = ast.parse(source.with_name("__init__.py").read_text(encoding="utf-8-sig"))
@@ -90,7 +95,7 @@ class ExportWorkflowTests(unittest.TestCase):
                 self.assertEqual((await scope["api_export_save"](Request({"project": []})))[1], 400)
                 result, code = await scope["api_export_save"](Request({"project": {}, "directory": directory, "include_generated": False}))
                 self.assertEqual(code, 200)
-                save.assert_called_once_with({}, directory, "directory", None, include_generated=False)
+                save.assert_called_once_with({}, directory, "directory", None, include_generated=False, storyboard=None)
                 self.assertEqual((await scope["api_reveal_export"](Request({"path": directory})))[1], 404)
                 reveal.assert_not_called()
                 self.assertEqual((await scope["api_reveal_export"](Request({"reveal_token": result["reveal_token"]})))[1], 200)
@@ -101,7 +106,7 @@ class ExportWorkflowTests(unittest.TestCase):
             asyncio.run(check())
 
     def disk_export(self, entries, missing=None):
-        scope = {"os": os, "re": re, "shutil": shutil, "zipfile": zipfile, "json": json,
+        scope = {**storyboard_scope, "os": os, "re": re, "shutil": shutil, "zipfile": zipfile, "json": json,
                  "datetime": datetime, "PACKAGE_PROJECT_NAME": "project.json"}
         scope["build_export_entries"] = lambda project, **options: (project, entries, missing or [])
         functions = [n for n in tree.body if isinstance(n, ast.FunctionDef)
@@ -158,9 +163,9 @@ class ExportWorkflowTests(unittest.TestCase):
                 self.assertEqual(missing, ["missing.png"])
                 if package_format == "zip":
                     with zipfile.ZipFile(path) as archive:
-                        self.assertEqual(archive.namelist(), ["project.json"])
+                        self.assertEqual(archive.namelist(), ["project.json", "storyboard.json"])
                 else:
-                    self.assertEqual([p.name for p in Path(path).iterdir()], ["project.json"])
+                    self.assertEqual([p.name for p in Path(path).iterdir()], ["project.json", "storyboard.json"])
 
     def test_zip_filename_headers_are_ascii_and_roundtrip(self):
         routes = ast.parse(source.with_name("__init__.py").read_text(encoding="utf-8-sig"))
@@ -181,7 +186,7 @@ class ExportWorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             asset = Path(directory) / "asset.txt"
             asset.write_bytes(b"unchanged asset")
-            scope = {
+            scope = {**storyboard_scope,
                 "io": io, "json": json, "zipfile": zipfile, "PACKAGE_PROJECT_NAME": "project.json",
                 "_safe_name": lambda name, default: name or default,
                 "build_export_entries": lambda p, **options: (p, [{"src_path": str(asset), "arcname": "media/asset.txt"}], []),
@@ -204,13 +209,13 @@ class ExportWorkflowTests(unittest.TestCase):
         def entries(project, *, include_generated=True):
             calls.append(include_generated)
             return project, [], []
-        scope = {"io": io, "json": json, "zipfile": zipfile, "PACKAGE_PROJECT_NAME": "project.json",
+        scope = {**storyboard_scope, "io": io, "json": json, "zipfile": zipfile, "PACKAGE_PROJECT_NAME": "project.json",
                  "_safe_name": lambda name, default: name or default, "build_export_entries": entries}
         exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), scope)
         for enabled in (True, False):
             blob, _, _ = scope["build_export_zip_bytes"]({"name": "test"}, include_generated=enabled)
             with zipfile.ZipFile(io.BytesIO(blob)) as archive:
-                self.assertEqual(archive.namelist(), ["project.json"])
+                self.assertEqual(archive.namelist(), ["project.json", "storyboard.json"])
         self.assertEqual(calls, [True, False])
 
 

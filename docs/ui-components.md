@@ -49,6 +49,17 @@ Editor dialogs (including dynamically built lists, track controls, font choices 
 
 Run `node tests/test_dialog_buttons.mjs` for migration coverage, and open `tests/dialog_buttons.browser.html` for actual dialog markup, focus, disabled actions, tab/toggle states, watermark targets, dynamic font/confirmation actions and long-label layout checks.
 
+## Storyboards
+
+`js/editor/StoryboardPage.js` provides the storyboard page and right-side settings form. The timeline More menu switches between storyboard and playback mode in the existing program area. Clicking a `js/components/StoryboardCard.js` card selects its settings; adding and changing shots use the editor's save and undo paths. Cards use `cap-button size="content"` for an accessible, variable-height selection surface. Images fit the project aspect ratio without cropping.
+
+Shots are stored separately from `project_json` in the node's hidden, serialized `storyboard_json` textarea. Its document is `{ "schema_version": 1, "shots": [...] }`. Directory and ZIP exports include `storyboard.json`, even without workflow export; both import paths restore it. Older embedded `project.storyboards` migrate on load when the separate document is absent. Unsupported document versions fail before replacing saved data. Storyboard-only image references are included in exported media.
+
+Each shot stores `id`, `title`, `description`, `duration` (seconds), `shot_size`, `camera_move`, `image_id` (project media ID), `speaker`, `dialogue`, `emotion`, and `delivery`. “Generate from director clips” appends one shot per director clip in timeline order, copying its name, duration, clip prompt and first enabled image reference. `source_clip_id` prevents duplicates on subsequent clicks. Existing shots and clips are preserved; generation is one undo step. This UI does not generate timeline clips from storyboards.
+
+`tests/storyboard.browser.html` exercises selection, editing, long durations, save/load, undo/redo, safe text rendering, aspect ratio and switching back to playback.
+`tests/test_storyboard_document.mjs` and `tests/test_storyboard_export.py` cover version validation, legacy migration, widget serialization and package round trips.
+
 ## Media carousel
 
 `js/components/MediaCarousel.js` provides `<cap-media-carousel>` for Clip settings and Prompt Manager's read-only asset-description tab. It owns the 16:9 frame, vertically centered Lucide navigation buttons (using `cap-button`), wraparound switching and item counter. Call `setSelection(index, count)` without emitting a change; user navigation emits `media-change` with `detail.index`. Set localized `previous-label` / `next-label` attributes. Zero or one item hides navigation.

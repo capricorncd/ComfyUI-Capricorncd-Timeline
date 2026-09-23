@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Storyboard regression</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>
+.fixture { display: flex; height: 680px; width: min(100%, 1000px); background: var(--cat-bg); }
+.fixture main { flex: 1; min-width: 0; }
+.fixture aside { width: 260px; padding: 12px; overflow: auto; }
+.fixture .cat-te-program { height: 540px; max-height: none; }
+body { background: var(--cat-bg); color: var(--cat-text); font: 13px system-ui; }
+</style>
+<div class="fixture"><main><div class="cat-te-program"><div class="cat-te-program-stage"></div><div class="cat-te-program-meta"></div></div></main><aside><h3></h3><div data-project></div><div data-clip></div><div data-multi></div></aside></div><pre id="result">RUNNING</pre>
+<script type="module">
+import { StoryboardPage, normalizeStoryboards, storyboardT } from '../js/editor/StoryboardPage.js';
+import { parseStoryboardDocument, buildStoryboardDocument } from '../js/editor/StoryboardDocument.js';
+import { TimelineHistory } from '../js/editor/TimelineHistory.js';
+const assert = (ok, message) => { if (!ok) throw Error(message); };
+try {
+    const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    function method(name) {
+        const start = source.indexOf('    ' + name + '(');
+        return new Function('storyboardT', 'normalizeStoryboards', 'T', 'isDirectorTrackType', 'parseStoryboardDocument', 'return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '}).' + name)(storyboardT, normalizeStoryboards, key => key, type => type === 'image', parseStoryboardDocument);
+    }
+    const editor = {
+        _storyboards: [], _storyboardMode: false, _selClip: null, pauses: 0, previews: 0,
+        programStage: document.querySelector('.cat-te-program-stage'), programMeta: document.querySelector('.cat-te-program-meta'),
+        sidebarTitle: document.querySelector('h3'), projectPanel: document.querySelector('[data-project]'),
+        clipPanel: document.querySelector('[data-clip]'), multiSelectionPanel: document.querySelector('[data-multi]'),
+        _timeline: { pause() { editor.pauses++; }, getSelectedClips() { return []; } },
+        _configureStoryboardPage() { this._storyboardPage.configure({ width: 1920, height: 1024, images: [] }); },
+        _stopResourceGenProgramPreview() {}, _scheduleProgramPreview() { this.previews++; },
+        _syncSettingPromptInputs() {}, _syncProjectScalarDisplay() {},
+        _updatePromptPanel() { this._syncSidebarMode(false); },
+    };
+    for (const name of ['_setStoryboardMode', '_syncSidebarMode', '_loadStoryboards', '_generateStoryboardsFromDirectorClips', '_enabledClipItems']) editor[name] = method(name);
+    let saved;
+    const history = new TimelineHistory({
+        capture: () => structuredClone(editor._storyboards), restore: rows => editor._loadStoryboards(buildStoryboardDocument(rows)), onChange() {},
+    });
+    const board = new StoryboardPage({
+        onChange(rows) { history.record(); editor._storyboards = rows; board.setItems(rows); saved = JSON.stringify(buildStoryboardDocument(rows)); },
+        onSelect() { editor._syncSidebarMode(false); },
+        onGenerate() { return editor._generateStoryboardsFromDirectorClips(); },
+    });
+    editor._storyboardPage = board;
+    document.querySelector('.cat-te-program').append(board.el);
+    document.querySelector('aside').append(board.panel);
+    editor._setStoryboardMode(true);
+    assert(editor.programStage.hidden && !board.el.hidden && !board.panel.hidden, 'mode replaces playback and sidebar');
+    assert(board.form.hidden, 'empty selection has no stale settings');
+    board.el.querySelector('[data-add]').click();
+    assert(editor._storyboards.length === 1 && !board.form.hidden, 'add selects shot and opens settings');
+    const id = editor._storyboards[0].id;
+    const change = (name, value) => { const field = board.form.elements[name]; field.value = value; field.dispatchEvent(new Event('change', { bubbles: true })); };
+    change('title', '<img src=x onerror=alert(1)>');
+    change('description', 'Lift the bowl.\nPause, then speak.');
+    change('duration', '15.5');
+    change('dialogue', 'The broth needs salt.');
+    assert(editor._storyboards[0].duration === 15.5, 'long shots are not truncated');
+    assert(board.el.querySelector('cap-storyboard-card').shadowRoot.querySelector('.title').textContent.includes('<img'), 'title rendered as text');
+    assert(!board.el.querySelector('cap-storyboard-card').shadowRoot.querySelector('.title img'), 'no injected markup');
+    change('duration', '-1');
+    assert(editor._storyboards[0].duration === 15.5, 'invalid duration does not replace valid data');
+    board.render();
+    await history.undo();
+    assert(!editor._storyboards[0].dialogue, 'undo restores shot content');
+    await history.redo();
+    assert(editor._storyboards[0].dialogue === 'The broth needs salt.', 'redo restores shot content');
+    editor._loadStoryboards(JSON.parse(saved));
+    assert(editor._storyboards[0].id === id && editor._storyboards[0].duration === 15.5, 'saved data round trips');
+    board.el.querySelector('[data-add]').click();
+    const first = board.el.querySelector('cap-storyboard-card');
+    first.button.click();
+    assert(board.selectedId === id && board.form.elements.duration.value === '15.5', 'card click retargets settings');
+    const frame = first.shadowRoot.querySelector('.frame').getBoundingClientRect();
+    assert(Math.abs(frame.width / frame.height - 1920 / 1024) < 0.02, 'project aspect ratio');
+    editor._setStoryboardMode(false);
+    assert(!editor.programStage.hidden && board.el.hidden && board.panel.hidden && editor.previews === 1, 'exit restores playback and inspector');
+    editor._setStoryboardMode(true);
+    assert(board.selectedId === id, 'mode switch preserves selection');
+    editor._loadStoryboards(null);
+    assert(editor._storyboards.length === 0 && board.form.hidden, 'new/legacy project clears old shots');
+    editor._loadStoryboards(JSON.parse(saved));
+    board.el.querySelector('cap-storyboard-card').button.click();
+    assert(source.includes('storyboard: this._buildStoryboardDocument()'), 'editor snapshots include separate storyboard document');
+    assert(source.includes('storyboardT(this._storyboardMode ? "playback" : "mode")'), 'mode entry is in timeline more menu');
+    let records = 0;
+    editor._recordUndo = () => { records++; history.record(); };
+    editor._saveToWidgets = () => { saved = JSON.stringify(buildStoryboardDocument(editor._storyboards)); };
+    editor._clipItems = meta => meta?.items || [];
+    editor._meta = new Map([
+        ['early', { prompt: 'Exact clip prompt\nwith dialogue.', items: [{ id: 'disabled', kind: 'image', enabled: false }, { id: 'video', kind: 'video' }, { id: 'portrait', kind: 'image' }] }],
+        ['late', { prompt: 'Late scene' }],
+    ]);
+    const generate = board.el.querySelector('[data-from-clips]');
+    generate.click();
+    assert(records === 0, 'no director clips creates no undo step');
+    const early = { id: 'early', name: 'Early shot', startTime: 1, duration: 15.5 };
+    const late = { id: 'late', name: 'Late shot', startTime: 20, duration: 4 };
+    editor._timeline.tracks = [
+        { type: 'image', clips: [late, early] },
+        { type: 'audio', clips: [{ id: 'music', startTime: 0, duration: 30 }] },
+        { type: 'video', clips: [{ id: 'video', startTime: 0, duration: 30 }] },
+        { type: 'image', clips: [{ id: 'middle', name: 'Middle shot', startTime: 10, duration: 3 }] },
+    ];
+    const before = structuredClone(editor._storyboards);
+    const tracksBefore = JSON.stringify(editor._timeline.tracks);
+    generate.click();
+    const added = editor._storyboards.slice(before.length);
+    assert(added.length === 3 && added.map(s => s.source_clip_id).join() === 'early,middle,late', 'director-only generation sorted across tracks');
+    assert(added[0].title === 'Early shot' && added[0].duration === 15.5 && added[0].description === 'Exact clip prompt\nwith dialogue.', 'clip fields copied without truncation');
+    assert(added[0].image_id === 'portrait' && added[1].image_id === '', 'first enabled image or empty');
+    assert(JSON.stringify(editor._storyboards.slice(0, before.length)) === JSON.stringify(before), 'existing storyboards unchanged');
+    assert(JSON.stringify(editor._timeline.tracks) === tracksBefore, 'source clips unchanged');
+    assert(board.selectedId === added[0].id && board.form.elements.title.value === 'Early shot', 'first generated shot selected');
+    const generatedSave = saved;
+    generate.click();
+    assert(records === 1 && editor._storyboards.length === before.length + 3, 'repeat is a no-op');
+    await history.undo();
+    assert(JSON.stringify(editor._storyboards) === JSON.stringify(before), 'whole generation undoes in one step');
+    await history.redo();
+    assert(editor._storyboards.length === before.length + 3, 'whole generation redoes');
+    editor._loadStoryboards(JSON.parse(generatedSave));
+    generate.click();
+    assert(records === 1, 'source IDs survive save and prevent duplicates');
+    editor._timeline.tracks[0].clips.push({ id: 'new', name: 'New clip', startTime: 25, duration: 2 });
+    generate.click();
+    assert(records === 2 && editor._storyboards.at(-1).source_clip_id === 'new', 'only newly added clips converted');
+    const original = structuredClone(editor._storyboards);
+    const sourceCard = board.el.querySelector('cap-storyboard-card');
+    const openMenu = () => {
+        sourceCard.more.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+        return sourceCard.shadowRoot.querySelector('cap-context-menu');
+    };
+    let menu = openMenu();
+    assert(menu, 'hover opens insert menu');
+    menu.shadowRoot.querySelector('cap-button').click();
+    let dialog = board.el.querySelector('cap-dialog');
+    assert(dialog && dialog.querySelector('[name="insert-copy"]:checked').value === 'yes', 'dialog defaults to copying');
+    assert(dialog.querySelector('[name="insert-position"]:checked').value === 'after', 'dialog defaults to after');
+    dialog.querySelector('[name="insert-position"][value="before"]').checked = true;
+    dialog.querySelector('[data-confirm]').click();
+    assert(editor._storyboards.length === original.length + 1, 'insert before adds one shot');
+    const copied = editor._storyboards[0];
+    assert(copied.id !== original[0].id && editor._storyboards[1].id === original[0].id, 'copy receives new ID before source');
+    assert(copied.description === original[0].description && copied.dialogue === original[0].dialogue && copied.duration === original[0].duration, 'copy retains content and duration');
+    assert(!copied.source_clip_id && board.selectedId === copied.id, 'copy has independent identity and is selected');
+    await history.undo();
+    assert(JSON.stringify(editor._storyboards) === JSON.stringify(original), 'insert undoes atomically');
+    menu = openMenu();
+    menu.shadowRoot.querySelector('cap-button').click();
+    dialog = [...board.el.querySelectorAll('cap-dialog')].at(-1);
+    const noCopy = dialog.querySelector('[name="insert-copy"][value="no"]');
+    noCopy.checked = true;
+    noCopy.dispatchEvent(new Event('change'));
+    dialog.querySelector('[data-seconds]').value = '12';
+    dialog.querySelector('[data-frames]').value = '12';
+    dialog.querySelector('[data-confirm]').click();
+    assert(editor._storyboards[1].duration === 12.5, 'seconds and frames use project fps without ten second cap');
+    assert(editor._storyboards[0].id === original[0].id && editor._storyboards[2].id === original[1].id, 'insert after preserves order');
+    assert(editor._storyboards[1].title === '' && editor._storyboards[1].dialogue === '' && editor._storyboards[1].image_id === '', 'copy disabled inserts empty shot');
+    assert(JSON.parse(saved).shots[1].id === board.selectedId, 'insert persists and selects new shot');
+    const beforeCancel = JSON.stringify(editor._storyboards);
+    openMenu().shadowRoot.querySelector('cap-button').click();
+    dialog = [...board.el.querySelectorAll('cap-dialog')].at(-1);
+    dialog.querySelector('[data-cancel]').click();
+    assert(JSON.stringify(editor._storyboards) === beforeCancel, 'cancel does not modify shots');
+    openMenu().shadowRoot.querySelectorAll('cap-button')[1].click();
+    assert(editor._storyboards[0].disabled === true && sourceCard.hasAttribute('data-disabled'), 'disable persists and dims card');
+    assert(JSON.parse(saved).shots[0].disabled === true, 'disabled flag is serialized');
+    editor._loadStoryboards(JSON.parse(saved));
+    assert(editor._storyboards[0].disabled === true, 'disabled flag survives reload');
+    menu = openMenu();
+    assert(menu.shadowRoot.querySelectorAll('cap-button')[1].textContent.includes(storyboardT('enable')), 'disabled shot offers enable');
+    menu.shadowRoot.querySelectorAll('cap-button')[1].click();
+    assert(editor._storyboards[0].disabled === false && !sourceCard.hasAttribute('data-disabled'), 'enable restores card');
+    await history.undo();
+    assert(editor._storyboards[0].disabled === true, 'toggle supports undo');
+    sourceCard.button.click();
+    const beforeDelete = structuredClone(editor._storyboards);
+    openMenu().shadowRoot.querySelectorAll('cap-button')[2].click();
+    assert(editor._storyboards.length === beforeDelete.length - 1 && !editor._storyboards.some(s => s.id === beforeDelete[0].id), 'delete removes shot');
+    assert(board.selectedId === beforeDelete[1].id && !board.form.hidden, 'deleting selected shot selects neighbor');
+    await history.undo();
+    assert(JSON.stringify(editor._storyboards) === JSON.stringify(beforeDelete), 'delete undoes with full content and state');
+    board.getClips = () => [{ id: 'bind-a', name: 'A' }, { id: 'bind-b', name: 'B' }];
+    const bindCard = board.el.querySelector('cap-storyboard-card');
+    bindCard.more.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+    assert(bindCard.shadowRoot.querySelector('cap-context-menu').shadowRoot.querySelectorAll('cap-button').length === 3, 'binding removed from card menu');
+    bindCard.button.click();
+    board.panel.querySelector('[data-bind]').click();
+    dialog = [...board.el.querySelectorAll('cap-dialog')].at(-1);
+    for (const input of dialog.querySelectorAll('input')) input.checked = ['bind-a', 'bind-b'].includes(input.value);
+    dialog.querySelector('[data-save]').click();
+    assert(JSON.stringify(editor._storyboards[0].clip_ids) === JSON.stringify(['bind-a', 'bind-b']), 'bind multiple clips');
+    assert(JSON.parse(saved).shots[0].clip_ids.length === 2, 'bindings persist');
+    assert(bindCard.shadowRoot.querySelector('.bindings').textContent.includes('A、B'), 'card displays bindings');
+    await history.undo();
+    assert(JSON.stringify(editor._storyboards[0].clip_ids) === JSON.stringify(beforeDelete[0].clip_ids), 'binding undoes');
+    await history.redo();
+    editor._loadStoryboards(JSON.parse(saved));
+    board.panel.querySelector('[data-bind]').click();
+    dialog = [...board.el.querySelectorAll('cap-dialog')].at(-1);
+    assert(dialog.querySelectorAll('input:checked').length === 2, 'saved bindings preselect');
+    for (const input of dialog.querySelectorAll('input')) input.checked = false;
+    dialog.querySelector('[data-save]').click();
+    assert(editor._storyboards[0].clip_ids.length === 0, 'clear all bindings');
+    document.querySelector('#result').textContent = 'PASS: storyboard UI, clip conversion, insertion menu, copy/blank, ordering, persistence, atomic undo/redo';
+    window.fixture = { board, editor };
+} catch (error) {
+    document.querySelector('#result').textContent = 'FAIL: ' + error.stack;
+    throw error;
+}
+</script>
+</html>

@@ -15,6 +15,7 @@ const method = name => {
 function fixture() {
     asks = []; answer = true;
     const widgets = Object.fromEntries(Object.keys(defaults).map(key => [key, { value: 99 }]));
+    widgets.storyboard_json = { value: '{"schema_version":1,"shots":[{"id":"old"}]}' };
     const editor = {
         _timelineReady: true, _pendingGeneratedJobs: [], _loadSeq: 7, _openGen: 3,
         _genVideoStamp: 'old', _runtimeOnlyClipIds: ['old'], _deferredGeneratedJobs: [{ clipId: 'old' }],
@@ -23,6 +24,7 @@ function fixture() {
         _canCreateProject: method('_canCreateProject'), _newProject: method('_newProject'),
         _isNodeOnLiveGraph: () => true, _currentVersion: () => 'test', _currentSchemaVersion: () => 4,
         _w: key => widgets[key],
+        _buildStoryboardDocument() { return { schema_version: 1, shots: this._storyboards }; },
         _closeInternal(save) { assert.equal(save, false); this.calls.push('close'); },
         _writeProjectJson(json) { this.project = JSON.parse(json); this.calls.push('write'); },
         _resetProjectExport() { this.calls.push('resetExport'); },
@@ -45,6 +47,7 @@ function fixture() {
     assert.deepEqual(editor.project.settings, { ...defaults, prepend_prompt: '', append_prompt: '',
         timeline_zoom: 1.2, current_time: 0, timeline_scroll_left: 0, timeline_scroll_top: 0 });
     for (const [key, value] of Object.entries(defaults)) assert.equal(widgets[key].value, value);
+    assert.deepEqual(JSON.parse(widgets.storyboard_json.value), { schema_version: 1, shots: [] });
     assert.equal(editor._genVideoStamp, null);
     assert.equal(editor._runtimeOnlyClipIds, null);
     assert.deepEqual(editor._deferredGeneratedJobs, []);
@@ -68,7 +71,7 @@ for (const change of [e => { answer = false; }, e => { e._loadSeq++; }, e => { e
     await editor._newProject();
     assert.deepEqual(editor.calls, [], 'cancel, stale editor or new work must prevent reset');
 }
-assert.match(source, /label: T\("new_project"\), disabled: !this\._canCreateProject\(\)/);
+assert.match(source, /label: T\("new_project"\), (?:icon: "[^"]+", )?disabled: !this\._canCreateProject\(\)/);
 // Existing lifecycle owns cleanup and rebuilding, rather than a second reset path.
 const close = source.slice(source.indexOf('    _closeInternal('), source.indexOf('    _discardTimeline('));
 for (const call of ['_stopAudioPlayback()', '_stopAutoSave()', '_closeGenVideoModal()', '_closeGenEditModal()', '_discardTimeline()']) {

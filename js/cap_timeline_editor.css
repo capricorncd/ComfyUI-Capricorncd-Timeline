@@ -2647,6 +2647,42 @@ body.cat-te-media-dnd-over-tl {
     --cap-dialog-min-width: 320px;
     --cap-dialog-min-height: 200px;
 }
+
+.cat-te-program > [hidden] { display: none !important; }
+.cat-te-storyboard {
+    min-height: 0;
+    flex: 1;
+    overflow: auto;
+    padding: 12px;
+}
+.cat-te-storyboard-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--cat-bg);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: -12px -12px 12px;
+    padding: 12px;
+}
+.cat-te-storyboard-toolbar [data-count] { flex: 1; color: var(--cat-muted); font-size: 11px; }
+.cat-te-storyboard-list { display: grid; gap: 10px; }
+.cat-te-storyboard > cap-status-message:not([hidden]) { margin-bottom: 10px; }
+.cat-te-storyboard-settings { padding: 0 12px 12px; box-sizing: border-box; min-width: 0; }
+.cat-te-storyboard-settings[hidden], .cat-te-storyboard-settings [hidden] { display: none !important; }
+.cat-te-storyboard-settings label { display: grid; gap: 5px; margin-bottom: 12px; color: var(--cat-muted); font-size: 11px; }
+.cat-te-storyboard-settings :is(input, textarea, select) {
+    width: 100%; min-width: 0; box-sizing: border-box;
+    background: var(--cat-bg); color: var(--cat-text); border: 1px solid var(--cat-border-soft);
+    border-radius: 4px; padding: 6px 8px; font: inherit; font-size: 12px;
+}
+.cat-te-storyboard-settings textarea { resize: vertical; }
+.cat-te-storyboard-binding { display: grid; gap: 5px; margin-bottom: 12px; }
+.cat-te-storyboard-binding [data-bound-clips] { color: var(--cat-muted); font-size: 11px; overflow-wrap: anywhere; }
+.cat-te-storyboard-binding [data-bound-clips]:empty { display: none; }
+.cat-te-storyboard-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .cat-te-bind-character-body { padding: 20px; }
 .cat-te-bind-character-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
 .cat-te-bind-character-body select {
@@ -4035,12 +4071,12 @@ body.cat-te-media-dnd-over-tl {
 }
 
 
-.cat-te-insert-clip-dialog { --cap-dialog-width: 480px; --cap-dialog-height: fit-content; --cap-dialog-min-width: 320px; --cap-dialog-min-height: 280px; }
-.cat-te-insert-clip-dialog fieldset { border: 1px solid var(--cat-border); border-radius: 6px; margin: 0 0 12px; padding: 12px; }
-.cat-te-insert-clip-dialog fieldset label { margin-right: 18px; }
+:is(.cat-te-insert-clip-dialog, .cat-te-insert-storyboard-dialog) { --cap-dialog-width: 480px; --cap-dialog-height: fit-content; --cap-dialog-min-width: 320px; --cap-dialog-min-height: 280px; }
+:is(.cat-te-insert-clip-dialog, .cat-te-insert-storyboard-dialog) fieldset { border: 1px solid var(--cat-border); border-radius: 6px; margin: 0 0 12px; padding: 12px; }
+:is(.cat-te-insert-clip-dialog, .cat-te-insert-storyboard-dialog) fieldset label { margin-right: 18px; }
 .cat-te-insert-duration { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .cat-te-insert-duration input { width: 65px; }
-.cat-te-insert-clip-dialog p { color: var(--cat-muted); font-size: 12px; }
+:is(.cat-te-insert-clip-dialog, .cat-te-insert-storyboard-dialog) p { color: var(--cat-muted); font-size: 12px; }
 
 /* Highlight the row while hovering anywhere in its track header. */
 .cat-te-overlay .tl-track.cat-te-track-header-hover,
@@ -4058,3 +4094,9 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-video-trim-dialog [slot="footer"] { display: flex; justify-content: flex-end; gap: 8px; }
 
 .cat-te-video-trim-body [hidden] { display: none; }
+
+.cat-te-insert-storyboard-body, .cat-te-insert-clip-body { padding: 12px 14px; }
+
+.cat-te-bind-storyboard-dialog { --cap-dialog-width: 480px; --cap-dialog-height: fit-content; --cap-dialog-min-width: 320px; --cap-dialog-min-height: 240px; }
+.cat-te-bind-storyboard-list { padding: 14px; display: grid; gap: 12px; overflow-wrap: anywhere; }
+.cat-te-bind-storyboard-list label { display: flex; align-items: baseline; gap: 8px; }

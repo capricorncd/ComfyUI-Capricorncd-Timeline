@@ -58,6 +58,10 @@ export class ContextMenu extends HTMLElement {
             button.setAttribute('variant', item.danger ? 'danger' : 'ghost');
             button.setAttribute('align', 'start');
             button.setAttribute('role', 'menuitem');
+            if (typeof item.checked === 'boolean') {
+                button.setAttribute('role', 'menuitemcheckbox');
+                button.setAttribute('aria-checked', String(item.checked));
+            }
             button.disabled = !!item.disabled;
             button.classList.toggle('strike', !!item.strike);
             button.classList.toggle('track-name', !!item.trackName);
@@ -66,7 +70,8 @@ export class ContextMenu extends HTMLElement {
             const icon = document.createElement('span');
             icon.className = 'icon';
             icon.setAttribute('aria-hidden', 'true');
-            if (item.icon) icon.innerHTML = iconHtml(item.icon, 16);
+            if (item.checked === true) icon.innerHTML = iconHtml('check', 16);
+            else if (item.icon) icon.innerHTML = iconHtml(item.icon, 16);
             const label = document.createElement('span');
             label.className = 'label';
             const match = String(item.label ?? '').match(/^(.*?)\s{2,}((?:Ctrl|Cmd|Alt|Shift|⌘)\+.+)$/);

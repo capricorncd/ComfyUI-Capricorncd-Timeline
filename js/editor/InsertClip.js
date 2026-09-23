@@ -10,6 +10,7 @@ export function openInsertClip(app, clip) {
     dialog.className = 'cat-te-insert-clip-dialog';
     dialog.setAttribute('close-label', T('close_title'));
     dialog.innerHTML = `<span slot="title">${T('insert_clip_title')}</span>
+        <div class="cat-te-insert-clip-body">
         <fieldset><legend>${T('insert_clip_position')}</legend>
           <label><input type="radio" name="insert-position" value="before" />${T('insert_clip_before')}</label>
           <label><input type="radio" name="insert-position" value="after" checked />${T('insert_clip_after')}</label>
@@ -21,6 +22,7 @@ export function openInsertClip(app, clip) {
         <div class="cat-te-insert-duration"><label>${T('clip_duration_label')} <input data-seconds type="number" min="0" step="1" value="5" /> ${T('insert_clip_seconds')}</label>
         <label><input data-frames type="number" min="0" max="${Math.ceil(fps) - 1}" step="1" value="0" /> ${T('insert_clip_frames')}</label></div>
         <p>${T('insert_clip_ripple_note')}</p><p data-error role="status"></p>
+        </div>
         <div slot="footer"><cap-button data-cancel>${T('cancel_btn')}</cap-button><cap-button data-confirm variant="primary">${T('insert_clip_confirm')}</cap-button></div>`;
     const seconds = dialog.querySelector('[data-seconds]');
     const frames = dialog.querySelector('[data-frames]');

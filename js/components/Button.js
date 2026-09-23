@@ -1,6 +1,6 @@
 /** Shared native-button presentation and interaction. */
 export class Button extends HTMLElement {
-    static observedAttributes = ["disabled", "role", "aria-haspopup", "aria-label", "aria-pressed", "aria-selected", "aria-controls", "tabindex", "title"];
+    static observedAttributes = ["disabled", "role", "aria-haspopup", "aria-label", "aria-pressed", "aria-selected", "aria-checked", "aria-controls", "tabindex", "title"];
 
     constructor() {
         super();
@@ -37,6 +37,7 @@ export class Button extends HTMLElement {
                 :host([size="small"][shape="square"]) button { width: 22px; padding: 0; }
                 :host([size="large"]) button { height: 44px; font-size: 16px; }
                 :host([size="large"][shape]) button { width: 44px; padding: 0; }
+                :host([size="content"]) button { height: auto; padding: 10px; white-space: normal; }
                 :host([align="start"]) button { justify-content: flex-start; text-align: left; }
                 :host([role="menuitem"]) slot { display: block; width: 100%; }
                 :host([truncate]) { min-width: 0; }

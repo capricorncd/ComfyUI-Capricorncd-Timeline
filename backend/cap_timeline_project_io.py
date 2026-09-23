@@ -15,9 +15,36 @@ from .cap_i18n import get_last_known_lang, t as _t
 from .timecode import AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, resolve_media_path
 
 PACKAGE_PROJECT_NAME = "project.json"
+PACKAGE_STORYBOARD_NAME = "storyboard.json"
+STORYBOARD_SCHEMA_VERSION = 1
 PACKAGE_MEDIA_ROOT = "media"
 PACKAGE_GENERATED_SUBDIR = "generated"
 KIND_SUBDIR = {"image": "images", "video": "videos", "audio": "audios"}
+
+
+def parse_storyboard_document(value=None, legacy_shots=None):
+    document = value if value is not None else {"schema_version": STORYBOARD_SCHEMA_VERSION, "shots": legacy_shots if legacy_shots is not None else []}
+    if not isinstance(document, dict):
+        raise ValueError("Invalid storyboard.json")
+    version = document.get("schema_version")
+    if type(version) is not int or version != STORYBOARD_SCHEMA_VERSION:
+        raise ValueError(f"Unsupported storyboard schema_version: {version}")
+    shots = document.get("shots")
+    if not isinstance(shots, list) or any(not isinstance(shot, dict) for shot in shots):
+        raise ValueError("Invalid storyboard shots")
+    return {"schema_version": STORYBOARD_SCHEMA_VERSION, "shots": shots}
+
+
+def read_storyboard_from_zip(data):
+    with zipfile.ZipFile(io.BytesIO(data), "r") as archive:
+        project_name = next((name for name in archive.namelist() if name == PACKAGE_PROJECT_NAME or name.endswith("/" + PACKAGE_PROJECT_NAME)), None)
+        if project_name is None:
+            raise ValueError("Missing project.json")
+        storyboard_name = project_name[:-len(PACKAGE_PROJECT_NAME)] + PACKAGE_STORYBOARD_NAME
+        if storyboard_name in archive.namelist():
+            return parse_storyboard_document(json.loads(archive.read(storyboard_name).decode("utf-8")))
+        project = json.loads(archive.read(project_name).decode("utf-8"))
+        return parse_storyboard_document(legacy_shots=project.get("storyboards"))
 
 
 def _read_schema_version() -> int:
@@ -800,11 +827,13 @@ def build_export_entries(project: dict, *, include_generated: bool = True) -> tu
         })
 
     exported = _remap_project_files(project, mapping, generated_mapping)
+    exported.pop("storyboards", None)
     return exported, entries, missing
 
 
-def build_export_zip_bytes(project: dict, workflow: dict | None = None, *, include_generated: bool = True) -> tuple[bytes, str, list[str]]:
+def build_export_zip_bytes(project: dict, workflow: dict | None = None, *, include_generated: bool = True, storyboard: dict | None = None) -> tuple[bytes, str, list[str]]:
     """Return (zip_bytes, filename, missing_files)."""
+    storyboard = parse_storyboard_document(storyboard, project.get("storyboards"))
     exported, entries, missing = build_export_entries(project, include_generated=include_generated)
     name = _safe_name(exported.get("name"), "timeline-project")
     buf = io.BytesIO()
@@ -815,13 +844,14 @@ def build_export_zip_bytes(project: dict, workflow: dict | None = None, *, inclu
         )
         if workflow is not None:
             zf.writestr("workflow.json", json.dumps(workflow, ensure_ascii=False, indent=2))
+        zf.writestr(PACKAGE_STORYBOARD_NAME, json.dumps(storyboard, ensure_ascii=False, indent=2))
         for entry in entries:
             zf.write(entry["src_path"], arcname=entry["arcname"])
     return buf.getvalue(), f"{name}.zip", missing
 
 
 def save_project_export(project: dict, directory: str, package_format: str, workflow: dict | None = None,
-                        *, include_generated: bool = True) -> tuple[str, list[str]]:
+                        *, include_generated: bool = True, storyboard: dict | None = None) -> tuple[str, list[str]]:
     """Write a new, dated package on disk without overwriting earlier exports."""
     if package_format not in {"directory", "zip"}:
         raise ValueError("Invalid export format")
@@ -832,6 +862,7 @@ def save_project_export(project: dict, directory: str, package_format: str, work
         raise ValueError("Export directory must be a local path")
     if not os.path.isdir(root):
         raise ValueError(f"Export directory does not exist: {directory}")
+    storyboard = parse_storyboard_document(storyboard, project.get("storyboards"))
     exported, entries, missing = build_export_entries(project, include_generated=include_generated)
     # Package paths must stay inside the new directory, including on Windows.
     for entry in entries:
@@ -855,6 +886,7 @@ def save_project_export(project: dict, directory: str, package_format: str, work
     if package_format == "zip":
         with archive:
             archive.writestr(PACKAGE_PROJECT_NAME, json.dumps(exported, ensure_ascii=False, indent=2))
+            archive.writestr(PACKAGE_STORYBOARD_NAME, json.dumps(storyboard, ensure_ascii=False, indent=2))
             if workflow is not None:
                 archive.writestr("workflow.json", json.dumps(workflow, ensure_ascii=False, indent=2))
             for entry in entries:
@@ -869,6 +901,8 @@ def save_project_export(project: dict, directory: str, package_format: str, work
                 json.dump(workflow, stream, ensure_ascii=False, indent=2)
         with open(os.path.join(path, PACKAGE_PROJECT_NAME), "w", encoding="utf-8") as stream:
             json.dump(exported, stream, ensure_ascii=False, indent=2)
+        with open(os.path.join(path, PACKAGE_STORYBOARD_NAME), "w", encoding="utf-8") as stream:
+            json.dump(storyboard, stream, ensure_ascii=False, indent=2)
     return path, missing
 
 

@@ -4090,3 +4090,7 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-storyboard-settings textarea[name="description"] { min-height: 140px; }
 .cat-te-storyboard-settings textarea[name="dialogue"] { min-height: 96px; }
 .cat-te-storyboard-settings [data-selection-empty] { margin: 12px 0; padding: 24px 16px; color: var(--cat-muted); text-align: center; border: 1px dashed var(--cat-border); border-radius: 10px; font-size: calc(var(--cat-font-size, 1rem) * 0.928571); }
+
+.cat-te-video-trim-navigation { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cat-te-video-trim-navigation label { flex: 1; min-width: 0; }
+.cat-te-video-trim-navigation [data-position] { white-space: nowrap; font-variant-numeric: tabular-nums; }

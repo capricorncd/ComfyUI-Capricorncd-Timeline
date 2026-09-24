@@ -127,6 +127,8 @@ Run `node tests/test_dialog.mjs` plus the existing native-dialog/export/speech t
 
 `js/components/ExportRange.js` provides `<cap-export-range>`. Call `configure(totalFrames, fps, labels)` and `update(currentFrame, playing)`; `exportRange` returns frame boundaries with an exclusive end, or `null` for the full timeline. The component emits `toggleplay`, `seek` and `rangechange`; seek/range events contain `detail.frame`. Playback and export remain owned by the editor. `tests/export_range.browser.html` checks frame stepping, range limits, playback stopping, independent output selection and preview layout.
 
+Optional range labels `lock`, `match` and `advance` enable the trim toolbar's “Lock duration”, “Match Clip duration” and “Next segment” controls. Lock defaults off on configure; dragging or stepping either endpoint then translates the whole selection, clamped at source boundaries. `matchrange` asks the caller for a target; `setRangeLength(frames)` sets the length from the current start and emits `rangechange`. VideoTrim accounts for source playback rate when matching Clip duration. `advanceRange()` starts at the previous end. Both explicit actions may shorten the selection at the source end, even when dragging is locked. `hide-current-time` omits the duplicate playback position. `tests/export_range_advance.browser.html` covers these controls and boundary behavior.
+
 ## Slider with reset
 
 Import `js/components/Slider.js`. `<cap-slider>` wraps a native range input and optional value label, with a shared `<cap-button>` at the end. Set `default-value` for the reset target and a localized `reset-label` for the accessible button name. Without `default-value`, reset uses the input's HTML `value` attribute. Changing the current value does not change that default.
@@ -151,6 +153,8 @@ Run `node tests/test_context_menu.mjs` and `node tests/test_context_menu_dismiss
 ## Appearance and form controls
 
 `ThemePicker.js` adds `<cap-theme-picker>` inline under Settings → General, without a second dialog. Light/dark mode defaults to the system preference and responds to system changes. Jade, ocean, violet and amber accents and the mode are stored locally. Theme tokens are scoped to the editor, including its dialogs and timeline; the ComfyUI canvas is unaffected. `cap-theme-change` triggers canvas ruler repainting.
+
+`Switch.js` defines `<cap-switch>` independently and `FormControls.js` re-exports it. The switch wraps a native checkbox with `role="switch"`; native labels, Space, focus, disabled state and input/change events are preserved. Programmatic `checked` changes do not emit events.
 
 `FormControls.js` provides `<cap-input>`, `<cap-select>`, `<cap-textarea>` and `<cap-switch>`. Each wraps a native control in light DOM, preserving labels, `form.elements`, validation and native events. Apply `name`, `required`, `disabled`, number constraints and accessibility attributes to the native control. Wrappers expose `value`, `disabled`, `focus()`, `checkValidity()` and `reportValidity()`; switches also expose `checked`. Input/select support `size="small"`.
 
@@ -192,3 +196,5 @@ Groups expose `value`, `disabled`, `focus()`, `checkValidity()` and `reportValid
 `FormRow.js` provides `<cap-form-row>` for a label and right-aligned control. Wrap the row in a native `<label>` to preserve input labeling; use `<cap-input>` / `<cap-select>` for controls. `--cap-form-row-control-width` defaults to 180px. Text uses the current theme.
 
 Interface font size is set in Settings → General (default 16px, 10–24px), saved locally. UI typography uses the scoped rem-based `--cat-font-size` token with size ratios, including shared shadow components and timeline labels. It does not change the document root or video/subtitle output sizes; the prompt font size remains independent.
+
+`ShotControl.js` exposes an `actions` slot at the right of its toolbar for caller-owned shot actions. VideoTrim places “Insert into Clip prompt” there. Its footer offers ordinary Apply and Apply and resize Clip; the latter uses the currently selected reference range divided by source playback rate, updates Clip geometry and timeline duration in the same undo step, and leaves the Clip start unchanged.

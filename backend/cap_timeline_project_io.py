@@ -461,6 +461,7 @@ def _normalize_media_catalog(project: dict) -> None:
             **({"voice_audio_id": str(row["voice_audio_id"])} if row.get("voice_audio_id") else {}),
             **({"voice_language": str(row["voice_language"])} if row.get("voice_language") else {}),
             **({"video_trim": dict(row["video_trim"])} if isinstance(row.get("video_trim"), dict) else {}),
+            **({"video_shots": dict(row["video_shots"])} if isinstance(row.get("video_shots"), dict) else {}),
             **({"image_crop": dict(row["image_crop"])} if isinstance(row.get("image_crop"), dict) else {}),
             "tags": [str(t).strip() for t in tags if str(t).strip()],
         }

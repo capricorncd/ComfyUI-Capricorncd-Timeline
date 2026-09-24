@@ -1,0 +1,48 @@
+<!doctype html><meta charset="utf-8"><title>Trim range advance</title>
+<cap-export-range hide-current-time></cap-export-range><pre id="result">RUNNING</pre>
+<script type="module">
+import '../js/components/ExportRange.js';
+const range = document.querySelector('cap-export-range');
+const assert = (ok, message) => { if (!ok) throw Error(message); };
+try {
+ range.configure(761, 24, {start:'入点', end:'出点（不含）', current:'播放位置', play:'播放', pause:'暂停', selected:'已选', advance:'设置结束位置为开始', hint:''});
+ let events = 0, frame;
+ range.addEventListener('rangechange', event => { events++; frame = event.detail.frame; });
+ range.startFrame = 209; range.endFrame = 382; range.update(209, false);
+ const button = range.shadowRoot.querySelector('.advance');
+ button.click();
+ assert(range.startFrame === 382 && range.endFrame === 555 && frame === 382, 'advance preserves selection length and seeks to new start');
+ button.click(); button.click();
+ assert(range.startFrame === 728 && range.endFrame === 761, 'last range capped at source duration');
+ assert(button.disabled && events === 3, 'disabled at end');
+ button.click(); assert(events === 3 && range.startFrame === 728, 'end click cannot create empty range');
+ assert(getComputedStyle(range.shadowRoot.querySelector('.time')).display === 'none', 'duplicate current time hidden');
+ assert(range.shadowRoot.querySelector('.range').textContent.includes('已选 00:01.09'), 'selected duration uses frame timecode');
+ range.configure(240,24,{start:'start',end:'end',current:'current',play:'play',pause:'pause',lock:'锁定时长',match:'匹配 Clip 时长',hint:''});
+ range.startFrame=48; range.endFrame=120; range.update(48,false);
+ const toggle=range.shadowRoot.querySelector('cap-switch');
+ toggle.control.click();
+ assert(toggle.checked, 'switch toggles using native checkbox');
+ const start=range.shadowRoot.querySelector('.start');
+ const end=range.shadowRoot.querySelector('.end');
+ const key=(control,key)=>control.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true}));
+ key(start,'ArrowRight');
+ assert(range.startFrame===49 && range.endFrame===121,'locked start translates both endpoints');
+ key(end,'End');
+ assert(range.startFrame===168 && range.endFrame===240,'locked end clamps whole interval at end');
+ key(end,'Home');
+ assert(range.startFrame===0 && range.endFrame===72,'locked end clamps whole interval at start');
+ toggle.control.click(); key(end,'ArrowRight');
+ assert(range.startFrame===0 && range.endFrame===73,'unlocked endpoint resizes');
+ let matches=0;
+ range.addEventListener('matchrange',()=>{matches++;range.setRangeLength(96);});
+ range.shadowRoot.querySelector('.match').click();
+ assert(matches===1 && range.endFrame===96,'match requests caller duration');
+ range.startFrame=220; range.setRangeLength(96);
+ assert(range.endFrame===240,'match capped at source end');
+ range.setRangeLength(0); assert(range.endFrame===221,'minimum one frame');
+ range.configure(0,24,{start:'start',end:'end',current:'current',play:'play',pause:'pause',hint:''});
+ assert(button.hidden && button.disabled, 'other callers have no advance button');
+ document.querySelector('#result').textContent = 'PASS: advance, locked endpoint translation, boundaries, unlocked resizing, match duration, timecode and optional controls';
+} catch(error) { document.querySelector('#result').textContent = 'FAIL: '+error.stack; }
+</script>

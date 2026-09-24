@@ -21,13 +21,6 @@ class FormControl extends HTMLElement {
             ::slotted(:disabled) { opacity: .45; cursor: not-allowed; }
             ::slotted([aria-invalid="true"]) { border-color: var(--cat-danger, #e56676); }
             :host([size="small"]) ::slotted(input), :host([size="small"]) ::slotted(select) { min-height: 28px; padding: 4px 8px; font-size: calc(var(--cat-font-size, 1rem) * 0.857143); }
-            :host(cap-switch) { display: inline-flex; align-items: center; }
-            :host(cap-switch) ::slotted(input[type="checkbox"]) {
-                appearance: none; background-image: radial-gradient(circle at 10px 50%, #e7eef3 0 7px, transparent 8px); width: 38px; height: 22px; min-height: 22px; padding: 2px;
-                border-radius: 20px; background-color: var(--cat-border, #34464b); cursor: pointer;
-                flex: none; position: relative;
-            }
-            :host(cap-switch) ::slotted(input:checked) { background-color: var(--cat-action, #147d73); background-image: radial-gradient(circle at 26px 50%, #e7eef3 0 7px, transparent 8px); border-color: var(--cat-action, #147d73); }
         </style><slot></slot>`;
     }
 
@@ -44,10 +37,7 @@ class FormControl extends HTMLElement {
 export class Input extends FormControl {}
 export class Select extends FormControl {}
 export class Textarea extends FormControl {}
-export class Switch extends FormControl {
-    get checked() { return this.control?.checked ?? false; }
-    set checked(value) { if (this.control) this.control.checked = !!value; }
-}
-for (const [name, component] of [['cap-input', Input], ['cap-select', Select], ['cap-textarea', Textarea], ['cap-switch', Switch]]) {
+export { Switch } from './Switch.js';
+for (const [name, component] of [['cap-input', Input], ['cap-select', Select], ['cap-textarea', Textarea]]) {
     if (!customElements.get(name)) customElements.define(name, component);
 }

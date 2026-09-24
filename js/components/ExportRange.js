@@ -5,6 +5,7 @@
  */
 
 import "./Button.js";
+import "./Switch.js";
 import { iconHtml } from "../cap_icons.js";
 import { formatTimecode } from "../timecode.js";
 
@@ -20,8 +21,12 @@ export class ExportRange extends HTMLElement {
         this.attachShadow({ mode: "open" }).innerHTML = `
             <style>
                 :host { display: block; min-width: 0; color: var(--cat-text, #e4edeb); font-size: calc(var(--cat-font-size, 1rem) * 0.857143); }
-                .transport { display: flex; align-items: center; gap: 10px; }
+                .transport { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
                 .time { font-variant-numeric: tabular-nums; }
+                :host([hide-current-time]) .time { display: none; }
+                .actions { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
+                .lock { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+                [hidden] { display: none !important; }
                 .track { position: relative; height: 40px; margin: 4px 10px; touch-action: none; }
                 .rail, .selection { position: absolute; top: 20px; height: 5px; border-radius: 3px; }
                 .rail { width: 100%; background: var(--cat-border, #34464b); }
@@ -38,7 +43,7 @@ export class ExportRange extends HTMLElement {
                 .range, .hint { color: var(--cat-muted, #9aaeb5); margin-top: 3px; }
                 .range { font-variant-numeric: tabular-nums; }
             </style>
-            <div class="transport"><cap-button class="play"></cap-button><span class="time"></span></div>
+            <div class="transport"><cap-button class="play"></cap-button><span class="time"></span><div class="actions"><label class="lock" hidden><cap-switch><input type="checkbox"></cap-switch><span></span></label><cap-button class="match" hidden></cap-button><cap-button class="advance" hidden></cap-button></div></div>
             <div class="track">
                 <div class="rail"></div><div class="selection"></div>
                 <div class="endpoint start" role="slider" tabindex="0" data-part="start" aria-orientation="horizontal"></div>
@@ -46,6 +51,12 @@ export class ExportRange extends HTMLElement {
                 <div class="playhead" role="slider" tabindex="0" data-part="current" aria-orientation="horizontal"></div>
             </div>
             <div class="range"></div><div class="hint"></div>`;
+        this._lock = this.shadowRoot.querySelector('cap-switch');
+        this._lock.addEventListener('change', () => this.update(this.currentFrame, this.playing));
+        this._match = this.shadowRoot.querySelector('.match');
+        this._match.addEventListener('click', () => this.dispatchEvent(new Event('matchrange')));
+        this._advance = this.shadowRoot.querySelector(".advance");
+        this._advance.addEventListener("click", () => this.advanceRange());
         this._track = this.shadowRoot.querySelector(".track");
         this._play = this.shadowRoot.querySelector(".play");
         this._play.addEventListener("click", () => this.dispatchEvent(new Event("toggleplay")));
@@ -82,6 +93,13 @@ export class ExportRange extends HTMLElement {
         this.endFrame = this.totalFrames;
         this.currentFrame = 0;
         this.labels = labels;
+        this._lock.checked = false;
+        this.shadowRoot.querySelector('.lock').hidden = !labels.lock;
+        this.shadowRoot.querySelector('.lock span').textContent = labels.lock || '';
+        this._match.hidden = !labels.match;
+        this._match.textContent = labels.match || '';
+        this._advance.hidden = !labels.advance;
+        this._advance.textContent = labels.advance || '';
         for (const part of ["start", "end", "current"]) {
             this.shadowRoot.querySelector(`[data-part="${part}"]`).setAttribute("aria-label", labels[part]);
         }
@@ -94,6 +112,22 @@ export class ExportRange extends HTMLElement {
             : { start_frame: this.startFrame, end_frame: this.endFrame };
     }
 
+    setRangeLength(frames) {
+        if (!this.totalFrames || !Number.isFinite(frames)) return;
+        this.endFrame = Math.min(this.totalFrames, this.startFrame + Math.max(1, Math.round(frames)));
+        this.update(this.startFrame, false);
+        this.dispatchEvent(new CustomEvent("rangechange", { detail: { frame: this.startFrame } }));
+    }
+
+    advanceRange() {
+        if (!this.totalFrames || this.endFrame >= this.totalFrames) return;
+        const length = this.endFrame - this.startFrame;
+        this.startFrame = this.endFrame;
+        this.endFrame = Math.min(this.totalFrames, this.startFrame + length);
+        this.update(this.startFrame, false);
+        this.dispatchEvent(new CustomEvent("rangechange", { detail: { frame: this.startFrame } }));
+    }
+
     _movePointer(event) {
         const rect = this._track.getBoundingClientRect();
         this._move(this._drag, Math.round((event.clientX - rect.left) / rect.width * this.totalFrames));
@@ -102,7 +136,12 @@ export class ExportRange extends HTMLElement {
     _move(part, frame) {
         if (!this.totalFrames) return;
         frame = Math.round(frame);
-        if (part === "start") this.startFrame = Math.max(0, Math.min(this.endFrame - 1, frame));
+        if (this._lock.checked && (part === "start" || part === "end")) {
+            const length = this.endFrame - this.startFrame;
+            this.startFrame = Math.max(0, Math.min(this.totalFrames - length, part === "start" ? frame : frame - length));
+            this.endFrame = this.startFrame + length;
+        }
+        else if (part === "start") this.startFrame = Math.max(0, Math.min(this.endFrame - 1, frame));
         else if (part === "end") this.endFrame = Math.max(this.startFrame + 1, Math.min(this.totalFrames, frame));
         this.currentFrame = part === "start" ? this.startFrame : part === "end" ? this.endFrame - 1
             : Math.max(this.startFrame, Math.min(this.endFrame - 1, frame));
@@ -118,9 +157,10 @@ export class ExportRange extends HTMLElement {
         const percent = value => `${100 * value / Math.max(1, this.totalFrames)}%`;
         const nominalFps = Math.ceil(this.fps);
         const time = value => formatTimecode(value * 1000 / nominalFps, nominalFps);
+        const length = this.endFrame - this.startFrame;
         for (const [part, value, min, max] of [
-            ["start", this.startFrame, 0, Math.max(0, this.endFrame - 1)],
-            ["end", this.endFrame, Math.min(this.totalFrames, this.startFrame + 1), this.totalFrames],
+            ["start", this.startFrame, 0, this._lock.checked ? this.totalFrames - length : Math.max(0, this.endFrame - 1)],
+            ["end", this.endFrame, this._lock.checked ? length : Math.min(this.totalFrames, this.startFrame + 1), this.totalFrames],
             ["current", this.currentFrame, this.startFrame, Math.max(this.startFrame, this.endFrame - 1)],
         ]) {
             const control = this.shadowRoot.querySelector(`[data-part="${part}"]`);
@@ -141,8 +181,10 @@ export class ExportRange extends HTMLElement {
         }
         this._play.setAttribute("aria-label", label);
         this._play.disabled = !this.totalFrames;
+        this._lock.disabled = this._match.disabled = !this.totalFrames;
+        this._advance.disabled = !this.totalFrames || this.endFrame >= this.totalFrames;
         this.shadowRoot.querySelector(".time").textContent = time(this.currentFrame);
-        this.shadowRoot.querySelector(".range").textContent = `${this.labels.start} ${time(this.startFrame)} — ${this.labels.end} ${time(this.endFrame)} · ${time(this.endFrame - this.startFrame)}`;
+        this.shadowRoot.querySelector(".range").textContent = `${this.labels.start} ${time(this.startFrame)} — ${this.labels.end} ${time(this.endFrame)} · ${this.labels.selected ? this.labels.selected + " " : ""}${time(this.endFrame - this.startFrame)}`;
     }
 }
 

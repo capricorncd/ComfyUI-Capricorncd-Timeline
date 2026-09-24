@@ -6295,6 +6295,7 @@ export class CapTimelineEditorApp {
                 ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
                 ...(row.voice_language ? { voice_language: String(row.voice_language) } : {}),
                 ...(row.video_trim ? { video_trim: { ...row.video_trim } } : {}),
+                ...(row.video_shots ? { video_shots: structuredClone(row.video_shots) } : {}),
                 ...(row.image_crop ? { image_crop: structuredClone(row.image_crop) } : {}),
                 tags: Array.isArray(row.tags) ? row.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
             };
@@ -6396,6 +6397,7 @@ export class CapTimelineEditorApp {
                 ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
                 ...(row.voice_language ? { voice_language: String(row.voice_language) } : {}),
                 ...(row.video_trim ? { video_trim: { ...row.video_trim } } : {}),
+                ...(row.video_shots ? { video_shots: structuredClone(row.video_shots) } : {}),
                 ...(row.image_crop ? { image_crop: structuredClone(row.image_crop) } : {}),
                 tags: tags.map((t) => String(t || "").trim()).filter(Boolean),
             };
@@ -16387,7 +16389,7 @@ export class CapTimelineEditorApp {
                 { label: T("run_track_left_menu"), icon: "chevronLeft", fn: () => void this._runSelectedTrackSide("left", clip) },
                 { label: T("menu_ai_optimize_prompt"), icon: "sparkles", fn: () => void this._openAiOptimizeModal(clip) },
             );
-            if (this._clipGeneratedVideos(m).length) media.push({ label: T("menu_trim_video"), icon: "scissors", fn: () => void this._openGenEditModal(clip) });
+            if (this._clipGeneratedVideos(m).length) media.push({ label: T("menu_trim_video"), icon: "timeline", fn: () => void this._openGenEditModal(clip) });
             if (this._clipItems(m).some(item => item.kind === "video")) media.push({ label: T("trim_reference_video"), icon: "scissors", fn: () => this._videoTrim.open(clip) });
             media.push({ label: T("linked_generated_videos_title"), icon: "link", fn: () => void this._openOutputVideosPicker(clip) });
             if (this._clipGeneratedVideos(m).length || m.genEditAudios?.length) audio.push({

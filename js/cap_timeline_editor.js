@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { ComfyWidgets } from "../../scripts/widgets.js";
 import { CapTimelineEditorApp } from "./CapTimelineEditorApp.js";
 
 const NODE_CLASS = "CAP_TimelineEditor";
@@ -61,6 +62,11 @@ function configuredNamedValues(info) {
         if (named[key] != null) continue;
         const index = inputs.findIndex((row) => row?.name === key && row?.widget);
         if (index >= 0 && values[index] != null) named[key] = values[index];
+    }
+    // Older workflows have no storyboard slot; positional restoration may fill
+    // the new widget with an unrelated legacy scalar.
+    if (named.storyboard_json == null && !inputs.some(row => row?.name === "storyboard_json")) {
+        named.storyboard_json = "";
     }
     return named;
 }
@@ -405,6 +411,10 @@ function removeObsoleteWidgets(node) {
 function markNoSerialize(node, named = null) {
     preserveLegacyPromptFields(node, named);
     removeObsoleteWidgets(node);
+    if (!node.widgets?.some(w => w.name === "storyboard_json")) {
+        const { widget } = ComfyWidgets.STRING(node, "storyboard_json", ["STRING", { default: "", multiline: true }], app);
+        widget.value = named?.storyboard_json ?? node.properties?.cat_named?.storyboard_json ?? "";
+    }
     for (const w of node.widgets ?? []) {
         if (w.name === "te_launcher") {
             w.serialize = false;

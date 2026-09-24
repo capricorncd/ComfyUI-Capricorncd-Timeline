@@ -10,6 +10,7 @@ export class StatusMessage extends HTMLElement {
                 :host { display: block; min-width: 0; white-space: normal; }
                 :host([hidden]), :host(:empty) { display: none; }
                 .panel {
+                    position: relative;
                     box-sizing: border-box;
                     font-family: inherit;
                     font-size: calc(var(--cat-font-size, 1rem) * 0.857143);
@@ -23,6 +24,9 @@ export class StatusMessage extends HTMLElement {
                     overflow-wrap: anywhere;
                 }
                 .message { max-height: var(--cap-status-max-height, none); overflow-y: auto; }
+                .close { display: none; position: absolute; top: 6px; right: 6px; }
+                :host([closable]) .close { display: inline-flex; }
+                :host([closable]) .panel { padding-right: 38px; }
                 .actions { display: none; margin-top: 8px; justify-content: flex-end; }
                 :host([copyable]) .actions { display: flex; }
                 :host([state="success"]) .panel {
@@ -41,9 +45,15 @@ export class StatusMessage extends HTMLElement {
                     background: #241c0e;
                 }
             </style>
-            <div class="panel" role="status" aria-live="polite" aria-atomic="true"><div class="message"><slot></slot></div><div class="actions"><cap-button shape="square" size="small"></cap-button></div></div>
+            <div class="panel" role="status" aria-live="polite" aria-atomic="true"><div class="message"><slot></slot></div><div class="actions"><cap-button shape="square" size="small"></cap-button></div><cap-button class="close" variant="ghost" shape="square" size="small">${iconHtml('close', 14)}</cap-button></div>
         `;
         this.copyButton = this.shadowRoot.querySelector('cap-button');
+        this.closeButton = this.shadowRoot.querySelector('.close');
+        this.closeButton.addEventListener('click', () => {
+            this.setAttribute('dismissed', '');
+            this.hidden = true;
+            this.dispatchEvent(new CustomEvent('dismiss', { bubbles: true, composed: true }));
+        });
         this.copyButton.addEventListener('click', async () => {
             this.copyButton.disabled = true;
             try {
@@ -60,6 +70,8 @@ export class StatusMessage extends HTMLElement {
 
     connectedCallback() {
         this._setCopyState();
+        this.closeButton.setAttribute('aria-label', this.getAttribute('close-label') || 'Close');
+        this.closeButton.title = this.getAttribute('close-label') || 'Close';
     }
 
     disconnectedCallback() {
@@ -79,6 +91,7 @@ export class StatusMessage extends HTMLElement {
     }
 
     setStatus(text, state = "info") {
+        this.removeAttribute('dismissed');
         this.textContent = String(text ?? "");
         this.setAttribute("state", ["success", "error", "warning"].includes(state) ? state : "info");
         this.hidden = !this.textContent;

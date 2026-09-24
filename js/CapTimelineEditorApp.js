@@ -1249,7 +1249,11 @@ export class CapTimelineEditorApp {
             await this._initTimelineFromWidgets();
         } catch (error) {
             this._discardTimeline();
-            alert(T("load_timeline_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            console.error("[CAP_TimelineEditor] Failed to initialize timeline", error);
+            const status = document.createElement("cap-status-message");
+            status.setAttribute("copyable", "");
+            status.setStatus(T("load_timeline_failed", { msg: error instanceof Error ? error.message : String(error) }), "error");
+            this.tlHost.replaceChildren(status);
             return;
         }
         if (gen !== this._openGen || CapTimelineEditorApp._open !== this || !this._overlay?.classList.contains("open")) {
@@ -14204,7 +14208,6 @@ export class CapTimelineEditorApp {
     }
 
     async _initTimelineFromWidgetsAsync(projectOverride = null, { applySettingsFromProject = false, storyboard = null } = {}) {
-        if (!this._w("storyboard_json")) throw new Error(storyboardT("restart_required"));
         const loadSeq = ++this._loadSeq;
         this._timelineReady = false;
         this._meta.clear();
@@ -14235,7 +14238,21 @@ export class CapTimelineEditorApp {
             };
         }
         project = this._migrateProjectDocument(project);
-        this._loadStoryboards(parseStoryboardDocument(storyboard ?? (projectOverride ? null : this._w("storyboard_json")?.value), project.storyboards));
+        this._storyboardLoadError = null;
+        this._storyboardLoadStatus?.remove();
+        this._storyboardLoadStatus = null;
+        try {
+            this._loadStoryboards(parseStoryboardDocument(storyboard ?? (projectOverride ? null : this._w("storyboard_json")?.value), project.storyboards));
+        } catch (error) {
+            this._storyboardLoadError = error;
+            this._loadStoryboards(buildStoryboardDocument([]));
+            this._storyboardLoadStatus = document.createElement("cap-status-message");
+            this._storyboardLoadStatus.setAttribute("closable", "");
+            this._storyboardLoadStatus.setAttribute("close-label", T("close_title"));
+            this._storyboardLoadStatus.setStatus(storyboardT("load_failed_optional"), "error");
+            this._storyboardLoadStatus.hidden = !this._storyboardMode;
+            this.programRoot.prepend(this._storyboardLoadStatus);
+        }
         delete project.storyboards;
         this._applyMediaCatalogFromProject(project);
         this.projectNameInput.value = String(project.name || T("untitled_project")).trim() || T("untitled_project");
@@ -19024,6 +19041,7 @@ export class CapTimelineEditorApp {
 
     _setStoryboardMode(enabled) {
         this._storyboardMode = !!enabled;
+        if (this._storyboardLoadStatus) this._storyboardLoadStatus.hidden = !enabled || this._storyboardLoadStatus.hasAttribute("dismissed");
         if (enabled) {
             this._timeline?.pause();
             this._stopResourceGenProgramPreview();
@@ -19031,8 +19049,9 @@ export class CapTimelineEditorApp {
         }
         this.programStage.hidden = !!enabled;
         this.programMeta.hidden = !!enabled;
-        this._storyboardPage.el.hidden = !enabled;
+        this._storyboardPage.el.hidden = !enabled || !!this._storyboardLoadError;
         this._updatePromptPanel();
+        if (this._storyboardLoadError) this._storyboardPage.panel.hidden = true;
         if (!enabled) this._scheduleProgramPreview();
     }
 
@@ -20381,7 +20400,7 @@ export class CapTimelineEditorApp {
         if (!this._isNodeOnLiveGraph()) return;
         if (!this._timeline || !this._timelineReady) return;
         const storyboardWidget = this._w("storyboard_json");
-        if (storyboardWidget) storyboardWidget.value = JSON.stringify(this._buildStoryboardDocument());
+        if (storyboardWidget && !this._storyboardLoadError) storyboardWidget.value = JSON.stringify(this._buildStoryboardDocument());
         this._writeProjectJson(JSON.stringify(this._buildProject()));
         try { this._persistViewToLocalCache(); } catch { /* ignore */ }
         try { this._persistPanelLayout(); } catch { /* ignore */ }

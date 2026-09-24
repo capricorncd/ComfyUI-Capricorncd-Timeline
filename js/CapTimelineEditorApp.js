@@ -5895,7 +5895,7 @@ export class CapTimelineEditorApp {
     _persistPanelLayout() {
         const mediaW = this.mediaPanel?.offsetWidth;
         const sidebarW = this.sidebarPanel?.offsetWidth;
-        const programH = this.programRoot?.offsetHeight;
+        const programH = this._overlay?.querySelector(".cat-te-main")?.offsetHeight;
         if (Number.isFinite(mediaW) && mediaW >= MIN_MEDIA_PANEL_W) {
             localStorage.setItem(STORAGE_MEDIA_PANEL_W, String(Math.round(mediaW)));
         }

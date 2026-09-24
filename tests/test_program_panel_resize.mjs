@@ -39,3 +39,28 @@ windowResize(); windowResize();
 assert.equal(panel.offsetHeight, beforeClick, 'Window resize must not repeatedly shrink the preview');
 assert.equal(handlers.size, 0);
 console.log('Timeline splitter preserves height on release, click and repeated window resize.');
+
+const storage = new Map();
+const panelStorage = {getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value)};
+function layoutMethod(name) {
+    const begin = source.indexOf('    ' + name + '(');
+    return new Function('localStorage', 'STORAGE_MEDIA_PANEL_W', 'STORAGE_SIDEBAR_PANEL_W', 'STORAGE_PROGRAM_PANEL_H',
+        'MIN_MEDIA_PANEL_W', 'MIN_SIDEBAR_PANEL_W', 'MIN_PROGRAM_PANEL_H', 'DEFAULT_PROGRAM_PANEL_H',
+        'return ({' + source.slice(begin, source.indexOf('\n    }', begin) + 6) + '}).' + name)(panelStorage,
+            'media', 'sidebar', 'height', 120, 120, 120, 420);
+}
+const persist = layoutMethod('_persistPanelLayout');
+const restore = layoutMethod('_applySavedProgramPanelHeight');
+owner.mediaPanel = {offsetWidth: 280};
+owner.sidebarPanel = {offsetWidth: 320};
+panel.offsetHeight = 560;
+for (let i = 0; i < 6; i++) {
+    persist.call(owner);
+    assert.equal(storage.get('height'), '560', 'Save/close persists the whole upper workspace, including controls');
+    panel.offsetHeight = 420;
+    restore.call(owner);
+    assert.equal(panel.offsetHeight, 560, 'Reopen restores the dragged height without cumulative shrinkage');
+}
+assert.equal(storage.get('media'), '280');
+assert.equal(storage.get('sidebar'), '320');
+console.log('Saving and reopening repeatedly preserves workspace height and both sidebar widths.');

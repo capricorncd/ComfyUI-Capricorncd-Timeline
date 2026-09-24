@@ -1148,6 +1148,7 @@ export class Timeline extends EventEmitter {
     window.removeEventListener('keydown', this._onKey, true);
     this._ro?.disconnect();
     this.removeAllListeners();
+    this.playbackControlsEl.remove();
     this._container.innerHTML = '';
     this._container.classList.remove('tl-root');
   }

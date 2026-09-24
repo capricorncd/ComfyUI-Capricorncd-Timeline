@@ -1,0 +1,26 @@
+<!doctype html><meta charset="utf-8"><title>Playback lifecycle</title>
+<link rel="stylesheet" href="../js/timeline/timeline.css">
+<div class="cat-te-program-controls"><span class="cat-te-program-meta">1920 × 1080 · 24 fps</span></div>
+<div id="timeline"></div><pre id="result">RUNNING</pre>
+<script type="module">
+import { Timeline } from '../js/timeline/Timeline.js';
+const assert = (value, message) => { if (!value) throw Error(message); };
+try {
+ const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+ const start = source.indexOf('    _mountProgramPlayback()');
+ const mount = new Function('return ({'+source.slice(start,source.indexOf('\n    }',start)+6)+'})._mountProgramPlayback')();
+ const controls=document.querySelector('.cat-te-program-controls');
+ for(let i=0;i<6;i++) {
+  const timeline=new Timeline(document.querySelector('#timeline'),{duration:30+i});
+  const owner={_overlay:document,_timeline:timeline};
+  mount.call(owner); mount.call(owner);
+  assert(controls.querySelectorAll('.tl-playback-controls').length===1,'Only one playback group on repeated mount');
+  timeline.setCurrentTime(i);
+  assert(controls.querySelector('.tl-time-display').textContent===timeline.formatTime(i),'Current time updates');
+  timeline.destroy();
+  assert(!controls.querySelector('.tl-playback-controls'),'Destroy removes controls moved outside timeline');
+  assert(controls.querySelector('.cat-te-program-meta'),'Dimensions and fps are preserved');
+ }
+ document.querySelector('#result').textContent='PASS: repeated mount, seek, destroy and recreate preserve one playback group and metadata';
+} catch(error) { document.querySelector('#result').textContent='FAIL: '+error.stack; }
+</script>

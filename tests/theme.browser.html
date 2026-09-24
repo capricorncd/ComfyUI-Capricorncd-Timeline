@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Editor appearance regression</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>
+body { margin: 0; }
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 320px; flex: 1; min-height: 0; }
+.workspace > main { min-height: 0; display: flex; }
+.workspace > aside { overflow: auto; background: var(--cat-surface); border-left: 1px solid var(--cat-border-soft); }
+#result { font: 12px system-ui; padding: 10px 20px; margin: 0; }
+</style>
+<div class="cat-te-overlay open">
+  <header class="cat-te-header"><strong>Capricorncd Timeline</strong><span class="cat-te-header-spacer"></span><cap-theme-picker></cap-theme-picker></header>
+  <div class="workspace"><main></main><aside><div class="cat-te-panel-title">分镜设置</div></aside></div>
+  <pre id="result">RUNNING</pre>
+</div>
+<script type="module">
+import '../js/components/ThemePicker.js';
+import { StoryboardPage, normalizeStoryboards } from '../js/editor/StoryboardPage.js';
+const assert = (value, message) => { if (!value) throw Error(message); };
+try {
+    const description = 'subject_definitions:\n角色与场景定义。\n\nsummary:\n柳云舒端起汤碗，轻尝一口，抬眼看向对面的夜绮罗。\n\ndetailed_description:\n' + '保留完整提示词。'.repeat(80);
+    const shots = normalizeStoryboards([
+        { title: '尝汤', description, duration: 8, shot_size: '近景', camera_move: '轻推', speaker: '柳云舒', dialogue: '感觉汤的味道淡了点。', delivery: '口型同步', emotion: '平静，略带疑惑' },
+        { title: '听见抱怨', description: '夜绮罗放下茶杯，抬眉望向桌上的盐罐。', duration: 3, shot_size: '中景', camera_move: '固定' },
+        { title: '一句调侃', description: '她朝盐罐示意，嘴角微微扬起。', duration: 4, speaker: '夜绮罗', dialogue: '你是不是忘了放盐？', emotion: '轻松调侃' },
+        { title: '恍然大悟', description: '柳云舒一愣，随后笑了。', duration: 4 },
+    ]);
+    const board = new StoryboardPage({ onChange: items => board.setItems(items), onSelect() {}, onGenerate: () => ({ added: 0, total: 0 }) });
+    document.querySelector('main').append(board.el);
+    document.querySelector('aside').append(board.panel);
+    board.el.hidden = board.panel.hidden = false;
+    board.configure({ width: 1920, height: 1024, images: [] });
+    board.setItems(shots);
+    board.selectedId = shots[0].id;
+    board.render();
+    const card = board.el.querySelector('cap-storyboard-card');
+    assert(card.shadowRoot.querySelector('.action').textContent === '柳云舒端起汤碗，轻尝一口，抬眼看向对面的夜绮罗。', 'structured prompt summary');
+    assert(board.form.elements.description.value === description, 'full prompt preserved in inspector');
+    const picker = document.querySelector('cap-theme-picker');
+    const change = (name, value) => {
+        const select = picker.querySelector(`[name="${name}"]`);
+        select.value = value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    for (const mode of ['light', 'dark']) {
+        change('mode', mode);
+        assert(picker.target.dataset.catTheme === mode, 'mode applied');
+        for (const color of ['jade', 'blue', 'violet', 'amber']) {
+            change('color', color);
+            assert(picker.target.dataset.catAccent === color, 'color applied');
+            assert(getComputedStyle(card).getPropertyValue('--cat-accent').trim(), 'theme inherited into card');
+        }
+    }
+    const rootFont = getComputedStyle(document.documentElement).fontSize;
+    change('fontSize', '14');
+    const title = card.shadowRoot.querySelector('.title');
+    const baseline = parseFloat(getComputedStyle(title).fontSize);
+    change('fontSize', '18');
+    assert(Math.abs(parseFloat(getComputedStyle(title).fontSize) / baseline - 18 / 14) < .01, 'shadow typography scales');
+    assert(getComputedStyle(document.documentElement).fontSize === rootFont, 'host app root font unchanged');
+    change('mode', 'light'); change('color', 'violet');
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    const parent = picker.parentElement;
+    picker.remove(); parent.append(picker);
+    assert(picker.fontSize === 18, 'font size survives recreation');
+    change('fontSize', '14');
+    assert(picker.mode === 'light' && picker.color === 'violet', 'preferences survive component recreation');
+    change('mode', 'system'); change('color', 'jade');
+    window.fixture = { board, picker, change };
+    document.querySelector('#result').textContent = 'PASS: modes, accents, inherited tokens, compact summary and intact editable prompt';
+} catch (error) {
+    document.querySelector('#result').textContent = 'FAIL: ' + error.stack;
+    throw error;
+}
+</script>

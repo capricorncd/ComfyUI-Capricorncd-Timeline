@@ -77,9 +77,9 @@ const css = readFileSync(new URL('../js/timeline/timeline.css', import.meta.url)
 assert(!/\.tl-btn[\s.:{\-]/.test(css), 'obsolete button presentation is removed');
 assert.match(timeline, /e.target.closest\?\.\('cap-button, cap-tab-button, cap-dropdown-button'\)\) return/);
 assert.match(timeline, /closest\('button, cap-button, cap-tab-button, cap-dropdown-button,/);
-assert.match(app, /<cap-dropdown-button class="cat-te-import">/);
+assert.match(app, /<cap-dropdown-button\b[^>]*class="cat-te-import"[^>]*>/);
 for (const name of ['export', 'compose-open', 'settings', 'header-close']) {
-    assert(app.includes(`<cap-button class="cat-te-${name}"`));
+    assert(new RegExp(`<cap-button\\b[^>]*class="cat-te-${name}"[^>]*>`).test(app));
 }
 assert.match(app, /querySelector\(".cat-te-import"\).bindMenu\(e => this._showImportMenu\(e\)\)/);
 const translations = readFileSync(new URL('../js/i18n/timeline_editor.js', import.meta.url), 'utf8');

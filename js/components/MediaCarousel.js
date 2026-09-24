@@ -33,13 +33,13 @@ export class MediaCarousel extends HTMLElement {
                 .row:focus-visible { outline: 2px solid var(--cat-accent, #64d8c5); outline-offset: -2px; }
                 .row.drop-target { border-top: 2px solid var(--cat-accent, #64d8c5); }
                 .thumb { width: 56px; height: 32px; object-fit: contain; flex-shrink: 0; }
-                .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+                .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(var(--cat-font-size, 1rem) * 0.857143); }
                 .disabled .thumb, .disabled .name { opacity: .45; filter: grayscale(1); }
-                .empty { padding: 8px; font-size: 12px; color: var(--cat-muted, #a5b5b7); }
+                .empty { padding: 8px; font-size: calc(var(--cat-font-size, 1rem) * 0.857143); color: var(--cat-muted, #a5b5b7); }
                 .previous { left: 6px; }
                 .next { right: 6px; }
                 .count { position: absolute; bottom: 0; left: 0; padding: 4px 6px;
-                    color: white; background: rgb(0 0 0 / 45%); font: 11px monospace;
+                    color: white; background: rgb(0 0 0 / 45%); font: calc(var(--cat-font-size, 1rem) * 0.785714) monospace;
                     pointer-events: none; }
                 [hidden] { display: none; }
             </style>

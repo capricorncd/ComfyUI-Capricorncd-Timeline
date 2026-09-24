@@ -1,6 +1,7 @@
 import { api } from '../../../scripts/api.js';
 import { t as T } from '../i18n/timeline_editor.js';
 import '../components/Dialog.js';
+import '../components/FormControls.js';
 import '../components/StatusMessage.js';
 
 export function clipExportProject(project, clipId) {
@@ -41,12 +42,12 @@ export class ClipExport {
         dialog.innerHTML = `<span slot="title">${T('clip_export_title')}</span>
             <div class="cat-te-modal-body">
                 <p data-summary></p>
-                <label>${T('filename_label')}<input data-filename /></label>
-                <label>${T('filename_prefix_label')}<input data-folder value="cap_clip_exports/" /></label>
-                <label data-fps-option>${T('compose_fps_label')}<input data-fps type="number" required min="1" max="120" step="0.001" /></label>
+                <label>${T('filename_label')}<cap-input><input data-filename /></cap-input></label>
+                <label>${T('filename_prefix_label')}<cap-input><input data-folder value="cap_clip_exports/" /></cap-input></label>
+                <label data-fps-option>${T('compose_fps_label')}<cap-input><input data-fps type="number" required min="1" max="120" step="0.001" /></cap-input></label>
                 <label data-video-option><span><input data-video type="checkbox" checked /> ${T('compose_video_section')} (MP4)</span></label>
                 <label><span><input data-audio type="checkbox" /> ${T('compose_audio_section')}</span></label>
-                <label>${T('compose_audio_format')}<select data-format><option value="wav">WAV</option><option value="mp3">MP3</option></select></label>
+                <label>${T('compose_audio_format')}<cap-select><select data-format><option value="wav">WAV</option><option value="mp3">MP3</option></select></cap-select></label>
             </div>
             <div slot="footer"><cap-status-message></cap-status-message><div class="cat-te-confirm-actions">
                 <cap-button data-folder-open hidden>${T('open_folder_btn')}</cap-button>

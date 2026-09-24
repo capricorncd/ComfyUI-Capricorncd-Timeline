@@ -47,17 +47,10 @@ export class Track extends EventEmitter {
           ? ICONS.film
         : (ICONS[this.type] || ICONS.video);
 
-    // Icon-only header — no visible name/type text (hover the row for its
-    // name via the title tooltip). This spacer just pushes the action
-    // icons to the right edge.
-    const spacer = document.createElement('div');
-    spacer.className = 'tl-track-spacer';
-
     const actions = document.createElement('div');
     actions.className = 'tl-track-actions';
 
     el.appendChild(icon);
-    el.appendChild(spacer);
     el.appendChild(actions);
     this._actionsEl = actions;
     return el;

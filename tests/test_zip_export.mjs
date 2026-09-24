@@ -34,19 +34,18 @@ function fixture(fetch) {
         this.hidden = !this.textContent;
     };
     const workflow = element({ checked: true }), generated = element({ checked: true }), unused = element({ checked: false });
-    const formats = ['directory', 'zip'].map(format => element({ dataset: { format } }));
-    formats[0].classList.add('is-active');
-    const controls = [path, workflow, generated, unused, startButton, close, ...formats];
+    const formats = element({ value: 'directory' });
+    const controls = [path, workflow, generated, unused, startButton, close, formats];
     const dialog = element({
         querySelector(selector) {
             return ({
                 '.cat-te-export-status': status, '.cat-te-export-start': startButton,
                 '.cat-te-export-directory': path, '.cat-te-export-workflow': workflow,
                 '.cat-te-export-unused': unused, '.cat-te-export-generated': generated, '.cat-te-modal-close': close,
-                '[data-format].is-active': formats.find(b => b.classList.contains('is-active')),
+                '.cat-te-export-formats': formats,
             })[selector];
         },
-        querySelectorAll: selector => selector === '[data-format]' ? formats : controls,
+        querySelectorAll: () => controls,
         close() { this.closed = true; }, showModal() { this.open = true; },
     });
     const app = { exportDialog: dialog, _projectExportBusy: false, _exportRevealToken: null,
@@ -90,10 +89,8 @@ for (const format of ['directory', 'zip']) {
 {
     const f = fixture(async () => ({ ok: true, json: async () => success }));
     await f.app._runProjectExport({ format: 'directory' });
-    f.formats[1].listeners.click();
-    assert(f.formats[1].classList.contains('is-active'));
-    assert(!f.formats[0].classList.contains('is-active'));
-    assert.equal(f.formats[1]['aria-pressed'], 'true');
+    f.formats.value = 'zip';
+    f.formats.listeners.change();
     assert.equal(f.app._exportRevealToken, null, 'format edits reset successful export');
     await f.app._runProjectExport({ format: 'zip' });
     f.generated.checked = false; f.dialog.listeners.input();

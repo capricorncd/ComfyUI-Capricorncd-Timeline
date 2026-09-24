@@ -1,0 +1,62 @@
+<!doctype html><meta charset="utf-8"><title>Full-width timeline layout</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<link rel="stylesheet" href="../js/timeline/timeline.css">
+<div class="cat-te-overlay open"></div>
+<script type="module">
+import '../js/components/ThemePicker.js';
+import '../js/components/TabButton.js';
+import { Timeline } from '../js/timeline/Timeline.js';
+import { StoryboardPage, normalizeStoryboards } from '../js/editor/StoryboardPage.js';
+import { iconHtml } from '../js/cap_icons.js';
+import { t as T } from '../js/i18n/timeline_editor.js';
+const source = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+const overlay = document.querySelector('.cat-te-overlay');
+try {
+    // Exercise the actual editor shell, omitting the unrelated legacy inspector and dialogs.
+    const prefix = source.slice(source.indexOf('<header class="cat-te-header">'), source.indexOf('<div class="cat-te-project-panel">'));
+    const split = source.slice(source.indexOf('<div class="cat-te-program-split"'), source.indexOf('<div class="cat-te-frame-preview">'));
+    const shell = prefix + '</aside></div>' + split;
+    overlay.innerHTML = new Function('T', 'iconHtml', 'MEDIA_LIBRARY_TABS', 'return `' + shell + '`')(T, iconHtml, [{ id: 'image', label: '图片' }, { id: 'video', label: '视频' }, { id: 'audio', label: '音频' }]);
+    const board = new StoryboardPage({ onChange: items => board.setItems(items), onSelect() {}, onGenerate: () => ({ added: 0, total: 0 }) });
+    overlay.querySelector('.cat-te-program-stage').hidden = true;
+    overlay.querySelector('.cat-te-program-meta').textContent = '1920 × 1024 · 24 fps';
+    overlay.querySelector('.cat-te-program').append(board.el);
+    overlay.querySelector('.cat-te-sidebar').append(board.panel);
+    board.el.hidden = board.panel.hidden = false;
+    board.setItems(normalizeStoryboards(Array.from({ length: 8 }, (_, i) => ({ title: ['尝汤', '听见抱怨', '一句调侃'][i % 3], description: '柳云舒端起汤碗，轻尝一口，抬眼看向对面的夜绮罗。', dialogue: i % 2 ? '' : '感觉汤的味道淡了点。', speaker: '柳云舒', duration: 8 }))));
+    board.selectedId = board.items[0].id; board.render();
+    const timeline = new Timeline(overlay.querySelector('.cat-te-timeline-host'), { duration: 30, zoom: .4 });
+    for (const [type, name] of [['video', '画面'], ['image', '导演'], ['audio', '音乐']]) {
+        const track = timeline.addTrack({ type, name });
+        for (let i = 0; i < 3; i++) track.addClip({ name: `${name} ${i + 1}`, startTime: i * 8, duration: 8 });
+    }
+    const maxStart = source.indexOf('    _programPanelMaxHeight()');
+    const maxMethod = new Function('DEFAULT_PROGRAM_PANEL_H', 'MIN_PROGRAM_PANEL_H', 'MAX_PROGRAM_PANEL_FRAC', 'return ({' + source.slice(maxStart, source.indexOf('\n    }', maxStart) + 6) + '})._programPanelMaxHeight')(420, 120, .7);
+    const owner = { _timeline: timeline, _overlay: overlay, programRoot: overlay.querySelector('.cat-te-program'), programSplit: overlay.querySelector('.cat-te-program-split'), _programPanelMaxHeight: maxMethod, _scheduleProgramPreview() {}, _refreshTimelineDuration() {} };
+    for (const name of ['_setProgramPanelHeight', '_bindProgramPanelResize', '_mountProgramPlayback']) {
+        const start = source.indexOf('    ' + name + '(');
+        owner[name] = new Function('MIN_PROGRAM_PANEL_H', 'STORAGE_PROGRAM_PANEL_H', 'return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '}).' + name)(120, 'cat-te-program-panel-h');
+    }
+    owner._bindProgramPanelResize();
+    owner._mountProgramPlayback();
+    const verify = () => {
+        const host = overlay.querySelector('.cat-te-timeline-host').getBoundingClientRect();
+        const top = overlay.querySelector('.cat-te-main').getBoundingClientRect();
+        if (Math.abs(host.width - (overlay.clientWidth - 16)) > 1 || Math.abs(host.left - 8) > 1 || host.top < top.bottom - 4) throw Error('timeline is not below all three columns');
+        const playback = timeline.playbackControlsEl.getBoundingClientRect();
+        const bar = overlay.querySelector('.cat-te-program-controls').getBoundingClientRect();
+        const play = timeline.playbackControlsEl.querySelector('.tl-btn-play').getBoundingClientRect();
+        const meta = overlay.querySelector('.cat-te-program-meta').getBoundingClientRect();
+        if (Math.abs((play.left + play.right) / 2 - (bar.left + bar.right) / 2) > 1) throw Error('play is not centered');
+        if (playback.right > play.left || meta.left < play.right) throw Error('playback overlaps');
+        if (!timeline.playbackControlsEl.querySelector('.tl-btn-stop').hidden) throw Error('stop visible');
+        const max = maxMethod.call({ _overlay: overlay });
+        if (max > overlay.clientHeight - 100 || max < 120) throw Error('invalid resize bounds');
+        if (overlay.scrollWidth > overlay.clientWidth + 1) throw Error('horizontal overflow');
+    };
+    await new Promise(resolve => requestAnimationFrame(resolve)); verify();
+    const result = document.createElement('span'); result.id = 'result'; result.textContent = 'PASS: actual shell, full-width timeline, resize bounds';
+    result.hidden = true; overlay.append(result);
+    window.fixture = { board, timeline, owner, verify };
+} catch (error) { overlay.innerHTML = '<pre id="result"></pre>'; overlay.querySelector('#result').textContent = 'FAIL: ' + error.stack; }
+</script>

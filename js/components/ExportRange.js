@@ -19,7 +19,7 @@ export class ExportRange extends HTMLElement {
         this.playing = false;
         this.attachShadow({ mode: "open" }).innerHTML = `
             <style>
-                :host { display: block; min-width: 0; color: var(--cat-text, #e4edeb); font-size: 12px; }
+                :host { display: block; min-width: 0; color: var(--cat-text, #e4edeb); font-size: calc(var(--cat-font-size, 1rem) * 0.857143); }
                 .transport { display: flex; align-items: center; gap: 10px; }
                 .time { font-variant-numeric: tabular-nums; }
                 .track { position: relative; height: 40px; margin: 4px 10px; touch-action: none; }

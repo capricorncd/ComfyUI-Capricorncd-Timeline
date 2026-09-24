@@ -50,6 +50,8 @@ export class Timeline extends EventEmitter {
 
     this._buildDOM();
     this._bindEvents();
+    this._onThemeChange = () => this._ruler.render();
+    window.addEventListener('cap-theme-change', this._onThemeChange);
     this._refresh();
   }
 
@@ -1139,6 +1141,7 @@ export class Timeline extends EventEmitter {
   // ─── destroy ──────────────────────────────────────────────────────────────
 
   destroy() {
+    window.removeEventListener('cap-theme-change', this._onThemeChange);
     this._endSeekScrub?.();
     this.pause();
     this._hideSnapGuide();

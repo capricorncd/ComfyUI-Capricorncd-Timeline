@@ -11,23 +11,26 @@ export class StoryboardCard extends HTMLElement {
         root.innerHTML = `<style>
             :host { display: block; min-width: 0; position: relative; }
             cap-button { width: 100%; }
-            cap-dropdown-button { position: absolute; top: 11px; right: 11px; }
-            .content { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 12px; width: 100%; }
+            cap-dropdown-button { position: absolute; top: 17px; right: 17px; }
+            .content { display: grid; grid-template-columns: clamp(140px, 25%, 260px) minmax(0, 1fr); gap: 20px; width: 100%; }
             :host([data-disabled]) .content { opacity: 0.5; }
-            .frame { position: relative; aspect-ratio: var(--shot-aspect, 16 / 9); background: var(--cat-bg); display: grid; place-items: center; align-self: start; overflow: hidden; }
+            .frame { position: relative; aspect-ratio: var(--shot-aspect, 16 / 9); background: var(--cat-bg); display: grid; place-items: center; align-self: start; overflow: hidden; border-radius: 8px; }
             img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
             [hidden] { display: none !important; }
-            .details { min-width: 0; }
+            .details { min-width: 0; line-height: 1.6; }
             .heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding-right: 48px; min-height: 28px; }
             .duration { white-space: nowrap; }
-            .muted { color: var(--cat-muted); font-size: 11px; }
+            .muted { color: var(--cat-muted); font-size: calc(var(--cat-font-size, 1rem) * 0.857143); }
+            .bindings { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
             .action, .dialogue { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 8px; }
-            .title { overflow-wrap: anywhere; }
-            .dialogue { background: var(--cat-surface); padding: 8px; border-radius: 4px; }
-            .speaker { color: var(--cat-accent); font-size: 11px; }
+            .title { overflow-wrap: anywhere; font-size: calc(var(--cat-font-size, 1rem) * 1.071429); font-weight: 600; }
+            .action { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: calc(var(--cat-font-size, 1rem) * 0.928571); color: var(--cat-muted); }
+            .words { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: calc(var(--cat-font-size, 1rem) * 1); }
+            .dialogue { background: color-mix(in srgb, var(--cat-accent) 6%, var(--cat-surface)); border-left: 2px solid var(--cat-accent); padding: 10px 12px; border-radius: 0 6px 6px 0; }
+            .speaker { color: var(--cat-accent); font-size: calc(var(--cat-font-size, 1rem) * 0.785714); }
             @media (max-width: 600px) { .content { grid-template-columns: 90px minmax(0, 1fr); } }
         </style>
-        <cap-button size="content" align="start">
+        <cap-button size="content" align="start" variant="card">
           <span class="content">
             <span class="frame"><img hidden alt=""><span class="placeholder muted"></span></span>
             <span class="details">
@@ -92,7 +95,8 @@ export class StoryboardCard extends HTMLElement {
         text('.duration', `${shot.duration} ${labels.seconds}`);
         text('.camera', [shot.shot_size, shot.camera_move].filter(Boolean).join(' · '));
         text('.bindings', bindings);
-        text('.action', shot.description);
+        const summary = shot.description.match(/(?:^|\n)summary:\s*([\s\S]*?)(?=\n\s*[a-z_]+:|$)/i)?.[1]?.trim();
+        text('.action', summary || shot.description);
         text('.speaker', shot.speaker);
         text('.words', shot.dialogue);
         text('.delivery', [shot.delivery, shot.emotion].filter(Boolean).join(' · '));

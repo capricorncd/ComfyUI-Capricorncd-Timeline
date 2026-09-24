@@ -28,7 +28,7 @@
   background: var(--tl-bg);
   color: var(--tl-text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  font-size: 12px;
+  font-size: calc(var(--cat-font-size, 1rem) * 0.857143);
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
@@ -62,7 +62,7 @@
 
 .tl-time-display {
   font-family: "SF Mono", "Fira Mono", "Consolas", monospace;
-  font-size: 13px;
+  font-size: calc(var(--cat-font-size, 1rem) * 0.928571);
   font-weight: 600;
   color: var(--cat-text);
   background: rgba(255,255,255,0.06);
@@ -76,7 +76,7 @@
 .tl-dur-display {
   color: var(--tl-text-muted);
   font-family: "SF Mono", "Fira Mono", monospace;
-  font-size: 11px;
+  font-size: calc(var(--cat-font-size, 1rem) * 0.785714);
 }
 
 /* Zoom */
@@ -108,7 +108,7 @@
 }
 
 .tl-zoom-label {
-  font-size: 11px;
+  font-size: calc(var(--cat-font-size, 1rem) * 0.785714);
   color: var(--tl-text-muted);
   min-width: 34px;
   text-align: center;
@@ -144,12 +144,12 @@
   color: var(--tl-text);
   padding: 9px 14px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: calc(var(--cat-font-size, 1rem) * 0.857143);
   text-align: left;
   transition: background 0.1s;
 }
 .tl-add-menu-item:hover { background: rgba(255,255,255,0.07); }
-.tl-add-menu-icon { font-size: 14px; width: 18px; text-align: center; }
+.tl-add-menu-icon { font-size: calc(var(--cat-font-size, 1rem) * 1); width: 18px; text-align: center; }
 
 /* ── Body layout ──────────────────────────────────────────── */
 
@@ -211,8 +211,6 @@
   height: 15px;
   display: block;
 }
-
-.tl-track-spacer { flex: 1; background-color: rgba(255,255,255,0.03); height: 100%; }
 
 /* Function-icon rail: lock / visibility / mute, always a single row that
    never wraps, so the same slot lines up across every track. */
@@ -334,8 +332,7 @@
   border-radius: 6px;
   overflow: hidden;
   border: 1.5px solid rgba(255,255,255,0.12);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.45);
-  transition: box-shadow 0.1s, border-color 0.1s;
+  transition: border-color 0.1s;
   cursor: grab;
   min-width: 6px;
   background-color: var(--clip-color, #4a9eff);
@@ -356,7 +353,6 @@
   cursor: grabbing;
   opacity: 0.92;
   z-index: 100;
-  box-shadow: 0 8px 28px rgba(100, 216, 197, 0.35), 0 4px 16px rgba(0,0,0,0.6);
   transform: translateY(-1px);
 }
 
@@ -366,7 +362,6 @@
 
 .tl-clip.resizing {
   z-index: 100;
-  box-shadow: 0 4px 20px rgba(100, 216, 197, 0.4), 0 2px 12px rgba(0,0,0,0.5);
   border-color: rgba(255,255,255,0.35);
 }
 
@@ -377,7 +372,31 @@
 
 .tl-clip.selected {
   border-color: var(--cat-accent);
-  box-shadow: 0 0 0 1px var(--cat-accent), 0 2px 8px rgba(0,0,0,0.3);
+  outline: 2px solid var(--cat-accent);
+  outline-offset: 1px;
+}
+
+.tl-clip.selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid #fff;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.tl-clip.selected .tl-clip-handle {
+  background: var(--cat-action);
+}
+
+.tl-clip.selected .tl-clip-handle span {
+  height: 65%;
+  background: #fff;
+}
+
+.tl-clip.selected .tl-clip-label {
+  font-weight: 700;
 }
 
 /* Resize handles */
@@ -429,7 +448,7 @@
 .tl-clip-label {
   position: relative;
   z-index: 1;
-  font-size: 11px;
+  font-size: calc(var(--cat-font-size, 1rem) * 0.785714);
   font-weight: 500;
   color: rgba(255,255,255,0.92);
   text-shadow: 0 1px 3px rgba(0,0,0,0.9);
@@ -527,7 +546,7 @@
 
 .tl-clip-row-duration {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: calc(var(--cat-font-size, 1rem) * 0.714286);
   font-family: "SF Mono", "Fira Mono", Consolas, monospace;
   color: rgba(255,255,255,0.75);
   text-shadow: 0 1px 2px rgba(0,0,0,0.9);

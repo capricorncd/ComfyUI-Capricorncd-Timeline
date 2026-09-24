@@ -12,7 +12,7 @@ export class Slider extends HTMLElement {
                 :host { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
                 :host([hidden]) { display: none; }
                 slot { display: contents; }
-                ::slotted(input[type="range"]) { flex: 1; width: 0; min-width: 0; margin: 0; }
+                ::slotted(input[type="range"]) { flex: 1; width: 0; min-width: 0; margin: 0; accent-color: var(--cat-accent, #64d8c5); }
                 cap-button { flex: none; }
             </style>
             <slot></slot>

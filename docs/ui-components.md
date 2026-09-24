@@ -147,3 +147,48 @@ Use `js/components/ContextMenu.js` and `<cap-context-menu>`. Call `setItems([{ l
 The component owns the menu surface, three-column layout and `cap-button` actions. `menu-select` carries the original item; the caller performs its action and removes the menu. `menu-close` requests dismissal; `detail.restoreFocus` is true for Escape. Arrow keys, Home and End navigate enabled items. The caller owns placement and outside-click dismissal. `focus()` selects the first enabled item.
 
 Run `node tests/test_context_menu.mjs` and `node tests/test_context_menu_dismiss.mjs`.
+
+## Appearance and form controls
+
+`ThemePicker.js` adds `<cap-theme-picker>` inline under Settings → General, without a second dialog. Light/dark mode defaults to the system preference and responds to system changes. Jade, ocean, violet and amber accents and the mode are stored locally. Theme tokens are scoped to the editor, including its dialogs and timeline; the ComfyUI canvas is unaffected. `cap-theme-change` triggers canvas ruler repainting.
+
+`FormControls.js` provides `<cap-input>`, `<cap-select>`, `<cap-textarea>` and `<cap-switch>`. Each wraps a native control in light DOM, preserving labels, `form.elements`, validation and native events. Apply `name`, `required`, `disabled`, number constraints and accessibility attributes to the native control. Wrappers expose `value`, `disabled`, `focus()`, `checkValidity()` and `reportValidity()`; switches also expose `checked`. Input/select support `size="small"`.
+
+```html
+<label>Clip name<cap-input><input name="title" required></cap-input></label>
+<label>Camera<cap-select><select name="camera"><option>Fixed</option></select></cap-select></label>
+<label>Prompt<cap-textarea><textarea name="prompt" rows="4"></textarea></cap-textarea></label>
+<label><cap-switch><input type="checkbox" name="snap"></cap-switch>Snap</label>
+```
+
+Buttons support `size="regular"` (36px), existing compact/large sizes, and `variant="card"` for selectable content. Presentation stays in the shared component. Storyboard cards display a bounded summary (the `summary:` section when available); the inspector retains the full prompt.
+
+The main editor has three columns above a full-width timeline. The horizontal separator resizes the entire upper workspace and preserves the existing height preference. Browser fixtures: `components.browser.html`, `theme.browser.html`, `editor_layout.browser.html`; `storyboard.browser.html` covers existing storyboard interactions.
+
+## Tags and radio buttons
+
+Import `Tag.js` for `<cap-tag>` and `<cap-tag-group>`. Tags support `variant="accent|danger"`, `closable`, `disabled`, `value`, and a localized `close-label`. Clicking the close button emits a bubbling, cancelable `tag-close` with `detail.value`; the tag removes itself unless the listener calls `preventDefault()`. Data-backed callers prevent the default and update their own data. Tag groups wrap by default; `nowrap` enables horizontal scrolling, and `values` reads the current child tag values. Give groups an `aria-label`.
+
+```html
+<cap-tag-group aria-label="Bound clips">
+  <cap-tag variant="accent" value="clip-1" closable close-label="Unbind Lighthouse">Lighthouse</cap-tag>
+</cap-tag-group>
+```
+
+The storyboard inspector uses closeable tags for bound clips. Closing one updates `clip_ids` through the existing save/undo path; it does not delete the clip.
+
+Import `RadioButton.js` for `<cap-radio-button>` and `<cap-radio-group>`. Radio buttons reuse the shared button and accept its size/variant attributes plus `value`, `checked`, and `disabled`. Add `indicator` for a leading radio circle inside the bordered button, as used by the export format selector. A standalone radio can be checked; exclusivity is owned by the group. Direct child radio values must be unique and nonempty.
+
+```html
+<cap-radio-group name="mode" value="system" required aria-label="Color mode">
+  <cap-radio-button value="system">System</cap-radio-button>
+  <cap-radio-button value="light">Light</cap-radio-button>
+  <cap-radio-button value="dark">Dark</cap-radio-button>
+</cap-radio-group>
+```
+
+Groups expose `value`, `disabled`, `focus()`, `checkValidity()` and `reportValidity()`. User selection emits one bubbling `change` with `detail.value`; assigning `value` does not emit it. Groups support form serialization/reset, `required`, disabled fieldsets, arrow/Home/End navigation and one Tab stop, skipping disabled choices. Set `orientation="vertical"` for a vertical arrangement. Examples and regression checks are in `tests/components.browser.html`.
+
+`FormRow.js` provides `<cap-form-row>` for a label and right-aligned control. Wrap the row in a native `<label>` to preserve input labeling; use `<cap-input>` / `<cap-select>` for controls. `--cap-form-row-control-width` defaults to 180px. Text uses the current theme.
+
+Interface font size is set in Settings → General (default 16px, 10–24px), saved locally. UI typography uses the scoped rem-based `--cat-font-size` token with size ratios, including shared shadow components and timeline labels. It does not change the document root or video/subtitle output sizes; the prompt font size remains independent.

@@ -136,7 +136,7 @@ export class Dialog extends HTMLElement {
                     background: var(--cat-raised, #202c31); color: var(--cat-text, #e4edeb);
                     border: 1px solid var(--cat-border, #34464b); border-radius: 8px;
                     box-shadow: var(--cap-dialog-shadow, 0 16px 40px -8px rgba(0,0,0,0.65));
-                    font-family: inherit; font-size: 13px; line-height: 1.6; color-scheme: dark;
+                    font-family: inherit; font-size: calc(var(--cat-font-size, 1rem) * 0.928571); line-height: 1.6; color-scheme: inherit;
                     z-index: var(--cap-dialog-z-index, 100009);
                 }
                 dialog[open] { display: flex; flex-direction: column; }

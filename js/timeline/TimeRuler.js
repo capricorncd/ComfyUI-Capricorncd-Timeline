@@ -29,11 +29,16 @@ export class TimeRuler {
     this.canvas.width = viewWidth;
     const ctx = this.canvas.getContext('2d');
     const W = viewWidth, H = this.height;
+    const style = getComputedStyle(this.canvas);
+    const surface = style.getPropertyValue('--cat-surface').trim() || '#192226';
+    const raised = style.getPropertyValue('--cat-raised').trim() || '#202c31';
+    const muted = style.getPropertyValue('--cat-muted').trim() || '#a3b5b8';
+    const border = style.getPropertyValue('--cat-border').trim() || '#34464b';
 
     // Background gradient
     const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#202c31');
-    bg.addColorStop(1, '#192226');
+    bg.addColorStop(0, raised);
+    bg.addColorStop(1, surface);
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
@@ -50,7 +55,7 @@ export class TimeRuler {
         || Math.abs(t % major) < minor * 0.01
         || Math.abs(t % major - major) < minor * 0.01;
 
-      ctx.strokeStyle = isMajor ? 'rgba(163,181,184,0.65)' : 'rgba(127,151,156,0.4)';
+      ctx.strokeStyle = isMajor ? muted : border;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x, isMajor ? H * 0.35 : H * 0.65);
@@ -58,14 +63,14 @@ export class TimeRuler {
       ctx.stroke();
 
       if (isMajor) {
-        ctx.fillStyle = '#a3b5b8';
-        ctx.font = '10px "SF Mono", "Fira Mono", monospace';
+        ctx.fillStyle = muted;
+        ctx.font = `${parseFloat(style.fontSize) * 10 / 12}px "SF Mono", "Fira Mono", monospace`;
         ctx.fillText(this.timeline.formatTime(t), x + 3, H * 0.35 - 2);
       }
     }
 
     // Bottom border line
-    ctx.strokeStyle = '#34464b';
+    ctx.strokeStyle = border;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, H - 0.5);

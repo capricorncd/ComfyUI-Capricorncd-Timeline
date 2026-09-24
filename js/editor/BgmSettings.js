@@ -1,4 +1,5 @@
 import '../components/Button.js';
+import '../components/FormControls.js';
 import '../components/TabButton.js';
 import { iconHtml } from '../cap_icons.js';
 import { api } from '../../../scripts/api.js';
@@ -20,18 +21,18 @@ export class BgmSettings {
             ['vc', 'voice_convert', '/v1/voice/convert'],
             ['tts', 'speech_convert', '/v1/tts/generate'],
         ];
-        const numeric = (name, label, min, max, step) => `<label><span>${T(label)}</span><input data-bgm="${name}" type="number" min="${min}" ${max ? `max="${max}"` : ''} step="${step}" /></label>`;
+        const numeric = (name, label, min, max, step) => `<label><span>${T(label)}</span><cap-input><input data-bgm="${name}" type="number" min="${min}" ${max ? `max="${max}"` : ''} step="${step}" /></cap-input></label>`;
         root.innerHTML = `
           <div class="cat-te-audio-tabs" role="tablist">${[['general', 'audio_general'], ...this.services].map(([id, label]) => `<cap-tab-button data-audio-tab="${id}" id="audio-tab-${id}" aria-controls="audio-panel-${id}">${T(label)}</cap-tab-button>`).join('')}</div>
           <div data-audio-panel="general" id="audio-panel-general" role="tabpanel" aria-labelledby="audio-tab-general" class="cat-te-agent-form">
-            <label><span>${T('bgm_url')}</span><input data-bgm="url" type="url" placeholder="http://127.0.0.1:19876" /></label>
-            <label><span>API Key</span><input data-bgm="api_key" type="password" autocomplete="new-password" /></label>
+            <label><span>${T('bgm_url')}</span><cap-input><input data-bgm="url" type="url" placeholder="http://127.0.0.1:19876" /></cap-input></label>
+            <label><span>API Key</span><cap-input><input data-bgm="api_key" type="password" autocomplete="new-password" /></cap-input></label>
             <div data-bgm="key-status" class="cat-te-agent-note" role="status"></div>
             <cap-button data-bgm="clear_key" disabled>${T('bgm_clear_key')}</cap-button>
           </div>
           ${this.services.map(([id, label, path]) => `<div data-audio-panel="${id}" id="audio-panel-${id}" role="tabpanel" aria-labelledby="audio-tab-${id}" class="cat-te-agent-form" hidden>
-            <label><span>${T('audio_endpoint')}</span><input data-bgm="${id}_url" type="text" placeholder="${path}" /></label>
-            <label><span>API Key <span class="cat-te-info-tip" tabindex="0" aria-label="${T('audio_inherit')}">${iconHtml('info', 12)}<span class="cat-te-info-tip-pop">${T('audio_inherit')}</span></span></span><input data-bgm="${id}_key" type="password" autocomplete="new-password" /></label>
+            <label><span>${T('audio_endpoint')}</span><cap-input><input data-bgm="${id}_url" type="text" placeholder="${path}" /></cap-input></label>
+            <label><span>API Key <span class="cat-te-info-tip" tabindex="0" aria-label="${T('audio_inherit')}">${iconHtml('info', 12)}<span class="cat-te-info-tip-pop">${T('audio_inherit')}</span></span></span><cap-input><input data-bgm="${id}_key" type="password" autocomplete="new-password" /></cap-input></label>
             ${id === 'sfx' ? numeric('sfx_steps', 'local_audio_steps', 1, 200, 1) + numeric('sfx_cfg', 'local_audio_cfg', 1, 20, 0.1) : ''}
             ${id === 'separation' ? numeric('separation_segment', 'local_audio_segment', 0.001, '', 'any') : ''}
           </div>`).join('')}

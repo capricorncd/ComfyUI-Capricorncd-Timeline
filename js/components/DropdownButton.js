@@ -2,7 +2,7 @@ import "./Button.js";
 
 /** Shared hover trigger; callers create and position their menu. */
 export class DropdownButton extends HTMLElement {
-    static observedAttributes = ["disabled", "variant", "aria-label"];
+    static observedAttributes = ["disabled", "variant", "aria-label", "size"];
 
     constructor() {
         super();

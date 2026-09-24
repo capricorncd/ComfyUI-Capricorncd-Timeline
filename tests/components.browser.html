@@ -1,0 +1,102 @@
+<!doctype html><meta charset="utf-8"><title>Timeline UI components</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>
+body { margin: 0; font: 14px system-ui; }
+.gallery { min-height: 100vh; padding: 32px; box-sizing: border-box; background: var(--cat-bg); color: var(--cat-text); }
+.gallery header, .row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.gallery header { justify-content: space-between; margin-bottom: 28px; }
+.samples { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.samples section { padding: 24px; border: 1px solid var(--cat-border-soft); border-radius: 12px; background: var(--cat-surface); }
+h1 { font-size: 22px; margin: 0; } h2 { font-size: 15px; margin: 0 0 20px; }
+form, .fields { display: grid; gap: 18px; } label { display: grid; gap: 8px; color: var(--cat-muted); font-size: 13px; }
+label.switch { display: flex; align-items: center; gap: 12px; }
+</style>
+<div class="gallery" data-theme-root><header><h1>Capricorncd · 基础组件</h1><cap-theme-picker></cap-theme-picker></header>
+<div class="samples">
+<section><h2>按钮</h2><div class="row">
+<cap-button size="regular" variant="primary">生成 clip</cap-button><cap-button size="regular">导入</cap-button>
+<cap-button size="regular" variant="accent">添加分镜</cap-button><cap-button size="regular" variant="ghost">取消</cap-button>
+<cap-button size="regular" variant="danger">删除</cap-button><cap-button size="regular" disabled>不可用</cap-button>
+</div><div class="row" role="tablist" aria-label="素材类型"><cap-tab-button variant="tab" aria-selected="true">图片</cap-tab-button><cap-tab-button variant="tab" aria-selected="false">视频</cap-tab-button><cap-tab-button variant="tab" aria-selected="false">音频</cap-tab-button></div></section>
+<section><h2>输入框与下拉选择</h2><form>
+<label>Clip 名称<cap-input><input name="title" required value="Lighthouse"></cap-input></label>
+<label>时长（秒）<cap-input><input name="duration" type="number" min="0.01" step="any" value="8"></cap-input></label>
+<label>景别<cap-select><select name="shot"><option>近景</option><option>全景</option><option>特写</option></select></cap-select></label>
+<label>画面内容<cap-textarea><textarea name="prompt" rows="3">Slow push toward the lighthouse.
+Gentle wind, warm evening light.</textarea></cap-textarea></label>
+<label class="switch"><cap-switch><input name="snap" type="checkbox" checked></cap-switch>吸附</label>
+</form></section>
+<section class="fields"><h2>状态与滑杆</h2>
+<label>禁用<cap-input><input disabled value="不可编辑"></cap-input></label>
+<label>错误状态<cap-input><input aria-invalid="true" aria-describedby="error" value=""></cap-input><span id="error">请输入名称</span></label>
+<label>音量<cap-slider reset-label="重置"><input type="range" min="0" max="100" value="60" aria-label="音量"></cap-slider></label>
+</section>
+<section><h2>标签 · 可关闭标签 · 标签组</h2>
+<cap-tag-group aria-label="分镜标签"><cap-tag>近景</cap-tag><cap-tag variant="accent">口型同步</cap-tag><cap-tag closable value="speaker">柳云舒</cap-tag><cap-tag closable disabled>不可移除</cap-tag><cap-tag variant="danger">待修改</cap-tag></cap-tag-group>
+</section>
+<section><h2>单选按钮</h2><cap-radio-button size="regular" value="single">固定镜头</cap-radio-button>
+<h2>单选按钮组</h2><form id="radio-form"><cap-radio-group name="mode" value="system" required aria-label="明暗模式">
+<cap-radio-button size="regular" value="system">跟随系统</cap-radio-button><cap-radio-button size="regular" value="light">明亮</cap-radio-button><cap-radio-button size="regular" value="locked" disabled>不可用</cap-radio-button><cap-radio-button size="regular" value="dark">暗黑</cap-radio-button>
+</cap-radio-group></form></section>
+</div><pre id="result">RUNNING</pre></div>
+<script type="module">
+import '../js/components/ThemePicker.js';
+import '../js/components/TabButton.js';
+import '../js/components/FormControls.js';
+import '../js/components/Slider.js';
+import '../js/components/Tag.js';
+import '../js/components/RadioButton.js';
+const assert = (ok, text) => { if (!ok) throw Error(text); };
+try {
+    const form = document.querySelector('form');
+    const input = form.querySelector('cap-input');
+    assert(new FormData(form).get('title') === 'Lighthouse', 'native form serialization');
+    input.value = '';
+    assert(!input.checkValidity(), 'required validation');
+    input.value = 'Coastal story'; input.focus();
+    assert(document.activeElement === form.elements.title, 'focus forwards to native field');
+    let changes = 0; input.addEventListener('change', () => changes++);
+    input.control.dispatchEvent(new Event('change', { bubbles: true }));
+    assert(changes === 1, 'one native change event');
+    const toggle = form.querySelector('cap-switch');
+    toggle.control.click();
+    assert(!toggle.checked && !new FormData(form).has('snap'), 'switch supports native interaction and form data');
+    toggle.checked = true; toggle.disabled = true; toggle.control.click();
+    assert(toggle.checked, 'disabled switch cannot toggle');
+    toggle.disabled = false;
+    const tags = document.querySelector('cap-tag-group');
+    const tag = tags.querySelector('[value="speaker"]');
+    tag.addEventListener('tag-close', event => event.preventDefault(), { once: true });
+    tag.closeButton.click();
+    assert(tag.isConnected, 'tag removal can be canceled');
+    let closed;
+    tags.addEventListener('tag-close', event => { closed = event.detail.value; });
+    tag.closeButton.click();
+    assert(!tag.isConnected && closed === 'speaker' && !tags.values.includes('speaker'), 'tag removal bubbles value and updates group');
+    const disabledTag = tags.querySelector('[disabled]'); disabledTag.closeButton.click();
+    assert(disabledTag.isConnected, 'disabled tag cannot be removed');
+    tags.append(tag);
+    const group = document.querySelector('cap-radio-group');
+    const radioForm = document.querySelector('#radio-form');
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    assert(new FormData(radioForm).get('mode') === 'system', 'radio group participates in forms');
+    let radioChanges = 0;
+    group.addEventListener('change', () => radioChanges++);
+    group.radios[1].click();
+    assert(group.value === 'light' && group.radios.filter(radio => radio.checked).length === 1 && radioChanges === 1, 'radio selection is exclusive and emits one change');
+    group.radios[1].click();
+    assert(radioChanges === 1, 'reselect does not emit change');
+    group.disabled = true; group.radios[3].click();
+    assert(group.value === 'light' && !new FormData(radioForm).has('mode'), 'disabled group blocks input and form submission');
+    group.disabled = false;
+    group.radios[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    assert(group.value === 'dark', 'arrow skips disabled option');
+    radioForm.reset();
+    assert(group.value === 'system', 'form reset restores initial selection');
+    group.value = '';
+    assert(!group.checkValidity(), 'required group validates empty selection');
+    group.value = 'system';
+    assert(group.checkValidity(), 'valid group clears validation');
+    document.querySelector('#result').textContent = 'PASS: form controls, tags, cancelable close, exclusive radios, keyboard navigation, disabled, reset and validation';
+} catch (error) { document.querySelector('#result').textContent = 'FAIL: ' + error.stack; }
+</script>

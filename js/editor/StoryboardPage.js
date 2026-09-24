@@ -1,6 +1,8 @@
 import '../components/StoryboardCard.js';
 import '../components/StatusMessage.js';
 import '../components/Dialog.js';
+import '../components/FormControls.js';
+import '../components/Tag.js';
 import { t as editorT } from '../i18n/timeline_editor.js';
 import { makeT } from '../cap_i18n.js';
 import { normalizeStoryboards, STORYBOARD_TEXT_FIELDS as TEXT_FIELDS } from './StoryboardDocument.js';
@@ -8,6 +10,7 @@ export { normalizeStoryboards } from './StoryboardDocument.js';
 
 export const storyboardT = makeT({
     en: {
+        unbind: 'Unbind {name}',
         above: 'Above', below: 'Below',
         bind: 'Bind clips', missing_clip: 'Missing clip', save: 'Save', bound: 'Bound: {names}',
         enable: 'Enable', disable: 'Disable', disabled: 'Disabled', delete: 'Delete',
@@ -22,6 +25,7 @@ export const storyboardT = makeT({
         image: 'Reference image', no_image: 'No image', seconds: 's', count: '{n} shots',
     },
     zh: {
+        unbind: '解绑 {name}',
         above: '上方', below: '下方',
         bind: '绑定 clip', missing_clip: 'clip 不存在', save: '保存', bound: '已绑定：{names}',
         enable: '启用', disable: '禁用', disabled: '已禁用', delete: '删除',
@@ -36,6 +40,7 @@ export const storyboardT = makeT({
         image: '参考图片', no_image: '无图片', seconds: '秒', count: '{n} 个分镜',
     },
     ja: {
+        unbind: '{name}の関連付けを解除',
         above: '上', below: '下',
         bind: 'クリップを関連付け', missing_clip: 'クリップが見つかりません', save: '保存', bound: '関連：{names}',
         enable: '有効化', disable: '無効化', disabled: '無効', delete: '削除',
@@ -72,7 +77,7 @@ export class StoryboardPage {
         this.el = document.createElement('section');
         this.el.className = 'cat-te-storyboard';
         this.el.hidden = true;
-        this.el.innerHTML = `<div class="cat-te-storyboard-toolbar"><span>${T('title')}</span><span data-count></span><cap-button data-add variant="accent">${T('add')}</cap-button><cap-button data-from-clips>${T('from_clips')}</cap-button></div><cap-status-message hidden></cap-status-message><div class="cat-te-storyboard-list"></div><p data-empty>${T('empty')}</p>`;
+        this.el.innerHTML = `<div class="cat-te-storyboard-toolbar"><span>${T('title')}</span><span data-count></span><cap-button size="regular" data-add variant="accent">${T('add')}</cap-button><cap-button size="regular" data-from-clips>${T('from_clips')}</cap-button></div><cap-status-message hidden></cap-status-message><div class="cat-te-storyboard-list"></div><p data-empty>${T('empty')}</p>`;
         this.el.querySelector('[data-from-clips]').addEventListener('click', () => {
             const { added, total } = onGenerate();
             this.el.querySelector('cap-status-message').setStatus(T(added ? 'generated' : total ? 'already_generated' : 'no_clips', { n: added }), added ? 'success' : 'info');
@@ -81,19 +86,26 @@ export class StoryboardPage {
         this.panel.className = 'cat-te-storyboard-settings';
         this.panel.hidden = true;
         this.panel.innerHTML = `<p data-selection-empty>${T('select')}</p><form hidden>
-            <label>${T('name')}<input name="title" type="text"></label>
-            <label>${T('description')}<textarea name="description" rows="4"></textarea></label>
-            <div class="cat-te-storyboard-pair"><label>${T('shot_size')}<select name="shot_size"></select></label><label>${T('camera_move')}<select name="camera_move"></select></label></div>
-            <label>${T('duration')}<input name="duration" type="number" min="0.001" step="any" required></label>
-            <label>${T('image')}<select name="image_id"></select></label>
-            <div class="cat-te-storyboard-binding"><cap-button data-bind>${T('bind')}</cap-button><div data-bound-clips></div></div>
-            <label>${T('speaker')}<select name="speaker"></select></label>
-            <label>${T('dialogue')}<textarea name="dialogue" rows="3"></textarea></label>
-            <label>${T('delivery')}<select name="delivery"></select></label>
-            <label>${T('emotion')}<select name="emotion"></select></label>
+            <label>${T('name')}<cap-input><input name="title" type="text"></cap-input></label>
+            <label>${T('description')}<cap-textarea><textarea name="description" rows="4"></textarea></cap-textarea></label>
+            <div class="cat-te-storyboard-pair"><label>${T('shot_size')}<cap-select><select name="shot_size"></select></cap-select></label><label>${T('camera_move')}<cap-select><select name="camera_move"></select></cap-select></label></div>
+            <label>${T('duration')}<cap-input><input name="duration" type="number" min="0.001" step="any" required></cap-input></label>
+            <label>${T('image')}<cap-select><select name="image_id"></select></cap-select></label>
+            <div class="cat-te-storyboard-binding"><cap-button data-bind>${T('bind')}</cap-button><cap-tag-group data-bound-clips aria-label="${T('bind')}"></cap-tag-group></div>
+            <label>${T('speaker')}<cap-select><select name="speaker"></select></cap-select></label>
+            <label>${T('dialogue')}<cap-textarea><textarea name="dialogue" rows="3"></textarea></cap-textarea></label>
+            <label>${T('delivery')}<cap-select><select name="delivery"></select></cap-select></label>
+            <label>${T('emotion')}<cap-select><select name="emotion"></select></cap-select></label>
         </form>`;
         this.form = this.panel.querySelector('form');
         this.panel.querySelector('[data-bind]').addEventListener('click', () => this.openBindDialog(this.selectedId));
+        this.panel.querySelector('[data-bound-clips]').addEventListener('tag-close', event => {
+            event.preventDefault();
+            const shot = this.items.find(row => row.id === this.selectedId);
+            const clipId = event.detail.value;
+            if (!shot?.clip_ids?.includes(clipId)) return;
+            this.onChange(this.items.map(row => row.id === shot.id ? { ...row, clip_ids: row.clip_ids.filter(id => id !== clipId) } : row));
+        });
         this.form.addEventListener('submit', event => event.preventDefault());
         this.form.addEventListener('change', event => {
             const input = event.target;
@@ -270,7 +282,17 @@ export class StoryboardPage {
         this.form.hidden = !selected;
         this.panel.querySelector('[data-selection-empty]').hidden = !!selected;
         if (!selected) return;
-        this.panel.querySelector('[data-bound-clips]').textContent = (selected.clip_ids || []).map(id => clips.get(id) || id).join('、');
+        this.panel.querySelector('[data-bound-clips]').replaceChildren(...(selected.clip_ids || []).map(id => {
+            const tag = document.createElement('cap-tag');
+            const name = clips.get(id) || id;
+            tag.setAttribute('value', id);
+            tag.setAttribute('variant', 'accent');
+            tag.setAttribute('closable', '');
+            tag.setAttribute('close-label', T('unbind', { name }));
+            tag.textContent = name;
+            tag.title = id;
+            return tag;
+        }));
         for (const [key, defaults] of Object.entries(SHOT_OPTIONS)) {
             const values = [...new Set([...defaults, ...this.items.map(shot => shot[key]).filter(Boolean)])];
             this.form.elements[key].replaceChildren(new Option(T('unset'), ''), ...values.map(value => new Option(value, value)));

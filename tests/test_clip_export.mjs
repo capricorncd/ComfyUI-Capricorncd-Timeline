@@ -5,6 +5,7 @@ const source = readFileSync(new URL('../js/editor/ClipExport.js', import.meta.ur
 class Element {
     constructor() { this.fields = new Map(); this.value = ''; }
     setAttribute() {}
+    reportValidity() { return Number(this.value) >= 1 && Number(this.value) <= 120; }
     append() {}
     querySelector(key) {
         if (!this.fields.has(key)) this.fields.set(key, new Element());

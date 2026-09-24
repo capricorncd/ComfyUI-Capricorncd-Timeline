@@ -12,7 +12,7 @@ export class StatusMessage extends HTMLElement {
                 .panel {
                     box-sizing: border-box;
                     font-family: inherit;
-                    font-size: 12px;
+                    font-size: calc(var(--cat-font-size, 1rem) * 0.857143);
                     line-height: 1.4;
                     color: var(--cat-text, #e2e8f0);
                     padding: 8px 10px;

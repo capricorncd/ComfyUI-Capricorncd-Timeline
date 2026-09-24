@@ -196,6 +196,14 @@ try {
     assert(JSON.stringify(editor._storyboards[0].clip_ids) === JSON.stringify(['bind-a', 'bind-b']), 'bind multiple clips');
     assert(JSON.parse(saved).shots[0].clip_ids.length === 2, 'bindings persist');
     assert(bindCard.shadowRoot.querySelector('.bindings').textContent.includes('A、B'), 'card displays bindings');
+    const boundTags = board.panel.querySelector('[data-bound-clips]');
+    assert(boundTags.querySelectorAll('cap-tag').length === 2, 'bound clips render as tags');
+    boundTags.querySelector('cap-tag').closeButton.click();
+    assert(JSON.stringify(editor._storyboards[0].clip_ids) === JSON.stringify(['bind-b']), 'closing tag unbinds only that clip');
+    assert(JSON.parse(saved).shots[0].clip_ids.length === 1, 'tag unbind persists');
+    await history.undo();
+    assert(boundTags.querySelectorAll('cap-tag').length === 2, 'undo restores bound tag');
+    saved = JSON.stringify(buildStoryboardDocument(editor._storyboards));
     await history.undo();
     assert(JSON.stringify(editor._storyboards[0].clip_ids) === JSON.stringify(beforeDelete[0].clip_ids), 'binding undoes');
     await history.redo();

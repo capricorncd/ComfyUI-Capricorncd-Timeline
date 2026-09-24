@@ -1,0 +1,39 @@
+<!doctype html><meta charset="utf-8"><title>Clip inspector overflow</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<div class="cat-te-sidebar" style="width:320px;height:300px">
+<div class="cat-te-panel-title">Clip 设置</div>
+<div class="cat-te-clip-panel">
+<div class="cat-te-clip-info" style="height:90px">素材</div>
+<div class="cat-te-visual-clip-body">
+<div class="cat-te-clip-settings" style="height:240px">设置</div>
+<div class="cat-te-prompt-wrap">
+<div class="cat-te-prompt-label-row"><div class="cat-te-prompt-label">最终合成的 PROMPT</div><cap-button size="small">编辑</cap-button></div>
+<div class="cat-te-prompt-input-wrap cat-te-final-prompt-wrap cat-te-prompt-copy-host"><textarea class="cat-te-prompt-input cat-te-final-prompt" readonly>Long prompt</textarea><cap-button class="cat-te-prompt-copy-btn" size="small">复制</cap-button></div>
+</div>
+<div class="cat-te-clip-videos"><div class="cat-te-clip-videos-header">生成视频</div><div class="cat-te-clip-videos-list"><div style="height:150px;flex-shrink:0">video.mp4</div></div></div>
+</div></div></div><pre id="result">RUNNING</pre>
+<script type="module">
+import '../js/components/Button.js';
+try {
+    const sidebar = document.querySelector('.cat-te-sidebar');
+    const body = document.querySelector('.cat-te-clip-panel');
+    const title = document.querySelector('.cat-te-panel-title');
+    const info = document.querySelector('.cat-te-clip-info');
+    const prompt = document.querySelector('.cat-te-prompt-input');
+    const videos = document.querySelector('.cat-te-clip-videos');
+    for (const height of [220, 300, 600, 1000]) {
+        sidebar.style.height = height + 'px';
+        body.scrollTop = 0;
+        const titleTop = title.getBoundingClientRect().top;
+        const infoTop = info.getBoundingClientRect().top;
+        for (const scroll of [0, body.scrollHeight]) {
+            body.scrollTop = scroll;
+            if (title.getBoundingClientRect().top !== titleTop) throw Error('section title scrolled');
+            if (Math.abs(info.getBoundingClientRect().top - (infoTop - body.scrollTop)) > 1) throw Error('thumbnail is outside scroll area');
+            const text = prompt.getBoundingClientRect(), list = videos.getBoundingClientRect();
+            if (text.height < 80 || text.bottom > list.top) throw Error('prompt overlaps generated videos at height ' + height);
+        }
+    }
+    document.querySelector('#result').textContent = 'PASS: title stays fixed; thumbnail and all clip settings scroll together without overlap';
+} catch (error) { document.querySelector('#result').textContent = 'FAIL: ' + error.stack; }
+</script>

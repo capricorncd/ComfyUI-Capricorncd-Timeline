@@ -13,6 +13,8 @@ import { AgentSettings } from "./editor/AgentSettings.js";
 import "./components/StatusMessage.js";
 import "./components/DropdownButton.js";
 import "./components/ContextMenu.js";
+import "./components/ThemePicker.js";
+import "./components/RadioButton.js";
 import { FontCatalog } from "./editor/FontCatalog.js";
 import { previewSeedValue, workflowPreviewSeed } from "./editor/PreviewSeed.js";
 import { TimelineHistory } from "./editor/TimelineHistory.js";
@@ -59,11 +61,11 @@ const DEFAULT_MEDIA_PANEL_W = MIN_MEDIA_PANEL_W;
 const MAX_MEDIA_PANEL_FRAC = 0.55;
 const STORAGE_SIDEBAR_PANEL_W = "cat-te-sidebar-panel-w";
 const MIN_SIDEBAR_PANEL_W = 220;
-const DEFAULT_SIDEBAR_PANEL_W = 260;
+const DEFAULT_SIDEBAR_PANEL_W = 300;
 const MAX_SIDEBAR_PANEL_FRAC = 0.45;
 const STORAGE_PROGRAM_PANEL_H = "cat-te-program-panel-h";
 const MIN_PROGRAM_PANEL_H = 120;
-const DEFAULT_PROGRAM_PANEL_H = 240;
+const DEFAULT_PROGRAM_PANEL_H = 420;
 const MAX_PROGRAM_PANEL_FRAC = 0.7;
 const STORAGE_GEN_EDIT_PREVIEW_H = "cat-te-gen-edit-preview-h";
 const MIN_GEN_EDIT_PREVIEW_H = 120;
@@ -2643,7 +2645,7 @@ export class CapTimelineEditorApp {
         if (this._projectExportBusy) return;
         this._projectExportBusy = true;
         this.exportDialog.closeDisabled = true;
-        const controls = this.exportDialog.querySelectorAll("input, cap-button");
+        const controls = this.exportDialog.querySelectorAll("input, cap-button, cap-radio-group");
         controls.forEach(control => { control.disabled = true; });
         this._resetProjectExport();
         this._setExportStatus(T(format === "zip" ? "export_zip_packing" : "export_directory_saving"));
@@ -3521,11 +3523,11 @@ export class CapTimelineEditorApp {
               <button type="button" class="cat-te-brand-project" title="${T("edit_project_name_title")}">${T("untitled_project")}</button>
             </div>
             <div class="cat-te-header-spacer"></div>
-            <cap-dropdown-button class="cat-te-import">${T("import_btn_label")}</cap-dropdown-button>
-            <cap-button class="cat-te-export">${T("export_title")}</cap-button>
-            <cap-button class="cat-te-compose-open">${T("compose_video_menu")}</cap-button>
-            <cap-button class="cat-te-settings">${T("settings_btn")}</cap-button>
-            <cap-button class="cat-te-header-close" variant="neutral" title="${T("close_title")}" aria-label="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
+            <cap-dropdown-button size="regular" class="cat-te-import">${T("import_btn_label")}</cap-dropdown-button>
+            <cap-button size="regular" class="cat-te-export">${T("export_title")}</cap-button>
+            <cap-button size="regular" class="cat-te-compose-open">${T("compose_video_menu")}</cap-button>
+            <cap-button size="regular" class="cat-te-settings">${T("settings_btn")}</cap-button>
+            <cap-button size="regular" class="cat-te-header-close" variant="neutral" title="${T("close_title")}" aria-label="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
             <input class="cat-te-import-zip" type="file" accept=".zip,application/zip" hidden />
           </header>
           <div class="cat-te-main">
@@ -3535,7 +3537,7 @@ export class CapTimelineEditorApp {
                 <div class="cat-te-media-header-actions"></div>
               </div>
               <div class="cat-te-media-tabs" role="tablist" aria-label="${T("media_title")}">
-                ${MEDIA_LIBRARY_TABS.map((tab) => `<button type="button" class="cat-te-media-tab" role="tab" data-kind="${tab.id}" aria-selected="${tab.id === "image"}">${tab.label}</button>`).join("")}
+                ${MEDIA_LIBRARY_TABS.map((tab) => `<cap-tab-button variant="tab" class="cat-te-media-tab" role="tab" data-kind="${tab.id}" aria-selected="${tab.id === "image"}">${tab.label}</cap-tab-button>`).join("")}
               </div>
               <div class="cat-te-media-grid"></div>
               <div class="cat-te-media-footer">
@@ -3549,10 +3551,8 @@ export class CapTimelineEditorApp {
                   <canvas class="cat-te-program-canvas" aria-label="${T("program_preview_aria")}"></canvas>
                   <div class="cat-te-program-empty" hidden>${T("no_frame")}</div>
                 </div>
-                <div class="cat-te-program-meta"></div>
               </div>
-              <div class="cat-te-program-split" role="separator" aria-orientation="horizontal" aria-label="${T("program_split_aria")}" title="${T("program_split_title")}"></div>
-              <div class="cat-te-timeline-host"></div>
+              <div class="cat-te-program-controls"><div class="cat-te-program-meta"></div></div>
             </div>
             <div class="cat-te-sidebar-split" role="separator" aria-orientation="vertical" aria-label="${T("sidebar_split_aria")}" title="${T("sidebar_split_title")}"></div>
             <aside class="cat-te-sidebar">
@@ -3882,10 +3882,9 @@ export class CapTimelineEditorApp {
               </div>
             </aside>
           </div>
-          <footer class="cat-te-footer">
-            <div class="cat-te-footer-center"></div>
-            <input class="cat-te-add-material-file" type="file" accept="image/*,video/*,audio/*" multiple hidden />
-          </footer>
+              <div class="cat-te-program-split" role="separator" aria-orientation="horizontal" aria-label="${T("program_split_aria")}" title="${T("program_split_title")}"></div>
+              <div class="cat-te-timeline-host"></div>
+          <input class="cat-te-add-material-file" type="file" accept="image/*,video/*,audio/*" multiple hidden />
           <div class="cat-te-frame-preview"></div>
           <div class="cat-te-modal-backdrop cat-te-media-preview-modal" hidden>
             <div class="cat-te-modal cat-te-media-preview-dialog">
@@ -4414,14 +4413,14 @@ export class CapTimelineEditorApp {
                   <textarea class="cat-te-ai-skill" rows="3" placeholder="${T("skill_placeholder")}"></textarea>
                   </div>
                   <div class="cat-te-ai-right-pane cat-te-ai-right-preview" data-right-pane="preview" hidden>
-                  <label class="cat-te-modal-row">
+                  <label><cap-form-row>
                     <span>${T("clip_seed_label")}</span>
                     <span class="cat-te-model-preview-seed-controls">
-                      <input class="cat-te-model-preview-seed" type="number" min="-1" step="1" value="-1" />
+                      <cap-input size="small"><input class="cat-te-model-preview-seed" type="number" min="-1" step="1" value="-1" /></cap-input>
                       <cap-button shape="square" class="cat-te-model-preview-seed-random" title="${T("randomize_seed_title")}" aria-label="${T("randomize_seed_title")}">${iconHtml("refresh", 12)}</cap-button>
                       <cap-button class="cat-te-model-preview-seed-use" disabled title="${T("preview_seed_hint")}">${T("preview_seed_use")}</cap-button>
                     </span>
-                  </label>
+                  </cap-form-row></label>
                   <details class="cat-te-disclosure cat-te-model-preview-settings">
                     <summary><span>${T("standalone_preview_title")}</span><span class="cat-te-disclosure-chevron" aria-hidden="true">${iconHtml("chevronRight", 16)}</span></summary>
                     <div class="cat-te-agent-heading">
@@ -4437,10 +4436,10 @@ export class CapTimelineEditorApp {
                         <cap-button class="cat-te-model-preview-clear">${T("clear_btn")}</cap-button>
                       </div>
                     </div>
-                    <label class="cat-te-modal-row">
+                    <label><cap-form-row>
                       <span>${T("preview_megapixels_label")}</span>
-                      <input class="cat-te-model-preview-megapixels" type="number" min="0.01" max="4" step="0.05" value="0.2" />
-                    </label>
+                      <cap-input size="small"><input class="cat-te-model-preview-megapixels" type="number" min="0.01" max="4" step="0.05" value="0.2" /></cap-input>
+                    </cap-form-row></label>
                     <div class="cat-te-model-preview-config-name"></div>
                     <input class="cat-te-model-preview-file" type="file" accept="application/json,.json" hidden />
                     <cap-button class="cat-te-ai-preview-run">${iconHtml("eye", 12)}<span>${T("preview_btn")}</span></cap-button>
@@ -4577,10 +4576,10 @@ export class CapTimelineEditorApp {
           <cap-dialog class="cat-te-export-dialog" aria-label="${T("export_title")}" close-label="${T("close_title")}">
             <span slot="title" tabindex="-1" autofocus>${T("export_title")}</span>
             <div class="cat-te-modal-body">
-              <div class="cat-te-wm-tabs cat-te-export-formats">
-                <cap-button class="is-active" data-format="directory" aria-pressed="true">${T("export_files")}</cap-button>
-                <cap-button data-format="zip" aria-pressed="false">ZIP</cap-button>
-              </div>
+              <cap-radio-group class="cat-te-export-formats" value="directory" aria-label="${T("export_title")}">
+                <cap-radio-button indicator size="regular" value="directory">${T("export_files")}</cap-radio-button>
+                <cap-radio-button indicator size="regular" value="zip">ZIP</cap-radio-button>
+              </cap-radio-group>
               <label class="cat-te-compose-field cat-te-export-path">
                 <span>${T("export_directory_label")}
                   <span class="cat-te-info-tip" tabindex="0" role="note" aria-label="${T("export_directory_help")}">
@@ -4614,14 +4613,15 @@ export class CapTimelineEditorApp {
                 </nav>
                 <div class="cat-te-settings-content">
                 <div class="cat-te-settings-panel" data-settings-panel="general">
-                <label class="cat-te-modal-row">
+                <cap-theme-picker></cap-theme-picker>
+                <label><cap-form-row>
                   <span>${T("autosave_interval_label")}</span>
-                  <input class="cat-te-autosave-interval" type="number" min="1" max="300" step="1" />
-                </label>
-                <label class="cat-te-modal-row">
+                  <cap-input size="small"><input class="cat-te-autosave-interval" type="number" min="1" max="300" step="1" /></cap-input>
+                </cap-form-row></label>
+                <label><cap-form-row>
                   <span>${T("prompt_font_size_label")}</span>
-                  <input class="cat-te-prompt-font-size" type="number" min="10" max="28" step="1" />
-                </label>
+                  <cap-input size="small"><input class="cat-te-prompt-font-size" type="number" min="10" max="28" step="1" /></cap-input>
+                </cap-form-row></label>
                 <label class="cat-te-modal-check-row">
                   <input class="cat-te-use-clip-video-filename" type="checkbox" checked />
                   <span>${T("use_clip_specified_video_filename_label")}</span>
@@ -4805,7 +4805,6 @@ export class CapTimelineEditorApp {
         this.clipSourceDurEl = el.querySelector(".cat-te-clip-source-dur");
         this.clipDurEl = el.querySelector(".cat-te-clip-dur");
         this.framePreview = el.querySelector(".cat-te-frame-preview");
-        this.footerPlayback = el.querySelector(".cat-te-footer-center");
         this.addMaterialInput = el.querySelector(".cat-te-add-material-file");
         this.mediaPreviewModal = el.querySelector(".cat-te-media-preview-modal");
         this.mediaPreviewTitle = el.querySelector(".cat-te-media-preview-title");
@@ -4986,15 +4985,8 @@ export class CapTimelineEditorApp {
         this.exportDialog.addEventListener("cancel", e => {
             if (this._projectExportBusy) e.preventDefault();
         });
-        this.exportDialog.querySelectorAll("[data-format]").forEach(button => {
-            button.addEventListener("click", () => {
-                if (this._projectExportBusy || button.classList.contains("is-active")) return;
-                this.exportDialog.querySelectorAll("[data-format]").forEach(tab => {
-                    tab.classList.toggle("is-active", tab === button);
-                    tab.setAttribute("aria-pressed", String(tab === button));
-                });
-                this._resetProjectExport();
-            });
+        this.exportDialog.querySelector(".cat-te-export-formats").addEventListener("change", () => {
+            if (!this._projectExportBusy) this._resetProjectExport();
         });
         this.exportDialog.addEventListener("input", () => {
             if (!this._projectExportBusy) this._resetProjectExport();
@@ -5010,7 +5002,7 @@ export class CapTimelineEditorApp {
                 includeGenerated: this.exportDialog.querySelector(".cat-te-export-generated").checked,
                 includeUnused: this.exportDialog.querySelector(".cat-te-export-unused").checked,
             };
-            const format = this.exportDialog.querySelector('[data-format].is-active').dataset.format;
+            const format = this.exportDialog.querySelector(".cat-te-export-formats").value;
             void this._runProjectExport({ format, ...options });
         });
         this.shortcutsDialog = el.querySelector(".cat-te-shortcuts-dialog");
@@ -5721,8 +5713,9 @@ export class CapTimelineEditorApp {
     }
 
     _programPanelMaxHeight() {
-        const center = this._overlay?.querySelector(".cat-te-center");
-        const ch = center?.clientHeight ?? 0;
+        const overlay = this._overlay;
+        const ch = (overlay?.clientHeight || 0) - (overlay?.querySelector(".cat-te-header")?.offsetHeight || 0)
+            - 7;
         if (ch <= 0) return DEFAULT_PROGRAM_PANEL_H + 200;
         return Math.max(MIN_PROGRAM_PANEL_H, Math.floor(ch * MAX_PROGRAM_PANEL_FRAC));
     }
@@ -5744,7 +5737,7 @@ export class CapTimelineEditorApp {
 
     _bindProgramPanelResize() {
         const split = this.programSplit;
-        const panel = this.programRoot;
+        const panel = this._overlay?.querySelector(".cat-te-main");
         if (!split || !panel) return;
 
         split.addEventListener("mousedown", (e) => {
@@ -17837,10 +17830,17 @@ export class CapTimelineEditorApp {
         if (this.programEmpty) this.programEmpty.hidden = this._programHadFrame;
     }
 
+    _mountProgramPlayback() {
+        const controls = this._overlay.querySelector('.cat-te-program-controls');
+        const playback = this._timeline.playbackControlsEl;
+        playback.querySelector('.tl-btn-stop').hidden = true;
+        controls.prepend(playback);
+    }
+
     _configureTimelineUi() {
         const tl = this._timeline;
         if (!tl) return;
-        this.footerPlayback.replaceChildren(tl.playbackControlsEl);
+        this._mountProgramPlayback();
 
         const packageBtn = document.createElement("cap-dropdown-button");
         packageBtn.className = "tl-btn-add-package";

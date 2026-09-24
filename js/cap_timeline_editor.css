@@ -2947,6 +2947,7 @@ body.cat-te-media-dnd-over-tl {
     color: #ddd;
 }
 .cat-te-clip-video-row.is-disabled { opacity: 0.55; }
+.cat-te-clip-video-row.menu-open { border-color: var(--cat-accent); outline: 1px solid var(--cat-accent); outline-offset: -2px; opacity: 1; }
 .cat-te-clip-video-enabled {
     flex-shrink: 0;
     margin: 0;
@@ -2964,11 +2965,11 @@ body.cat-te-media-dnd-over-tl {
     flex: 1;
     min-width: 0;
 }
-.cat-te-clip-video-insert,
+.cat-te-clip-video-more,
 .cat-te-clip-video-mute {
     flex-shrink: 0;
 }
-.cat-te-clip-video-insert svg,
+
 .cat-te-clip-video-mute svg {
     width: 14px;
     height: 14px;

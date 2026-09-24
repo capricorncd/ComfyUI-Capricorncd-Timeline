@@ -42,6 +42,10 @@ export class ContextMenu extends HTMLElement {
         });
     }
 
+    disconnectedCallback() {
+        this.dispatchEvent(new CustomEvent('menu-dismissed'));
+    }
+
     focus(options) {
         this._buttons.find(button => !button.disabled)?.focus(options);
     }

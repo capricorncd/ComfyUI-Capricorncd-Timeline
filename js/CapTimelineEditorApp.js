@@ -2948,13 +2948,13 @@ export class CapTimelineEditorApp {
         }
     }
 
-    async _revealComposeOutput() {
-        if (!this._lastComposeOutput) return;
+    async _revealOutput(output) {
+        if (!output) return;
         try {
             const response = await fetch(api.apiURL("/audio_keyframe_timeline/reveal_output"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(this._lastComposeOutput),
+                body: JSON.stringify(output),
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || T("open_folder_prepare_failed"));
@@ -5422,7 +5422,7 @@ export class CapTimelineEditorApp {
         this._bindModalInteractions();
         el.querySelector(".cat-te-compose-cancel")?.addEventListener("click", () => this._closeComposeModal());
         this.composeRunBtn?.addEventListener("click", () => {
-            if (this._composeDone) { void this._revealComposeOutput(); return; }
+            if (this._composeDone) { void this._revealOutput(this._lastComposeOutput); return; }
             void this._runComposeVideoExport();
         });
         this.composeRange.addEventListener("toggleplay", () => this._toggleComposePlayback());
@@ -8727,52 +8727,32 @@ export class CapTimelineEditorApp {
             name.title = row.file || "";
             name.addEventListener("click", () => this._openGenVideoModal(clip, index));
 
-            const mute = document.createElement("cap-button");
-            mute.className = "cat-te-clip-video-mute";
-            mute.setAttribute("shape", "square");
-            mute.setAttribute("size", "small");
-            const muted = row.muted === true;
-            mute.innerHTML = muted ? ICONS.volumeOff : ICONS.volume;
-            mute.classList.toggle("active", muted);
-            mute.setAttribute("aria-pressed", String(muted));
-            mute.title = muted ? T("unmute_label") : T("mute_label");
-            mute.addEventListener("click", (e) => {
-                e.stopPropagation();
-                this._setGeneratedVideoMuted(clip, row.id, !muted);
+            const more = document.createElement("cap-dropdown-button");
+            more.className = "cat-te-clip-video-more";
+            more.setAttribute("hide-caret", "");
+            more.setAttribute("size", "small");
+            more.setAttribute("aria-label", storyboardT("more"));
+            more.innerHTML = iconHtml("ellipsisVertical", 14);
+            more.bindMenu(() => {
+                const rect = more.getBoundingClientRect();
+                const menu = this._buildCtxMenu([
+                    { label: T("insert_to_timeline_label"), icon: "pictureInPicture", fn: async () => {
+                        more.disabled = true;
+                        try { await this._insertGeneratedVideoAtPlayhead(row.file); }
+                        catch (error) { alert(T("import_asset_failed", { msg: error instanceof Error ? error.message : String(error) })); }
+                        finally { more.disabled = false; }
+                    } },
+                    { label: T("open_output_directory"), icon: "squareArrowOutUpRight", fn: () => void this._revealOutput({ filename: row.file }) },
+                    { label: row.enabled !== false ? T("disable_label") : T("enable_label"), icon: row.enabled !== false ? "eyeOff" : "eye", fn: () => this._setGeneratedVideoEnabled(clip, row.id, row.enabled === false) },
+                    { label: row.muted ? T("unmute_label") : T("mute_label"), icon: row.muted ? "volume" : "volumeOff", fn: () => this._setGeneratedVideoMuted(clip, row.id, !row.muted) },
+                    { label: T("delete_btn"), icon: "trash", danger: true, fn: () => this._deleteGeneratedVideo(clip, row.id) },
+                ], rect.left, rect.bottom + 4, { ignoreNextClick: false });
+                item.classList.add("menu-open");
+                menu.addEventListener("menu-dismissed", () => item.classList.remove("menu-open"), { once: true });
+                return menu;
             });
 
-            const del = document.createElement("cap-button");
-            del.className = "cat-te-clip-video-del";
-            del.setAttribute("variant", "danger");
-            del.setAttribute("shape", "square");
-            del.setAttribute("size", "small");
-            del.title = T("delete_btn");
-            del.innerHTML = iconHtml("close", 12);
-            del.addEventListener("click", (e) => {
-                e.stopPropagation();
-                this._deleteGeneratedVideo(clip, row.id);
-            });
-
-            const insert = document.createElement("cap-button");
-            insert.className = "cat-te-clip-video-insert";
-            insert.setAttribute("shape", "square");
-            insert.setAttribute("size", "small");
-            insert.innerHTML = ICONS.pictureInPicture;
-            insert.title = T("insert_at_position_btn");
-            insert.setAttribute("aria-label", insert.title);
-            insert.addEventListener("click", async (e) => {
-                e.stopPropagation();
-                insert.disabled = true;
-                try {
-                    await this._insertGeneratedVideoAtPlayhead(row.file);
-                } catch (error) {
-                    alert(T("import_asset_failed", { msg: error instanceof Error ? error.message : String(error) }));
-                } finally {
-                    insert.disabled = false;
-                }
-            });
-
-            item.append(enable, thumb, name, insert, mute, del);
+            item.append(enable, thumb, name, more);
             this.clipVideosList.appendChild(item);
             void this._getOutputVideoThumbnail(row.file).then((url) => {
                 if (url && thumb.isConnected) thumb.src = url;

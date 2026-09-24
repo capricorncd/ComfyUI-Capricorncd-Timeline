@@ -291,6 +291,7 @@ export const DICT = {
         composing_please_wait: "Compositing, please wait…",
         compose_failed_http: "Compositing failed (HTTP {status})",
         open_folder_btn: "Open Folder",
+        open_output_directory: "Open containing folder",
         saved_to_output: "Saved to ComfyUI/output/{rel}",
         open_folder_prepare_failed: "Failed to open folder",
         open_folder_failed: "Failed to open folder: {msg}",
@@ -1160,6 +1161,7 @@ export const DICT = {
         export_zip_packing: "正在打包 ZIP…素材较大时可能需要一些时间。",
         export_zip_missing: "已导出 ZIP，但有 {n} 个素材缺失：\n{list}",
         import_no_clips: "导入的 project.json 里没有 clip。如果这是清空后的备份，需要更早的目录或 ZIP。",
+        open_output_directory: "打开所在目录",
         import_failed: "导入失败：{msg}",
         import_zip_failed: "导入 ZIP 失败",
 
@@ -2028,6 +2030,7 @@ export const DICT = {
         media_split_aria: "素材パネルの幅を調整",
         media_split_title: "ドラッグして素材パネルの幅を調整",
         program_preview_aria: "タイムラインプレビュー",
+        open_output_directory: "保存先フォルダを開く",
         no_frame: "画面なし",
         program_split_aria: "プレビュー領域の高さを調整",
         program_split_title: "ドラッグしてプレビュー領域の高さを調整",

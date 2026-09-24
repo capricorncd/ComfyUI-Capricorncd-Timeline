@@ -16384,7 +16384,7 @@ export class CapTimelineEditorApp {
             );
         } else {
             const runState = this._clipRunState(clip.id);
-            generation.push(runState === "queued" || runState === "running"
+            generation.push(runState === "running"
                 ? { label: T("menu_abort"), icon: "stop", fn: () => void this._abortClipDownstream(clip) }
                 : { label: T("menu_run"), icon: "play", fn: () => void this._runClipDownstream(clip) });
             generation.push(
@@ -16918,13 +16918,13 @@ export class CapTimelineEditorApp {
     }
 
     /**
-     * Abort this clip's queued/running prompt (interrupt workflow or dequeue).
+     * Abort only this clip's running prompt.
      */
     async _abortClipDownstream(clip) {
         if (!clip) return;
         const clipId = String(clip.id);
         const state = this._clipRunState(clipId);
-        if (state !== "queued" && state !== "running") return;
+        if (state !== "running") return;
 
         const job = this._pendingGeneratedJobs.find((j) => String(j.clipId) === clipId) || null;
         const promptId = String(
@@ -16935,29 +16935,14 @@ export class CapTimelineEditorApp {
         const stamp = job?.stamp || null;
 
         try {
-            if (state === "running") {
-                if (typeof api?.interrupt === "function") {
-                    await api.interrupt(promptId || undefined);
-                } else if (typeof api?.fetchApi === "function") {
-                    await api.fetchApi("/interrupt", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(promptId ? { prompt_id: promptId } : {}),
-                    });
-                }
-            } else if (promptId) {
-                if (typeof api?.deleteItem === "function") {
-                    await api.deleteItem("queue", promptId);
-                } else if (typeof api?.fetchApi === "function") {
-                    await api.fetchApi("/queue", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ delete: [promptId] }),
-                    });
-                }
-            } else if (typeof api?.interrupt === "function") {
-                // Queued locally but prompt_id not bound yet — best-effort global interrupt.
-                await api.interrupt();
+            if (typeof api?.interrupt === "function") {
+                await api.interrupt(promptId || undefined);
+            } else if (typeof api?.fetchApi === "function") {
+                await api.fetchApi("/interrupt", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(promptId ? { prompt_id: promptId } : {}),
+                });
             }
         } catch (error) {
             alert(T("abort_failed", { msg: error instanceof Error ? error.message : String(error) }));

@@ -4,13 +4,13 @@ const source=readFileSync(new URL('../js/CapTimelineEditorApp.js',import.meta.ur
 const start=source.indexOf('    _showClipCtxMenu('), end=source.indexOf('\n    }',start)+6;
 const show=new Function('T','isVoiceoverClipMeta','isSubtitleClipMeta','isMediaTrackType',
     'return ({'+source.slice(start,end)+'})._showClipCtxMenu;')(x=>x,(m,t)=>t.type==='voiceover',(m,t)=>t.type==='subtitle',t=>t==='media');
-function menu(type,{running=false,output=true,audio=true}={}){
+function menu(type,{running=false,queued=false,output=true,audio=true}={}){
  const clip={id:'a',track:{type},src:'audio.wav',hasAudio:audio,startTime:0,endTime:5};
  const meta={clipType:type,generatedVideos:output?[{}]:[]};
  const app={_meta:new Map([['a',meta]]),_timeline:{getSelectedClips:()=>[clip],currentTime:2},
  _clipDenoiseSources:()=>audio?[{}]:[],_firstEnabledGeneratedAudio:()=>output?{}:null,
  _firstEnabledGeneratedVideo:()=>output?{}:null,_clipItems:()=>output?[{kind:'video'}]:[],
- _clipGeneratedVideos:()=>meta.generatedVideos,_clipRunState:()=>running?'running':'idle',
+ _clipGeneratedVideos:()=>meta.generatedVideos,_clipRunState:()=>running?'running':queued?'queued':'idle',
  _buildCtxMenu:items=>{app.items=items;}};
  show.call(app,clip,{clientX:0,clientY:0});return app.items;
 }
@@ -29,6 +29,7 @@ for(const type of ['director','media','audio','voiceover','subtitle'])for(const 
 const director=menu('director');
 assert.equal(director[0].label,'menu_run');
 assert.equal(menu('director',{running:true})[0].label,'menu_abort');
+assert.equal(menu('director',{queued:true})[0].label,'menu_run','Queued clips cannot offer abort');
 const groups=[];let group=[];
 for(const item of director){if(item.separator){groups.push(group);group=[];}else group.push(item.label);}groups.push(group);
 assert.deepEqual(groups[0],['menu_run','run_track_right_menu','run_track_left_menu','menu_ai_optimize_prompt']);

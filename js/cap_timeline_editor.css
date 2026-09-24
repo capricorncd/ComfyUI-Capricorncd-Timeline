@@ -4094,3 +4094,45 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-video-trim-navigation { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .cat-te-video-trim-navigation label { flex: 1; min-width: 0; }
 .cat-te-video-trim-navigation [data-position] { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cat-te-reference-project {
+    --cap-dialog-width: 1000px;
+    --cap-dialog-height: 720px;
+    --cap-dialog-min-width: 480px;
+    --cap-dialog-min-height: 320px;
+}
+/* Reference browsing keeps navigation, timing and prompt text visually distinct. */
+.cat-te-reference-title { display: flex; flex-direction: column; gap: 2px; }
+.cat-te-reference-title small { font-size: 11px; font-weight: 400; color: var(--cat-muted); }
+.cat-te-reference-title > span { font-size: 16px; font-weight: 650; }
+.cat-te-reference-tabs { position: sticky; top: 0; z-index: 1; display: flex; gap: 6px; overflow-x: auto; padding: 12px 28px; background: var(--cat-raised); border-bottom: 1px solid var(--cat-border-soft); }
+.cat-te-reference-tabs cap-tab-button { flex-shrink: 0; }
+.cat-te-reference-body { padding: 20px 28px; }
+.cat-te-reference-clip { border: 1px solid var(--cat-border-soft); background: var(--cat-surface); border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
+.cat-te-reference-clip > header { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--cat-border-soft); }
+.cat-te-reference-number { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--cat-accent); }
+.cat-te-reference-clip h3 { flex: 1; min-width: 100px; margin: 0; font-size: 14px; font-weight: 650; }
+.cat-te-reference-timing { font-size: 11px; color: var(--cat-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cat-te-reference-content { display: grid; grid-template-columns: minmax(160px, 27%) minmax(0, 1fr); gap: 18px; padding: 16px; }
+.cat-te-reference-content-text { grid-template-columns: minmax(0, 1fr); }
+.cat-te-reference-prompts { min-width: 0; }
+.cat-te-reference-field { margin-bottom: 14px; min-width: 0; }
+.cat-te-reference-field:last-child { margin-bottom: 0; }
+.cat-te-reference-field > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; color: var(--cat-muted); font-size: 11px; }
+.cat-te-reference-project pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: 13px; font-weight: 400; line-height: 1.75; margin: 0; }
+.cat-te-reference-field > pre { padding: 12px 14px; border-radius: 6px; background: var(--cat-bg); scrollbar-width: thin; }
+.cat-te-reference-media { display: flex; flex-direction: column; gap: 12px; max-height: 350px; overflow-y: auto; scrollbar-width: thin; }
+.cat-te-reference-media figure { margin: 0; min-width: 0; }
+.cat-te-reference-media img, .cat-te-reference-media video { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: var(--cat-bg); border-radius: 6px; }
+.cat-te-reference-media audio { width: 100%; }
+.cat-te-reference-media figcaption { overflow-wrap: anywhere; margin-top: 5px; font-size: 11px; line-height: 1.5; color: var(--cat-muted); }
+.cat-te-reference-clip > details { padding: 9px 16px; border-top: 1px solid var(--cat-border-soft); color: var(--cat-muted); font-size: 11px; }
+.cat-te-reference-clip > details > pre { max-height: 240px; overflow: auto; padding-top: 12px; }
+.cat-te-reference-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.cat-te-reference-metrics .cat-te-reference-field { margin: 0; padding: 12px 16px; background: var(--cat-surface); border: 1px solid var(--cat-border-soft); border-radius: 8px; }
+.cat-te-reference-metrics .cat-te-reference-field > pre { background: none; padding: 0; font-size: 22px; font-weight: 600; }
+@media (max-width: 800px) {
+    .cat-te-reference-content { grid-template-columns: minmax(0, 1fr); }
+    .cat-te-reference-media { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 220px; }
+    .cat-te-reference-tabs { padding-inline: 18px; }
+    .cat-te-reference-body { padding: 16px 18px; }
+}

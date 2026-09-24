@@ -18,6 +18,7 @@ import "./components/RadioButton.js";
 import { FontCatalog } from "./editor/FontCatalog.js";
 import { previewSeedValue, workflowPreviewSeed } from "./editor/PreviewSeed.js";
 import { TimelineHistory } from "./editor/TimelineHistory.js";
+import { ReferenceProject, referenceT } from "./editor/ReferenceProject.js";
 import { StoryboardPage, normalizeStoryboards, storyboardT } from "./editor/StoryboardPage.js";
 import { parseStoryboardDocument, buildStoryboardDocument } from "./editor/StoryboardDocument.js";
 import { FontPicker } from "./editor/FontPicker.js";
@@ -1333,6 +1334,7 @@ export class CapTimelineEditorApp {
     }
 
     _closeInternal(save) {
+        this._referenceProject?.dialog.close();
         this._videoTrim?.stop();
         // Invalidate any in-flight _openEditor so it won't rebuild after close.
         this._openGen += 1;
@@ -3463,6 +3465,7 @@ export class CapTimelineEditorApp {
     }
 
     destroy() {
+        this._referenceProject?.destroy();
         if (this._destroyed) return;
         this._clearWorkflowPreview();
         this._composeResizeObserver?.disconnect();
@@ -17886,6 +17889,10 @@ export class CapTimelineEditorApp {
                 },
                 { label: T("shortcuts_title"), icon: "info", fn: () => this.shortcutsDialog.showModal() },
                 { label: T("new_project"), icon: "insert", disabled: !this._canCreateProject(), fn: () => void this._newProject() },
+                { label: referenceT("title"), icon: "insert", fn: () => {
+                    this._referenceProject ??= new ReferenceProject({ host: this._overlay, apiURL: path => api.apiURL(path) });
+                    void this._referenceProject.open();
+                } },
                 { label: "GitHub", icon: "squareArrowOutUpRight", fn: () => window.open("https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline", "_blank", "noopener,noreferrer") },
             ], rect.left, rect.bottom + 4, { ignoreNextClick: false });
         });

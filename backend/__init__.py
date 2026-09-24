@@ -19,6 +19,7 @@ from aiohttp import web
 import folder_paths
 
 from .cap_reveal_file import reveal_file
+from .cap_reference_project import register_reference_project_routes
 from .cap_image_crop import crop_image_file
 from .cap_i18n import resolve_lang, t
 from .cap_video_metadata import read_video_generation
@@ -263,6 +264,7 @@ def _register_routes():
 
     register_metadata_routes(routes)
     register_local_audio_routes(routes)
+    register_reference_project_routes(routes)
 
     # Keep immutable recent steps; a video's range requests must read the same bytes.
     # At most 8 previews, each capped at 8 MiB and 3 steps, expiring after 120 seconds.

@@ -1,5 +1,7 @@
 # Shared UI components
 
+Before adding or changing UI, follow the [UI design and acceptance guidelines](ui-guidelines.md) for hierarchy, spacing, prompt display and icon actions. This document describes component APIs and integration.
+
 ## Status message
 
 Use `js/components/StatusMessage.js` for bordered operation-status messages. Project export and video composition both use this component.
@@ -61,6 +63,8 @@ Each shot stores `id`, `title`, `description`, `duration` (seconds), `shot_size`
 `tests/test_storyboard_document.mjs` and `tests/test_storyboard_export.py` cover version validation, legacy migration, widget serialization and package round trips.
 
 ## Media carousel
+
+The timeline More menu's “Load reference project” opens a native `project.json` picker on the local ComfyUI machine. `js/editor/ReferenceProject.js` keeps the selected project read-only in the editor session and reopens it without picking again. It uses the shared dialog’s non-modal `show()` so the timeline and other controls remain operable without a backdrop. Its tabs show director tracks first, preserve duplicate track names, and put global settings last. Clip prompts can be copied; image, video and audio references are served from the selected project directory or their declared ComfyUI input/output location. Missing media remains labeled. The footer loads another project; cancellation or failure preserves the previous reference. Run `node tests/test_reference_project.mjs` and `python tests/test_reference_project.py` for behavior and path-containment checks.
 
 `js/components/MediaCarousel.js` provides `<cap-media-carousel>` for Clip settings and Prompt Manager's read-only asset-description tab. It owns the 16:9 frame, vertically centered Lucide navigation buttons (using `cap-button`), wraparound switching and item counter. Call `setSelection(index, count)` without emitting a change; user navigation emits `media-change` with `detail.index`. Set localized `previous-label` / `next-label` attributes. Zero or one item hides navigation.
 

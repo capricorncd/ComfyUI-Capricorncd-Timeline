@@ -1666,6 +1666,25 @@ export class CapTimelineEditorApp {
         this._clearGeneratedVideoLinks(targets);
     }
 
+    async _clearUnusedGeneratedVideoLinks() {
+        const unused = () => this._clipsWithGeneratedVideoLinks()
+            .filter(({ meta }) => meta.generatedVideos.some(video => video.enabled === false));
+        let targets = unused();
+        if (!targets.length) return;
+        const loadSeq = this._loadSeq;
+        const confirmed = await showCapConfirm(T("confirm_clear_unused_video_links", {
+            clips: targets.length,
+            videos: targets.reduce((count, { meta }) => count + meta.generatedVideos.filter(video => video.enabled === false).length, 0),
+        }), {
+            title: T("clear_unused_video_links"),
+            confirmLabel: T("clear_links_btn"),
+            cancelLabel: T("cancel_btn"),
+        });
+        if (!confirmed || this._destroyed || loadSeq !== this._loadSeq) return;
+        targets = unused();
+        if (targets.length) this._clearGeneratedVideoLinks(targets, { disabledOnly: true });
+    }
+
     async _clearClipGeneratedVideoLinks(clip) {
         if (!clip || clip.track.locked) return;
         let target = this._clipsWithGeneratedVideoLinks().find(item => item.clip === clip);
@@ -1684,7 +1703,7 @@ export class CapTimelineEditorApp {
         if (target) this._clearGeneratedVideoLinks([target]);
     }
 
-    _clearGeneratedVideoLinks(targets) {
+    _clearGeneratedVideoLinks(targets, { disabledOnly = false } = {}) {
         this._recordUndo();
         const ids = new Set(targets.map(({ clip }) => clip.id));
         if (ids.has(this._genEditState?.clipId)) this._closeGenEditModal();
@@ -1692,8 +1711,8 @@ export class CapTimelineEditorApp {
         if (ids.has(this._resourceGenPreview?.clipId)) this._stopResourceGenProgramPreview();
         this._hideOutputVideoHoverPreview();
         for (const { meta } of targets) {
-            meta.generatedVideos = [];
-            if (meta.previewMode === "generated") meta.previewMode = "media";
+            meta.generatedVideos = disabledOnly ? meta.generatedVideos.filter(video => video.enabled !== false) : [];
+            if (!meta.generatedVideos.length && meta.previewMode === "generated") meta.previewMode = "media";
         }
         for (const { clip } of targets) {
             this._decorateClip(clip);
@@ -17871,6 +17890,11 @@ export class CapTimelineEditorApp {
                     label: T("clear_generated_video_links"), icon: "close",
                     disabled: !this._clipsWithGeneratedVideoLinks().length,
                     fn: () => void this._clearAllGeneratedVideoLinks(),
+                },
+                {
+                    label: T("clear_unused_video_links"), icon: "trash",
+                    disabled: !this._clipsWithGeneratedVideoLinks().some(({ meta }) => meta.generatedVideos.some(video => video.enabled === false)),
+                    fn: () => void this._clearUnusedGeneratedVideoLinks(),
                 },
                 { label: T("shortcuts_title"), icon: "info", fn: () => this.shortcutsDialog.showModal() },
                 { label: T("new_project"), icon: "insert", disabled: !this._canCreateProject(), fn: () => void this._newProject() },

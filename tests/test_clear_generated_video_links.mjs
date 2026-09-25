@@ -91,7 +91,7 @@ for (const change of [app => app._loadSeq++, app => app._destroyed = true]) {
     await app._clearAllGeneratedVideoLinks();
     assert.equal(app._meta.get('0').generatedVideos.length, 0, 're-read links after confirmation');
 }
-assert.match(source, /label: T\("clear_generated_video_links"\),\s+disabled: !this\._clipsWithGeneratedVideoLinks\(\)\.length/);
+assert.match(source, /label: T\("clear_generated_video_links"\), icon: "close",\s+disabled: !this\._clipsWithGeneratedVideoLinks\(\)\.length/);
 assert.match(source, /fn: \(\) => void this\._clearAllGeneratedVideoLinks\(\)/);
 function singleFixture() {
     const app = fixture();
@@ -136,9 +136,52 @@ for (const change of [
     assert.equal(asks.length, 0, 'locked director and non-director Clips are rejected');
     assert(!app.saves);
 }
-assert.match(source, /label: T\("clear_clip_video_links"\), danger: true, disabled: !this\._clipGeneratedVideos\(m\)\.length/);
+assert.match(source, /label: T\("clear_clip_video_links"\), icon: "close", danger: true, disabled: !this\._clipGeneratedVideos\(m\)\.length/);
 assert.match(source, /fn: \(\) => void this\._clearClipGeneratedVideoLinks\(clip\)/);
 const translations = readFileSync(new URL('../js/i18n/timeline_editor.js', import.meta.url), 'utf8');
 assert.equal((translations.match(/confirm_clear_generated_video_links:/g) || []).length, 3);
 assert.equal((translations.match(/confirm_clear_clip_video_links:/g) || []).length, 3);
 console.log('Clear generated links: all director clips, no media/audio/timing changes, confirmation, undo/redo, stale project and preview cleanup passed');
+
+function unusedFixture() {
+    const app = fixture();
+    app._clearUnusedGeneratedVideoLinks = method('_clearUnusedGeneratedVideoLinks');
+    app._decorateClip = () => {};
+    app._meta.get('0').generatedVideos[0].enabled = false;
+    app._meta.get('1').generatedVideos.forEach(video => video.enabled = false);
+    app._meta.get('3').generatedVideos[0].enabled = false;
+    return app;
+}
+{
+    const app = unusedFixture(), before = structuredClone([...app._meta]);
+    const timing = JSON.stringify(app._timeline);
+    await app._clearUnusedGeneratedVideoLinks();
+    assert.deepEqual(asks[0].message, {key:'confirm_clear_unused_video_links', clips:3, videos:4});
+    for (const [id, meta] of before) {
+        const videos = Number(id) < 3 ? meta.generatedVideos.filter(video => video.enabled !== false) : meta.generatedVideos;
+        assert.deepEqual(app._meta.get(id), {...meta, generatedVideos: videos,
+            previewMode: Number(id) < 3 && !videos.length ? 'media' : meta.previewMode});
+    }
+    assert.equal(JSON.stringify(app._timeline), timing);
+    assert.equal(app.undos, 1); assert.equal(app.saves, 1);
+    const after = structuredClone([...app._meta]);
+    await app.history.undo(); assert.deepEqual([...app._meta], before);
+    await app.history.redo(); assert.deepEqual([...app._meta], after);
+    await app._clearUnusedGeneratedVideoLinks(); assert.equal(asks.length, 1, 'No unused links is a no-op');
+}
+for (const reply of [false, app => {app._loadSeq++; return true;}, app => {app._destroyed = true; return true;}]) {
+    const app = unusedFixture(), before = structuredClone([...app._meta]);
+    answer = typeof reply === 'function' ? () => reply(app) : reply;
+    await app._clearUnusedGeneratedVideoLinks();
+    assert.deepEqual([...app._meta], before);
+    assert(!app.history.canUndo);
+}
+{
+    const app = unusedFixture();
+    answer = () => { app._meta.get('0').generatedVideos[0].enabled = true; return true; };
+    await app._clearUnusedGeneratedVideoLinks();
+    assert.equal(app._meta.get('0').generatedVideos.length, 2, 'Video re-enabled during confirmation is preserved');
+}
+assert.match(source, /fn: \(\) => void this\._clearUnusedGeneratedVideoLinks\(\)/);
+assert.equal((translations.match(/confirm_clear_unused_video_links:/g) || []).length, 3);
+console.log('Unused links: disabled-only cleanup, enabled/default links retained, locked directors, undo/redo, cancellation and stale state passed');

@@ -137,6 +137,8 @@ Re-generate one segment without rebuilding the rest.
 | `Ctrl+B` | Disable / enable the selected clip(s) |
 | `Ctrl+G` | Group selected clips across tracks and types |
 
+With multiple clips selected, Ctrl+B disables all editable selections if any is enabled; otherwise it enables all. Audio clips are muted/unmuted. Locked tracks are skipped, and one undo restores the entire batch.
+
 Batch runs skip disabled or hidden director clips and tracks; muted audio is excluded from reference audio. Explicitly running one director Clip (via its context menu or Prompt Manager) includes it even when the Clip or its track is disabled/hidden, without changing the saved flags. Other disabled clips remain excluded.
 
 ---

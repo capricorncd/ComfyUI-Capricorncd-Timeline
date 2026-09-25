@@ -1190,11 +1190,23 @@ export class CapTimelineEditorApp {
             return true;
         }
         if (key !== "b") return false;
-        const clip = this.getSelectedClip();
-        if (!clip) return false;
-        if (clip.track?.locked) return false;
-        if (clip.track?.type === "audio") this._setMediaClipMuted(clip, !this._ensureClipMeta(clip).muted);
-        else this._toggleDisableClip(clip);
+        if (this._blockingModal || this._timeline?._keyboardSuspended) return false;
+        const clips = (this._timeline?.getSelectedClips() || []).filter(clip => !clip.track?.locked);
+        if (!clips.length) return false;
+        const disabled = clips.some(clip => {
+            const meta = this._ensureClipMeta(clip);
+            return !(clip.track?.type === "audio" ? meta.muted : meta.disabled);
+        });
+        this._recordUndo();
+        for (const clip of clips) {
+            const meta = this._ensureClipMeta(clip);
+            meta[clip.track?.type === "audio" ? "muted" : "disabled"] = disabled;
+            this._meta.set(clip.id, meta);
+            this._decorateClip(clip);
+        }
+        if (clips.some(clip => clip.id === this._selClip?.id)) this._updatePromptPanel();
+        this._saveToWidgets();
+        if (this._timeline._playing) this._startAudioPlayback();
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation?.();

@@ -8,9 +8,9 @@
 
 Select one or more subtitle clips and choose **Bind character** or **Convert to audio**. Review each character, audition their bound voice reference, and edit the delivery prompt. Configure your own endpoint under Settings → Subtitle speech. This plugin implements the client only, not the synthesis server/model.
 
-只有确认转换才发送数据。每条字幕一个请求，顺序处理；失败停止剩余请求，已添加的音频保留。字幕文本原样发送，提示词中以 `#` 开头（可含前导空格）的行不发送。
+只有确认转换才发送数据。每条字幕一个请求，顺序处理；失败停止剩余请求，已添加的音频保留。字幕文本原样发送，提示词中以 `//` 开头（可含前导空格）的行不发送。
 
-Requests are sent only on confirmation, one subtitle at a time. Failure stops the remaining requests without removing successful results. Subtitle text is sent verbatim; prompt comment lines beginning with `#` are omitted.
+Requests are sent only on confirmation, one subtitle at a time. Failure stops the remaining requests without removing successful results. Subtitle text is sent verbatim; prompt comment lines beginning with `//` are omitted.
 
 ## Request
 

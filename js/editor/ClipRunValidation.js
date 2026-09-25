@@ -1,8 +1,10 @@
+import { stripPromptComments } from "../prompt_text.js";
+
 const start = clip => Number(clip.start_ms || 0);
 const duration = clip => Number(clip.duration_ms ?? (clip.end_ms - start(clip)));
 const active = clip => clip.enabled !== false && clip.visible !== false
     && !['audio', 'subtitle', 'text', 'voiceover'].includes(clip.type)
-    && (String(clip.prompt || '').split('\n').some(line => line.trim() && !line.trimStart().startsWith('#'))
+    && (stripPromptComments(clip.prompt).trim()
         || (clip.media_ids || []).some((id, i) => id && clip.media_enabled?.[i] !== false)
         || clip.start_image || clip.end_image || clip.source?.file);
 const h3 = clip => (clip.agent || 'MiniMaxH3') === 'MiniMaxH3';

@@ -2,7 +2,7 @@ import "./components/TabButton.js";
 /** Shared History / Preset library for Rich Prompt Input. */
 
 import { app } from "../../scripts/app.js";
-import { resolvePromptTextarea, updateRichPromptMirror } from "./rich_prompt.js";
+import { resolvePromptTextarea, updateRichPromptMirror } from "./components/RichPrompt.js";
 import { iconHtml } from "./cap_icons.js";
 import { ensureCapUiCss, mkUiBtn, mkUiIconBtn, showCapConfirm } from "./cap_ui.js";
 import {
@@ -334,7 +334,7 @@ function resolveInsertRange(ta) {
     return { start: len, end: len };
 }
 
-/** Keep `#` comment lines at line start so node output filtering works. */
+/** Keep `//` comment lines at line start so node output filtering works. */
 function wrapInsertBlock(before, after, value) {
     let text = value;
     if (before && !before.endsWith("\n")) text = `\n${text}`;

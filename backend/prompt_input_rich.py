@@ -2,11 +2,11 @@ from .prompt_text import strip_comment_lines
 
 
 class CAP_RichPromptInput:
-    """Prompt editor with # comments, history/presets, and live highlighting."""
+    """Prompt editor with // comments, history/presets, and live highlighting."""
 
     DOC_SLUG = "prompt-input"
     OUTPUT_TOOLTIPS = {
-        "prompt": "Active lines with # comment markers removed",
+        "prompt": "Active lines with // comment markers removed",
     }
 
     @classmethod
@@ -17,7 +17,7 @@ class CAP_RichPromptInput:
                     "default": "",
                     "multiline": True,
                     "dynamicPrompts": False,
-                    "tooltip": "Rich prompt input: Ctrl+/ toggles a # comment, paste keeps plain text only. Commented lines are filtered from the output.",
+                    "tooltip": "Rich prompt input: Ctrl+/ toggles a // comment, paste keeps plain text only. Commented lines are filtered from the output.",
                 }),
                 "add_blank_line_start": ("BOOLEAN", {
                     "default": False,
@@ -35,7 +35,7 @@ class CAP_RichPromptInput:
     FUNCTION = "process"
     CATEGORY = "Capricorncd/Prompt"
     DESCRIPTION = (
-        "Rich prompt editor with # line comments (stripped from output), "
+        "Rich prompt editor with // line comments (stripped from output), "
         "Ctrl+/ toggle, plain-text paste, and history/preset library."
     )
 

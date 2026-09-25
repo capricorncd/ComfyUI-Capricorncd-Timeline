@@ -1,3 +1,4 @@
+import { stripPromptComments } from "../js/prompt_text.js";
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
@@ -5,20 +6,20 @@ const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta
 const method = name => {
     const start = source.indexOf(`    ${name}(`);
     assert(start >= 0, name);
-    return new Function('SETTING_PROMPT_KEYS', 'normalizePromptIncludes', 'setRichPromptValue',
+    return new Function('stripPromptComments', 'SETTING_PROMPT_KEYS', 'normalizePromptIncludes', 'setRichPromptValue',
         `return ({${source.slice(start, source.indexOf('\n    }', start) + 6)}}).${name}`)(
-        ['prepend_prompt', 'append_prompt'], value => value ?? ['clip'], (input, text) => { input.value = text; });
+        stripPromptComments, ['prepend_prompt', 'append_prompt'], value => value ?? ['clip'], (input, text) => { input.value = text; });
 };
 const clip = { id: 'managed' }, other = { id: 'sidebar' };
-const meta = { prompt: 'Action\n# hidden action', promptIncludes: ['resource', 'clip'], items: [
+const meta = { prompt: 'Action\n// hidden action', promptIncludes: ['resource', 'clip'], items: [
     { id: 'a', enabled: true }, { id: 'b', enabled: false }, { id: 'c', useMediaPrompt: false },
 ] };
-const settings = { prepend_prompt: 'Style\n# hidden style', append_prompt: 'Sound\n# hidden sound' };
+const settings = { prepend_prompt: 'Style\n// hidden style', append_prompt: 'Sound\n// hidden sound' };
 const app = {
     _aiOptimizeClipId: clip.id, _selClip: other, _aiOptimizeSrc: 'clip',
     _findClipById: id => id === clip.id ? clip : null,
     _ensureClipMeta: target => target === clip ? meta : { prompt: 'Other Clip', items: [] },
-    _clipItems: meta => meta.items, _findMediaById: id => ({ setting_description: id + '\n# hidden asset' }),
+    _clipItems: meta => meta.items, _findMediaById: id => ({ setting_description: id + '\n// hidden asset' }),
     _readSettingPrompt: key => settings[key], aiSrcText: { classList: { remove() {} } }, promptInput: {},
     aiSourceEditor: {}, aiResourcePane: {}, _clearAiResourcePreview() {}, _setAiOptimizeBusy() {},
     _recordUndo() { throw Error('readonly tab must not create undo entries'); },
@@ -37,7 +38,7 @@ assert(!app.aiSrcText.value.includes('Other Clip'), 'use managed Clip, not unrel
 assert.equal(app._writePromptManagerValue('final', 'corrupted'), false);
 app.aiSrcText.value = 'accidental input';
 app._onPromptManagerSourceInput();
-assert.equal(meta.prompt, 'Action\n# hidden action');
+assert.equal(meta.prompt, 'Action\n// hidden action');
 app._fillAiOptimizeSrc();
 
 meta.usePrependPrompt = false; meta.promptIncludes = ['clip'];

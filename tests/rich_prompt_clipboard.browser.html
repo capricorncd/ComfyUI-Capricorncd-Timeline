@@ -2,10 +2,11 @@
 <meta charset="utf-8">
 <title>Rich prompt line clipboard</title>
 <div><textarea id="prompt" style="width:300px;height:180px"></textarea></div>
-<textarea id="skill" aria-label="Prompt Skill"></textarea>
+<div><textarea id="skill" aria-label="Prompt Skill"></textarea></div>
+<div><textarea id="agent" aria-label="Agent Prompt"></textarea></div>
 <pre id="result">RUNNING</pre>
 <script type="module">
-import { attachRichPromptHandler, detachRichPromptHandler, setRichPromptValue, syncRichPromptEnabled } from '../js/rich_prompt.js';
+import { attachRichPromptHandler, detachRichPromptHandler, setRichPromptValue, syncRichPromptEnabled, toggleComment } from '../js/components/RichPrompt.js';
 const assert = (ok, message) => { if (!ok) throw Error(message); };
 try {
     const ta = document.querySelector('#prompt');
@@ -17,6 +18,15 @@ try {
         setRichPromptValue(ta, text);
         ta.focus(); ta.setSelectionRange(start, end);
     };
+    set('# Heading\n  // hidden\nhttps://example.com', 0, 9);
+    assert(ta._capMirror.localName === 'cap-rich-prompt', 'shared Web Component is installed');
+    assert(ta._capMirror.getAttribute('aria-hidden') === 'true', 'mirror does not duplicate accessible text');
+    assert(ta._capMirror.querySelectorAll('.cap-rich-comment').length === 1, 'only slash comments are dimmed');
+    toggleComment(ta);
+    assert(ta.value.startsWith('//# Heading\n'), 'shortcut inserts two slashes before Markdown');
+    assert(ta.selectionStart === 2 && ta.selectionEnd === 11, 'selection follows two-character prefix');
+    toggleComment(ta);
+    assert(ta.value.startsWith('# Heading\n'), 'shortcut restores Markdown heading');
     const clipboard = (type, text, target = ta) => {
         const data = text instanceof DataTransfer ? text : new DataTransfer();
         if (typeof text === 'string') data.setData('text/plain', text);
@@ -88,6 +98,17 @@ try {
     assert(ta.value === 'source\n\ntail', 'selection replacement takes priority over line-copy marker');
     detachRichPromptHandler(ta);
     assert(!clipboard('copy').event.defaultPrevented && !clipboard('paste', 'plain').event.defaultPrevented, 'detach removes clipboard handlers');
+    for (const input of [skill, document.querySelector('#agent')]) {
+        attachRichPromptHandler(input, { mode: "widget" });
+        setRichPromptValue(input, '# Markdown\n// note\nbody');
+        assert(input._capMirror.querySelectorAll('.cap-rich-comment').length === 1, 'loaded Agent/Skill comments are dimmed');
+        input.focus(); input.setSelectionRange(0, 10);
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: '/', code: 'Slash', ctrlKey: true, bubbles: true, cancelable: true }));
+        assert(input.value.startsWith('//# Markdown'), 'Agent/Skill keyboard shortcut comments Markdown');
+        setRichPromptValue(input, '');
+        assert(input._capMirror.textContent === '', 'clearing Agent/Skill clears mirror');
+        setRichPromptValue(input, '# Markdown\n// note\nbody');
+    }
     attachRichPromptHandler(ta); set('first\nsecond', 2);
     document.querySelector('#result').textContent = 'PASS: line copy/paste, blanks, Unicode, CRLF, selections, readonly, plain inputs, widget/mirror sync and cleanup';
 } catch (error) {

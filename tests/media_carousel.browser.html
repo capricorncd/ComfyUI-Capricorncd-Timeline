@@ -57,7 +57,7 @@ try {
         _findMediaById: id => rows.find(row => row.id === id), _findMedia: () => null, _mediaStatus: new Map(),
         _assetFileUrl: (file, kind, location) => kind === 'image' ? svg : `/test-missing-${location}-${file}`,
         _setAiOptimizeBusy() {}, _promptManagerValue: tab => `${tab} unchanged`,
-        _stripPromptComments: text => text.split(/\r?\n/).filter(line => !/^\s*#/.test(line)).join('\n'),
+        _stripPromptComments: text => text.split(/\r?\n/).filter(line => !/^\s*\/\//.test(line)).join('\n'),
     };
     for (const name of ['_clearAiResourcePreview', '_renderAiResource', '_setAiOptimizeSrcTab', '_fillAiOptimizeSrc', '_writePromptManagerValue',
         '_configureClipResourceCarousel', '_bindClipResourceCarousel', '_refreshClipResourceViews', '_clipPreviewItemIndex', '_setClipPreviewItemIndex', '_aiResourceSubjectEntry',

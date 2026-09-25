@@ -37,7 +37,8 @@ import { Timeline, ICONS } from "./timeline/index.js";
 import { isEditingField, normalizePlaybackRate } from "./timeline/utils.js";
 import { normalizeVolumePoints, migrateAudioFades, volumeAt } from "./timeline/AudioEnvelope.js";
 import { parseTimecode, formatTimecode, frameIndexFromSecs, encodeClipTimingMs, decodeClipTimingSecs } from "./timecode.js";
-import { attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror } from "./rich_prompt.js";
+import { stripPromptComments } from "./prompt_text.js";
+import { attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror } from "./components/RichPrompt.js";
 import { loadExtensionCss, showCapConfirm } from "./cap_ui.js";
 import { iconHtml } from "./cap_icons.js";
 import { bindCanvasWheelPassthrough } from "./cap_canvas_wheel.js";
@@ -4952,6 +4953,8 @@ export class CapTimelineEditorApp {
         this.aiContextInputs = el.querySelectorAll(".cat-te-ai-context input[data-context]");
         this.aiSystemInput = el.querySelector(".cat-te-ai-system");
         this.aiSkillInput = el.querySelector(".cat-te-ai-skill");
+        attachRichPromptHandler(this.aiSystemInput, { mode: "widget" });
+        attachRichPromptHandler(this.aiSkillInput, { mode: "widget" });
         this.agentPromptPickBtn = el.querySelector(".cat-te-agent-prompt-pick");
         this.agentPromptRefreshBtn = el.querySelector(".cat-te-agent-prompt-refresh");
         this.agentPromptClearBtn = el.querySelector(".cat-te-agent-prompt-clear");
@@ -5521,9 +5524,9 @@ export class CapTimelineEditorApp {
         });
         this.agentPromptPickBtn.addEventListener("click", () => void this._openAgentPromptPicker());
         this.agentPromptRefreshBtn.addEventListener("click", () => void this._openAgentPromptPicker());
-        this.agentPromptClearBtn.addEventListener("click", () => { this.aiSystemInput.value = ""; });
+        this.agentPromptClearBtn.addEventListener("click", () => { setRichPromptValue(this.aiSystemInput, ""); });
         this.skillClearBtn.addEventListener("click", () => {
-            this.aiSkillInput.value = "";
+            setRichPromptValue(this.aiSkillInput, "");
             localStorage.removeItem(STORAGE_AI_PROMPT_SKILL);
         });
         this.skillPickBtn?.addEventListener("click", (e) => {
@@ -19104,11 +19107,7 @@ export class CapTimelineEditorApp {
     }
 
     _stripPromptComments(text) {
-        return String(text ?? "")
-            .split(/\r?\n/)
-            .filter((line) => !line.trimStart().startsWith("#"))
-            .join("\n")
-            .trim();
+        return stripPromptComments(text).trim();
     }
 
     _composeFinalPrompt(clip, meta = null) {
@@ -19603,7 +19602,7 @@ export class CapTimelineEditorApp {
             this.aiOptimizeTitle.textContent = T("prompt_manager_title");
         }
         if (this.aiSkillInput && !String(this.aiSkillInput.value || "").trim()) {
-            this.aiSkillInput.value = localStorage.getItem(STORAGE_AI_PROMPT_SKILL) || "";
+            setRichPromptValue(this.aiSkillInput, localStorage.getItem(STORAGE_AI_PROMPT_SKILL) || "");
         }
         this._restoreAiOutputLanguage();
         this._restoreAiPromptContext();
@@ -19712,10 +19711,10 @@ export class CapTimelineEditorApp {
             const query = `agent=${encodeURIComponent(agent || "MiniMaxH3")}&clip_role=${encodeURIComponent(clipRole || "multi_ref")}`;
             const response = await fetch(api.apiURL(`/audio_keyframe_timeline/clip_prompt_agent?${query}`));
             const data = await response.json();
-            this.aiSystemInput.value = String(data.system_prompt || "");
+            setRichPromptValue(this.aiSystemInput, String(data.system_prompt || ""));
             if (data.skill_url && this.aiSkillLink) this.aiSkillLink.href = data.skill_url;
         } catch {
-            this.aiSystemInput.value = "";
+            setRichPromptValue(this.aiSystemInput, "");
         }
     }
 
@@ -19845,7 +19844,7 @@ export class CapTimelineEditorApp {
                         const response = await fetch(api.apiURL(`/audio_keyframe_timeline/agent_prompts?name=${encodeURIComponent(name)}`));
                         const data = await response.json();
                         if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-                        this.aiSystemInput.value = data.text;
+                        setRichPromptValue(this.aiSystemInput, data.text);
                         dialog.close();
                     } catch (error) {
                         this.aiGenerateStatus.setStatus(T("load_failed", { msg: error.message }), "error");
@@ -19963,7 +19962,7 @@ export class CapTimelineEditorApp {
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
             const text = String(data.text || "");
-            if (this.aiSkillInput) this.aiSkillInput.value = text;
+            if (this.aiSkillInput) setRichPromptValue(this.aiSkillInput, text);
             localStorage.setItem(STORAGE_AI_PROMPT_SKILL, text);
             this._closeSkillPicker();
         } catch (error) {

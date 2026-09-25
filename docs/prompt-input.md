@@ -2,12 +2,12 @@
 
 **Category:** `Capricorncd`
 
-Prompt editor with `#` line-comment support and a live syntax highlighting overlay. Lines beginning with `#` are removed from the output so you can keep notes or disabled variants in the field without affecting generation.
+Prompt editor with `//` line-comment support and a live syntax highlighting overlay. Lines beginning with `//` are removed from the output so you can keep notes or disabled variants in the field without affecting generation.
 
 ## Features
 
 - Commented lines are visually dimmed in the editor
-- `Ctrl+/` toggles `#` on the current line or selection
+- `Ctrl+/` toggles `//` on the current line or selection
 - Paste automatically strips rich-text formatting (plain text only)
 - Comment markers are removed from the output; only the raw text content is passed downstream
 - Optional leading / trailing blank lines on output
@@ -20,11 +20,11 @@ Prompt editor with `#` line-comment support and a live syntax highlighting overl
 | Tabs | 历史记录 / 预设 |
 | History | Recent prompts (auto-saved after each successful node run; also manual save) |
 | Built-in presets | Style / quality / other snippets managed in `js/cap_prompt_presets.js` |
-| Insert / Replace | Writes `#title` then prompt body into the **currently selected** Rich Prompt node |
+| Insert / Replace | Writes `//title` then prompt body into the **currently selected** Rich Prompt node |
 | Export / Import | JSON round-trip for history and user presets |
 
 <!-- AUTO:API:begin -->
-Rich prompt editor with # line comments (stripped from output), Ctrl+/ toggle, plain-text paste, and history/preset library.
+Rich prompt editor with // line comments (stripped from output), Ctrl+/ toggle, plain-text paste, and history/preset library.
 
 #### Inputs
 
@@ -38,5 +38,5 @@ Rich prompt editor with # line comments (stripped from output), Ctrl+/ toggle, p
 
 | Name | Type | Description |
 |------|------|-------------|
-| `prompt` | STRING | Active lines with # comment markers removed |
+| `prompt` | STRING | Active lines with // comment markers removed |
 <!-- AUTO:API:end -->

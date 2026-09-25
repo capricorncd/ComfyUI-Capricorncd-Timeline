@@ -233,7 +233,7 @@ def with_output_language(system_prompt: str, language: str) -> str:
 
 def with_prompt_skill(system_prompt: str, skill: str) -> str:
     system_prompt = strip_comment_lines(system_prompt)
-    skill = str(skill or "").strip()
+    skill = strip_comment_lines(skill).strip()
     if not skill:
         return str(system_prompt or "").strip()
     return (
@@ -1330,7 +1330,7 @@ class CAP_ClipPromptVL:
             max_new_tokens=max_new_tokens,
             keep_loaded=keep_model_loaded,
         )
-        return (text,)
+        return (strip_comment_lines(text),)
 
 
 NODE_CLASS_MAPPINGS = {"CAP_ClipPromptVL": CAP_ClipPromptVL}

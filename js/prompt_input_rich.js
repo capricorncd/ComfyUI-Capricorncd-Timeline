@@ -4,7 +4,7 @@ import {
     detachRichPromptHandler,
     resolvePromptTextarea,
     syncTextareaFromPromptWidget,
-} from "./rich_prompt.js";
+} from "./components/RichPrompt.js";
 import {
     addPromptHistory,
     ensurePromptLibraryButtons,

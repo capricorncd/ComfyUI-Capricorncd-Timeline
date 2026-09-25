@@ -202,3 +202,13 @@ Groups expose `value`, `disabled`, `focus()`, `checkValidity()` and `reportValid
 Interface font size is set in Settings → General (default 16px, 10–24px), saved locally. UI typography uses the scoped rem-based `--cat-font-size` token with size ratios, including shared shadow components and timeline labels. It does not change the document root or video/subtitle output sizes; the prompt font size remains independent.
 
 `ShotControl.js` exposes an `actions` slot at the right of its toolbar for caller-owned shot actions. VideoTrim places “Insert into Clip prompt” there. Its footer offers ordinary Apply and Apply and resize Clip; the latter uses the currently selected reference range divided by source playback rate, updates Clip geometry and timeline duration in the same undo step, and leaves the Clip start unchanged.
+
+## Rich prompt editor
+
+`js/components/RichPrompt.js` owns the shared `<cap-rich-prompt>` syntax mirror, comment shortcut, plain-text paste, line clipboard and cleanup. It enhances an existing native textarea without moving it, preserving ComfyUI widget bindings, labels, selection and form events. The mirror is hidden from assistive technology; the textarea remains the accessible input. Removing the component releases its listeners and resize observer.
+
+Use `attachRichPromptHandler(textarea, { mode: "overlay" })` in editor forms; the default `widget` mode supports ComfyUI nodes. Use `setRichPromptValue(textarea, text)` for programmatic updates and `detachRichPromptHandler(textarea)` for explicit disposal. Existing native `input` events carry edits. `bindRichPromptWidget(widget)` handles node widgets. Callers do not manipulate mirror markup.
+
+Only lines beginning with `//` (after optional whitespace) are dimmed and omitted from generated prompts. Ctrl+/ toggles the two-character marker; Markdown `#` headings remain active text. Preset titles are inserted as `//title`. Old `#` notes are now ordinary text and must be changed explicitly if they should remain comments. `js/prompt_text.js` shares the parsing rule across frontend output and validation; `backend/prompt_text.py` applies the same rule at execution.
+
+Run `node tests/test_rich_prompt.mjs` and the prompt-related regression tests. Serve `tests/rich_prompt_clipboard.browser.html` to check native clipboard, widget binding and cleanup.

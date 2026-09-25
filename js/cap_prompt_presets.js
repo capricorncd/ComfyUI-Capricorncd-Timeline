@@ -395,7 +395,7 @@ export function getBuiltinPresets(category) {
 /** Payload written into the node prompt on insert/replace. */
 export function formatPresetWriteText(item) {
     const raw = String(item.title ?? item.name ?? "").trim().replace(/^#+/, "");
-    const title = raw ? `#${raw}` : "";
+    const title = raw ? `//${raw}` : "";
     const body = ensureComma(item.text ?? "");
     if (title && body) return `${title}\n${body}`;
     return title || body;

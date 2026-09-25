@@ -93,7 +93,7 @@ class GenerateTests(unittest.IsolatedAsyncioTestCase):
             root = Path(temp)
             (root / "voice.wav").write_bytes(wav())
             payload = dict(subtitle_id="s1", character_media_id="girl", reference_file="voice.wav", text="Hello",
-                           prompt="happy", start_ms=10250, end_ms=13750, duration_ms=3500)
+                           prompt="// note\n# Delivery\nhappy\n  // disabled", start_ms=10250, end_ms=13750, duration_ms=3500)
             with patch.object(speech.folder_paths, "get_input_directory", return_value=temp, create=True), \
                  patch.object(speech, "_read_config", return_value={"url": "http://local/speech"}), \
                  patch.object(speech, "prepare_reference", return_value=wav()), \
@@ -101,6 +101,7 @@ class GenerateTests(unittest.IsolatedAsyncioTestCase):
                 result = await speech.generate(payload)
             metadata = json.loads(captured["data"]._fields[0][2])
             self.assertEqual((metadata["start_ms"], metadata["end_ms"], metadata["duration_ms"]), (10250, 13750, 3500))
+            self.assertEqual(metadata["prompt"], "# Delivery\nhappy")
             self.assertNotIn("reference_file", metadata)
             self.assertFalse(captured["allow_redirects"])
             self.assertEqual(result["duration_seconds"], 2)

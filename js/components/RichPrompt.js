@@ -1,5 +1,7 @@
 /** Shared rich prompt editor: line clipboard shortcuts, comments and syntax mirror. */
 
+import { isPromptComment } from "../prompt_text.js";
+
 const LINE_CLIPBOARD_TYPE = "application/x-cap-rich-prompt-line";
 
 export function escapeHtml(t) {
@@ -31,7 +33,7 @@ function refreshMirrorColors(ta) {
     m.style.color = textColor;
 }
 function formatLineHtml(line) {
-    const isComment = line.trimStart().startsWith("#");
+    const isComment = isPromptComment(line);
     const content = escapeHtml(line);
     if (isComment) return `<span class="cap-rich-comment" style="opacity:0.4">${content}</span>`;
     return content;
@@ -40,14 +42,36 @@ function formatLineHtml(line) {
 export function updateRichPromptMirror(ta) {
     const m = ta?._capMirror;
     if (!m) return;
-    syncMirrorLayout(ta);
-    const lines = ta.value.split("\n");
-    m.innerHTML =
-        lines.map(formatLineHtml).join("\n") +
-        (ta.value.endsWith("\n") ? "\u200b" : "");
-    m.scrollTop = ta.scrollTop;
-    m.scrollLeft = ta.scrollLeft;
+    m.render(ta);
 }
+
+export class RichPrompt extends HTMLElement {
+    connectedCallback() {
+        this.setAttribute("aria-hidden", "true");
+    }
+
+    disconnectedCallback() {
+        queueMicrotask(() => {
+            if (!this.isConnected && this.textarea?._capMirror === this) {
+                detachRichPromptHandler(this.textarea);
+            }
+        });
+    }
+
+    render(ta) {
+        this.textarea = ta;
+        const m = this;
+        syncMirrorLayout(ta);
+        const lines = ta.value.split("\n");
+        m.innerHTML =
+            lines.map(formatLineHtml).join("\n") +
+            (ta.value.endsWith("\n") ? "\u200b" : "");
+        m.scrollTop = ta.scrollTop;
+        m.scrollLeft = ta.scrollLeft;
+    }
+}
+
+customElements.define("cap-rich-prompt", RichPrompt);
 
 function syncMirrorLayout(ta) {
     const m = ta._capMirror;
@@ -125,7 +149,7 @@ function ensureMirror(ta, mode) {
     const cs = getComputedStyle(ta);
     const textColor = resolveTextColor(cs);
 
-    const mirror = document.createElement("div");
+    const mirror = document.createElement("cap-rich-prompt");
     mirror.className = "cap-rich-prompt-mirror";
     Object.assign(mirror.style, {
         margin: "0",
@@ -220,7 +244,7 @@ export function toggleComment(ta) {
     const selStart = ta.selectionStart;
     const selEnd = ta.selectionEnd;
 
-    const lineStart = text.lastIndexOf("\n", selStart - 1) + 1;
+    const lineStart = selStart === 0 ? 0 : text.lastIndexOf("\n", selStart - 1) + 1;
     let effEnd = selEnd;
     if (effEnd > selStart && text[effEnd - 1] === "\n") effEnd--;
     let lineEnd = text.indexOf("\n", effEnd);
@@ -230,14 +254,14 @@ export function toggleComment(ta) {
     const region = text.slice(lineStart, lineEnd);
     const after = text.slice(lineEnd);
     const lines = region.split("\n");
-    const allC = lines.every(l => l.trimStart().startsWith("#"));
-    const newLines = allC ? lines.map(l => l.replace(/^(\s*)#/, "$1")) : lines.map(l => "#" + l);
+    const allC = lines.every(isPromptComment);
+    const newLines = allC ? lines.map(l => l.replace(/^(\s*)\/\//, "$1")) : lines.map(l => "//" + l);
 
     ta.value = before + newLines.join("\n") + after;
     ta.dispatchEvent(new Event("input", { bubbles: true }));
     updateRichPromptMirror(ta);
 
-    const delta = allC ? -1 : 1;
+    const delta = allC ? -2 : 2;
     ta.setSelectionRange(
         Math.max(lineStart, selStart + delta),
         Math.max(lineStart, selEnd + delta * lines.length),

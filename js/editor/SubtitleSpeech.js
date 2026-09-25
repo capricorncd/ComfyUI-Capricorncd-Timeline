@@ -1,3 +1,4 @@
+import { stripPromptComments } from "../prompt_text.js";
 import { api } from "../../../scripts/api.js";
 import { t as T } from "../i18n/timeline_editor.js";
 import "../components/Dialog.js";
@@ -87,7 +88,7 @@ export class SubtitleSpeech {
                     return { row, character, reference, payload: {
                         subtitle_id: row.clip.id, character_media_id: row.select.value,
                         reference_file: reference?.file, text: row.text,
-                        prompt: row.prompt.value.split(/\r?\n/).filter(line => !/^\s*#/.test(line)).join("\n"), ...row.timing,
+                        prompt: stripPromptComments(row.prompt.value), ...row.timing,
                     } };
                 });
                 app._recordUndo();

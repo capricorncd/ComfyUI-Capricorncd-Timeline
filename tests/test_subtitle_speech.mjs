@@ -1,3 +1,4 @@
+import { stripPromptComments } from "../js/prompt_text.js";
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('../js/editor/SubtitleSpeech.js', import.meta.url), 'utf8');
@@ -6,7 +7,7 @@ const api = { async fetchApi(url, options) {
     const payload = JSON.parse(options.body); sent.push(payload);
     return { ok: true, json: async () => ({ file: `speech_${payload.subtitle_id}.wav`, duration_seconds: 2 }) };
 } };
-const { SubtitleSpeech, subtitleTiming } = new Function('api', 'T', source.replace(/^import .*;\r?\n/gm, '').replace(/export (class|function)/g, '$1') + '; return {SubtitleSpeech, subtitleTiming};')(api, key => key);
+const { SubtitleSpeech, subtitleTiming } = new Function('stripPromptComments', 'api', 'T', source.replace(/^import .*;\r?\n/gm, '').replace(/export (class|function)/g, '$1') + '; return {SubtitleSpeech, subtitleTiming};')(stripPromptComments, api, key => key);
 class Element {
     constructor() { this.nodes = new Map(); this.value = ''; this.children = []; this.open = false; this.style = {}; }
     querySelector(key) { if (!this.nodes.has(key)) this.nodes.set(key, new Element()); return this.nodes.get(key); }
@@ -33,7 +34,7 @@ const clips = [
 const added = [];
 const app = {
     _timeline: { pause() {} }, _projectResources: [character, reference],
-    _meta: new Map(clips.map(c => [c.id, { text: 'Hello', characterMediaId: 'girl', speechPrompt: '# private note\ncheerful' }])),
+    _meta: new Map(clips.map(c => [c.id, { text: 'Hello', characterMediaId: 'girl', speechPrompt: '// private note\ncheerful' }])),
     _isNodeOnLiveGraph: () => true,
     _findMediaById: id => app._projectResources.find(r => r.id === id),
     _audioUrl: f => f, _recordUndo() {}, _saveToWidgets() {},

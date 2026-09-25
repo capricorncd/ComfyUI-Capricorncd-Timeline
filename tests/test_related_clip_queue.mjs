@@ -1,3 +1,4 @@
+import { stripPromptComments } from "../js/prompt_text.js";
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
@@ -21,7 +22,7 @@ const app = {
 };
 const CapTimelineEditorApp = { _clipRunJobs: [] };
 const errors = [];
-const deps = { app, api, CapTimelineEditorApp, T: key => key, alert: msg => errors.push(msg),
+const deps = { stripPromptComments, app, api, CapTimelineEditorApp, T: key => key, alert: msg => errors.push(msg),
     defaultImageMeta: () => ({}), isSubtitleTrackType: () => false, isSubtitleClipMeta: () => false };
 function method(name) {
     const start = source.search(new RegExp(`    (?:static |async )?${name}\\(`));
@@ -36,6 +37,7 @@ const editor = {
     async _validateClipRunDurations(selected) { this.validated = selected.map(c => c.id); return valid; },
     _makeGenVideoStamp: () => 'stamp', _clipSpecifiedVideoPath: id => `${id}.mp4`,
     _buildProject() { return { settings: { runtime_only_clip_ids: this._runtimeOnlyClipIds }, tracks: [{ clips }] }; },
+    _editorContentJson() { return JSON.stringify(this._buildProject()); },
     _writeProjectJson(value) { this.written = value; },
     _saveToWidgets() { this._writeProjectJson(JSON.stringify(this._buildProject())); },
     async _waitForQueueIdle() {},
@@ -109,7 +111,7 @@ assert(hasGenerator.call({node: timeline}), 'recognize a generator reached throu
 generator.inputs[0].name = 'model';
 assert(!hasGenerator.call({node: timeline}), 'only the data_json connection owns batch generation');
 const textClip = { id: 'text-only', startTime: 0, track: { type: 'director' } };
-const textMeta = { prompt: '# Shot notes\nSteam rises from a cup.', clipType: 'clip' };
+const textMeta = { prompt: '// Shot notes\nSteam rises from a cup.', clipType: 'clip' };
 let textQueued = 0;
 const textTrack = { id: 'director', type: 'director', clips: [textClip] };
 const textEditor = {
@@ -125,7 +127,7 @@ const activeClips = method('_listActiveVisualClips');
 assert.deepEqual(activeClips.call(textEditor), [textClip], 'batch run includes a prompt-only clip');
 assert.equal(await run.call(textEditor, textClip), true, 'single run queues a prompt-only clip');
 assert.equal(textQueued, 1);
-for (const prompt of ['', '  \n', '# Notes only\n  # No shot']) {
+for (const prompt of ['', '  \n', '// Notes only\n  // No shot']) {
     textMeta.prompt = prompt;
     assert.deepEqual(activeClips.call(textEditor), [], 'empty/comment-only clips remain excluded');
     await run.call(textEditor, textClip);

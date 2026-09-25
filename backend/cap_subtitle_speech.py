@@ -15,6 +15,7 @@ import aiohttp
 import folder_paths
 
 from .local_config import CONFIG_PATH, read_config, write_config
+from .prompt_text import strip_comment_lines
 
 LIMIT = 32 * 1024 * 1024
 CONTRACT = {
@@ -134,6 +135,7 @@ async def generate(payload):
     reference_data = await asyncio.to_thread(prepare_reference, reference)
     request_id = str(uuid.uuid4())
     metadata = {key: payload.get(key, "") for key in ("subtitle_id", "character_media_id", "text", "prompt", "start_ms", "end_ms", "duration_ms")}
+    metadata["prompt"] = strip_comment_lines(metadata["prompt"])
     metadata.update(contract=CONTRACT["version"], request_id=request_id, model=config.get("model", ""))
     form = aiohttp.FormData()
     form.add_field("metadata", json.dumps(metadata, ensure_ascii=False), content_type="application/json")

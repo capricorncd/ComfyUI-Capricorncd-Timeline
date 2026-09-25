@@ -25,7 +25,7 @@ All nodes are grouped under `Capricorncd`. Categories only affect menu placement
 | **MiniMax H3 Video Generator** | Runtime Clips → saved video list; 4/8 steps, optional upscale/refine, strict endpoints or multimodal references | [→](h3-video-generator.md) · [中文](zh/h3-video-generator.md) |
 | **Cap Model Preview Override** | Loop-safe sampling preview adapter; requires unmodified KJNodes | [→](model-preview-override.md) · [中文](zh/model-preview-override.md) |
 | **Timeline Editor** | Fullscreen multi-track editor; generated-video preview/mute; Export → Compose Video; `swap_wh`; outputs `data_json` and `frame_seq_dir` | [→](timeline-editor.md) · [中文](zh/timeline-editor.md) |
-| **Rich Prompt Input** | Prompt editor with live syntax highlighting, `#` comments, and history/presets | [→](prompt-input.md) · [中文](zh/prompt-input.md) |
+| **Rich Prompt Input** | Prompt editor with live syntax highlighting, `//` comments, and history/presets | [→](prompt-input.md) · [中文](zh/prompt-input.md) |
 | **Prompt Group** | Global / scene / negative prompts; counts non-empty scene prompt lines | [→](prompt-group.md) · [中文](zh/prompt-group.md) |
 | **Prompt From Batch** | Slice scene prompts by index/length; optionally merge global prompt | [→](prompt-from-batch.md) · [中文](zh/prompt-from-batch.md) |
 | **Generate Timeline Preview** | Current project + Clip ID → complete in-memory MiniMax H3 preview; sampling and AV decode are built in | [→](timeline-editor.md#ai-optimize-prompt) · [中文](zh/timeline-editor.md#ai-优化提示词) |

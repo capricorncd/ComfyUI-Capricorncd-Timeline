@@ -15,6 +15,8 @@ export class Tag extends HTMLElement {
                 border: 1px solid var(--cat-border-soft); border-radius: 6px; background: var(--cat-raised);
                 color: var(--cat-text); font-family: inherit; font-size: calc(var(--cat-font-size, 1rem) * 0.857143); line-height: 1.5; }
             :host([variant="accent"]) .tag { background: var(--cat-selected); color: var(--cat-accent); border-color: color-mix(in srgb, var(--cat-accent) 35%, transparent); }
+            :host([variant="amber"]) .tag { background: var(--cat-raised); color: var(--cat-amber, #e9b767); border-color: color-mix(in srgb, var(--cat-amber, #e9b767) 35%, transparent); }
+            :host([size="small"]) .tag { padding: 1px 4px; font-size: calc(var(--cat-font-size, 1rem) * 0.642857); line-height: 1.3; }
             :host([variant="danger"]) .tag { color: var(--cat-danger, #e56676); }
             :host([disabled]) { opacity: .45; }
             slot { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

@@ -1,0 +1,40 @@
+<!doctype html><meta charset="utf-8"><title>素材状态与清理菜单</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app = {ui:{settings:{getSettingValue:()=> 'zh'}}};"}}</script>
+<style>body { margin:20px; background:#20282b; font:14px system-ui; } .sample { width:420px; --cat-te-media-col-min:110px; --cat-font-size:16px; background:var(--cat-bg); color:var(--cat-text); padding:12px; margin-bottom:16px; } .cat-te-media-grid { position:relative; min-height:100px; } #result {color:white;}</style>
+<div class="sample" data-theme-root data-cat-theme="dark"><div class="cat-te-media-header"><div class="cat-te-media-title">素材管理</div><div class="cat-te-media-header-actions"></div></div><div class="cat-te-media-grid"></div></div>
+<div class="sample" data-theme-root data-cat-theme="light"><div class="cat-te-media-header"><div class="cat-te-media-title">素材管理</div><div class="cat-te-media-header-actions"></div></div><div class="cat-te-media-grid"></div></div>
+<pre id="result">RUNNING</pre>
+<script type="module">
+import '../js/components/DropdownButton.js';
+import '../js/components/Tag.js';
+import '../js/components/ContextMenu.js';
+import {iconHtml} from '../js/cap_icons.js';
+const labels={media_more:'素材更多操作',clear_unreferenced_media:'清除未引用素材',media_used:'已使用',media_referenced:'被引用'};
+const T=key=>labels[key] || key;
+const source=await (await fetch('../js/CapTimelineEditorApp.js')).text();
+function method(name){const start=source.indexOf(`    ${name}(`);return new Function('T','iconHtml',`return ({${source.slice(start,source.indexOf('\n    }',start)+6)}}).${name}`)(T,iconHtml);}
+const assert=(value,message)=>{if(!value)throw Error(message);};
+try {
+for(const host of document.querySelectorAll('.sample')) {
+ const usage={used:new Set(['video:使用中.mp4']),referenced:new Set(['video:裁剪原视频.mp4'])};
+ const app={mediaStarFilterHost:host.querySelector('.cat-te-media-header-actions'),_mediaBatchMode:false,_mediaListView:false,_mediaBatchSelected:new Set(),_mediaStatus:new Map(),
+ _activeMediaFilterCount:()=>0,_mediaBatchKey:(kind,file)=>kind+':'+file,_getVideoThumbnail:async()=>null,
+ _bindMediaPointerDrag(){},_unreferencedProjectMedia:()=>[{id:'unused'}],_clearUnreferencedProjectMedia(){},
+ _removeCtxMenu(){document.querySelector('cap-context-menu')?.remove();},
+ _buildCtxMenu:method('_buildCtxMenu')};
+ method('_renderMediaStarFilter').call(app);
+ const grid=host.querySelector('.cat-te-media-grid');
+ for(const file of ['使用中.mp4','裁剪原视频.mp4','无标记.mp4'])grid.append(method('_makeMediaItem').call(app,file,'video',usage));
+ assert(grid.querySelectorAll('cap-tag').length===2,'only used and referenced assets get labels');
+ assert(grid.querySelectorAll('.cat-te-media-item')[2].querySelector('cap-tag')===null,'unused stays unmarked');
+ const more=host.querySelector('cap-dropdown-button');
+ assert(more===app.mediaStarFilterHost.lastElementChild,'more is rightmost');
+ more.dispatchEvent(new PointerEvent('pointerenter',{pointerType:'mouse'}));
+ const menu=document.querySelector('cap-context-menu');
+ assert(menu?.shadowRoot.textContent.includes('清除未引用素材'),'hover opens cleanup menu');
+ app._removeCtxMenu();
+}
+document.querySelector('#result').textContent='PASS: 仅已使用和被引用素材显示标签；右侧三点悬停菜单正常';
+} catch(error){document.querySelector('#result').textContent='FAIL: '+error.stack;}
+</script>

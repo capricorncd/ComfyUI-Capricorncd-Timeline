@@ -37,6 +37,7 @@ import { Timeline, ICONS } from "./timeline/index.js";
 import { isEditingField, normalizePlaybackRate } from "./timeline/utils.js";
 import { normalizeVolumePoints, migrateAudioFades, volumeAt } from "./timeline/AudioEnvelope.js";
 import { parseTimecode, formatTimecode, frameIndexFromSecs, encodeClipTimingMs, decodeClipTimingSecs } from "./timecode.js";
+import "./components/Tag.js";
 import { stripPromptComments } from "./prompt_text.js";
 import { attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror } from "./components/RichPrompt.js";
 import { loadExtensionCss, showCapConfirm } from "./cap_ui.js";
@@ -12740,6 +12741,22 @@ export class CapTimelineEditorApp {
         filterWrap.appendChild(filterBtn);
         this.mediaStarFilterHost.appendChild(filterWrap);
 
+        const moreBtn = document.createElement("cap-dropdown-button");
+        moreBtn.setAttribute("hide-caret", "");
+        moreBtn.setAttribute("size", "small");
+        moreBtn.title = T("media_more");
+        moreBtn.setAttribute("aria-label", moreBtn.title);
+        moreBtn.innerHTML = iconHtml("ellipsisVertical", 12);
+        moreBtn.bindMenu(e => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            return this._buildCtxMenu([{
+                label: T("clear_unreferenced_media"), icon: "trash",
+                disabled: !this._unreferencedProjectMedia().length,
+                fn: () => this._clearUnreferencedProjectMedia(),
+            }], rect.left, rect.bottom + 4, { ignoreNextClick: false });
+        });
+        this.mediaStarFilterHost.appendChild(moreBtn);
+
         const actionBtn = this.mediaPrimaryActionBtn;
         if (actionBtn) {
             const selectedCount = this._mediaBatchSelected.size;
@@ -12912,8 +12929,9 @@ export class CapTimelineEditorApp {
             this.mediaGrid.appendChild(msg);
             return;
         }
+        const usage = this._projectMediaUsage();
         for (const { file, kind } of files) {
-            this.mediaGrid.appendChild(this._makeMediaItem(file, kind));
+            this.mediaGrid.appendChild(this._makeMediaItem(file, kind, usage));
         }
         requestAnimationFrame(() => this._relayoutMediaListThumbs());
     }
@@ -12935,7 +12953,7 @@ export class CapTimelineEditorApp {
         }));
     }
 
-    _makeMediaItem(file, kind) {
+    _makeMediaItem(file, kind, usage) {
         const item = document.createElement("div");
         const status = this._mediaStatus.get(`${kind}:${file}`) || { location: "input" };
         const batchKey = this._mediaBatchKey(kind, file);
@@ -12956,11 +12974,22 @@ export class CapTimelineEditorApp {
         check.innerHTML = iconHtml("check", 12);
         item.appendChild(check);
 
-        if (this._isMediaOnTimeline(file, kind)) {
-            const addedTag = document.createElement("div");
-            addedTag.className = "cat-te-media-added-tag";
-            addedTag.textContent = T("added_tag");
-            item.appendChild(addedTag);
+        const key = `${kind}:${String(file).replace(/\\/g, "/")}`;
+        if (usage.used.has(key) || usage.referenced.has(key)) {
+            const tags = document.createElement("div");
+            tags.className = "cat-te-media-usage-tags";
+            for (const [active, label, variant] of [
+                [usage.used.has(key), "media_used", "accent"],
+                [usage.referenced.has(key), "media_referenced", "amber"],
+            ]) {
+                if (!active) continue;
+                const tag = document.createElement("cap-tag");
+                tag.setAttribute("variant", variant);
+                tag.setAttribute("size", "small");
+                tag.textContent = T(label);
+                tags.appendChild(tag);
+            }
+            item.appendChild(tags);
         }
         if (status.location === "missing") {
             const icon = document.createElement("div");
@@ -16173,6 +16202,65 @@ export class CapTimelineEditorApp {
                 ? { ...item, file: newFile } : item);
             this._showMediaPreviewAt(preview.index);
         }
+    }
+
+    _projectMediaUsage() {
+        const project = this._timeline ? this._buildProject() : { media: this._projectResources, tracks: [] };
+        const used = new Set();
+        const files = new Set();
+        const referenceIds = new Set();
+        const referenced = new Set();
+        const fileKey = (kind, file) => `${kind}:${String(file || "").replace(/\\/g, "/")}`;
+        for (const track of project.tracks || []) {
+            for (const clip of track.clips || []) {
+                for (const id of [...(clip.media_ids || []), clip.character_media_id]) {
+                    if (id) used.add(String(id));
+                }
+                for (const row of clip.generated_videos || []) if (row.file) files.add(fileKey("video", row.file));
+                for (const row of [...(clip.generated_audios || []), ...(clip.gen_edit_audios || [])]) {
+                    if (row.file) files.add(fileKey("audio", row.file));
+                }
+            }
+        }
+        for (const shot of this._storyboards || []) if (shot.image_id) used.add(String(shot.image_id));
+        for (const media of project.media || []) {
+            for (const id of [media.voice_audio_id, media.video_trim?.source_id, media.video_shots?.source_id, media.image_crop?.source_id]) {
+                if (id) referenceIds.add(String(id));
+            }
+        }
+        for (const media of project.media || []) {
+            if (used.has(String(media.id))) files.add(fileKey(media.kind, media.file));
+            if (referenceIds.has(String(media.id))) referenced.add(fileKey(media.kind, media.file));
+        }
+        return { media: project.media || [], used: files, referenced };
+    }
+
+    _unreferencedProjectMedia() {
+        if (!this._timeline) return [];
+        const { media, used, referenced } = this._projectMediaUsage();
+        return media.filter(row => {
+            const key = `${row.kind}:${String(row.file).replace(/\\/g, "/")}`;
+            return !used.has(key) && !referenced.has(key);
+        });
+    }
+
+    _clearUnreferencedProjectMedia() {
+        const unused = this._unreferencedProjectMedia();
+        if (!unused.length) return;
+        this._recordUndo();
+        const ids = new Set(unused.map(media => String(media.id)));
+        this._applyMediaCatalogFromProject({ media: this._projectResources.filter(media => !ids.has(String(media.id))) });
+        for (const { kind, file } of unused) {
+            this._mediaBatchSelected.delete(this._mediaBatchKey(kind, file));
+            this._mediaStatus.delete(`${kind}:${file}`);
+            if (kind === "video") this._videoThumbCache.delete(file);
+        }
+        const preview = this._mediaPreviewState;
+        if (preview?.source === "library" && preview.items.some(item => unused.some(media => media.kind === item.kind && media.file === item.file))) {
+            this._closeMediaPreview();
+        }
+        this._saveToWidgets();
+        this._renderMediaGrid();
     }
 
     /** Remove one library media from project/timeline lists. Returns whether disk delete is needed. */

@@ -175,7 +175,7 @@ The main editor has three columns above a full-width timeline. The horizontal se
 
 ## Tags and radio buttons
 
-Import `Tag.js` for `<cap-tag>` and `<cap-tag-group>`. Tags support `variant="accent|danger"`, `closable`, `disabled`, `value`, and a localized `close-label`. Clicking the close button emits a bubbling, cancelable `tag-close` with `detail.value`; the tag removes itself unless the listener calls `preventDefault()`. Data-backed callers prevent the default and update their own data. Tag groups wrap by default; `nowrap` enables horizontal scrolling, and `values` reads the current child tag values. Give groups an `aria-label`.
+Import `Tag.js` for `<cap-tag>` and `<cap-tag-group>`. Tags support `variant="accent|amber|danger"`, `closable`, `disabled`, `value`, and a localized `close-label`. Clicking the close button emits a bubbling, cancelable `tag-close` with `detail.value`; the tag removes itself unless the listener calls `preventDefault()`. Data-backed callers prevent the default and update their own data. Tag groups wrap by default; `nowrap` enables horizontal scrolling, and `values` reads the current child tag values. Give groups an `aria-label`.
 
 ```html
 <cap-tag-group aria-label="Bound clips">
@@ -212,3 +212,5 @@ Use `attachRichPromptHandler(textarea, { mode: "overlay" })` in editor forms; th
 Only lines beginning with `//` (after optional whitespace) are dimmed and omitted from generated prompts. Ctrl+/ toggles the two-character marker; Markdown `#` headings remain active text. Preset titles are inserted as `//title`. Old `#` notes are now ordinary text and must be changed explicitly if they should remain comments. `js/prompt_text.js` shares the parsing rule across frontend output and validation; `backend/prompt_text.py` applies the same rule at execution.
 
 Run `node tests/test_rich_prompt.mjs` and the prompt-related regression tests. Serve `tests/rich_prompt_clipboard.browser.html` to check native clipboard, widget binding and cleanup.
+
+Asset status badges use `cap-tag size="small"`: accent for direct use, amber for references from other assets. Unused assets have no badge.

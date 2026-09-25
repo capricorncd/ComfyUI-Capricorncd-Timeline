@@ -552,3 +552,6 @@ Timeline Editor
 ```
 
 See [Seq To Video](seq-to-video.md) for frame/audio composition and the [workflow directory](../workflows/) for examples.
+
+The asset panel header’s rightmost three-dot hover menu offers **Clear unreferenced media**. It removes unused entries from the current project, keeps files on disk, and supports Ctrl+Z. References from disabled or locked Clips, storyboards, character voices, linked generated media, video trims, shot plans and image crops are retained.
+Asset cards show only **In use** (theme accent) and **Referenced** (amber) badges; unused assets have no status badge.

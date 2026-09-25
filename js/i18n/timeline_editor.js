@@ -8,6 +8,10 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        media_used: "In use",
+        media_referenced: "Referenced",
+        media_more: "Asset options",
+        clear_unreferenced_media: "Clear unreferenced media",
         use_audio_track_audio_label: "Use audio track audio",
         slider_reset: "Reset to default",
         preview_seed_use: "Use preview seed",
@@ -887,6 +891,10 @@ export const DICT = {
         apply_skill_failed: "Failed to apply Skill: {msg}",
     },
     zh: {
+        media_used: "已使用",
+        media_referenced: "被引用",
+        media_more: "素材更多操作",
+        clear_unreferenced_media: "清除未引用素材",
         use_audio_track_audio_label: "使用音频轨音频",
         slider_reset: "恢复默认值",
         preview_seed_use: "使用本次种子",
@@ -1758,6 +1766,10 @@ export const DICT = {
         apply_skill_failed: "应用 Skill 失败：{msg}",
     },
     ja: {
+        media_used: "使用中",
+        media_referenced: "参照あり",
+        media_more: "素材のその他の操作",
+        clear_unreferenced_media: "未参照の素材をクリア",
         use_audio_track_audio_label: "音声トラックの音声を使用",
         slider_reset: "既定値に戻す",
         preview_seed_use: "今回のシードを使用",

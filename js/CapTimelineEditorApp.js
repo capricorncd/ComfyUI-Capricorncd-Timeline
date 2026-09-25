@@ -17443,16 +17443,16 @@ export class CapTimelineEditorApp {
         return entry;
     }
 
-    _ensurePreviewVideo(file, location = "input") {
+    _ensurePreviewVideo(file, location = "input", slot = "") {
         if (!file) return null;
-        const key = `${location}:${file}`;
+        const key = JSON.stringify([location, file, slot]);
         let entry = this._previewVideos.get(key);
         if (entry) return entry;
         const v = document.createElement("video");
         v.muted = true;
         v.playsInline = true;
         v.preload = "auto";
-        entry = { el: v, active: false, ready: false, seeking: false, wantTime: 0, _seekTimer: 0, _hasDrawn: false };
+        entry = { key, el: v, active: false, ready: false, seeking: false, wantTime: 0, _seekTimer: 0, _hasDrawn: false };
         const kickPreview = () => {
             if (this._isGenEditModalOpen()) this._scheduleGenEditPreview();
             else this._scheduleProgramPreview();
@@ -17605,10 +17605,9 @@ export class CapTimelineEditorApp {
         if (!layer || (layer.kind !== "generated" && layer.kind !== "video")) return;
         const file = layer.kind === "generated" ? layer.file : (layer.item?.file || layer.clip.src);
         const location = layer.kind === "generated" ? "output" : "input";
-        const key = `${location}:${file}`;
-        if (!file || usedKeys.has(key)) return;
-        const entry = this._ensurePreviewVideo(file, location);
-        if (!entry) return;
+        const slot = JSON.stringify([layer.clip.id, layer.kind === "generated" ? layer.transform?.id : layer.itemIndex]);
+        const entry = this._ensurePreviewVideo(file, location, slot);
+        if (!entry || usedKeys.has(entry.key)) return;
         let mediaTime = (layer.clip.sourceOffset || 0) + (nextTime - layer.clip.startTime) * (layer.clip.playbackRate || 1);
         if (layer.kind === "generated") {
             mediaTime = Math.max(0, Number(layer.trimInSec) || 0)
@@ -17618,7 +17617,7 @@ export class CapTimelineEditorApp {
         entry.el.muted = true;
         if (!entry.el.paused) entry.el.pause();
         this._seekPreviewVideo(entry, mediaTime, { force: true });
-        usedKeys.add(key);
+        usedKeys.add(entry.key);
     }
 
     _drawCover(ctx, media, cw, ch) {
@@ -17773,12 +17772,14 @@ export class CapTimelineEditorApp {
             if (layer.kind === "generated" || layer.kind === "video") {
                 const file = layer.kind === "generated" ? layer.file : (layer.item?.file || layer.clip.src);
                 const location = layer.kind === "generated" ? "output" : "input";
-                const entry = this._ensurePreviewVideo(file, location);
+                // Overlapping uses of one file need independent playback positions.
+                const slot = JSON.stringify([layer.clip.id, layer.kind === "generated" ? layer.transform?.id : layer.itemIndex]);
+                const entry = this._ensurePreviewVideo(file, location, slot);
                 if (!entry) {
                     pending = true;
                     continue;
                 }
-                onVideoUsed?.(`${location}:${file}`);
+                onVideoUsed?.(entry.key);
                 const items = layer.items || [];
                 let mediaTime = (layer.clip.sourceOffset || 0) + (t - layer.clip.startTime) * (layer.clip.playbackRate || 1);
                 if (layer.kind === "generated") {

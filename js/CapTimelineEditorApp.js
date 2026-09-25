@@ -1392,6 +1392,7 @@ export class CapTimelineEditorApp {
             this._mediaListResizeObserver = null;
             try { this._clearClipInfoPanel(); } catch { /* overlay may be gone */ }
         } finally {
+            for (const modal of this._overlay?.querySelectorAll(":scope > .cat-te-modal-backdrop") ?? []) modal.hidden = true;
             this._overlay?.classList.remove("open");
             document.body.classList.remove(...BODY_UI_CLASSES);
             if (CapTimelineEditorApp._open === this) CapTimelineEditorApp._open = null;
@@ -3994,8 +3995,8 @@ export class CapTimelineEditorApp {
               </div>
             </div>
           </div>
-          <div class="cat-te-modal-backdrop cat-te-raw-meta-modal" hidden>
-            <div class="cat-te-modal cat-te-raw-meta-dialog" role="dialog" aria-modal="true" aria-label="${T("media_raw_meta")}">
+          <div class="cat-te-modal-backdrop cat-te-raw-meta-modal" role="dialog" aria-modal="true" aria-label="${T("media_raw_meta")}" hidden>
+            <div class="cat-te-modal cat-te-raw-meta-dialog">
               <div class="cat-te-modal-header">
                 <span>${T("media_raw_meta")}</span>
                 <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-raw-meta-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
@@ -4539,8 +4540,8 @@ export class CapTimelineEditorApp {
               <div class="cat-te-skill-picker-body"></div>
             </div>
           </div>
-          <div class="cat-te-modal-backdrop cat-te-track-rename-modal" hidden>
-            <div class="cat-te-modal cat-te-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-rename-title">
+          <div class="cat-te-modal-backdrop cat-te-track-rename-modal" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-rename-title" hidden>
+            <div class="cat-te-modal cat-te-confirm-dialog">
               <div class="cat-te-modal-header">
                 <span id="cat-te-track-rename-title">${T("rename_track_title")}</span>
                 <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-track-rename-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
@@ -4554,8 +4555,8 @@ export class CapTimelineEditorApp {
               </footer>
             </div>
           </div>
-          <div class="cat-te-modal-backdrop cat-te-track-color-modal" hidden>
-            <div class="cat-te-modal cat-te-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-color-title">
+          <div class="cat-te-modal-backdrop cat-te-track-color-modal" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-color-title" hidden>
+            <div class="cat-te-modal cat-te-confirm-dialog">
               <div class="cat-te-modal-header">
                 <span id="cat-te-track-color-title">${T("track_color_title")}</span>
                 <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-track-color-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
@@ -4569,8 +4570,8 @@ export class CapTimelineEditorApp {
               </footer>
             </div>
           </div>
-          <div class="cat-te-modal-backdrop cat-te-track-delete-modal" hidden>
-            <div class="cat-te-modal cat-te-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-delete-title">
+          <div class="cat-te-modal-backdrop cat-te-track-delete-modal" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-delete-title" hidden>
+            <div class="cat-te-modal cat-te-confirm-dialog">
               <div class="cat-te-modal-header">
                 <span id="cat-te-track-delete-title">${T("delete_track_menu")}</span>
                 <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-track-delete-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>

@@ -39,7 +39,7 @@ import { normalizeVolumePoints, migrateAudioFades, volumeAt } from "./timeline/A
 import { parseTimecode, formatTimecode, frameIndexFromSecs, encodeClipTimingMs, decodeClipTimingSecs } from "./timecode.js";
 import "./components/Tag.js";
 import { stripPromptComments } from "./prompt_text.js";
-import { attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror } from "./components/RichPrompt.js";
+import { undoRichPrompt, attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror } from "./components/RichPrompt.js";
 import { loadExtensionCss, showCapConfirm } from "./cap_ui.js";
 import { iconHtml } from "./cap_icons.js";
 import { bindCanvasWheelPassthrough } from "./cap_canvas_wheel.js";
@@ -1132,13 +1132,14 @@ export class CapTimelineEditorApp {
         if (key === "z" || key === "y") {
             e.stopPropagation();
             e.stopImmediatePropagation?.();
+            if (inField) {
+                const input = e.target?.closest?.("textarea") || document.activeElement;
+                if (!e.isComposing && undoRichPrompt(input, key === "y" || e.shiftKey)) e.preventDefault();
+                return true;
+            }
             // Gen-edit modal has no undo stack — only swallow graph undo.
             if (this.genEditModal && !this.genEditModal.hidden) {
                 e.preventDefault();
-                return true;
-            }
-            if (inField) {
-                // Native text undo/redo — do not preventDefault.
                 return true;
             }
             e.preventDefault();
@@ -4768,6 +4769,7 @@ export class CapTimelineEditorApp {
                 .map(clip => ({ id: clip.id, name: clip.name || clip.id })),
             onChange: (items) => {
                 this._recordUndo();
+                this._prepareStoryboardEdit();
                 this._storyboards = items;
                 this._storyboardPage.setItems(items);
                 this._saveToWidgets();
@@ -19138,6 +19140,15 @@ export class CapTimelineEditorApp {
         return buildStoryboardDocument(this._storyboards);
     }
 
+    _prepareStoryboardEdit() {
+        if (!this._storyboardLoadError) return;
+        this.node.properties ||= {};
+        this.node.properties.cat_storyboard_recovery_raw = this._w("storyboard_json")?.value;
+        this._storyboardLoadError = null;
+        this._storyboardLoadStatus?.remove();
+        this._storyboardLoadStatus = null;
+    }
+
     _generateStoryboardsFromDirectorClips() {
         const clips = (this._timeline?.tracks || []).filter(track => isDirectorTrackType(track.type))
             .flatMap(track => track.clips).sort((a, b) => a.startTime - b.startTime);
@@ -19154,6 +19165,7 @@ export class CapTimelineEditorApp {
                 source_clip_id: clip.id,
             };
         }));
+        this._prepareStoryboardEdit();
         this._storyboards = [...this._storyboards, ...shots];
         this._storyboardPage.selectedId = shots[0].id;
         this._storyboardPage.setItems(this._storyboards);
@@ -19183,9 +19195,8 @@ export class CapTimelineEditorApp {
         }
         this.programStage.hidden = !!enabled;
         this.programMeta.hidden = !!enabled;
-        this._storyboardPage.el.hidden = !enabled || !!this._storyboardLoadError;
+        this._storyboardPage.el.hidden = !enabled;
         this._updatePromptPanel();
-        if (this._storyboardLoadError) this._storyboardPage.panel.hidden = true;
         if (!enabled) this._scheduleProgramPreview();
     }
 

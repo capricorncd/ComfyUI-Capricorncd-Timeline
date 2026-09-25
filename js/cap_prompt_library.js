@@ -2,7 +2,7 @@ import "./components/TabButton.js";
 /** Shared History / Preset library for Rich Prompt Input. */
 
 import { app } from "../../scripts/app.js";
-import { resolvePromptTextarea, updateRichPromptMirror } from "./components/RichPrompt.js";
+import { resolvePromptTextarea, updateRichPromptMirror, replaceRichPromptRange } from "./components/RichPrompt.js";
 import { iconHtml } from "./cap_icons.js";
 import { ensureCapUiCss, mkUiBtn, mkUiIconBtn, showCapConfirm } from "./cap_ui.js";
 import {
@@ -347,7 +347,7 @@ export function applyPromptToTextarea(ta, text, mode = "insert") {
     trackCaret(ta);
     const value = normalizeText(text);
     if (mode === "replace") {
-        ta.value = value;
+        replaceRichPromptRange(ta, value, 0, ta.value.length);
         const pos = value.length;
         ta.setSelectionRange(pos, pos);
     } else {
@@ -355,16 +355,12 @@ export function applyPromptToTextarea(ta, text, mode = "insert") {
         const before = ta.value.slice(0, start);
         const after = ta.value.slice(end);
         const block = wrapInsertBlock(before, after, value);
-        ta.value = before + block + after;
+        replaceRichPromptRange(ta, block, start, end);
         const pos = before.length + block.length;
         ta.setSelectionRange(pos, pos);
         ta._capCaretPos = { start: pos, end: pos, focused: true };
     }
     ta.focus();
-    ta.dispatchEvent(new Event("input", { bubbles: true }));
-    if (typeof ta.oninput === "function") {
-        try { ta.oninput(); } catch { /* ignore */ }
-    }
     updateRichPromptMirror(ta);
     // Sync ComfyUI widget value if present
     const widget = ta._capBoundWidget;

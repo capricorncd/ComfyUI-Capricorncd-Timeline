@@ -238,6 +238,50 @@ export function ensureRichPromptMirror(ta, mode = "overlay") {
     return ensureMirror(ta, mode);
 }
 
+function promptSnapshot(ta) {
+    return { value: ta.value, start: ta.selectionStart, end: ta.selectionEnd };
+}
+
+function resetPromptHistory(ta) {
+    ta._capRichHistory = { undo: [], redo: [], current: promptSnapshot(ta), type: "", time: 0 };
+}
+
+function preparePromptEdit(ta) {
+    if (!ta._capRichHistory || ta._capRichHistory.current.value !== ta.value) resetPromptHistory(ta);
+    const history = ta._capRichHistory;
+    if (history.current.start !== ta.selectionStart || history.current.end !== ta.selectionEnd) history.type = "";
+    history.current = promptSnapshot(ta);
+}
+
+export function undoRichPrompt(ta, redo = false) {
+    if (!ta?._capRichAttached) return false;
+    if (ta.readOnly || ta.disabled) return true;
+    if (ta._capRichHistory?.current.value !== ta.value) resetPromptHistory(ta);
+    const history = ta._capRichHistory;
+    const from = redo ? history.redo : history.undo;
+    if (!from.length) return true;
+    const state = from.pop();
+    (redo ? history.undo : history.redo).push(promptSnapshot(ta));
+    ta.value = state.value;
+    ta.setSelectionRange(state.start, state.end);
+    history.current = promptSnapshot(ta);
+    history.type = "";
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+}
+
+export function replaceRichPromptRange(ta, text, start = ta.selectionStart, end = ta.selectionEnd) {
+    if (ta.readOnly || ta.disabled) return;
+    ta.focus();
+    preparePromptEdit(ta);
+    ta._capRichHistory.type = "";
+    ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+    ta.setSelectionRange(start + text.length, start + text.length);
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    syncPromptWidgetFromTextarea(ta);
+    updateRichPromptMirror(ta);
+}
+
 export function toggleComment(ta) {
     if (ta.readOnly || ta.disabled) return;
     const text = ta.value;
@@ -250,16 +294,12 @@ export function toggleComment(ta) {
     let lineEnd = text.indexOf("\n", effEnd);
     if (lineEnd === -1) lineEnd = text.length;
 
-    const before = text.slice(0, lineStart);
     const region = text.slice(lineStart, lineEnd);
-    const after = text.slice(lineEnd);
     const lines = region.split("\n");
     const allC = lines.every(isPromptComment);
     const newLines = allC ? lines.map(l => l.replace(/^(\s*)\/\//, "$1")) : lines.map(l => "//" + l);
 
-    ta.value = before + newLines.join("\n") + after;
-    ta.dispatchEvent(new Event("input", { bubbles: true }));
-    updateRichPromptMirror(ta);
+    replaceRichPromptRange(ta, newLines.join("\n"), lineStart, lineEnd);
 
     const delta = allC ? -2 : 2;
     ta.setSelectionRange(
@@ -270,6 +310,10 @@ export function toggleComment(ta) {
 
 function removeRichPromptListeners(ta) {
     if (!ta) return;
+    if (ta._capRichBeforeInput) {
+        ta.removeEventListener("beforeinput", ta._capRichBeforeInput);
+        ta._capRichBeforeInput = null;
+    }
     if (ta._capRichOnCopy) {
         ta.removeEventListener("copy", ta._capRichOnCopy, true);
         ta._capRichOnCopy = null;
@@ -299,7 +343,22 @@ function removeRichPromptListeners(ta) {
 function bindRichPromptListeners(ta) {
     removeRichPromptListeners(ta);
 
-    const onInput = () => {
+    const onInput = (event) => {
+        const history = ta._capRichHistory;
+        if (history.current.value !== ta.value) {
+            const type = event.type === "input" ? event.inputType : "";
+            const now = Date.now();
+            const grouped = ["insertText", "insertCompositionText", "deleteContentBackward", "deleteContentForward"].includes(type)
+                && history.type === type && now - history.time < 750;
+            if (!grouped) {
+                history.undo.push(history.current);
+                if (history.undo.length > 100) history.undo.shift();
+            }
+            history.redo.length = 0;
+            history.current = promptSnapshot(ta);
+            history.type = type || "";
+            history.time = now;
+        }
         syncPromptWidgetFromTextarea(ta);
         updateRichPromptMirror(ta);
     };
@@ -339,15 +398,21 @@ function bindRichPromptListeners(ta) {
                 s = end = next < 0 ? ta.value.length : next;
                 txt = "\n" + txt.replace(/\n$/, "");
             }
-            ta.value = ta.value.slice(0, s) + txt + ta.value.slice(end);
-            ta.setSelectionRange(s + txt.length, s + txt.length);
-            syncPromptWidgetFromTextarea(ta);
-            ta.dispatchEvent(new Event("input", { bubbles: true }));
+            replaceRichPromptRange(ta, txt, s, end);
         } finally {
             ta._capRichPasting = false;
         }
     };
 
+    ta._capRichBeforeInput = event => {
+        if (event.inputType === "historyUndo" || event.inputType === "historyRedo") {
+            event.preventDefault();
+            undoRichPrompt(ta, event.inputType === "historyRedo");
+        } else {
+            preparePromptEdit(ta);
+        }
+    };
+    ta.addEventListener("beforeinput", ta._capRichBeforeInput);
     ta._capRichOnInput = onInput;
     ta._capRichOnCopy = onCopy;
     ta._capRichOnScroll = onScroll;
@@ -381,6 +446,7 @@ export function detachRichPromptHandler(ta) {
         ta._capRichKeydown = null;
     }
     ta._capRichAttached = false;
+    ta._capRichHistory = null;
     ta._capRichMode = null;
     ta.classList.remove("cap-rich-active");
     ta.style.color = "";
@@ -416,7 +482,10 @@ export function syncRichPromptEnabled(ta, enabled) {
 export function setRichPromptValue(ta, value, enabled = true) {
     if (!ta) return;
     const mode = ta._capRichMode || "overlay";
-    ta.value = value ?? "";
+    if (ta.value !== (value ?? "")) {
+        ta.value = value ?? "";
+        resetPromptHistory(ta);
+    }
     if (enabled) {
         ensureRichPromptMirror(ta, mode);
         syncRichPromptEnabled(ta, true);
@@ -429,6 +498,7 @@ export function setRichPromptValue(ta, value, enabled = true) {
 export function attachRichPromptHandler(ta, { mode = "widget" } = {}) {
     if (!ta) return;
     ta._capRichMode = mode;
+    if (!ta._capRichHistory) resetPromptHistory(ta);
 
     const onKeydown = (e) => {
         if (!document.contains(ta)) {
@@ -439,6 +509,14 @@ export function attachRichPromptHandler(ta, { mode = "widget" } = {}) {
         if (!fromTa) return;
 
         const mod = e.ctrlKey || e.metaKey;
+        const key = (e.code?.startsWith("Key") ? e.code.slice(3) : e.key).toLowerCase();
+        if (mod && !e.altKey && (key === "z" || key === "y")) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation?.();
+            if (!e.isComposing) undoRichPrompt(ta, key === "y" || e.shiftKey);
+            return;
+        }
         if (mod && !e.altKey && (e.key === "/" || e.code === "Slash" || e.code === "NumpadDivide")) {
             e.preventDefault();
             e.stopPropagation();
@@ -482,6 +560,7 @@ export function syncTextareaFromPromptWidget(widget) {
     if (typeof saved !== "string") return;
     if (ta.value !== saved) {
         ta.value = saved;
+        resetPromptHistory(ta);
         updateRichPromptMirror(ta);
     }
 }

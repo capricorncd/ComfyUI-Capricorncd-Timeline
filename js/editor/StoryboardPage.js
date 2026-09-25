@@ -5,11 +5,12 @@ import '../components/FormControls.js';
 import '../components/Tag.js';
 import { t as editorT } from '../i18n/timeline_editor.js';
 import { makeT } from '../cap_i18n.js';
-import { normalizeStoryboards, STORYBOARD_TEXT_FIELDS as TEXT_FIELDS } from './StoryboardDocument.js';
+import { parseStoryboardDocument, normalizeStoryboards, STORYBOARD_TEXT_FIELDS as TEXT_FIELDS } from './StoryboardDocument.js';
 export { normalizeStoryboards } from './StoryboardDocument.js';
 
 export const storyboardT = makeT({
     en: {
+        import: 'Import storyboards', first: 'Create first shot', import_failed: 'Could not import storyboard JSON. Current shots are unchanged.',
         unbind: 'Unbind {name}',
         above: 'Above', below: 'Below',
         bind: 'Bind clips', missing_clip: 'Missing clip', save: 'Save', bound: 'Bound: {names}',
@@ -25,6 +26,7 @@ export const storyboardT = makeT({
         image: 'Reference image', no_image: 'No image', seconds: 's', count: '{n} shots',
     },
     zh: {
+        import: '导入分镜', first: '创建第一个分镜', import_failed: '无法导入分镜 JSON，当前分镜未修改。',
         unbind: '解绑 {name}',
         above: '上方', below: '下方',
         bind: '绑定 clip', missing_clip: 'clip 不存在', save: '保存', bound: '已绑定：{names}',
@@ -40,6 +42,7 @@ export const storyboardT = makeT({
         image: '参考图片', no_image: '无图片', seconds: '秒', count: '{n} 个分镜',
     },
     ja: {
+        import: '絵コンテをインポート', first: '最初のショットを作成', import_failed: '絵コンテ JSON を読み込めません。現在のショットは変更されていません。',
         unbind: '{name}の関連付けを解除',
         above: '上', below: '下',
         bind: 'クリップを関連付け', missing_clip: 'クリップが見つかりません', save: '保存', bound: '関連：{names}',
@@ -77,7 +80,27 @@ export class StoryboardPage {
         this.el = document.createElement('section');
         this.el.className = 'cat-te-storyboard';
         this.el.hidden = true;
-        this.el.innerHTML = `<div class="cat-te-storyboard-toolbar"><span>${T('title')}</span><span data-count></span><cap-button size="regular" data-add variant="accent">${T('add')}</cap-button><cap-button size="regular" data-from-clips>${T('from_clips')}</cap-button></div><cap-status-message hidden></cap-status-message><div class="cat-te-storyboard-list"></div><p data-empty>${T('empty')}</p>`;
+        this.el.innerHTML = `<div class="cat-te-storyboard-toolbar"><span>${T('title')}</span><span data-count></span><cap-button size="regular" data-add variant="accent">${T('add')}</cap-button><cap-button size="regular" data-import>${T('import')}</cap-button><cap-button size="regular" data-from-clips>${T('from_clips')}</cap-button></div><cap-status-message hidden></cap-status-message><div class="cat-te-storyboard-list"></div><div class="cat-te-storyboard-empty" data-empty><p>${T('empty')}</p><div><cap-button size="regular" data-import>${T('import')}</cap-button><cap-button size="regular" data-add variant="primary">${T('first')}</cap-button></div></div><input data-import-file type="file" accept=".json,application/json" hidden>`;
+        const importFile = this.el.querySelector('[data-import-file]');
+        for (const button of this.el.querySelectorAll('[data-import]')) button.addEventListener('click', () => importFile.click());
+        importFile.addEventListener('change', async () => {
+            const file = importFile.files[0];
+            if (!file) return;
+            try {
+                const document = parseStoryboardDocument(await file.text());
+                const items = normalizeStoryboards([...this.items, ...document.shots]);
+                if (document.shots.length) {
+                    this.selectedId = items[this.items.length].id;
+                    this.onChange(items);
+                    this.onSelect();
+                }
+                this.el.querySelector('cap-status-message').setStatus('');
+            } catch {
+                this.el.querySelector('cap-status-message').setStatus(T('import_failed'), 'error');
+            } finally {
+                importFile.value = '';
+            }
+        });
         this.el.querySelector('[data-from-clips]').addEventListener('click', () => {
             const { added, total } = onGenerate();
             this.el.querySelector('cap-status-message').setStatus(T(added ? 'generated' : total ? 'already_generated' : 'no_clips', { n: added }), added ? 'success' : 'info');
@@ -118,7 +141,7 @@ export class StoryboardPage {
             if (!shot || shot[key] === value) return;
             this.onChange(this.items.map(row => row.id === shot.id ? { ...row, [key]: value } : row));
         });
-        this.el.querySelector('[data-add]').addEventListener('click', () => {
+        for (const button of this.el.querySelectorAll('[data-add]')) button.addEventListener('click', () => {
             const shot = normalizeStoryboards([{}])[0];
             this.selectedId = shot.id;
             this.onChange([...this.items, shot]);

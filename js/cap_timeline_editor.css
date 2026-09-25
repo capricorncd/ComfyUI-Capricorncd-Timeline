@@ -2587,6 +2587,8 @@ body.cat-te-media-dnd-over-tl {
 
 .cat-te-program > [hidden] { display: none !important; }
 .cat-te-storyboard {
+    display: flex;
+    flex-direction: column;
     min-height: 0;
     flex: 1;
     overflow: auto;
@@ -2608,6 +2610,11 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-storyboard-toolbar > span:first-child { font-size: calc(var(--cat-font-size, 1rem) * 1.142857); font-weight: 650; }
 .cat-te-storyboard-toolbar [data-count] { flex: 1; color: var(--cat-muted); font-size: calc(var(--cat-font-size, 1rem) * 0.857143); }
+.cat-te-storyboard[hidden], .cat-te-storyboard > [hidden] { display: none !important; }
+.cat-te-storyboard-toolbar { flex-shrink: 0; }
+.cat-te-storyboard-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px 0; color: var(--cat-muted); }
+.cat-te-storyboard-empty > p { margin: 0; }
+.cat-te-storyboard-empty > div { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 .cat-te-storyboard-list { display: grid; gap: 14px; }
 .cat-te-storyboard > cap-status-message:not([hidden]) { margin-bottom: 10px; }
 .cat-te-storyboard-settings { padding: 0 16px 20px; box-sizing: border-box; min-width: 0; min-height: 0; overflow: auto; }

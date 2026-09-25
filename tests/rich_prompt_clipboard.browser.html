@@ -6,7 +6,7 @@
 <div><textarea id="agent" aria-label="Agent Prompt"></textarea></div>
 <pre id="result">RUNNING</pre>
 <script type="module">
-import { attachRichPromptHandler, detachRichPromptHandler, setRichPromptValue, syncRichPromptEnabled, toggleComment } from '../js/components/RichPrompt.js';
+import { attachRichPromptHandler, detachRichPromptHandler, setRichPromptValue, syncRichPromptEnabled, toggleComment, undoRichPrompt } from '../js/components/RichPrompt.js';
 const assert = (ok, message) => { if (!ok) throw Error(message); };
 try {
     const ta = document.querySelector('#prompt');
@@ -98,6 +98,25 @@ try {
     assert(ta.value === 'source\n\ntail', 'selection replacement takes priority over line-copy marker');
     detachRichPromptHandler(ta);
     assert(!clipboard('copy').event.defaultPrevented && !clipboard('paste', 'plain').event.defaultPrevented, 'detach removes clipboard handlers');
+    attachRichPromptHandler(ta);
+    set('base', 4);
+    clipboard('paste', ' paste');
+    assert(undoRichPrompt(ta), 'paste creates undo entry');
+    assert(ta.value === 'base' && ta._capBoundWidget.value === 'base', 'undo paste updates widget');
+    assert(undoRichPrompt(ta, true), 'paste redo exists');
+    assert(ta.value === 'base paste', 'redo restores paste');
+    ta.setSelectionRange(0, 0);
+    toggleComment(ta);
+    assert(ta.value === '//base paste', 'comment applied');
+    undoRichPrompt(ta);
+    assert(ta.value === 'base paste', 'comment undo retains preceding paste');
+    undoRichPrompt(ta);
+    assert(ta.value === 'base', 'paste history survives comment toggle');
+    undoRichPrompt(ta, true); undoRichPrompt(ta, true);
+    assert(ta.value === '//base paste' && ta._capMirror.querySelector('.cap-rich-comment'), 'redo restores comment and highlighting');
+    set('different Clip', 14);
+    undoRichPrompt(ta);
+    assert(!ta.value.includes('base'), 'loading another Clip must not restore old Clip text');
     for (const input of [skill, document.querySelector('#agent')]) {
         attachRichPromptHandler(input, { mode: "widget" });
         setRichPromptValue(input, '# Markdown\n// note\nbody');
@@ -109,8 +128,30 @@ try {
         assert(input._capMirror.textContent === '', 'clearing Agent/Skill clears mirror');
         setRichPromptValue(input, '# Markdown\n// note\nbody');
     }
+    set('route', 5);
+    clipboard('paste', ' changed');
+    const appSource = await (await fetch('../js/CapTimelineEditorApp.js')).text();
+    const routeStart = appSource.indexOf('    handleShortcutKey(');
+    const handleShortcut = new Function('undoRichPrompt', `return ({${appSource.slice(routeStart, appSource.indexOf('\n    }', routeStart) + 6)}}).handleShortcutKey`)(undoRichPrompt);
+    const editor = {
+        _overlay: {classList:{contains:()=>true}}, _shortcutModKey: event => event.key,
+        genEditModal: {hidden:false}, undo() { throw Error('text shortcut must not undo timeline'); },
+    };
+    const undoEvent = new KeyboardEvent('keydown', {key:'z',ctrlKey:true,cancelable:true});
+    Object.defineProperty(undoEvent, 'target', {value:ta});
+    handleShortcut.call(editor, undoEvent);
+    assert(ta.value === 'route' && undoEvent.defaultPrevented, 'editor routes text undo even with trim modal open');
+    const redoEvent = new KeyboardEvent('keydown', {key:'z',ctrlKey:true,shiftKey:true,cancelable:true});
+    Object.defineProperty(redoEvent, 'target', {value:ta});
+    handleShortcut.call(editor, redoEvent);
+    assert(ta.value === 'route changed', 'Ctrl+Shift+Z routes text redo');
+    clipboard('paste', '!');
+    undoRichPrompt(ta);
+    clipboard('paste', '?');
+    undoRichPrompt(ta, true);
+    assert(ta.value === 'route changed?', 'new edit clears redo history');
     attachRichPromptHandler(ta); set('first\nsecond', 2);
-    document.querySelector('#result').textContent = 'PASS: line copy/paste, blanks, Unicode, CRLF, selections, readonly, plain inputs, widget/mirror sync and cleanup';
+    document.querySelector('#result').textContent = 'PASS: clipboard, comment undo/redo, selections, Clip isolation, redo branching, modal routing, widget/mirror sync and cleanup';
 } catch (error) {
     document.querySelector('#result').textContent = 'FAIL: ' + error.stack;
 }

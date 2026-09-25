@@ -33,7 +33,7 @@ try {
         _syncSettingPromptInputs() {}, _syncProjectScalarDisplay() {},
         _updatePromptPanel() { this._syncSidebarMode(false); },
     };
-    for (const name of ['_setStoryboardMode', '_syncSidebarMode', '_loadStoryboards', '_generateStoryboardsFromDirectorClips', '_enabledClipItems']) editor[name] = method(name);
+    for (const name of ['_prepareStoryboardEdit', '_setStoryboardMode', '_syncSidebarMode', '_loadStoryboards', '_generateStoryboardsFromDirectorClips', '_enabledClipItems']) editor[name] = method(name);
     let saved;
     const history = new TimelineHistory({
         capture: () => structuredClone(editor._storyboards), restore: rows => editor._loadStoryboards(buildStoryboardDocument(rows)), onChange() {},

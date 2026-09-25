@@ -214,3 +214,5 @@ Only lines beginning with `//` (after optional whitespace) are dimmed and omitte
 Run `node tests/test_rich_prompt.mjs` and the prompt-related regression tests. Serve `tests/rich_prompt_clipboard.browser.html` to check native clipboard, widget binding and cleanup.
 
 Asset status badges use `cap-tag size="small"`: accent for direct use, amber for references from other assets. Unused assets have no badge.
+
+Rich prompts keep up to 100 text undo steps per textarea. Ctrl/Cmd+Z undoes; Ctrl+Y or Ctrl/Cmd+Shift+Z redoes. Typing within 750 ms is grouped; paste, preset insertion and comment toggles are separate edits. `replaceRichPromptRange` performs undoable edits; `setRichPromptValue` replaces external content and resets history when the value changes. Editor shortcut routing calls `undoRichPrompt` before timeline undo.

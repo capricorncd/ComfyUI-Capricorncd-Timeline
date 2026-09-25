@@ -54,3 +54,28 @@ assert.equal(hidden.element.style.display, 'none');
 assert.notEqual(hidden.serialize, false);
 assert.equal(JSON.parse(hidden.value).schema_version, 1);
 console.log('Storyboard document: version validation, migration, hidden serialized widget, mirrors, snapshots and dirty tracking passed');
+
+for (const empty of [undefined, null, '', '  ', 'null']) {
+    assert.deepEqual(parseStoryboardDocument(empty).shots, []);
+}
+editor._prepareStoryboardEdit = method('_prepareStoryboardEdit');
+widgets[1].value = '{broken';
+editor._storyboardLoadError = new Error('invalid');
+let statusRemoved = false;
+editor._storyboardLoadStatus = { remove() { statusRemoved = true; } };
+editor._saveToWidgets();
+assert.equal(widgets[1].value, '{broken', 'normal timeline saves preserve unreadable storyboard');
+editor._prepareStoryboardEdit();
+assert.equal(editor.node.properties.cat_storyboard_recovery_raw, '{broken');
+assert.equal(editor._storyboardLoadError, null);
+assert(statusRemoved);
+editor._saveToWidgets();
+assert.equal(JSON.parse(widgets[1].value).schema_version, 1);
+const page = { el: { hidden: true }, panel: { hidden: false } };
+method('_setStoryboardMode').call({
+    _storyboardLoadError: new Error('invalid'), _storyboardPage: page,
+    programStage: {}, programMeta: {}, _configureStoryboardPage() {},
+    _stopResourceGenProgramPreview() {}, _updatePromptPanel() {},
+}, true);
+assert.equal(page.el.hidden, false, 'unreadable data must not hide import and creation controls');
+console.log('Empty and unreadable storyboards: empty parsing, recovery backup, save and visible management passed');

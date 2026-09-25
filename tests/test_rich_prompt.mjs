@@ -11,9 +11,12 @@ assert(!isPromptComment('# Heading'));
 let inputs = 0;
 const ta = {
     value: '# Heading\nbody\nnext', selectionStart: 0, selectionEnd: 15,
+    addEventListener() {}, removeEventListener() {},
+    focus() { document.activeElement = this; },
     dispatchEvent(event) { assert.equal(event.type, 'input'); inputs++; },
     setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; },
 };
+globalThis.document = {};
 toggleComment(ta);
 assert.equal(ta.value, '//# Heading\n//body\nnext');
 assert.deepEqual([ta.selectionStart, ta.selectionEnd], [2, 19]);

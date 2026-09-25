@@ -283,6 +283,7 @@ export class VideoTrim {
                 app._saveToWidgets(); app._scheduleProgramPreview();
                 changedShots.clear();
                 dialog.closeDisabled = false; dialog.close();
+                if (prompt) void app._openAiOptimizeModal(clip);
             } catch (error) { status.setStatus(error.message, 'error'); }
             finally { this.busy = dialog.closeDisabled = save.disabled = resize.disabled = insert.disabled = cancel.disabled = select.disabled = originalSelect.disabled = false; shots.inert = range.inert = false; updateNavigation(); }
         };

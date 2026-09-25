@@ -3,7 +3,13 @@ import { formatTimecode } from "../timecode.js";
 
 export function shotPrompt(points) {
     const shots = [...points].sort((a, b) => a.time - b.time);
-    return shots.length ? 'detailed_description:\n' + shots.map((point, index) => `[Shot ${index + 1}] ${point.description.trim()}`).join('\n') : '';
+    return shots.length ? 'detailed_description:\n' + shots.map((point, index) => {
+        const ms = Math.round(point.time * 1000);
+        const minutes = String(Math.floor(ms / 60000)).padStart(2, '0');
+        const seconds = String(Math.floor(ms / 1000) % 60).padStart(2, '0');
+        const millis = String(ms % 1000).padStart(3, '0');
+        return `[Shot ${index + 1}] At ${minutes}:${seconds}.${millis}, ${point.description.trim()}`;
+    }).join('\n') : '';
 }
 
 export class ShotControl extends HTMLElement {

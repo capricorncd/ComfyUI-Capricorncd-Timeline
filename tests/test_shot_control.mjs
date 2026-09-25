@@ -33,7 +33,7 @@ assert.equal(points.length, 1, 'Repeated marking selects the same point');
 shots.description.value = 'Opening shot'; shots.description.oninput();
 shots.seek(48); shots.addButton.onclick();
 shots.description.value = 'Close-up'; shots.description.oninput();
-assert.equal(shotPrompt(points), 'detailed_description:\n[Shot 1] Opening shot\n[Shot 2] Close-up');
+assert.equal(shotPrompt(points), 'detailed_description:\n[Shot 1] At 00:01.000, Opening shot\n[Shot 2] At 00:02.000, Close-up');
 shots.shadowRoot.querySelector('.markers').children[0].onclick();
 assert.equal(frame, 24);
 assert.equal(shots.description.value, 'Opening shot');
@@ -46,3 +46,11 @@ console.log('Shot control supports frame stepping, unique markers, selection, de
 shots.configure([], 24, 0, 1000, {});
 shots.update(209);
 assert.equal(shots.shadowRoot.querySelector('.time').textContent, '00:08.17');
+
+assert.equal(shotPrompt([{time: 60, description: 'Next'}, {time: 5, description: ' First '}]),
+    'detailed_description:\n[Shot 1] At 00:05.000, First\n[Shot 2] At 01:00.000, Next');
+assert.equal(shotPrompt([{time: 59.9996, description: 'Cut'}]),
+    'detailed_description:\n[Shot 1] At 01:00.000, Cut');
+assert.equal(shotPrompt([{time: 1 / 24, description: 'Frame'}]),
+    'detailed_description:\n[Shot 1] At 00:00.042, Frame');
+assert.equal(shotPrompt([]), '');

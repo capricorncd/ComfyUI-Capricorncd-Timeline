@@ -22,8 +22,12 @@ globalThis.document = {createElement: () => ({})};
 const items = [{id: 'a', file: 'a.mp4', kind: 'video'}, {id: 'image', kind: 'image'}, {id: 'b', file: 'b.mp4', kind: 'video'}];
 const clip = {id: 'clip', duration: 8, startTime: 3, get endTime() { return this.startTime + this.duration; }, track: {}};
 const replacements = [];
+const promptDialogs = [];
 const meta = {prompt: 'Original prompt'};
-const app = {_refreshFinalPromptDisplay() {}, _clipItems: () => items, _ensureClipMeta: () => meta, _clipPreviewItemIndex: () => 0,
+const app = {_openAiOptimizeModal(target) {
+    assert.equal(editor.dialog.closed, true, "Close reference editor before opening prompt management");
+    promptDialogs.push({target, prompt: meta.prompt});
+}, _refreshFinalPromptDisplay() {}, _clipItems: () => items, _ensureClipMeta: () => meta, _clipPreviewItemIndex: () => 0,
     _projectResources: items, _findMediaById: id => items.find(item => item.id === id),
     getFps: () => 24, _videoUrl: file => file, _mediaStatus: new Map(), _findClipById: () => clip,
     _recordUndo() {}, _replaceDirectorVideo: (...args) => replacements.push(args), _saveToWidgets() {}, _scheduleProgramPreview() {}};
@@ -54,6 +58,7 @@ assert.deepEqual(requests.map(({file, start, duration}) => ({file, start, durati
 assert.deepEqual(replacements.map(args => args[1]), [0, 2]);
 assert.equal(editor.dialog.closed, true);
 assert.equal(clip.duration, 8, 'Ordinary Apply preserves Clip duration');
+assert.equal(promptDialogs.length, 0, 'Ordinary Apply does not open prompt management');
 console.log('Reference video navigation retains independent ranges and applies all edits to the correct items.');
 
 editor.open(clip);
@@ -61,8 +66,9 @@ video.onloadedmetadata();
 const shots = element('cap-shot-control');
 shots.points.push({time: 4, description: 'Second shot'}, {time: 1, description: 'First shot'});
 await element('[data-insert]').onclick();
-assert.equal(meta.prompt, 'Original prompt\n\ndetailed_description:\n[Shot 1] First shot\n[Shot 2] Second shot');
+assert.equal(meta.prompt, 'Original prompt\n\ndetailed_description:\n[Shot 1] At 00:01.000, First shot\n[Shot 2] At 00:04.000, Second shot');
 assert.equal(requests.length, 2, 'Inserting shot text alone must not recut a video');
+assert.deepEqual(promptDialogs, [{target: clip, prompt: meta.prompt}], 'Open prompt management for the edited Clip after inserting its prompt');
 assert.equal(items[0].video_shots.points.length, 2);
 editor.open(clip);
 video.onloadedmetadata();

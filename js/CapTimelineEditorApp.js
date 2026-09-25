@@ -6582,6 +6582,32 @@ export class CapTimelineEditorApp {
         return rows;
     }
 
+    _splitOverlappingProjectTracks(project) {
+        const tracks = [];
+        const fps = this.getFps();
+        for (const track of project.tracks || []) {
+            const retained = [], extra = [], intervals = [];
+            for (const clip of track.clips || []) {
+                const { startTime, duration } = decodeClipTimingSecs(clip.start_ms, clip.duration_ms, clip.end_ms, fps);
+                const start = Math.round(startTime * fps);
+                const end = start + Math.round(duration * fps);
+                if (intervals.some(([a, b]) => start < b && end > a)) {
+                    extra.push({
+                        ...track,
+                        id: `track_${uid()}`,
+                        name: `${track.name || T("director_track_name")} (${extra.length + 2})`,
+                        role: track.role === "main" ? "director" : track.role,
+                        clips: [clip],
+                    });
+                } else retained.push(clip);
+                intervals.push([start, end]);
+            }
+            // Later clips painted on top in the original track; keep that order.
+            tracks.push(...extra.reverse(), extra.length ? { ...track, clips: retained } : track);
+        }
+        return { ...project, tracks };
+    }
+
     _clipsFromProjectTracks(project, fps) {
         const clips = [];
         const projectTracks = Array.isArray(project?.tracks) ? project.tracks : [];
@@ -14344,6 +14370,7 @@ export class CapTimelineEditorApp {
         this._syncProjectScalarDisplay();
         this._timeline.fps = this.getFps();
 
+        project = this._splitOverlappingProjectTracks(project);
         const projectTracks = Array.isArray(project.tracks) ? project.tracks : [];
         const tracksCfg = projectTracks.map((track, order) => {
             const rawType = String(track.type || "visual").toLowerCase();
@@ -20657,7 +20684,7 @@ export class CapTimelineEditorApp {
         this._overlayTrack = null;
         this._audioTrack = null;
 
-        const project = this._migrateProjectDocument(snapshot.project || {});
+        let project = this._migrateProjectDocument(snapshot.project || {});
         this._loadStoryboards(snapshot.storyboard);
         this._applyMediaCatalogFromProject(project);
         this.projectNameInput.value = String(project.name || T("untitled_project")).trim() || T("untitled_project");
@@ -20680,6 +20707,7 @@ export class CapTimelineEditorApp {
         if (wroteAnySettingPrompt) this._syncScalarsToProjectJson();
         else this._syncSettingPromptInputs();
         this._syncProjectScalarDisplay();
+        project = this._splitOverlappingProjectTracks(project);
         const projectTracks = Array.isArray(project.tracks) ? project.tracks : [];
         const tracks = projectTracks.map((track, order) => {
             const rawType = String(track.type || "visual").toLowerCase();

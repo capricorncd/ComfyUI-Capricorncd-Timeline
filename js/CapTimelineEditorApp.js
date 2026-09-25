@@ -15880,11 +15880,15 @@ export class CapTimelineEditorApp {
                     : T("importing_status", { n: items.length }),
         );
         try {
-            await this._importMaterialItems(items, {
+            const uploaded = await this._importMaterialItems(items, {
                 insertToTimeline: mode === "timeline" && !targetClip,
                 clientY,
                 targetClip,
             });
+            const lastKind = uploaded.at(-1)?.kind;
+            if (mode === "library" && lastKind && lastKind !== this._mediaTab) {
+                Array.from(this.mediaTabs || []).find((tab) => tab.dataset.kind === lastKind)?.click();
+            }
             this._showFileDropStatus(
                 mode === "timeline"
                     ? T("inserted_n_assets", { n: items.length })

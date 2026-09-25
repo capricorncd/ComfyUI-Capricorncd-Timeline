@@ -1,7 +1,19 @@
 """Loop-safe adapter for KJNodes' sampling preview; no upstream patches."""
 import folder_paths
 import nodes
+from comfy.cli_args import args
+from comfy.patcher_extension import WrappersMP
 from comfy_api.latest import io
+
+
+def _sample_without_compiler(executor, *sample_args, **sample_kwargs):
+    # Avoid malloc-graph teardown on the Tiny VAE preview interruption path.
+    previous = args.disable_comfy_compiler
+    args.disable_comfy_compiler = True
+    try:
+        return executor(*sample_args, **sample_kwargs)
+    finally:
+        args.disable_comfy_compiler = previous
 
 
 class CAP_ModelPreviewOverride:
@@ -14,7 +26,7 @@ class CAP_ModelPreviewOverride:
         "Requires ComfyUI-KJNodes (ModelPreviewOverrideKJ). Reuses its preview engine, "
         "mapping loop execution IDs to the original display node so later iterations keep updating. "
         "Use this instead of the original Model Preview Override in for-loop workflows. "
-        "Does not modify KJNodes, model weights, seeds or sampling settings."
+        "Tiny VAE previews disable the Comfy model compiler during sampling to mitigate interrupt crashes."
     )
 
     @classmethod
@@ -48,7 +60,12 @@ class CAP_ModelPreviewOverride:
         preview = upstream.PREPARE_CLASS_CLONE({"hidden_inputs": {io.Hidden.unique_id: display_id}})
         output = preview.execute(model, max_resolution, jpeg_quality, suppress_default_preview,
                                  preview_frames, preview_fps, vae, tiny_vae)
-        return output.args
+        patched_model, = output.args
+        key = "cap_tiny_preview_no_compiler"
+        patched_model.remove_wrappers_with_key(WrappersMP.OUTER_SAMPLE, key)
+        if tiny_vae != "none":
+            patched_model.add_wrapper_with_key(WrappersMP.OUTER_SAMPLE, key, _sample_without_compiler)
+        return (patched_model,)
 
 
 NODE_CLASS_MAPPINGS = {"CAP_ModelPreviewOverride": CAP_ModelPreviewOverride}

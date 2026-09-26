@@ -216,3 +216,10 @@ Run `node tests/test_rich_prompt.mjs` and the prompt-related regression tests. S
 Asset status badges use `cap-tag size="small"`: accent for direct use, amber for references from other assets. Unused assets have no badge.
 
 Rich prompts keep up to 100 text undo steps per textarea. Ctrl/Cmd+Z undoes; Ctrl+Y or Ctrl/Cmd+Shift+Z redoes. Typing within 750 ms is grouped; paste, preset insertion and comment toggles are separate edits. `replaceRichPromptRange` performs undoable edits; `setRichPromptValue` replaces external content and resets history when the value changes. Editor shortcut routing calls `undoRichPrompt` before timeline undo.
+
+
+## H3 first-pass versions
+
+`js/editor/H3DraftVersions.js` manages director Clip first-pass candidates in a non-modal `cap-dialog`. Each version links a low-resolution preview to its persisted AV latent and prompt/seed snapshot. Disabled versions remain viewable. Run automatically uses the latest enabled preview whose latent files exist and duration/fps match; other Clips follow ordinary generation. Removing a version only unlinks it and records a tombstone so completion-event replay cannot resurrect it. Editor history owns undo; version arrays are copied in Clip snapshots.
+
+Batch preview actions are injected into only the queued Timeline Editor API snapshot, not saved as a project generation mode. The H3 generator controls preview megapixels and sequential candidate count (`preview_sampling_batch`, default 1). `tests/h3_drafts.browser.html` exercises browsing, disabled state, non-modal behavior and serialization; queue and saved-output tests cover event replay and isolation from finished videos.

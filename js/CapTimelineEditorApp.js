@@ -1,3 +1,4 @@
+import { H3DraftVersions, draftT } from "./editor/H3DraftVersions.js";
 import { openInsertClip } from './editor/InsertClip.js';
 /*!
  * Copyright (c) 2026 capricorncd
@@ -460,6 +461,8 @@ function defaultImageMeta(trackIndex = 0) {
         secondSample: false,
         h3MotionContextLength: 0,
         saveLatent: false,
+        h3Drafts: [],
+        h3DraftRemoved: [],
         seed: -1,
         trackIndex,
         clipRole: "multi_ref",
@@ -1351,6 +1354,7 @@ export class CapTimelineEditorApp {
     _closeInternal(save) {
         this._referenceProject?.dialog.close();
         this._videoTrim?.stop();
+        this._h3DraftVersions?.dialog.close();
         // Invalidate any in-flight _openEditor so it won't rebuild after close.
         this._openGen += 1;
         this._historyReady = false;
@@ -1589,13 +1593,14 @@ export class CapTimelineEditorApp {
         return this._buildCtxMenu([
             { label: T("run_all_clips_menu"), icon: "play", fn: () => void this._runAllActiveClipsDownstream() },
             { label: T("run_selected_clips_menu"), icon: "play", fn: () => void this._runSelectedClipsDownstream() },
-            { label: T("run_track_left_menu"), icon: "chevronLeft", fn: () => void this._runSelectedTrackSide("left") },
-            { label: T("run_track_right_menu"), icon: "chevronRight", fn: () => void this._runSelectedTrackSide("right") },
             {
                 label: T("run_clips_without_generated_menu"), icon: "videoOff",
                 fn: () => void this._runAllActiveClipsDownstream({ withoutGenerated: true }),
             },
             { label: T("run_workflow_menu"), icon: "clapperboard", fn: () => void this._runWorkflow() },
+            { separator: true },
+            { label: draftT("generate_all"), icon: "listCollapse", fn: () => void this._runAllActiveClipsDownstream({ h3Generation: {action: "draft"} }) },
+            { label: draftT("generate_selected"), icon: "listCollapse", fn: () => void this._runSelectedClipsDownstream({action: "draft"}) },
         ], r.left, r.bottom + 4, { ignoreNextClick: false });
     }
 
@@ -2116,14 +2121,14 @@ export class CapTimelineEditorApp {
         return out;
     }
 
-    async _runSelectedClipsDownstream() {
+    async _runSelectedClipsDownstream(h3Generation = null) {
         const ids = new Set((this._timeline?.getSelectedClips() || []).map(clip => String(clip.id)));
         const clips = this._listActiveVisualClips().filter(clip => ids.has(String(clip.id)));
         if (!clips.length) {
             alert(T("no_selected_clips_to_run"));
             return;
         }
-        await this._runAllActiveClipsDownstream({ clips });
+        await this._runAllActiveClipsDownstream({ clips, h3Generation });
     }
 
     async _confirmRelatedClipRun(clip) {
@@ -2208,10 +2213,14 @@ export class CapTimelineEditorApp {
         return false;
     }
 
-    async _runAllActiveClipsDownstream({ withoutGenerated = false, clips: requestedClips = null } = {}) {
-        const clips = Array.isArray(requestedClips)
+    async _runAllActiveClipsDownstream({ withoutGenerated = false, clips: requestedClips = null, h3Generation = null } = {}) {
+        let clips = Array.isArray(requestedClips)
             ? requestedClips
             : this._listActiveVisualClips({ withoutGenerated });
+        if (h3Generation) {
+            if (!this._hasH3VideoGeneratorDownstream()) { alert(draftT("unavailable")); return; }
+            clips = clips.filter(clip => isDirectorTrackType(clip.track?.type));
+        }
         if (!clips.length) {
             alert(withoutGenerated
                 ? T("no_clips_without_generated_to_run")
@@ -2228,7 +2237,7 @@ export class CapTimelineEditorApp {
 
         if (this._hasH3VideoGeneratorDownstream()) {
             try {
-                await this._queueClipsDownstream(clips);
+                await this._queueClipsDownstream(clips, null, h3Generation);
             } finally {
                 this._runAllClipsBusy = false;
             }
@@ -2422,6 +2431,17 @@ export class CapTimelineEditorApp {
             }
             try {
                 const result = await orig.apply(this, args);
+                if (job?.h3Generation && editor) {
+                    for (const node of Object.values(result.output || {})) {
+                        if (node.class_type !== "CAP_TimelineEditor" || typeof node.inputs?.project_json !== "string") continue;
+                        const project = JSON.parse(node.inputs.project_json);
+                        const ids = project.settings?.runtime_only_clip_ids;
+                        const expectedIds = job.clipIds || [job.clipId];
+                        if (ids?.length !== expectedIds.length || ids.some((id, i) => String(id) !== String(expectedIds[i]))) continue;
+                        project.settings.h3_generation = job.h3Generation;
+                        node.inputs.project_json = JSON.stringify(project);
+                    }
+                }
                 if (job?.clipIds?.length > 1 && editor) relatedRequests.set(result.output, { editor, job });
                 if (job?.workflowPreview && editor?._workflowPreview === job.workflowPreview) {
                     // Serialize hooks may flush editor widgets. Change only the final API
@@ -3779,6 +3799,7 @@ export class CapTimelineEditorApp {
                   <textarea class="cat-te-prompt-input cat-te-final-prompt" readonly placeholder="${T("final_composed_prompt_placeholder")}" disabled></textarea>
                 </div>
               </div>
+              <cap-button class="cat-te-h3-drafts-open" disabled>${draftT("title")}</cap-button>
               <div class="cat-te-clip-videos" hidden>
                 <div class="cat-te-clip-videos-header">
                   <span>${T("gen_video_label")}</span>
@@ -5070,6 +5091,8 @@ export class CapTimelineEditorApp {
         this._bgmSettings = new BgmSettings(this.settingsModal.querySelector('[data-settings-panel="bgm"]'));
         this._subtitleSpeech = new SubtitleSpeech(this, el);
         this._localAudioJobs = new LocalAudioJobs(this, el);
+        this._h3DraftVersions = new H3DraftVersions(this, el);
+        el.querySelector(".cat-te-h3-drafts-open").addEventListener("click", () => this._h3DraftVersions.open(this._selClip));
         this._clipExport = new ClipExport(el);
         this._videoTrim = new VideoTrim(this, el);
         this._imageCrop = new ImageCrop(this, el);
@@ -7546,6 +7569,7 @@ export class CapTimelineEditorApp {
         const video = e?.detail?.video;
         // The final composition has no clip_id and must not become a Clip take.
         if (!video?.clip_id || video.type !== "output") return;
+        if (video.h3_draft) { this._receiveH3Draft(video.h3_draft); return; }
         this._onTimelineVideoSaved({ detail: {
             ...e.detail,
             clip_id: video.clip_id,
@@ -7567,7 +7591,7 @@ export class CapTimelineEditorApp {
                 file = normalizeOutputVideoPath(sub ? `${sub}/${name}` : name);
             }
         }
-        if (!file) return;
+        if (!file || file.startsWith("capricorncd-timeline/h3_drafts/")) return;
 
         let clipId = String(d.clip_id || "").trim()
             || this._clipIdFromSpecifiedVideoPath(file)
@@ -8441,7 +8465,7 @@ export class CapTimelineEditorApp {
         const seen = new Set();
         const add = (file) => {
             const n = normalizeOutputVideoPath(file);
-            if (!n || seen.has(n)) return;
+            if (!n || n.startsWith("capricorncd-timeline/h3_drafts/") || seen.has(n)) return;
             seen.add(n);
             out.push(n);
         };
@@ -14778,6 +14802,8 @@ export class CapTimelineEditorApp {
                 secondSample: !!c.second_sample,
                 h3MotionContextLength: Math.max(0, Math.round(Number(c.h3_motion_context_length) || 0)),
                 saveLatent: !!c.save_latent,
+                h3Drafts: Array.isArray(c.h3_drafts) ? c.h3_drafts : [],
+                h3DraftRemoved: Array.isArray(c.h3_draft_removed) ? c.h3_draft_removed : [],
                 seed: this._normalizeClipSeed(c.seed),
                 generatedVideos: this._generatedVideosFromJson(c),
                 genEditAudios: this._normalizeGenEditAudioDraft(c.gen_edit_audios),
@@ -14877,6 +14903,8 @@ export class CapTimelineEditorApp {
                 ),
                 h3MotionContextLength: Math.max(0, Math.round(Number(c.h3_motion_context_length) || 0)),
                 saveLatent: !!c.save_latent,
+                h3Drafts: Array.isArray(c.h3_drafts) ? c.h3_drafts : [],
+                h3DraftRemoved: Array.isArray(c.h3_draft_removed) ? c.h3_draft_removed : [],
                 seed: this._normalizeClipSeed(c.seed),
             });
             this._normalizeVisualMeta(clip, this._meta.get(clip.id), { seedFromClip: false });
@@ -14936,6 +14964,8 @@ export class CapTimelineEditorApp {
             ),
             h3MotionContextLength: Math.max(0, Math.round(Number(c.h3_motion_context_length) || 0)),
             saveLatent: !!c.save_latent,
+            h3Drafts: Array.isArray(c.h3_drafts) ? c.h3_drafts : [],
+            h3DraftRemoved: Array.isArray(c.h3_draft_removed) ? c.h3_draft_removed : [],
             seed: this._normalizeClipSeed(c.seed),
         });
         this._normalizeVisualMeta(clip, this._meta.get(clip.id), { seedFromClip: false });
@@ -16503,7 +16533,7 @@ export class CapTimelineEditorApp {
             : !isSubtitle && !!this._firstEnabledGeneratedVideo(m);
         const t = this._timeline.currentTime;
         const canSplit = t > clip.startTime && t < clip.endTime;
-        const generation = [], media = [], audio = [];
+        const generation = [], prompts = [], media = [], audio = [];
         const editing = [
             { label: T("insert_clip_title"), icon: "insert", fn: () => openInsertClip(this, clip) },
             ...(canSplit ? [{ label: T("menu_split"), icon: "scissors", fn: () => this._splitClip(clip) }] : []),
@@ -16545,10 +16575,12 @@ export class CapTimelineEditorApp {
                 ? { label: T("menu_abort"), icon: "stop", fn: () => void this._abortClipDownstream(clip) }
                 : { label: T("menu_run"), icon: "play", fn: () => void this._runClipDownstream(clip) });
             generation.push(
+                { label: draftT("generate"), icon: "listCollapse", fn: () => void this._runH3Stage(clip, "draft") },
+                { label: draftT("title"), icon: "video", fn: () => this._h3DraftVersions.open(clip) },
                 { label: T("run_track_right_menu"), icon: "chevronRight", fn: () => void this._runSelectedTrackSide("right", clip) },
                 { label: T("run_track_left_menu"), icon: "chevronLeft", fn: () => void this._runSelectedTrackSide("left", clip) },
-                { label: T("menu_ai_optimize_prompt"), icon: "sparkles", fn: () => void this._openAiOptimizeModal(clip) },
             );
+            prompts.push({ label: T("menu_ai_optimize_prompt"), icon: "sparkles", fn: () => void this._openAiOptimizeModal(clip) });
             if (this._clipGeneratedVideos(m).length) media.push({ label: T("menu_trim_video"), icon: "timeline", fn: () => void this._openGenEditModal(clip) });
             if (this._clipItems(m).some(item => item.kind === "video")) media.push({ label: T("trim_reference_video"), icon: "scissors", fn: () => this._videoTrim.open(clip) });
             media.push({ label: T("linked_generated_videos_title"), icon: "link", fn: () => void this._openOutputVideosPicker(clip) });
@@ -16580,7 +16612,7 @@ export class CapTimelineEditorApp {
             { label: T("delete_btn"), icon: "trash", shortcut: "Delete", fn: () => this._deleteClip(clip), danger: true },
         ];
         const items = [];
-        for (const group of [generation, editing, media, audio, grouping, state]) {
+        for (const group of [generation, prompts, editing, media, audio, grouping, state]) {
             if (!group.length) continue;
             if (items.length) items.push({ separator: true });
             items.push(...group);
@@ -16733,6 +16765,8 @@ export class CapTimelineEditorApp {
                 row && typeof row === "object" ? { ...row } : row
             ));
         }
+        if (Array.isArray(meta?.h3Drafts)) m.h3Drafts = meta.h3Drafts.map(row => ({...row}));
+        if (Array.isArray(meta?.h3DraftRemoved)) m.h3DraftRemoved = [...meta.h3DraftRemoved];
         if (Array.isArray(meta?.genEditAudios)) {
             m.genEditAudios = meta.genEditAudios.map((row) => (
                 row && typeof row === "object" ? { ...row } : row
@@ -16976,6 +17010,37 @@ export class CapTimelineEditorApp {
         return true;
     }
 
+    _confirmDraftRemoval() {
+        return showCapConfirm(draftT("removed"), {title: draftT("remove"), confirmLabel: T("delete_btn"), cancelLabel: T("cancel_btn")});
+    }
+
+    async _runH3Stage(clip, action) {
+        if (!clip || !isDirectorTrackType(clip.track?.type) || clip.track?.locked) return;
+        if (!this._hasH3VideoGeneratorDownstream()) { alert(draftT("unavailable")); return; }
+        if (!await this._validateClipRunDurations([clip])) return;
+        await this._queueClipsDownstream([clip], null, {action});
+    }
+
+    _receiveH3Draft(version) {
+        if (this._destroyed || !this._isNodeOnLiveGraph() || !this._teNotifyBelongsHere(version.clip_id, version.source_output)) return;
+        const parsed = this._parseProjectWidgetValue();
+        const target = parsed.project?.tracks?.flatMap(track => track.clips || []).find(clip => clip.id === version.clip_id);
+        if (!target || target.h3_draft_removed?.includes(version.id)) return;
+        const clip = this._timelineReady && this._findClipById(version.clip_id);
+        if (clip) {
+            const meta = this._ensureClipMeta(clip);
+            if (meta.h3DraftRemoved?.includes(version.id)) return;
+            meta.h3Drafts ||= [];
+            if (!meta.h3Drafts.some(row => row.id === version.id)) meta.h3Drafts.unshift({...version, enabled: true});
+            this._saveToWidgets();
+            if (this._h3DraftVersions?.dialog.open && this._h3DraftVersions.clipId === clip.id) this._h3DraftVersions.render();
+        } else {
+            target.h3_drafts ||= [];
+            if (!target.h3_drafts.some(row => row.id === version.id)) target.h3_drafts.unshift({...version, enabled: true});
+            this._writeProjectJson(JSON.stringify(parsed.project));
+        }
+    }
+
     /**
      * Queue the workflow so Timeline Editor emits data_json / clips_audio for
      * this visual clip or its confirmed H3 chain. Uses settings.runtime_only_clip_ids (not temporary
@@ -17008,7 +17073,7 @@ export class CapTimelineEditorApp {
         return this._queueClipsDownstream(clips, workflowPreview);
     }
 
-    async _queueClipsDownstream(clips, workflowPreview = null) {
+    async _queueClipsDownstream(clips, workflowPreview = null, h3Generation = null) {
         CapTimelineEditorApp._installClipRunJobHook();
         let expectedFile = null;
         let stamp = null;
@@ -17023,6 +17088,7 @@ export class CapTimelineEditorApp {
             expectedFile,
             projectJson: JSON.stringify(this._buildProject()),
             workflowPreview,
+            h3Generation,
         };
         CapTimelineEditorApp._clipRunEditor = this;
         CapTimelineEditorApp._clipRunJobs = [job];
@@ -18641,6 +18707,8 @@ export class CapTimelineEditorApp {
 
     _setVisualSettingsEnabled(enabled, m = null) {
         const disabled = !enabled;
+        const draftsButton = this._overlay?.querySelector(".cat-te-h3-drafts-open");
+        if (draftsButton) draftsButton.disabled = disabled;
         if (this.useAudioTrackAudioCb) {
             this.useAudioTrackAudioCb.disabled = disabled;
             this.useAudioTrackAudioCb.checked = enabled && !!m?.useAudioTrackAudio;
@@ -20391,6 +20459,8 @@ export class CapTimelineEditorApp {
                     row.second_sample = !!m.secondSample;
                     row.h3_motion_context_length = this._clampH3MotionContextLength(m.h3MotionContextLength);
                     row.save_latent = !!m.saveLatent;
+                    row.h3_drafts = m.h3Drafts || [];
+                    row.h3_draft_removed = m.h3DraftRemoved || [];
                     row.seed = this._normalizeClipSeed(m.seed);
                     row.clip_role = m.clipRole || "multi_ref";
                     row.use_audio_track_audio = !!m.useAudioTrackAudio;
@@ -20759,6 +20829,7 @@ export class CapTimelineEditorApp {
         this._updatePromptPanel();
         this._renderMediaGrid();
         if (this._aiOptimizeClipId && this._aiOptimizeSrc === "resource") this._renderAiResource();
+        if (this._h3DraftVersions?.dialog.open) this._h3DraftVersions.render();
     }
 
     async undo() {

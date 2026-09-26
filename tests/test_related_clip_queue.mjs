@@ -22,7 +22,7 @@ const app = {
 };
 const CapTimelineEditorApp = { _clipRunJobs: [] };
 const errors = [];
-const deps = { stripPromptComments, app, api, CapTimelineEditorApp, T: key => key, alert: msg => errors.push(msg),
+const deps = { stripPromptComments, app, api, CapTimelineEditorApp, T: key => key, draftT: key => key, isDirectorTrackType: type => type === "director", alert: msg => errors.push(msg),
     defaultImageMeta: () => ({}), isSubtitleTrackType: () => false, isSubtitleClipMeta: () => false };
 function method(name) {
     const start = source.search(new RegExp(`    (?:static |async )?${name}\\(`));
@@ -134,3 +134,26 @@ for (const prompt of ['', '  \n', '// Notes only\n  // No shot']) {
     assert.equal(textQueued, 1, 'empty/comment-only clips do not queue');
 }
 console.log('Related clips and prompt-only single/batch queue validation passed');
+
+editor._pendingGeneratedJobs = [];
+fail = false;
+await editor._queueClipsDownstream([clips[0]], null, {action: 'draft'});
+const stageProject = JSON.parse(submissions.at(-1).output.timeline.inputs.project_json);
+assert.deepEqual(stageProject.settings.h3_generation, {action: 'draft'});
+assert.equal(JSON.parse(editor.written).settings.h3_generation, undefined, 'stage action is submission-only');
+console.log('H3 stage action is isolated to the queued Clip API snapshot');
+
+const previewClips = clips.map(clip => ({...clip, track: {type: 'director'}}));
+editor._listActiveVisualClips = () => [...previewClips, {id: 'media', track: {type: 'video'}}];
+editor._runAllActiveClipsDownstream = batchRun;
+editor._pendingGeneratedJobs = [];
+await batchRun.call(editor, {h3Generation: {action: 'draft'}});
+let previewProject = JSON.parse(submissions.at(-1).output.timeline.inputs.project_json);
+assert.deepEqual(previewProject.settings.runtime_only_clip_ids, ['first', 'second', 'third']);
+assert.deepEqual(previewProject.settings.h3_generation, {action: 'draft'});
+editor._timeline.getSelectedClips = () => [previewClips[1]];
+await method('_runSelectedClipsDownstream').call(editor, {action: 'draft'});
+previewProject = JSON.parse(submissions.at(-1).output.timeline.inputs.project_json);
+assert.deepEqual(previewProject.settings.runtime_only_clip_ids, ['second']);
+assert.deepEqual(previewProject.settings.h3_generation, {action: 'draft'});
+console.log('All/selected preview batches preserve scope and exclude media tracks');

@@ -4139,3 +4139,25 @@ body.cat-te-media-dnd-over-tl {
     .cat-te-reference-tabs { padding-inline: 18px; }
     .cat-te-reference-body { padding: 16px 18px; }
 }
+
+/* First-pass versions share the editor dialog and controls. */
+.cat-te-h3-drafts { --cap-dialog-width: 940px; --cap-dialog-height: 660px; --cap-dialog-min-width: 420px; --cap-dialog-min-height: 320px; }
+.cat-te-h3-drafts-body { padding: 20px 28px; container-type: inline-size; }
+.cat-te-h3-drafts-hint { color: var(--cat-muted); line-height: 1.6; margin: 0 0 18px; }
+.cat-te-h3-drafts-layout { display: grid; grid-template-columns: minmax(180px, 28%) minmax(0, 1fr); gap: 18px; }
+.cat-te-h3-drafts-list { display: flex; flex-direction: column; gap: 16px; }
+.cat-te-h3-draft-row { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--cat-border-soft); border-radius: 8px; }
+.cat-te-h3-draft-row label { color: var(--cat-muted); }
+.cat-te-h3-draft-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cat-te-h3-draft-detail { min-width: 0; }
+.cat-te-h3-draft-detail video { width: 100%; max-height: 340px; object-fit: contain; background: var(--cat-bg); }
+.cat-te-h3-draft-prompt { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+@media (max-width: 760px) {
+    .cat-te-h3-drafts-body { padding: 16px 18px; }
+    .cat-te-h3-drafts-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.cat-te-h3-draft-row > cap-button { width: 100%; min-width: 0; }
+@container (max-width: 560px) {
+    .cat-te-h3-drafts-layout { grid-template-columns: minmax(0, 1fr); }
+}

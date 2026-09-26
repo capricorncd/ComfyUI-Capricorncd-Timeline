@@ -100,3 +100,21 @@ assert.equal(takes._deferredGeneratedJobs.length, 2, 'unknown Clip does not fall
 assert.match(source, /addEventListener\("cat_h3_video_ready", this\._onH3VideoReady\)/);
 assert.match(source, /removeEventListener\?\.\("cat_h3_video_ready", this\._onH3VideoReady\)/);
 console.log('PASS: immediate H3 Clip association, completion fallback, closed editor, deduplication and composition exclusion');
+
+const draftEditor = editor(false);
+draftEditor._receiveH3Draft = method('_receiveH3Draft');
+const draft = {id: 'a'.repeat(32), clip_id: 'a', file: 'capricorncd-timeline/h3_drafts/a/preview.mp4', seed: 42};
+draftEditor._onH3ClipVideoReady({detail: {video: {clip_id: 'a', type: 'output', h3_draft: draft}}});
+assert.equal(draftEditor.project.tracks[0].clips[0].h3_drafts.length, 1);
+assert.equal(files(draftEditor).length, 0, 'candidate never becomes a finished take');
+draftEditor.project.tracks[0].clips[0].h3_drafts[0].enabled = false;
+draftEditor._receiveH3Draft(draft);
+assert.equal(draftEditor.project.tracks[0].clips[0].h3_drafts[0].enabled, false, 'replayed event preserves disabled state');
+draftEditor.project.tracks[0].clips[0].h3_drafts = [];
+draftEditor.project.tracks[0].clips[0].h3_draft_removed = [draft.id];
+draftEditor._receiveH3Draft(draft);
+assert.equal(draftEditor.project.tracks[0].clips[0].h3_drafts.length, 0, 'completion replay cannot resurrect a removed version');
+draftEditor._onTimelineVideoSaved({detail: {clip_id: 'a', file: draft.file}});
+assert.equal(files(draftEditor).length, 0, 'generic save notification excludes low-resolution previews');
+assert.deepEqual(draftEditor._collectExecutedOutputVideos({output: {video: [{filename: draft.file, type: 'output'}]}}), []);
+console.log('PASS: first-pass closed-editor persistence, disabled/deleted replay and composition isolation');

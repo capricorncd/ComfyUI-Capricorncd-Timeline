@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh">
+<meta charset="utf-8">
+<title>预览采样管理 · 界面预览</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>
+body { margin: 0; background: #10151d; color: #e2e8f0; font: 16px system-ui; }
+.fixture { padding: 28px; --cat-bg: #10151d; --cat-surface: #19212d; --cat-raised: #222d3b; --cat-text: #e2e8f0; --cat-muted: #a0adbe; --cat-border-soft: #344255; --cat-border: #344255; --cat-accent: #69b4ff; --cat-selected: #24445d; --cat-font-size: 16px; }
+.fixture.light { --cat-bg: #f5f7fa; --cat-surface: #fff; --cat-raised: #eef2f7; --cat-text: #182333; --cat-muted: #566779; --cat-border-soft: #d3dbe6; --cat-border: #d3dbe6; --cat-accent: #2867b5; --cat-selected: #dceaff; }
+#result { white-space: pre-wrap; font-size: 13px; color: #a0adbe; }
+</style>
+<div class="fixture"><h2>导演 Clip · 预览采样管理</h2><p>界面预览：以下为示例版本，未执行模型生成。</p><cap-button id="open">预览采样管理</cap-button> <cap-button id="theme">切换浅色／深色</cap-button><pre id="result">RUNNING</pre></div>
+<script type="module">
+import { H3DraftVersions } from '../js/editor/H3DraftVersions.js';
+const root = document.querySelector('.fixture');
+const rows = [1, 2, 3].map((number) => ({id: String(number).repeat(32), file: '', seed: 20260926 + number,
+    width: 608, height: 352, frames: 124, fps: 24, enabled: number !== 3,
+    prompt: 'summary: 黄昏的站台，少女停下脚步，回头望向远处。\n\n时间推进：\n0–2s：镜头缓慢推进，头发与衣角随风摆动。\n2–5s：人物回头，保持面部、服装和环境光一致。\n\n风格：暖色逆光，浅景深，稳定的电影镜头。'}));
+const meta = {h3Drafts: rows};
+const clip = {id: 'demo-director-clip', name: '镜头 03 · 站台回望', track: {type: 'image', locked: false}};
+const calls = [];
+const editor = {_findClipById: id => id === clip.id ? clip : null, _ensureClipMeta: () => meta,
+    _outputVideoUrl: () => '', _recordUndo() {calls.push('undo');}, _saveToWidgets() {calls.push('save');},
+    _confirmDraftRemoval: async () => true, _runH3Stage: async (_clip, action) => {calls.push(action);}};
+const view = new H3DraftVersions(editor, root);
+const assert = (condition, message) => {if (!condition) throw Error(message);};
+try {
+    view.open(clip);
+    assert(view.dialog.open && !view.dialog.hasAttribute('modal'), 'non-modal dialog');
+    assert(view.dialog.querySelectorAll('.cat-te-h3-draft-row').length === 3, 'three versions');
+    const disabled = view.dialog.querySelectorAll('.cat-te-h3-draft-row')[2];
+    const checkbox = view.dialog.querySelectorAll('input[type=checkbox]')[1];
+    checkbox.checked = false;
+    checkbox.dispatchEvent(new Event('change', {bubbles: true}));
+    assert(meta.h3Drafts[1].enabled === false, 'disabled preview');
+    assert(view.dialog.querySelectorAll('[slot=footer] cap-button').length === 1, 'batch preview action only');
+    meta.h3Drafts = rows;
+    view.render();
+    const saved = JSON.parse(JSON.stringify(meta));
+    assert(saved.h3Drafts.length === 3, 'serialized version state');
+    document.querySelector('#result').textContent = 'PASS · 非模态窗口、版本浏览、禁用隔离、批量预览入口、工程状态序列化';
+} catch (error) {
+    document.querySelector('#result').textContent = 'FAIL · ' + error.stack;
+}
+document.querySelector('#open').addEventListener('click', () => view.open(clip));
+document.querySelector('#theme').addEventListener('click', () => root.classList.toggle('light'));
+</script>
+</html>

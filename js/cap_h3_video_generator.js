@@ -3,7 +3,7 @@ import { app } from "../../scripts/app.js";
 const INPUT_ORDER = [
     "model", "base_model", "clip", "vae", "audio_vae", "data_json", "audio_refine_config", "face_refine_config", "selflift_config", "interpolation_config",
     "steps", "attention",
-    "second_sampling", "first_pass_megapixels", "upscaler_model", "refine_sigmas",
+    "second_sampling", "first_pass_megapixels", "preview_sampling_batch", "upscaler_model", "refine_sigmas",
     "motion_deblur",
     "sampling_preview", "preview_tiny_vae",
     "generate_audio", "normalize_audio",
@@ -45,8 +45,8 @@ app.registerExtension({
             // LiteGraph saves widget values positionally; restore by the saved names.
             const inputWidgets = info.inputs?.filter(input => WIDGET_ORDER.includes(input.widget?.name) || ["strict_keyframes", "audio_refine", "audio_refine_steps"].includes(input.widget?.name))
                 .map(input => input.widget.name) ?? [];
-            const legacyOrder = [...schemaOrder];
-            if (!info.properties?.cap_h3_widget_order && info.widgets_values?.length >= schemaOrder.length + 1) {
+            const legacyOrder = schemaOrder.filter(name => name !== "preview_sampling_batch");
+            if (!info.properties?.cap_h3_widget_order && info.widgets_values?.length >= legacyOrder.length + 1) {
                 legacyOrder.splice(legacyOrder.indexOf("normalize_audio"), 0, "audio_refine", "audio_refine_steps");
                 if (typeof info.widgets_values[2] === "boolean") {
                     legacyOrder.splice(legacyOrder.indexOf("steps") + 1, 0, "strict_keyframes");
@@ -58,7 +58,8 @@ app.registerExtension({
                 const values = new Map(savedOrder.map((name, i) => [name, info.widgets_values[i]]));
                 info = {...info, widgets_values: this.widgets.filter(widget => WIDGET_ORDER.includes(widget.name))
                     .map(widget => values.has(widget.name) ? values.get(widget.name)
-                        : widget.name === "motion_deblur" ? false : widget.value)};
+                        : widget.name === "motion_deblur" ? false
+                            : widget.name === "preview_sampling_batch" ? 1 : widget.value)};
             }
             configure?.call(this, info);
             // Graph loading/paste installs links after node.configure returns.

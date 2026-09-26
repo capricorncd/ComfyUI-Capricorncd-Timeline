@@ -1,6 +1,7 @@
 """MiniMax H3 timeline generation, with one clip's tensors alive at a time."""
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import math
@@ -24,6 +25,7 @@ from .h3_timing import timing_filename, plan_h3_clips
 from .cap_h3_face_refine import FACE_NODES, validate_face_config
 from .cap_h3_selflift import validate_selflift_config
 from .cap_h3_interpolation import validate_interpolation_config
+from .cap_h3_drafts import DRAFT_ROOT, save_draft, finish_draft, restore_draft, load_draft_latent, latest_draft
 
 
 REFINE_SIGMAS = "0.9035, 0.8000, 0.6316, 0.3158, 0.0000"
@@ -146,7 +148,7 @@ class CAP_H3VideoGenerator:
                 "data_json": ("STRING", {"default": "", "multiline": True, "forceInput": True}),
                 "steps": (["4", "8"], {"default": "8"}),
                 "second_sampling": ("BOOLEAN", {"default": False}),
-                "first_pass_megapixels": ("FLOAT", {"default": 0.2, "min": 0.01, "max": 8.0, "step": 0.01, "tooltip": "Only used with second sampling: sets first-pass resolution before upscale to data_json dimensions. Without second sampling, generate directly at data_json width/height and ignore this value."}),
+                "first_pass_megapixels": ("FLOAT", {"default": 0.2, "min": 0.01, "max": 8.0, "step": 0.01, "tooltip": "Resolution for preview candidates and the first pass of second sampling. Ordinary single-pass generation uses data_json dimensions."}),
                 "upscaler_model": (["none"] + upscale_models,),
                 "refine_sigmas": ("STRING", {"default": REFINE_SIGMAS}),
                 "normalize_audio": ("BOOLEAN", {"default": False, "tooltip": "Normalize to -14 LUFS; requires WanVideoWrapper NormalizeAudioLoudness."}),
@@ -163,6 +165,7 @@ class CAP_H3VideoGenerator:
                 "face_refine_config": ("CAP_H3_FACE_REFINE_CONFIG", {"tooltip": "Connect H3 Face Refine Config. Enable or disable repair on that config node."}),
                 "selflift_config": ("CAP_H3_SELFLIFT_CONFIG",),
                 "interpolation_config": ("CAP_H3_INTERPOLATION_CONFIG", {"tooltip": "Connect H3 Interpolation Config. Enable or disable interpolation on that config node."}),
+                "preview_sampling_batch": ("INT", {"default": 1, "min": 1, "max": 100, "tooltip": "Number of preview candidates per Clip, generated sequentially with different seeds. Only used by Batch preview sampling."}),
             },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "unique_id": "UNIQUE_ID", "dynprompt": "DYNPROMPT"},
         }
@@ -178,9 +181,30 @@ class CAP_H3VideoGenerator:
                  prompt=None, extra_pnginfo=None,
                  unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False,
                  face_refine_config=None, selflift_config=None,
-                 interpolation_config=None, audio_refine_config=None):
+                 interpolation_config=None, audio_refine_config=None, preview_sampling_batch=1):
         data = json.loads(data_json)
         width, height, fps = _validate(data)
+        request = data.get("h3_generation") or {}
+        stage = request.get("action", "normal")
+        if stage not in ("normal", "draft", "refine"):
+            raise ValueError("Unknown H3 generation action.")
+        previews = {i: latest_draft(data, row) for i, row in enumerate(data["clips"]) if row.get("h3_drafts")} if stage == "normal" else {}
+        previews = {i: value for i, value in previews.items() if value is not None}
+        draft_manifest = None
+        candidate_count = 1
+        if stage == "refine":
+            data, draft_manifest = restore_draft(data, request.get("version_id"))
+            second_sampling = True
+            selflift_config = None
+        elif stage == "draft":
+            candidate_count = preview_sampling_batch
+            second_sampling = False
+            selflift_config = None
+            audio_refine = False
+            audio_refine_config = face_refine_config = interpolation_config = None
+            motion_deblur = False
+        if stage != "normal":
+            compose_final = False
         face_refine = face_refine_config is not None
         interpolation = None
         if interpolation_config is not None:
@@ -206,9 +230,13 @@ class CAP_H3VideoGenerator:
         if str(steps) not in ("4", "8"):
             raise ValueError("H3 steps must be 4 or 8.")
         steps = int(steps)
+        if previews and len(previews) == len(data["clips"]):
+            selflift_config = None
         if selflift_config is not None:
             selflift_config = validate_selflift_config(selflift_config, steps)
-            for row in data["clips"]:
+            for i, row in enumerate(data["clips"]):
+                if i in previews:
+                    continue
                 if row.get("clip_role") == "digital_human":
                     raise ValueError("SelfLift does not support Digital Human audio locking yet. Disconnect or disable H3 SelfLift Config.")
                 if row.get("h3_motion_context_length") or (row.get("h3_timing") or {}).get("context_frames"):
@@ -253,7 +281,7 @@ class CAP_H3VideoGenerator:
                 folder_paths.get_full_path_or_raise("vae_approx", preview_tiny_vae)
         if attention != "keep":
             required.append("ModelAttentionBackend")
-        if second_sampling:
+        if second_sampling or previews:
             if upscaler_model == "none":
                 raise ValueError("Select a latent upscaler model for second sampling.")
             folder_paths.get_full_path_or_raise("latent_upscale_models", upscaler_model)
@@ -261,7 +289,7 @@ class CAP_H3VideoGenerator:
             if len(sigmas) < 2 or sigmas[-1] != 0 or any(not math.isfinite(v) or v < 0 for v in sigmas) or any(a <= b for a, b in zip(sigmas, sigmas[1:])):
                 raise ValueError("Refine sigmas must strictly decrease and end at 0.")
             required += ["MinimaxH3LatentUpscaler3D", "LTXVSeparateAVLatent", "LTXVConcatAVLatent", "ManualSigmas"]
-        if any(row.get("save_latent") for row in data["clips"]):
+        if stage != "draft" and any(row.get("save_latent") for row in data["clips"]):
             required += ["MiniMaxH3MotionContextSaveLatent", "MiniMaxH3MotionContextLoadLatent"]
         if audio_refine:
             required.append("H3AudioRefineSampler")
@@ -275,7 +303,7 @@ class CAP_H3VideoGenerator:
         warnings = []
         for index, row in enumerate(data["clips"]):
             previous = _context_source(row, earlier)
-            if previous and not any(_clip_id(p) == previous and p.get("save_latent") for p in earlier):
+            if stage != "refine" and index not in previews and previous and not any(_clip_id(p) == previous and p.get("save_latent") for p in earlier):
                 if not _prev_clip_output_video_path(json.dumps(data), index, row.get("previous_output_video", "")):
                     warnings.append(dict(code="missing_context", clip_id=_clip_id(row), previous_clip_id=previous))
                     row.pop("previous_output_video", None)
@@ -301,16 +329,28 @@ class CAP_H3VideoGenerator:
         if attention != "keep":
             model, = _call("ModelAttentionBackend", records, model=model, attention=attention)
         low_width, low_height = width, height
-        if second_sampling:
+        if second_sampling or stage == "draft":
             low_width, low_height, _, _ = CAP_SizeFromMegapixels().execute(
                 width, height, min(first_pass_megapixels, width * height / 1048576), 32)
 
+        if draft_manifest:
+            low_width, low_height = draft_manifest["width"], draft_manifest["height"]
+        source_data = copy.deepcopy(data) if stage == "draft" else None
+        if stage == "draft":
+            candidates = []
+            for row in data["clips"]:
+                for candidate in range(candidate_count):
+                    item = copy.deepcopy(row)
+                    if candidate:
+                        item["seed"] = (int(row["seed"]) + candidate) % (2**53) if int(row.get("seed", -1)) >= 0 else -1
+                    candidates.append(item)
+            data["clips"] = candidates
         paths, videos, context_paths = [], [], {}
         workflow_id = (extra_pnginfo or {}).get("workflow", {}).get("id")
         run_token = secrets.token_hex(8)
         display_id = dynprompt.get_display_node_id(unique_id) if dynprompt is not None else unique_id
-        phases = ["prepare", "sample"]
-        if second_sampling:
+        phases = ["prepare"] + ([] if stage == "refine" else ["sample"])
+        if second_sampling or previews:
             phases += ["upscale", "refine"]
         if audio_refine:
             phases.append("audio")
@@ -345,19 +385,27 @@ class CAP_H3VideoGenerator:
                 seed = secrets.randbits(53)
             row["seed"] = seed
             previous = _context_source(row, data["clips"][:index])
-            prior_paths = context_paths.get(previous)
-            if previous:
+            prior_paths = context_paths.get(previous) if stage == "normal" else None
+            if previous and stage == "normal":
                 for prior in data["clips"][:index]:
                     if _clip_id(prior) == previous and prior.get("output_video"):
                         row["previous_output_video"] = prior["output_video"]
                         break
             notify_timeline(EVENT_CLIP_RUNNING, clip_id=cid, index=index)
+            clip_data, clip_index = data, index
+            clip_stage, clip_manifest = stage, draft_manifest
+            clip_low_width, clip_low_height = low_width, low_height
+            if index in previews:
+                clip_data, clip_manifest = previews[index]
+                clip_index, clip_stage = 0, "refine"
+                clip_low_width, clip_low_height = clip_manifest["width"], clip_manifest["height"]
+                prior_paths = None
             saved, contexts = self._generate_clip(
-                model, base_model, clip, vae, audio_vae, data, index, width, height, low_width, low_height,
-                fps, steps, row.get("clip_role") == "first_last", second_sampling, upscaler_model, refine_sigmas,
+                model, base_model, clip, vae, audio_vae, clip_data, clip_index, width, height, clip_low_width, clip_low_height,
+                fps, steps, row.get("clip_role") == "first_last", second_sampling or clip_stage == "refine", upscaler_model, refine_sigmas,
                 audio_refine, audio_refine_steps, normalize_audio, attention, prior_paths,
                 run_token, dict(records), extra_pnginfo,
-                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur, face_refine_config, selflift_config, interpolation, audio_refine_config)
+                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur, face_refine_config, None if clip_stage == "refine" else selflift_config, interpolation, audio_refine_config, clip_stage, clip_manifest)
             filename = saved["result"][0]
             row["output_video"] = filename
             for owner in data["clips"]:
@@ -366,6 +414,8 @@ class CAP_H3VideoGenerator:
                         span["output_video"] = filename
             paths.append(filename)
             info = {**saved["ui"]["video"][0], "preview_key": f"{run_token}_{index}", "clip_id": cid}
+            if saved.get("h3_draft"):
+                info["h3_draft"] = saved["h3_draft"]
             videos.append(info)
             notify_timeline("cat_h3_video_ready", node_id=display_id, workflow_id=workflow_id, video=info)
             if contexts:
@@ -379,6 +429,10 @@ class CAP_H3VideoGenerator:
                 for span in row.get("playback_spans", []):
                     span["start_frame"] *= interpolation_multiplier
                     span["frame_count"] *= interpolation_multiplier
+        if source_data is not None:
+            for row in source_data["clips"]:
+                row["h3_drafts"] = [item["h3_draft"] for item in videos if item["clip_id"] == _clip_id(row)]
+            data = source_data
         preview = videos[-1]
         composed_video = ""
         if compose_final:
@@ -401,7 +455,7 @@ class CAP_H3VideoGenerator:
     def _generate_clip(self, model, base_model, clip, vae, audio_vae, data, index, width, height, low_width, low_height,
                        fps, steps, strict_keyframes, second_sampling, upscaler_model, refine_sigmas,
                        audio_refine, audio_refine_steps, normalize_audio, attention, prior_paths,
-                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, motion_deblur=False, face_refine_config=None, selflift_config=None, interpolation=None, audio_refine_config=None):
+                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, motion_deblur=False, face_refine_config=None, selflift_config=None, interpolation=None, audio_refine_config=None, stage="normal", draft_manifest=None):
         if progress:
             progress("prepare")
         row = data["clips"][index]
@@ -425,6 +479,8 @@ class CAP_H3VideoGenerator:
             motion_deblur = False
             face_refine_config = None
         del prepared, low_context
+        if stage == "draft":
+            save_latent = False
         if motion_deblur and frame_count < 22:
             raise ValueError("Motion deblur needs at least 22 frames for MAINodes motion analysis. Lengthen the Clip or disable motion_deblur.")
         if preview_id is not None:
@@ -442,9 +498,11 @@ class CAP_H3VideoGenerator:
         scheduler = selflift_config["scheduler"] if selflift_config else "simple"
         sigmas, = _call("BasicScheduler", records, model=base_model, scheduler=scheduler, steps=steps, denoise=1.0)
         noise, = _call("RandomNoise", records, noise_seed=seed)
-        if progress:
+        if progress and stage != "refine":
             progress("sample")
-        if selflift_config:
+        if stage == "refine":
+            low_result = load_draft_latent(draft_manifest)
+        elif selflift_config:
             negative, = _call("ConditioningZeroOut", records, conditioning=positive)
             parameters = {key: value for key, value in selflift_config.items() if key != "scheduler"}
             low_result, = _call("SelfLiftH3Sampler", records, model=model, positive=positive, negative=negative,
@@ -454,9 +512,13 @@ class CAP_H3VideoGenerator:
         else:
             guider, = _call("BasicGuider", records, model=model, conditioning=positive)
             sampled, denoised = _call("SamplerCustomAdvanced", records, noise=noise, guider=guider, sampler=sampler, sigmas=sigmas, latent_image=latent)
-            low_result = denoised if second_sampling else sampled
+            low_result = denoised if second_sampling or stage == "draft" else sampled
             del sampled, denoised, guider
         del latent
+        candidate = None
+        if stage == "draft":
+            candidate = save_draft(low_result, data, index, low_width, low_height, frame_count, composed_prompt, steps)
+            row["output_video"] = f"{DRAFT_ROOT}/{candidate['id']}/preview.mp4"
         context_prefix = f"h3_context/cap_generator/{run_token}/{hashlib.sha256(cid.encode()).hexdigest()[:16]}"
         low_path = high_path = ""
         if save_latent and not (motion_deblur or face_refine_config):
@@ -583,13 +645,16 @@ class CAP_H3VideoGenerator:
                                                              "audio_refine_config": audio_refine_config if generate_audio and audio_refine else None,
                                                              "digital_human": digital_human,
                                                              "normalize_audio": bool(generate_audio and normalize_audio),
-                                                             "second_sampling": second_sampling, "width": width, "height": height,
+                                                             "second_sampling": second_sampling, "width": low_width if stage == "draft" else width, "height": low_height if stage == "draft" else height,
+                                                             "h3_refine_version": row.get("h3_refine_version"),
                                                              "motion_deblur": motion_deblur,
                                                              "face_refine": bool(face_refine_config), "face_refine_config": face_refine_config,
                                                              "first_pass_width": low_width, "first_pass_height": low_height,
                                                              "frame_interpolation": interpolation, "output_fps": output_fps,
                                                              "h3_timing": output_timing}),
                                         save_sidecar=False, prompt=records, extra_pnginfo=extra_pnginfo, seed=seed, clip_id=cid)
+        if candidate:
+            saved["h3_draft"] = finish_draft(candidate, saved["result"][0])
         return saved, (low_path, high_path) if save_latent else None
 
     def _refine_faces(self, model, positive, samples, images, vae, noise, steps, config,

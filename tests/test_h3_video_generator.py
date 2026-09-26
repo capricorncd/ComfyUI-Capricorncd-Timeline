@@ -1,4 +1,5 @@
 import ast
+import copy
 import hashlib
 import json
 import logging
@@ -55,7 +56,7 @@ class GeneratorTests(unittest.TestCase):
                 owner.composed.append((json.loads(data_json), kw))
                 return {"result": ("compose/final.mp4",), "ui": {"video": [{"filename": "final.mp4", "subfolder": "compose", "type": "output"}]}}
 
-        scope = dict(json=json, hashlib=hashlib, math=math, secrets=secrets,
+        scope = dict(copy=copy, json=json, hashlib=hashlib, math=math, secrets=secrets,
                      plan_h3_clips=h3.plan_h3_clips,
                      _prev_clip_output_video_path=Mock(return_value=""),
                      folder_paths=SimpleNamespace(get_full_path_or_raise=lambda *a: "valid"),
@@ -90,9 +91,84 @@ class GeneratorTests(unittest.TestCase):
         rows = rows or [{"id": "a", "start_ms": 0, "end_ms": 5000, "seed": -1}]
         rows = [{"output_video": f"project/{row['id']}.mp4", **row} for row in rows]
         data = {"width": 1376, "height": 768, "fps": 24, "clips": rows}
+        data["h3_generation"] = kw.pop("h3_generation", {})
         kw.setdefault("sampling_preview", False)
         kw.setdefault("base_model", "base")
         return self.node.generate("base", "clip", "vae", "audio_vae", json.dumps(data), **kw)
+
+    def enable_drafts(self):
+        self.scope["DRAFT_ROOT"] = "capricorncd-timeline/h3_drafts"
+        self.scope["save_draft"] = Mock(side_effect=lambda latent, data, index, *args: {
+            "id": str(index), "clip_id": data["clips"][index]["id"], "seed": data["clips"][index]["seed"]})
+        self.scope["finish_draft"] = lambda manifest, file: {**manifest, "file": file}
+
+    def test_candidates_are_sequential_distinct_and_never_composed(self):
+        self.enable_drafts()
+        result = self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, "seed": 42}],
+            h3_generation={"action": "draft"}, preview_sampling_batch=3, first_pass_megapixels=.2,
+            second_sampling=True, upscaler_model="none")
+        self.assertEqual([kw["noise_seed"] for name, kw in self.calls if name == "RandomNoise"], [42, 43, 44])
+        self.assertEqual(len(self.saved), 3)
+        self.assertTrue(all(item[:2] == (608, 352) for item in self.prepared))
+        self.assertEqual([call.args[0] for call in self.scope["save_draft"].call_args_list], ["denoised"] * 3)
+        self.assertEqual(len({path for path, _ in self.saved}), 3)
+        self.assertFalse(self.composed)
+        self.assertEqual(len(json.loads(result["result"][1])["clips"]), 1)
+        self.assertEqual(len(json.loads(result["result"][1])["clips"][0]["h3_drafts"]), 3)
+        self.assertEqual(len(result["ui"]["clip_videos"]), 3)
+        self.assertTrue(all("h3_draft" in item for item in result["ui"]["clip_videos"]))
+        self.assertNotIn("MinimaxH3LatentUpscaler3D", [name for name, _ in self.calls])
+
+    def test_normal_run_refines_preview_and_generates_other_clips(self):
+        rows = [dict(id="a", start_ms=0, end_ms=5000, seed=42, h3_drafts=[{"id": "saved"}]),
+                dict(id="b", start_ms=5000, end_ms=10000, seed=43)]
+        def latest(data, row):
+            saved = {**row, "seed": 91, "prompt": "saved prompt", "h3_refine_version": "saved"}
+            return {**data, "clips": [saved]}, {"id": "saved", "width": 608, "height": 352}
+        self.scope["latest_draft"] = latest
+        self.scope["load_draft_latent"] = Mock(return_value="persisted-av-latent")
+        self.run_node(rows=rows, upscaler_model="up.safetensors")
+        samples = [kw for name, kw in self.calls if name == "SamplerCustomAdvanced"]
+        self.assertEqual(len(samples), 2)
+        self.assertEqual(samples[0]["sigmas"], "ManualSigmas_output")
+        self.assertEqual([kw["noise_seed"] for name, kw in self.calls if name == "RandomNoise"], [91, 43])
+        self.assertEqual(len(self.saved), 2)
+        self.assertEqual(len(self.composed), 1)
+
+    def test_invalid_previews_fall_back_to_normal_sampling(self):
+        self.scope["latest_draft"] = Mock(return_value=None)
+        self.run_node(rows=[dict(id="a", start_ms=0, end_ms=5000, h3_drafts=[{"id": "missing"}])])
+        self.assertNotIn("ManualSigmas", [name for name, _ in self.calls])
+        self.assertEqual(len(self.saved), 1)
+
+    def test_preview_batch_defaults_to_one(self):
+        self.enable_drafts()
+        self.run_node(h3_generation={"action": "draft"})
+        self.assertEqual(len(self.saved), 1)
+        self.assertEqual(self.scope["save_draft"].call_count, 1)
+
+    def test_preview_batch_does_not_repeat_normal_generation(self):
+        self.run_node(preview_sampling_batch=3)
+        self.assertEqual(len(self.saved), 1)
+
+    def test_refine_uses_saved_latent_seed_prompt_and_skips_first_sampling(self):
+        manifest = {"id": "saved", "width": 608, "height": 352}
+        def restore(data, version):
+            self.assertEqual(version, "saved")
+            data["clips"][0].update(seed=91, prompt="saved prompt", h3_refine_version=version)
+            return data, manifest
+        self.scope["restore_draft"] = restore
+        self.scope["load_draft_latent"] = Mock(return_value="persisted-av-latent")
+        self.run_node(h3_generation={"action": "refine", "version_id": "saved"}, upscaler_model="up.safetensors")
+        samples = [kw for name, kw in self.calls if name == "SamplerCustomAdvanced"]
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(samples[0]["sigmas"], "ManualSigmas_output")
+        separate = next(kw for name, kw in self.calls if name == "LTXVSeparateAVLatent")
+        self.assertEqual(separate["av_latent"], "persisted-av-latent")
+        self.assertEqual(self.prepared[0][2]["prompt"], "saved prompt")
+        self.assertEqual([kw["noise_seed"] for name, kw in self.calls if name == "RandomNoise"], [91])
+        self.assertEqual(json.loads(self.saved[0][1]["metadata"])["h3_refine_version"], "saved")
+        self.assertFalse(self.composed)
 
     def selflift_config(self):
         folders = SimpleNamespace(folder_names_and_paths={"latent_upscale_models": []},

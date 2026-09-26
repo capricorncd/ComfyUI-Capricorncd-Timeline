@@ -29,7 +29,7 @@ class TimelineOutputsTests(unittest.TestCase):
         exec(compile(ast.Module(body=[execute], type_ignores=[]), '<timeline execute>', 'exec'), namespace)
         first = dict(id='a', prompt='First', save_latent=True, generated_videos=[
             dict(file='disabled.mp4', enabled=False), dict(file='existing.mp4'), dict(file='older.mp4')])
-        second = dict(id='b', prompt='Second', h3_motion_context_length=22,
+        second = dict(id='b', prompt='Second', h3_motion_context_length=22, h3_drafts=[{'id': 'preview', 'enabled': True}],
                       head_extend_sec=2, tail_extend_sec=3, generate_preview_video=True)
         instance = SimpleNamespace(
             _project=lambda value: json.loads(value),
@@ -41,6 +41,7 @@ class TimelineOutputsTests(unittest.TestCase):
         rows = json.loads(result[3])['clips']
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['source_clip_id'], 'b')
+        self.assertEqual(rows[0]['h3_drafts'], second['h3_drafts'])
         self.assertEqual(rows[0]['previous_output_video'], 'existing.mp4')
         self.assertEqual(rows[0]['h3_timing']['context_frames'], 22)
         self.assertEqual((rows[0]['start_ms'], rows[0]['end_ms']), (5000, 10000))

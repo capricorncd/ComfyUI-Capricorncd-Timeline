@@ -786,6 +786,7 @@ class CAP_TimelineEditor:
             runtime_row = {
                 "id": f"runtime_{len(runtime_clips) + 1:04d}",
                 "source_clip_id": source_clip_id,
+                "h3_drafts": clip.get("h3_drafts") or [],
                 "clip_type": str(clip.get("type") or "image"),
                 "clip_role": clip_role,
                 "clip_role_custom": clip_role_custom,
@@ -843,6 +844,7 @@ class CAP_TimelineEditor:
         # use it as a unified filename / folder prefix.
         run_timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         data_json = json.dumps({
+            "h3_generation": settings.get("h3_generation") or {},
             "project_version": PROJECT_VERSION,
             "schema_version": SCHEMA_VERSION,
             "fps": fps,

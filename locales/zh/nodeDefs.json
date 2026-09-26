@@ -784,8 +784,8 @@
         "name": "二次采样"
       },
       "first_pass_megapixels": {
-        "name": "一采百万像素",
-        "tooltip": "仅开启二次采样时生效：控制一采尺寸，再放大到 data_json 的工程尺寸。关闭二采时忽略此项，直接使用 data_json 的宽高。"
+        "name": "预览采样百万像素",
+        "tooltip": "预览候选及二采前一采的分辨率。普通单次采样使用工程尺寸。"
       },
       "upscaler_model": {
         "name": "Latent 放大模型"
@@ -812,6 +812,10 @@
       },
       "selflift_config": {
         "name": "SelfLift 配置"
+      },
+      "preview_sampling_batch": {
+        "name": "预览采样批次",
+        "tooltip": "每个 Clip 的预览候选数量，按不同种子逐个生成。仅用于「批量预览采样」，默认 1。"
       }
     },
     "outputs": {

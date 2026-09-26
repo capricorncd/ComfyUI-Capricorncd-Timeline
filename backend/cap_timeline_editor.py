@@ -781,7 +781,7 @@ class CAP_TimelineEditor:
             agent, agent_custom = _clip_agent_fields(clip)
             source_clip_id = str(clip.get("id", ""))
             generated_outputs[source_clip_id] = next((str(video["file"]) for video in clip.get("generated_videos", [])
-                if video.get("enabled", True) and video.get("file")), "")
+                if video.get("enabled", True) and video.get("file") and not video.get("h3_context_from")), "")
             prompt_includes = _timeline_prompt_includes(clip)
             runtime_row = {
                 "id": f"runtime_{len(runtime_clips) + 1:04d}",

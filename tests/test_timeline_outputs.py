@@ -28,6 +28,7 @@ class TimelineOutputsTests(unittest.TestCase):
                          _clip_image_refs=lambda e: [])
         exec(compile(ast.Module(body=[execute], type_ignores=[]), '<timeline execute>', 'exec'), namespace)
         first = dict(id='a', prompt='First', save_latent=True, generated_videos=[
+            dict(file='b_previous_run.mp4', enabled=True, h3_context_from='b-video'),
             dict(file='disabled.mp4', enabled=False), dict(file='existing.mp4'), dict(file='older.mp4')])
         second = dict(id='b', prompt='Second', h3_motion_context_length=22, h3_drafts=[{'id': 'preview', 'enabled': True}],
                       head_extend_sec=2, tail_extend_sec=3, generate_preview_video=True)
@@ -49,6 +50,11 @@ class TimelineOutputsTests(unittest.TestCase):
         self.assertEqual(rows[0]['h3_timing']['play_frames'], 120)
         for removed in ('head_extend_sec', 'tail_extend_sec', 'generate_preview_video'):
             self.assertNotIn(removed, rows[0])
+        original_videos = first['generated_videos']
+        first['generated_videos'] = original_videos[:1]
+        result = namespace['execute'](instance, 24, 864, 480, 'test', json.dumps(project))
+        self.assertNotIn('previous_output_video', json.loads(result[3])['clips'][0])
+        first['generated_videos'] = original_videos
         audio_rows = [{'id': 'audio-reference'}]
         calls = []
         instance._audio_slices = lambda *a: calls.append(a) or audio_rows

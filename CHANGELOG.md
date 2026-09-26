@@ -1,5 +1,25 @@
 # Release notes / 更新记录
 
+## 0.17.24 — 2026-09-27
+
+### English
+
+- Add H3 batch preview sampling with saved AV latents; Run refines the latest valid enabled preview for each Clip and generates other Clips normally.
+- Add preview version management with entry counts, muted loop playback, enable/disable controls and confirmed removal. Removing a version only unlinks it; video, latent and metadata files stay on disk, and undo restores the association.
+- Update new H3 node defaults: Kitchen attention, second sampling, H3 latent upscaler and Tiny VAE when installed, one preview candidate, and final composition off.
+- Reorganize run menus, toolbar order and Clip title/prompt actions; mark storyboard management as experimental.
+- Improve prompt undo and comment handling, storyboard import recovery, overlapping Clip playback and Tiny VAE preview stability.
+- Restart ComfyUI and refresh the browser. Existing node settings remain unchanged.
+
+### 简体中文
+
+- 新增 H3 批量预览采样并保存音视频 latent；运行时逐个 Clip 自动使用最新有效且已启用的预览进行二采，无有效预览则正常生成。
+- 新增预览采样管理，支持入口数量、静音循环播放、启用/禁用和删除确认。删除仅移除关联，保留磁盘上的视频、latent 和版本信息，撤销可恢复关联。
+- 更新新建 H3 节点默认值：Kitchen 注意力、开启二采、优先使用已安装的 H3 latent 放大模型及 Tiny VAE、预览批次为 1、关闭最终合成。
+- 调整运行菜单、工具栏顺序及 Clip 标题/提示词分组；分镜管理标记为实验功能。
+- 改进提示词撤销与注释处理、分镜导入恢复、重叠 Clip 播放及 Tiny VAE 动态预览稳定性。
+- 更新后重启 ComfyUI 并刷新浏览器；已有节点设置保持不变。
+
 ## 0.17.23 — 2026-09-22
 
 ### English

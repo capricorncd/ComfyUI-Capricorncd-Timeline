@@ -139,6 +139,8 @@ class CAP_H3VideoGenerator:
     @classmethod
     def INPUT_TYPES(cls):
         upscale_models = folder_paths.get_filename_list("latent_upscale_models") if "latent_upscale_models" in folder_paths.folder_names_and_paths else []
+        tiny_vaes = folder_paths.get_filename_list("vae_approx")
+        default_upscaler = "minimax_h3_latent_upscaler_3d_fp32.pth"
         return {
             "required": {
                 "model": ("MODEL", {"tooltip": "Sampling model after external acceleration/style LoRA loading. Used for both video passes and their previews; this node does not load LoRAs."}),
@@ -147,18 +149,18 @@ class CAP_H3VideoGenerator:
                 "audio_vae": ("VAE",),
                 "data_json": ("STRING", {"default": "", "multiline": True, "forceInput": True}),
                 "steps": (["4", "8"], {"default": "8"}),
-                "second_sampling": ("BOOLEAN", {"default": False}),
+                "second_sampling": ("BOOLEAN", {"default": True}),
                 "first_pass_megapixels": ("FLOAT", {"default": 0.2, "min": 0.01, "max": 8.0, "step": 0.01, "tooltip": "Resolution for preview candidates and the first pass of second sampling. Ordinary single-pass generation uses data_json dimensions."}),
-                "upscaler_model": (["none"] + upscale_models,),
+                "upscaler_model": (["none"] + upscale_models, {"default": default_upscaler if default_upscaler in upscale_models else "none"}),
                 "refine_sigmas": ("STRING", {"default": REFINE_SIGMAS}),
                 "normalize_audio": ("BOOLEAN", {"default": False, "tooltip": "Normalize to -14 LUFS; requires WanVideoWrapper NormalizeAudioLoudness."}),
-                "attention": (["keep", "pytorch attention", "comfy kitchen attention"], {"default": "keep"}),
+                "attention": (["keep", "pytorch attention", "comfy kitchen attention"], {"default": "comfy kitchen attention"}),
             },
             "optional": {
                 "base_model": ("MODEL", {"tooltip": "Optional for audio repair and the base schedule; omitted uses the sampling model. Motion deblur requires this input without acceleration LoRA for its extra repair pass."}),
-                "compose_final": ("BOOLEAN", {"default": True, "tooltip": "After all requested Clips finish, trim and join their generated videos with original audio. Uses data_json H3 context replacement. Does not render subtitle/media tracks from the editor."}),
+                "compose_final": ("BOOLEAN", {"default": False, "tooltip": "After all requested Clips finish, trim and join their generated videos with original audio. Uses data_json H3 context replacement. Does not render subtitle/media tracks from the editor."}),
                 "sampling_preview": ("BOOLEAN", {"default": True, "tooltip": "Show sampling animation in this node, then the completed Clip video. Requires KJNodes; no external preview node or frame-count connection needed."}),
-                "preview_tiny_vae": (["none"] + folder_paths.get_filename_list("vae_approx"), {"default": "none", "tooltip": "Select taeh3.safetensors for H3 RGB previews if installed in models/vae_approx. none uses approximate latent colors; completed videos always use the full VAE."}),
+                "preview_tiny_vae": (["none"] + tiny_vaes, {"default": "taeh3.safetensors" if "taeh3.safetensors" in tiny_vaes else "none", "tooltip": "Select taeh3.safetensors for H3 RGB previews if installed in models/vae_approx. none uses approximate latent colors; completed videos always use the full VAE."}),
                 "generate_audio": ("BOOLEAN", {"default": True, "tooltip": "Include generated audio in Clip and final videos. Off skips audio repair, decoding, normalization and audio encoding for silent MV footage. H3 still jointly samples the audio latent; reference audio is preserved."}),
                 "motion_deblur": ("BOOLEAN", {"default": False, "tooltip": "Experimental MAINodes motion repair after video sampling. Requires ComfyUI-MAINodes and base_model without acceleration LoRA. Extra sampling/encode/decode increases time and memory; motion details may change. Keeps original frame count, audio and context prefix."}),
                 "audio_refine_config": ("CAP_H3_AUDIO_REFINE_CONFIG", {"tooltip": "Connect H3 Audio Refine Config. Disconnected or disabled skips audio repair."}),

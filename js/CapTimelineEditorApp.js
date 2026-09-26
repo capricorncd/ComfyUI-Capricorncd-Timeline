@@ -3799,7 +3799,7 @@ export class CapTimelineEditorApp {
                   <textarea class="cat-te-prompt-input cat-te-final-prompt" readonly placeholder="${T("final_composed_prompt_placeholder")}" disabled></textarea>
                 </div>
               </div>
-              <cap-button class="cat-te-h3-drafts-open" disabled>${draftT("title")}</cap-button>
+              <cap-button class="cat-te-h3-drafts-open" disabled>${draftT("title")} (0)</cap-button>
               <div class="cat-te-clip-videos" hidden>
                 <div class="cat-te-clip-videos-header">
                   <span>${T("gen_video_label")}</span>
@@ -16578,7 +16578,7 @@ export class CapTimelineEditorApp {
                 : { label: T("menu_run"), icon: "play", fn: () => void this._runClipDownstream(clip) });
             generation.push(
                 { label: draftT("generate"), icon: "listCollapse", fn: () => void this._runH3Stage(clip, "draft") },
-                { label: draftT("title"), icon: "video", fn: () => this._h3DraftVersions.open(clip) },
+                { label: `${draftT("title")} (${(m.h3Drafts || []).length})`, icon: "video", fn: () => this._h3DraftVersions.open(clip) },
                 { label: T("run_track_right_menu"), icon: "chevronRight", fn: () => void this._runSelectedTrackSide("right", clip) },
                 { label: T("run_track_left_menu"), icon: "chevronLeft", fn: () => void this._runSelectedTrackSide("left", clip) },
             );
@@ -17035,6 +17035,7 @@ export class CapTimelineEditorApp {
             meta.h3Drafts ||= [];
             if (!meta.h3Drafts.some(row => row.id === version.id)) meta.h3Drafts.unshift({...version, enabled: true});
             this._saveToWidgets();
+            if (this._selClip?.id === clip.id) this._setVisualSettingsEnabled(true, meta);
             if (this._h3DraftVersions?.dialog.open && this._h3DraftVersions.clipId === clip.id) this._h3DraftVersions.render();
         } else {
             target.h3_drafts ||= [];
@@ -18709,7 +18710,10 @@ export class CapTimelineEditorApp {
     _setVisualSettingsEnabled(enabled, m = null) {
         const disabled = !enabled;
         const draftsButton = this._overlay?.querySelector(".cat-te-h3-drafts-open");
-        if (draftsButton) draftsButton.disabled = disabled;
+        if (draftsButton) {
+            draftsButton.disabled = disabled;
+            draftsButton.textContent = `${draftT("title")} (${(m?.h3Drafts || []).length})`;
+        }
         if (this.useAudioTrackAudioCb) {
             this.useAudioTrackAudioCb.disabled = disabled;
             this.useAudioTrackAudioCb.checked = enabled && !!m?.useAudioTrackAudio;

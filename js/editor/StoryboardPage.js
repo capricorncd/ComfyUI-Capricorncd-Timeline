@@ -11,6 +11,7 @@ export { normalizeStoryboards } from './StoryboardDocument.js';
 
 export const storyboardT = makeT({
     en: {
+        experimental: 'Experimental', experimental_hint: 'Experimental feature; may be removed at any time.',
         import: 'Import storyboards', first: 'Create first shot', import_failed: 'Could not import storyboard JSON. Current shots are unchanged.',
         unbind: 'Unbind {name}',
         above: 'Above', below: 'Below',
@@ -27,6 +28,7 @@ export const storyboardT = makeT({
         image: 'Reference image', no_image: 'No image', seconds: 's', count: '{n} shots',
     },
     zh: {
+        experimental: '实验', experimental_hint: '实验性功能，随时可能移除。',
         import: '导入分镜', first: '创建第一个分镜', import_failed: '无法导入分镜 JSON，当前分镜未修改。',
         unbind: '解绑 {name}',
         above: '上方', below: '下方',
@@ -43,6 +45,7 @@ export const storyboardT = makeT({
         image: '参考图片', no_image: '无图片', seconds: '秒', count: '{n} 个分镜',
     },
     ja: {
+        experimental: '実験的', experimental_hint: '実験的な機能です。予告なく削除される場合があります。',
         import: '絵コンテをインポート', first: '最初のショットを作成', import_failed: '絵コンテ JSON を読み込めません。現在のショットは変更されていません。',
         unbind: '{name}の関連付けを解除',
         above: '上', below: '下',
@@ -81,7 +84,7 @@ export class StoryboardPage {
         this.el = document.createElement('section');
         this.el.className = 'cat-te-storyboard';
         this.el.hidden = true;
-        this.el.innerHTML = `<div class="cat-te-storyboard-toolbar"><span>${T('title')}</span><span data-count></span><cap-button size="regular" data-add variant="accent">${T('add')}</cap-button><cap-button size="regular" data-import>${T('import')}</cap-button><cap-button size="regular" data-from-clips>${T('from_clips')}</cap-button></div><cap-status-message hidden></cap-status-message><div class="cat-te-storyboard-list"></div><div class="cat-te-storyboard-empty" data-empty><p>${T('empty')}</p><div><cap-button size="regular" data-import>${T('import')}</cap-button><cap-button size="regular" data-add variant="primary">${T('first')}</cap-button></div></div><input data-import-file type="file" accept=".json,application/json" hidden>`;
+        this.el.innerHTML = `<div class="cat-te-storyboard-toolbar"><span>${T('title')}</span><cap-tag variant="amber" title="${T('experimental_hint')}" aria-label="${T('experimental_hint')}">${T('experimental')}</cap-tag><span data-count></span><cap-button size="regular" data-add variant="accent">${T('add')}</cap-button><cap-button size="regular" data-import>${T('import')}</cap-button><cap-button size="regular" data-from-clips>${T('from_clips')}</cap-button></div><cap-status-message hidden></cap-status-message><div class="cat-te-storyboard-list"></div><div class="cat-te-storyboard-empty" data-empty><p>${T('empty')}</p><div><cap-button size="regular" data-import>${T('import')}</cap-button><cap-button size="regular" data-add variant="primary">${T('first')}</cap-button></div></div><input data-import-file type="file" accept=".json,application/json" hidden>`;
         const close = document.createElement('cap-button');
         close.setAttribute('shape', 'square');
         close.setAttribute('size', 'regular');

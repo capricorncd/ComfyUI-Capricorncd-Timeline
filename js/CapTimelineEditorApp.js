@@ -4764,6 +4764,7 @@ export class CapTimelineEditorApp {
         this.programEmpty = el.querySelector(".cat-te-program-empty");
         this.programMeta = el.querySelector(".cat-te-program-meta");
         this._storyboardPage = new StoryboardPage({
+            onClose: () => this._setStoryboardMode(false),
             getClips: () => (this._timeline?.tracks || []).filter(track => isDirectorTrackType(track.type))
                 .flatMap(track => track.clips).sort((a, b) => a.startTime - b.startTime)
                 .map(clip => ({ id: clip.id, name: clip.name || clip.id })),

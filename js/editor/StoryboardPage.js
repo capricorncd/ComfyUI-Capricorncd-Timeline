@@ -5,6 +5,7 @@ import '../components/FormControls.js';
 import '../components/Tag.js';
 import { t as editorT } from '../i18n/timeline_editor.js';
 import { makeT } from '../cap_i18n.js';
+import { iconHtml } from '../cap_icons.js';
 import { parseStoryboardDocument, normalizeStoryboards, STORYBOARD_TEXT_FIELDS as TEXT_FIELDS } from './StoryboardDocument.js';
 export { normalizeStoryboards } from './StoryboardDocument.js';
 
@@ -68,7 +69,7 @@ const SHOT_OPTIONS = {
 };
 
 export class StoryboardPage {
-    constructor({ onChange, onSelect, onGenerate, getClips = () => [] }) {
+    constructor({ onChange, onSelect, onGenerate, onClose, getClips = () => [] }) {
         this.getClips = getClips;
         this.onChange = onChange;
         this.onSelect = onSelect;
@@ -81,6 +82,14 @@ export class StoryboardPage {
         this.el.className = 'cat-te-storyboard';
         this.el.hidden = true;
         this.el.innerHTML = `<div class="cat-te-storyboard-toolbar"><span>${T('title')}</span><span data-count></span><cap-button size="regular" data-add variant="accent">${T('add')}</cap-button><cap-button size="regular" data-import>${T('import')}</cap-button><cap-button size="regular" data-from-clips>${T('from_clips')}</cap-button></div><cap-status-message hidden></cap-status-message><div class="cat-te-storyboard-list"></div><div class="cat-te-storyboard-empty" data-empty><p>${T('empty')}</p><div><cap-button size="regular" data-import>${T('import')}</cap-button><cap-button size="regular" data-add variant="primary">${T('first')}</cap-button></div></div><input data-import-file type="file" accept=".json,application/json" hidden>`;
+        const close = document.createElement('cap-button');
+        close.setAttribute('shape', 'square');
+        close.setAttribute('size', 'regular');
+        close.setAttribute('title', T('playback'));
+        close.setAttribute('aria-label', T('playback'));
+        close.innerHTML = iconHtml('close', 18);
+        close.addEventListener('click', () => onClose?.());
+        this.el.querySelector('.cat-te-storyboard-toolbar').append(close);
         const importFile = this.el.querySelector('[data-import-file]');
         for (const button of this.el.querySelectorAll('[data-import]')) button.addEventListener('click', () => importFile.click());
         importFile.addEventListener('change', async () => {

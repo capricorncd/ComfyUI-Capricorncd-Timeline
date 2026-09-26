@@ -16533,12 +16533,14 @@ export class CapTimelineEditorApp {
             : !isSubtitle && !!this._firstEnabledGeneratedVideo(m);
         const t = this._timeline.currentTime;
         const canSplit = t > clip.startTime && t < clip.endTime;
-        const generation = [], prompts = [], media = [], audio = [];
+        const generation = [], media = [], audio = [];
         const editing = [
             { label: T("insert_clip_title"), icon: "insert", fn: () => openInsertClip(this, clip) },
             ...(canSplit ? [{ label: T("menu_split"), icon: "scissors", fn: () => this._splitClip(clip) }] : []),
             { label: T("menu_copy_shortcut"), icon: "copy", fn: () => this._copySelectedClips() },
             { label: T("menu_paste_shortcut"), icon: "clipboard", fn: () => this._pasteClips() },
+        ];
+        const prompts = [
             { label: T("menu_set_title"), icon: "pencil", fn: () => this._renameClip(clip) },
         ];
         if (isAudio) {
@@ -16612,7 +16614,7 @@ export class CapTimelineEditorApp {
             { label: T("delete_btn"), icon: "trash", shortcut: "Delete", fn: () => this._deleteClip(clip), danger: true },
         ];
         const items = [];
-        for (const group of [generation, prompts, editing, media, audio, grouping, state]) {
+        for (const group of [generation, editing, prompts, media, audio, grouping, state]) {
             if (!group.length) continue;
             if (items.length) items.push({ separator: true });
             items.push(...group);
@@ -18059,7 +18061,6 @@ export class CapTimelineEditorApp {
         packageBtn.title = T("insert_empty_clip_title");
         packageBtn.textContent = T("insert_clip_btn");
         packageBtn.bindMenu(e => this._showInsertClipMenu(e));
-        tl.toolbarEl.appendChild(packageBtn);
         this.insertClipBtn = packageBtn;
 
         this.editModeBtn = document.createElement("cap-button");
@@ -18078,8 +18079,7 @@ export class CapTimelineEditorApp {
         this.runMenuBtn.textContent = T("run_btn_label");
         this.runMenuBtn.title = T("run_menu_title");
         this.runMenuBtn.bindMenu(e => this._showRunMenu(e));
-        tl.toolbarEl.appendChild(this.runMenuBtn);
-        tl.toolbarEl.appendChild(this.editModeBtn);
+        tl.toolbarEl.append(this.editModeBtn, this.runMenuBtn, packageBtn);
         const moreBtn = document.createElement("cap-dropdown-button");
         moreBtn.setAttribute("hide-caret", "");
         moreBtn.className = "tl-btn-more";
@@ -18135,6 +18135,7 @@ export class CapTimelineEditorApp {
         if (addTrackBtn) {
             const neu = addTrackBtn.cloneNode(true);
             addTrackBtn.replaceWith(neu);
+            tl.toolbarEl.insertBefore(neu, moreBtn);
             neu.bindMenu(e => this._showAddTrackMenu(e));
         }
 

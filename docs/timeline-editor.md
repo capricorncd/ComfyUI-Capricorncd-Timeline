@@ -2,7 +2,9 @@
 
 **Category:** `Capricorncd`
 
-The extension's main editor for **one-click video creation**, **targeted clip editing**, **separate project management**, and **project and asset import/export** in ComfyUI. Use a connected generation workflow to create a complete video, then adjust and regenerate individual clips while keeping the other results. Arrange images, videos, and audio on a fullscreen multi-track timeline, set image keyframes and per-clip prompts, regenerate selected segments through your workflow, then preview and compose generated videos with audio.
+The extension's main editor for **longer AI video projects, including music videos and short dramas**, in ComfyUI. Organize a song or story into clips on a multi-track timeline, manage prompts and character/scene references in one project, and generate each segment with a connected workflow. Review takes, regenerate selected clips while keeping the other results, then edit and compose the video with audio and subtitles.
+
+For music videos, arrange shots against the music and adjust their timing. For short dramas, organize scene order and reference assets per Clip. Project import/export preserves the assets and workflow for continued editing. The final video combines multiple clips; individual generation lengths depend on the model and workflow.
 
 Timeline Editor stores a **track-nested `project_json`** and emits a compact runtime `data_json` with per-clip audio slices.
 

@@ -6,13 +6,23 @@
   <img src="./docs/branding/timeline-mark.svg" width="160" alt="Capricorncd Timeline" />
 </p>
 
-A visual timeline editor for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Arrange shots, write prompts, generate clips with your connected workflow, then edit and compose the results without leaving ComfyUI.
+A visual timeline editor for **longer AI video projects in [ComfyUI](https://github.com/comfyanonymous/ComfyUI)**, especially **music videos, short dramas, and stories spanning multiple shots**. Manage prompts, reference assets, generated takes, audio, and subtitles in one project—from shot planning and clip generation to editing and final composition.
+
+Build a complete video from manageable clips: generate them with your connected workflow, review each take, and regenerate only the shots that need changes. Keep the rest of the project in place, then assemble and export the video directly in ComfyUI.
 
 Can be used with [local-ai-service](https://github.com/capricorncd/local-ai-service).
 
 ![Timeline Editor](docs/timeline-editor.jpg)
 
-## Create and refine a video in one place
+## Built for music videos and short dramas
+
+- **Music videos:** arrange shots along a music track, adjust cuts and clip lengths to the song, and combine generated footage, lyrics or subtitles, and audio into the final video.
+- **Short dramas:** organize a story as a sequence of shots, manage character and scene references alongside each Clip's prompt, and refine individual takes while keeping the scene order and other results.
+- **Longer productions:** keep generation and editing in one timeline project. Save and export the project with its assets and workflow to continue later or reuse it for another video.
+
+The full video is assembled from generated clips; each clip's duration and capabilities depend on the selected model and workflow.
+
+## From shot planning to a finished video
 
 - **Plan your shots:** organize director, media, audio and subtitle tracks; attach reference images, first/last frames and videos to each Clip.
 - **Generate only what needs changing:** run individual clips or enabled clips to the left/right; retain previous generated takes and choose which to use.
@@ -36,7 +46,7 @@ The interface follows ComfyUI's locale setting: **English / 简体中文 / 日�
 ## Quick start
 
 1. After installation, open an [example workflow](workflows/).
-2. Open **Timeline Editor**, import media, set the project size and frame rate, then arrange your clips.
+2. Open **Timeline Editor**, import reference assets and any music or audio, set the project size and frame rate, then arrange clips around your song or story.
 3. Add references and Clip prompts. Connect the model-specific generation workflow and run the required clips.
 4. Review linked generated videos. Trim takes, mute unwanted audio, and add media overlays or subtitles.
 5. Choose **Export → Compose Video**, or export a project package for later editing.

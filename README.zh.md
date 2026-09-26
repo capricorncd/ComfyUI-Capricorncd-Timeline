@@ -8,6 +8,8 @@
 
 面向 [ComfyUI](https://github.com/comfyanonymous/ComfyUI) 的可视化时间轴编辑器。在同一个界面编排镜头、管理提示词、通过已连接的工作流生成片段，再剪辑并合成视频。
 
+可以配合 [local-ai-service](https://github.com/capricorncd/local-ai-service) 使用。
+
 ![时间轴编辑器](docs/timeline-editor.jpg)
 
 ## 从镜头编排到视频交付

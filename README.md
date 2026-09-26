@@ -8,6 +8,8 @@
 
 A visual timeline editor for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Arrange shots, write prompts, generate clips with your connected workflow, then edit and compose the results without leaving ComfyUI.
 
+Can be used with [local-ai-service](https://github.com/capricorncd/local-ai-service).
+
 ![Timeline Editor](docs/timeline-editor.jpg)
 
 ## Create and refine a video in one place

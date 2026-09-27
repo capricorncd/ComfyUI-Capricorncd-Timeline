@@ -2,6 +2,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { ComfyWidgets } from "../../scripts/widgets.js";
 import { CapTimelineEditorApp } from "./CapTimelineEditorApp.js";
+import { isEditingField } from "./timeline/utils.js";
 
 const NODE_CLASS = "CAP_TimelineEditor";
 const SCALAR_WIDGETS = ["fps", "width", "height"];
@@ -373,6 +374,11 @@ function hookScalarWidgets(node) {
 function onTeGlobalKeyDown(e) {
     const te = CapTimelineEditorApp._open;
     if (!te) return;
+    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && isEditingField(e)) {
+        // Keep native caret movement; neither timeline nor graph shortcuts own these keys.
+        e.stopImmediatePropagation();
+        return;
+    }
     if (e.key === "Alt") {
         e.preventDefault();
         e.stopPropagation();

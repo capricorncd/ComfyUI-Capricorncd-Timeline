@@ -1,0 +1,45 @@
+<!doctype html><meta charset="utf-8"><title>Prompt cursor shortcuts</title>
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app={};"}}</script>
+<label>Clip prompt<textarea>abcdef</textarea></label>
+<cap-shot-control></cap-shot-control>
+<div tabindex="0" id="timeline">Timeline</div>
+<pre id="result">RUNNING</pre>
+<script type="module">
+import '../js/components/ShotControl.js';
+import {isEditingField} from '../js/timeline/utils.js';
+const assert = (condition, message) => { if (!condition) throw Error(message); };
+try {
+    const source = await (await fetch('../js/cap_timeline_editor.js')).text();
+    const start = source.indexOf('function onTeGlobalKeyDown(');
+    const state = {_open:{handleModalKey:()=>false, handleGenEditKey:()=>false,
+        handleShortcutKey:()=>false, handleMediaPreviewKey:()=>false,
+        handleAiOptimizeKey:()=>false, handleDeleteKey:()=>false}};
+    const handler = new Function('CapTimelineEditorApp', 'isEditingField',
+        source.slice(start, source.indexOf('\nfunction onTeGlobalKeyUp', start)) + ';return onTeGlobalKeyDown;')(state, isEditingField);
+    window.addEventListener('keydown', handler, true);
+    let shortcuts = 0;
+    window.addEventListener('keydown', event => {
+        if (!['ArrowLeft','ArrowRight'].includes(event.key)) return;
+        shortcuts++; event.preventDefault();
+    }, true);
+    const panel = document.querySelector('cap-shot-control');
+    panel.configure({description:'abcdef'},0,24,false,{title:'Keyframe',description:'Keyframe prompt',hint:'',delete:'Delete',insert:'Insert'});
+    for (const field of [document.querySelector('textarea'), panel.description]) {
+        field.focus();
+        for (const key of ['ArrowLeft', 'ArrowRight']) for (const mods of [{}, {shiftKey:true}, {ctrlKey:true}, {repeat:true}]) {
+            const event = new KeyboardEvent('keydown', {key,code:key,bubbles:true,composed:true,cancelable:true,...mods});
+            field.dispatchEvent(event);
+            assert(!event.defaultPrevented, 'Native caret/selection movement was prevented');
+        }
+    }
+    assert(shortcuts === 0, 'Prompt editing triggered an external shortcut');
+    const timeline = document.querySelector('#timeline');
+    timeline.focus();
+    timeline.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true,cancelable:true}));
+    assert(shortcuts === 1, 'Timeline navigation was blocked outside text fields');
+    document.querySelector('#result').textContent = 'PASS: prompt and shadow keyframe caret/selection keys remain native; timeline shortcuts still work';
+} catch (error) {
+    document.querySelector('#result').textContent = 'FAIL: ' + error.stack;
+    throw error;
+}
+</script>

@@ -1,5 +1,25 @@
 # Release notes / 更新记录
 
+## 0.17.26 — 2026-09-27
+
+### English
+
+- Add shared-model H3 automatic prompting and per-Clip Prompt Skill lists with custom entries, enable/disable controls, import and export.
+- Add storyboard-grid and multi-keyframe Clip types, plus image asset grid classification and panel counts.
+- Enable final H3 composition by default, reuse single-video outputs, and add full-video concatenation without timeline trimming.
+- Simplify Clip continuation and automatically save predecessor latents; replace keyframe interval selection mode with an Exclude checkbox.
+- Keep the selected Clip preview active during related-Clip runs, and update named prompt references when assets are renamed.
+- Restart ComfyUI and refresh the browser. Existing node settings remain unchanged.
+
+### 简体中文
+
+- 新增共用文本模型的 H3 自动提示词流程，以及每个 Clip 的 Prompt Skill 列表，支持自定义、启用/禁用、导入和导出。
+- 新增宫格分镜、多关键帧 Clip 类型，以及图片素材的宫格分类和数量设置。
+- H3 默认开启最终合成，单视频直接复用；新增不按时间轴裁剪的完整视频拼接。
+- 简化 Clip 续接并自动保存前置 Clip latent；关键帧区间选择改为“除外”复选框。
+- 修复关联 Clip 运行时当前 Clip 的弹窗预览，并在素材改名时同步更新提示词中的名称引用。
+- 更新后重启 ComfyUI 并刷新浏览器；已有节点设置保持不变。
+
 ## 0.17.25 — 2026-09-27
 
 ### English

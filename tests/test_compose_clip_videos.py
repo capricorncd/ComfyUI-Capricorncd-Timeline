@@ -28,6 +28,12 @@ class TrimTests(unittest.TestCase):
         clip = dict(start_ms=0, end_ms=5000, h3_motion_context_length=context, save_latent=save, **extra)
         return scope["_trim_plan"](None, clip, "test.mp4", True, 24, {"save_latent": previous})
 
+    def test_full_video_mode_ignores_clip_and_h3_trim_metadata(self):
+        clip = dict(start_ms=0, end_ms=5000, h3_motion_context_length=39,
+                    head_trim_ms=1000, tail_end_ms=4000,
+                    h3_timing={"raw_frames": 175, "context_frames": 39, "tail_frames": 16})
+        self.assertEqual(scope["_trim_plan"](None, clip, "test.mp4", False, 24, {"save_latent": True}), (None, None))
+
     def test_raw_context(self):
         self.assertEqual(self.plan(175), (39 / 24, 136 / 24))
 

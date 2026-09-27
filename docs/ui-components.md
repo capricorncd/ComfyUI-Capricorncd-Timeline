@@ -239,3 +239,7 @@ Timeline prompt fields and `ShotControl.setMentionSource(getAssets)` share this 
 Verify with `node tests/test_prompt_mentions.mjs`, `python -m unittest discover -s tests -p test_h3_prompt_mentions.py`, and `tests/prompt_mentions.browser.html`.
 
 The media carousel accepts `allowLastFrame` and item `lastFrame` state; its bottom-right icon emits `media-edit` with action `last-frame`. In First+Last Frame mode the editor stores `last_frame_media_id` on the Clip, with undo and localized set/clear labels. Assigning a tail image moves it to the end when another enabled image supplies the first frame; a tail-only Clip keeps its order. H3 and Data Json Clip Parser honor that assignment independently of media order; a disabled assigned image is omitted. H3 also accepts a last-frame-only image. Without an assignment, existing ordered-image behavior is preserved.
+
+## Clip Prompt Skills
+
+`PromptSkills.js` provides `<cap-prompt-skills>`. Call `configure(rows, disabled)` with `{id, name, text, enabled}` entries. It emits `skills-change` with copied `detail.rows`; the caller owns Clip binding, undo and project persistence. The component owns custom entry editing, enable switches, deletion, JSON export and atomic JSON/Markdown/TXT import. File contents are displayed as text. Preset selection remains in the existing Skill picker. Tests: `test_prompt_skills.mjs` and `test_h3_shared_prompt.py`.

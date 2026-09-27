@@ -2,9 +2,9 @@ import './Button.js';
 import { iconHtml } from '../cap_icons.js';
 import { makeT } from '../cap_i18n.js';
 const T = makeT({
-    zh: { title: '选择关联素材', search: '搜索素材名称…', all: '全部', character: '角色', scene: '场景', prop: '道具', other: '其他', empty: '没有匹配的素材', close: '关闭素材列表' },
-    en: { title: 'Select linked asset', search: 'Search asset names…', all: 'All', character: 'Characters', scene: 'Scenes', prop: 'Props', other: 'Other', empty: 'No matching assets', close: 'Close asset list' },
-    ja: { title: '関連素材を選択', search: '素材名を検索…', all: 'すべて', character: 'キャラクター', scene: 'シーン', prop: '小道具', other: 'その他', empty: '一致する素材がありません', close: '素材一覧を閉じる' },
+    zh: { title: '选择关联素材', search: '搜索素材名称…', all: '全部', character: '角色', scene: '场景', prop: '道具', grid_storyboard: '宫格图', other: '其他', empty: '没有匹配的素材', close: '关闭素材列表' },
+    en: { title: 'Select linked asset', search: 'Search asset names…', all: 'All', character: 'Characters', scene: 'Scenes', prop: 'Props', grid_storyboard: 'Storyboard grids', other: 'Other', empty: 'No matching assets', close: 'Close asset list' },
+    ja: { title: '関連素材を選択', search: '素材名を検索…', all: 'すべて', character: 'キャラクター', scene: 'シーン', prop: '小道具', grid_storyboard: '絵コンテ', other: 'その他', empty: '一致する素材がありません', close: '素材一覧を閉じる' },
 });
 
 export function mentionQuery(value, cursor) {
@@ -43,7 +43,7 @@ export class PromptMentions extends HTMLElement {
         this.search.placeholder = T('search');
         this.search.setAttribute('aria-label', T('search'));
         this.search.oninput = () => this.render();
-        for (const key of ['all', 'character', 'scene', 'prop', 'other']) {
+        for (const key of ['all', 'character', 'scene', 'prop', 'grid_storyboard', 'other']) {
             const button = document.createElement('cap-button');
             button.textContent = T(key);
             button.setAttribute('size', 'small');

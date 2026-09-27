@@ -140,7 +140,7 @@ class CAP_H3VideoGenerator:
         "the generated clips with their original audio, using the existing H3 timing rules. "
         "sampling_preview defaults to true and requires KJNodes; previews use each Clip's actual frame count "
         "in this node without an external preview override. Select an installed H3 Tiny VAE for RGB previews. "
-        "video_files is a STRING list; data_json is a single updated object; composed_video is empty when composition is off."
+        "A single generated video is returned directly without recomposition. video_files is a STRING list; data_json is a single updated object; composed_video is empty when composition is off."
     )
 
     @classmethod
@@ -165,7 +165,7 @@ class CAP_H3VideoGenerator:
             },
             "optional": {
                 "base_model": ("MODEL", {"tooltip": "Optional for audio repair and the base schedule; omitted uses the sampling model. Motion deblur requires this input without acceleration LoRA for its extra repair pass."}),
-                "compose_final": ("BOOLEAN", {"default": False, "tooltip": "After all requested Clips finish, trim and join their generated videos with original audio. Uses data_json H3 context replacement. Does not render subtitle/media tracks from the editor."}),
+                "compose_final": ("BOOLEAN", {"default": True, "tooltip": "After all requested Clips finish, trim and join multiple generated videos with original audio. A single video is returned directly without recomposition. Uses data_json H3 context replacement. Does not render subtitle/media tracks from the editor."}),
                 "sampling_preview": ("BOOLEAN", {"default": True, "tooltip": "Show sampling animation in this node, then the completed Clip video. Requires KJNodes; no external preview node or frame-count connection needed."}),
                 "preview_tiny_vae": (["none"] + tiny_vaes, {"default": "taeh3.safetensors" if "taeh3.safetensors" in tiny_vaes else "none", "tooltip": "Select taeh3.safetensors for H3 RGB previews if installed in models/vae_approx. none uses approximate latent colors; completed videos always use the full VAE."}),
                 "generate_audio": ("BOOLEAN", {"default": True, "tooltip": "Include generated audio in Clip and final videos. Off skips audio repair, decoding, normalization and audio encoding for silent MV footage. H3 still jointly samples the audio latent; reference audio is preserved."}),
@@ -174,6 +174,7 @@ class CAP_H3VideoGenerator:
                 "face_refine_config": ("CAP_H3_FACE_REFINE_CONFIG", {"tooltip": "Connect H3 Face Refine Config. Enable or disable repair on that config node."}),
                 "selflift_config": ("CAP_H3_SELFLIFT_CONFIG",),
                 "interpolation_config": ("CAP_H3_INTERPOLATION_CONFIG", {"tooltip": "Connect H3 Interpolation Config. Enable or disable interpolation on that config node."}),
+                "concat_full_videos": ("BOOLEAN", {"default": False, "tooltip": "When compose_final is enabled, concatenate complete generated files in generation order. Keep all frames and original audio; ignore Clip durations, context replacement and head/tail trimming. Also supports keyframe interval runs. A single file is reused."}),
                 "preview_sampling_batch": ("INT", {"default": 1, "min": 1, "max": 100, "tooltip": "Number of preview candidates per Clip, generated sequentially with different seeds. Only used by Batch preview sampling."}),
             },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "unique_id": "UNIQUE_ID", "dynprompt": "DYNPROMPT"},
@@ -190,7 +191,7 @@ class CAP_H3VideoGenerator:
                  prompt=None, extra_pnginfo=None,
                  unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False,
                  face_refine_config=None, selflift_config=None,
-                 interpolation_config=None, audio_refine_config=None, preview_sampling_batch=1):
+                 interpolation_config=None, audio_refine_config=None, preview_sampling_batch=1, concat_full_videos=False):
         data = json.loads(data_json)
         width, height, fps = _validate(data)
         request = data.get("h3_generation") or {}
@@ -198,7 +199,7 @@ class CAP_H3VideoGenerator:
         if stage not in ("normal", "draft", "refine"):
             raise ValueError("Unknown H3 generation action.")
         segmented = stage == "normal" and expand_keyframe_runs(data)
-        if segmented:
+        if segmented and not concat_full_videos:
             compose_final = False
         previews = {i: latest_draft(data, row) for i, row in enumerate(data["clips"]) if row.get("h3_drafts")} if stage == "normal" else {}
         previews = {i: value for i, value in previews.items() if value is not None}
@@ -375,7 +376,7 @@ class CAP_H3VideoGenerator:
             phases.append("interpolate")
         phases.append("save")
         clip_total = len(data["clips"])
-        total_units = clip_total * len(phases) + int(compose_final)
+        total_units = clip_total * len(phases) + int(compose_final and clip_total > 1)
 
         def progress(phase):
             if phase == "done":
@@ -453,8 +454,8 @@ class CAP_H3VideoGenerator:
                 row["h3_drafts"] = [item["h3_draft"] for item in videos if item["clip_id"] == _clip_id(row)]
             data = source_data
         preview = videos[-1]
-        composed_video = ""
-        if compose_final:
+        composed_video = paths[0] if compose_final and len(paths) == 1 else ""
+        if compose_final and len(paths) > 1:
             comfy.model_management.throw_exception_if_processing_interrupted()
             progress("compose")
             # This list is the explicit run scope, including individually requested disabled clips.
@@ -462,7 +463,7 @@ class CAP_H3VideoGenerator:
             composed = CAP_ComposeClipVideos().execute(
                 json.dumps(compose_data, ensure_ascii=False),
                 filename_prefix=f"capricorncd-timeline/compose/{run_token}",
-                trim_extends=True, use_original_audio=generate_audio, save_sidecar=False,
+                trim_extends=not concat_full_videos, use_original_audio=generate_audio, save_sidecar=False,
                 prompt=records, extra_pnginfo=extra_pnginfo,
             )
             composed_video = composed["result"][0]

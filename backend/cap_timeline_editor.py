@@ -125,7 +125,7 @@ def _clip_image_refs(entries: list) -> list[dict]:
     return out
 
 
-_CLIP_ROLES = ("multi_ref", "first_last", "digital_human", "t2v", "video_ref", "video_edit", "other")
+_CLIP_ROLES = ("multi_ref", "grid_storyboard", "multi_keyframe", "first_last", "digital_human", "t2v", "video_ref", "video_edit", "other")
 _CLIP_AGENTS = ("MiniMaxH3", "LTX", "Bernini", "Wan", "other")
 
 
@@ -165,6 +165,7 @@ def _material_row(row: dict, resolve_media) -> dict | None:
         "generation_prompt": str(row.get("generation_prompt") or ""),
         "setting_description": str(row.get("setting_description") or ""),
         "media_type": str(row.get("media_type") or "").strip(),
+        "grid_panels": row.get("grid_panels", 0),
         "tags": [str(tag).strip() for tag in tags if str(tag).strip()],
         "location": str(row.get("location") or "input"),
         **({"video_trim": dict(row["video_trim"])} if isinstance(row.get("video_trim"), dict) else {}),
@@ -805,6 +806,8 @@ class CAP_TimelineEditor:
                 "preview_start_ms": int(start),
                 "preview_end_ms": int(end),
                 "second_sample": bool(clip.get("second_sample", False)),
+                "auto_prompt": bool(clip.get("auto_prompt", False)),
+                "prompt_skills": clip.get("prompt_skills", []),
                 "h3_motion_context_length": _h3_motion_context_length(clip),
                 "save_latent": bool(clip.get("save_latent", False)),
                 "seed": _clip_seed(clip),

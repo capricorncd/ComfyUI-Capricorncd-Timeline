@@ -1,11 +1,12 @@
 import '../components/Dialog.js';
 import '../components/Button.js';
+import { iconHtml } from '../cap_icons.js';
 import { makeT } from '../cap_i18n.js';
 
 const t = makeT({
-    en: {range: 'Intervals, e.g. 1,3,5-90 (inclusive)', include: 'Only these intervals', exclude: 'Exclude these intervals', invalid: 'Use interval numbers and inclusive ranges, e.g. 1,3,5-90.', title: 'Run keyframe intervals', hint: 'Select intervals to run; uncheck to exclude. Intervals over 10 seconds use latent continuation. Each result is kept separately in Trim Video at its original position, with excess frames trimmed.', all: 'Select all', none: 'Clear selection', run: 'Run selected', cancel: 'Cancel', parts: '{count} passes'},
-    zh: {range: '区间编号，例如 1,3,5-90（含 90）', include: '只执行这些区间', exclude: '排除这些区间', invalid: '请输入区间编号或包含两端的范围，例如 1,3,5-90。', title: '运行关键帧区间', hint: '勾选执行，取消勾选即排除。超过 10 秒的区间使用 latent 分段续接；生成结果分别加入修剪视频管理，按原位置对齐并裁掉多余帧。', all: '全选', none: '全不选', run: '运行所选区间', cancel: '取消', parts: '{count} 次生成'},
-    ja: {range: '区間番号（例：1,3,5-90、90 を含む）', include: '指定区間のみ', exclude: '指定区間を除外', invalid: '区間番号または範囲を入力してください（例：1,3,5-90）。', title: 'キーフレーム区間を実行', hint: '実行する区間を選択してください。10 秒を超える区間は latent を引き継いで生成します。各動画は元の位置とトリム範囲で動画編集に追加されます。', all: 'すべて選択', none: '選択解除', run: '選択区間を実行', cancel: 'キャンセル', parts: '{count} 回生成'},
+    en: {range: 'Intervals', rangeHelp: 'e.g. 1,3,5-90 (inclusive)', exclude: 'Exclude', invalid: 'Use interval numbers and inclusive ranges, e.g. 1,3,5-90.', title: 'Run keyframe intervals', hint: 'Select intervals to run; uncheck to exclude. Intervals over 10 seconds use latent continuation. Each result is kept separately in Trim Video at its original position, with excess frames trimmed.', all: 'Select all', none: 'Clear selection', run: 'Run selected', cancel: 'Cancel', parts: '{count} passes'},
+    zh: {range: '区间编号', rangeHelp: '例如 1,3,5-90（含 90）', exclude: '除外', invalid: '请输入区间编号或包含两端的范围，例如 1,3,5-90。', title: '运行关键帧区间', hint: '勾选执行，取消勾选即排除。超过 10 秒的区间使用 latent 分段续接；生成结果分别加入修剪视频管理，按原位置对齐并裁掉多余帧。', all: '全选', none: '全不选', run: '运行所选区间', cancel: '取消', parts: '{count} 次生成'},
+    ja: {range: '区間番号', rangeHelp: '例：1,3,5-90（90 を含む）', exclude: '除外', invalid: '区間番号または範囲を入力してください（例：1,3,5-90）。', title: 'キーフレーム区間を実行', hint: '実行する区間を選択してください。10 秒を超える区間は latent を引き継いで生成します。各動画は元の位置とトリム範囲で動画編集に追加されます。', all: 'すべて選択', none: '選択解除', run: '選択区間を実行', cancel: 'キャンセル', parts: '{count} 回生成'},
 });
 
 export function parseIntervalSelection(value, count) {
@@ -52,13 +53,20 @@ export async function confirmKeyframeRun(editor, clips) {
     const title = document.createElement('span'); title.slot = 'title'; title.textContent = t('title');
     const body = document.createElement('div'); body.className = 'cat-te-keyframe-run-body';
     const hint = document.createElement('p'); hint.textContent = t('hint'); body.append(hint);
+    const rangeHeader = document.createElement('div'); rangeHeader.className = 'cat-te-keyframe-range-header';
     const rangeLabel = document.createElement('label'); rangeLabel.textContent = t('range');
     const range = document.createElement('input'); range.type = 'text'; range.placeholder = '1,3,5-90';
-    rangeLabel.append(range);
-    const mode = document.createElement('select'); mode.setAttribute('aria-label', t('range'));
-    for (const value of ['include', 'exclude']) { const option = document.createElement('option'); option.value = value; option.textContent = t(value); mode.append(option); }
+    range.id = 'cat-te-keyframe-range'; rangeLabel.htmlFor = range.id;
+    const info = document.createElement('span'); info.className = 'cat-te-info-tip'; info.tabIndex = 0;
+    info.setAttribute('aria-label', t('rangeHelp')); info.innerHTML = iconHtml('info', 14);
+    const help = document.createElement('span'); help.className = 'cat-te-info-tip-pop'; help.textContent = t('rangeHelp');
+    info.append(help);
+    const excludeLabel = document.createElement('label'); excludeLabel.className = 'cat-te-keyframe-exclude';
+    const exclude = document.createElement('input'); exclude.type = 'checkbox'; exclude.checked = false;
+    excludeLabel.append(exclude, t('exclude'));
+    rangeHeader.append(rangeLabel, info, excludeLabel);
     const error = document.createElement('p'); error.setAttribute('role', 'status'); error.hidden = true;
-    body.append(rangeLabel, mode, error);
+    body.append(rangeHeader, range, error);
     const checks = [];
     for (const run of runs) {
         const heading = document.createElement('strong');
@@ -86,12 +94,12 @@ export async function confirmKeyframeRun(editor, clips) {
     const applyRange = () => {
         try {
             const selected = parseIntervalSelection(range.value, checks.length);
-            checks.forEach((row, index) => { row.input.checked = selected === null || (mode.value === 'include' ? selected.has(index + 1) : !selected.has(index + 1)); });
+            checks.forEach((row, index) => { row.input.checked = selected === null || (exclude.checked ? !selected.has(index + 1) : selected.has(index + 1)); });
             error.hidden = true;
         } catch { error.textContent = t('invalid'); error.hidden = false; }
         update();
     };
-    range.addEventListener('input', applyRange); mode.addEventListener('change', applyRange);
+    range.addEventListener('input', applyRange); exclude.addEventListener('change', applyRange);
     for (const action of ['all', 'none']) buttons[action].onclick = () => {
         range.value = ''; error.hidden = true; checks.forEach(row => { row.input.checked = action === 'all'; }); update();
     };

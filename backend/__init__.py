@@ -128,6 +128,7 @@ from .cap_clip_prompt_vl import (
     clear_clip_prompt_vl,
 )
 from .cap_join_strings import CAP_JoinStrings
+from .cap_h3_prompt_generator import NODE_CLASS_MAPPINGS as _H3PG_CLASS, NODE_DISPLAY_NAME_MAPPINGS as _H3PG_NAMES
 from .timecode import (
     AUDIO_EXTENSIONS,
     IMAGE_EXTENSIONS,
@@ -167,6 +168,7 @@ NODE_CLASS_MAPPINGS = {
     **_H3SL_CLASS,
     **_H3FI_CLASS,
     **_CVP_CLASS,
+    **_H3PG_CLASS,
     "CAP_JoinStrings": CAP_JoinStrings,
 }
 
@@ -197,6 +199,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **_H3SL_NAMES,
     **_H3FI_NAMES,
     **_CVP_NAMES,
+    **_H3PG_NAMES,
     "CAP_JoinStrings": "Join Strings",
 }
 

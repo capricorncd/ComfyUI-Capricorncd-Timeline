@@ -736,6 +736,10 @@
         "name": "Generate video audio",
         "tooltip": "Off skips audio repair, decoding, normalization and audio encoding; Clip and final videos are silent. H3 still jointly samples audio latents and retains audio references."
       },
+      "concat_full_videos": {
+        "name": "Concatenate full videos (no trimming)",
+        "tooltip": "Off by default. Requires Compose final video. Joins complete files in generation order, preserving all frames and original audio without Clip-duration trimming, context replacement or head/tail trimming. Supports keyframe intervals; reuses a single file."
+      },
       "compose_final": {
         "name": "Compose final video",
         "tooltip": "After all Clips finish, join their generated videos with original audio using data_json context replacement and trim rules. Does not render editor subtitle/media tracks."

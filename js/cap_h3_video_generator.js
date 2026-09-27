@@ -7,7 +7,7 @@ const INPUT_ORDER = [
     "motion_deblur",
     "sampling_preview", "preview_tiny_vae",
     "generate_audio", "normalize_audio",
-    "compose_final",
+    "compose_final", "concat_full_videos",
 ];
 const WIDGET_ORDER = INPUT_ORDER.slice(10);
 const rank = name => {
@@ -45,7 +45,7 @@ app.registerExtension({
             // LiteGraph saves widget values positionally; restore by the saved names.
             const inputWidgets = info.inputs?.filter(input => WIDGET_ORDER.includes(input.widget?.name) || ["strict_keyframes", "audio_refine", "audio_refine_steps"].includes(input.widget?.name))
                 .map(input => input.widget.name) ?? [];
-            const legacyOrder = schemaOrder.filter(name => name !== "preview_sampling_batch");
+            const legacyOrder = schemaOrder.filter(name => !["preview_sampling_batch", "concat_full_videos"].includes(name));
             if (!info.properties?.cap_h3_widget_order && info.widgets_values?.length >= legacyOrder.length + 1) {
                 legacyOrder.splice(legacyOrder.indexOf("normalize_audio"), 0, "audio_refine", "audio_refine_steps");
                 if (typeof info.widgets_values[2] === "boolean") {

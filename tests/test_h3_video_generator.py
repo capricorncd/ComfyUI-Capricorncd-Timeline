@@ -282,8 +282,9 @@ class GeneratorTests(unittest.TestCase):
                               head_frames=0, tail_frames=4, play_frames=120, save_latent=False)
                 rows = [dict(id="a", source_clip_id="a", start_ms=0, end_ms=5000, h3_timing=timing,
                              playback_spans=[dict(source_clip_id="a", start_frame=0, frame_count=120)])]
+                rows.append(dict(id="b", start_ms=5000, end_ms=10000))
                 result = self.run_node(rows, interpolation_config=self.interpolation_node.configure(interpolation_multiplier=multiplier)[0])
-                self.assertEqual(self.saved_fps, [24 * multiplier])
+                self.assertEqual(self.saved_fps, [24 * multiplier, 24 * multiplier])
                 images = self.saved[0][1]["images"]
                 self.assertEqual(images.shape[0], 124 * multiplier)
                 self.assertTrue((images[-multiplier:] == images[-1]).all())
@@ -532,7 +533,7 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(self.saved[0][1]["images"], "recovered-images")
         self.assertEqual(self.saved[0][1]["audio"], "NormalizeAudioLoudness_output")
         phases = [d["phase"] for n, d, _ in self.events if n == "cat_h3_progress"]
-        self.assertEqual(phases, ["prepare", "sample", "audio", "decode", "deblur", "save", "compose", "done"])
+        self.assertEqual(phases, ["prepare", "sample", "audio", "decode", "deblur", "save", "done"])
         self.assertTrue(json.loads(self.saved[0][1]["metadata"])["motion_deblur"])
 
     def test_motion_deblur_silent_context_uses_repaired_pixels_at_both_sizes(self):
@@ -694,7 +695,8 @@ class GeneratorTests(unittest.TestCase):
         self.assertTrue(all(not options["save_sidecar"] for _, options in self.composed))
 
     def test_audio_generation_without_repair(self):
-        self.run_node(generate_audio=True, audio_refine=False)
+        self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000},
+                       {"id": "b", "start_ms": 5000, "end_ms": 10000}], generate_audio=True, audio_refine=False)
         self.assertTrue(any(n == "VAEDecodeAudio" for n, _ in self.calls))
         self.assertFalse(any(n in ("H3AudioRefineSampler", "H3FrozenVideoCache") for n, _ in self.calls))
         self.assertEqual(self.saved[0][1]["audio"], "VAEDecodeAudio_output")
@@ -797,6 +799,40 @@ class GeneratorTests(unittest.TestCase):
         self.assertTrue(options["use_original_audio"])
         self.assertEqual([r["output_video"] for r in data["clips"]], result["result"][0])
 
+    def test_full_video_concat_skips_timeline_trimming(self):
+        rows = [{"id": "a", "start_ms": 0, "end_ms": 5000,
+                 "h3_timing": {"raw_frames": 124, "tail_frames": 4},
+                 "playback_spans": [{"source_clip_id": "a", "start_frame": 0, "frame_count": 120}]},
+                {"id": "b", "start_ms": 5000, "end_ms": 10000}]
+        result = self.run_node(rows, concat_full_videos=True)
+        data, options = self.composed[0]
+        self.assertFalse(options["trim_extends"])
+        self.assertTrue(options["use_original_audio"])
+        self.assertEqual([row["output_video"] for row in data["clips"]], result["result"][0])
+        self.assertEqual(result["result"][2], "compose/final.mp4")
+
+    def test_full_concat_still_obeys_compose_switch(self):
+        self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000},
+                       {"id": "b", "start_ms": 5000, "end_ms": 10000}],
+                      concat_full_videos=True, compose_final=False)
+        self.assertEqual(self.composed, [])
+
+    def test_full_concat_single_video_reuses_file(self):
+        result = self.run_node(concat_full_videos=True)
+        self.assertEqual(self.composed, [])
+        self.assertEqual(result["result"][2], result["result"][0][0])
+
+    def test_single_video_returns_saved_output_without_composition(self):
+        result = self.run_node()
+        self.assertEqual(self.composed, [])
+        self.assertEqual(len(self.saved), 1)
+        self.assertEqual(result["result"][2], result["result"][0][0])
+        ready = [event for event in self.events if event[0] == "cat_h3_video_ready"]
+        self.assertEqual(len(ready), 1)
+        self.assertEqual(result["ui"]["video"], [ready[0][1]["video"]])
+        self.assertFalse(any(name == "cat_h3_progress" and data["phase"] == "compose" for name, data, _ in self.events))
+        self.assertEqual(result["ui"]["h3_progress"][0]["percent"], 100)
+
     def test_compose_off_keeps_latest_clip_and_stable_completion_preview(self):
         result = self.run_node(compose_final=False)
         ready = [e for e in self.events if e[0] == "cat_h3_video_ready"]
@@ -837,7 +873,7 @@ class GeneratorTests(unittest.TestCase):
         row = {"id": "a", "start_ms": 0, "end_ms": 5000, "enabled": False,
                "h3_timing": {"context_frames": 0, "raw_frames": 124, "tail_frames": 4},
                "playback_spans": [{"source_clip_id": "a", "start_frame": 0, "frame_count": 120}]}
-        result = self.run_node([row])
+        result = self.run_node([row, {"id": "b", "start_ms": 5000, "end_ms": 10000}])
         rendered = self.composed[0][0]["clips"][0]
         self.assertTrue(rendered["enabled"])
         self.assertEqual(rendered["h3_timing"], row["h3_timing"])

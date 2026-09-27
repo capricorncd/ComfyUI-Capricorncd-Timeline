@@ -242,6 +242,8 @@ class CAP_DataJsonClipParser:
                         *, style_prompt: str = "", non_diegetic_music: str = "",
                         negative_prompt: str = "", prompt_concat_order=None,
                         prepend_prompt: str | None = None, append_prompt: str | None = None) -> str:
+        if clip.get("auto_prompt") and clip.get("h3_generated_prompt"):
+            return str(clip["h3_generated_prompt"])
         includes = set(self._clip_prompt_includes(clip))
         order = self._normalize_prompt_concat_order(prompt_concat_order)
         materials = materials if isinstance(materials, dict) else {}
@@ -519,7 +521,7 @@ class CAP_DataJsonClipParser:
             "file": path,
             "kind": kind,
         }
-        for key in ("name", "prompt", "media_type", "tags", "location", "stars", "video_trim"):
+        for key in ("name", "prompt", "media_type", "tags", "location", "stars", "video_trim", "grid_panels"):
             if key in mat:
                 entry[key] = copy.deepcopy(mat[key])
         return entry

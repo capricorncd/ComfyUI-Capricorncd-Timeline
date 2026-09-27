@@ -91,6 +91,8 @@ _LANGUAGE_ALIASES = {
 
 _CLIP_ROLE_LABELS = {
     "multi_ref": "多图参考",
+    "grid_storyboard": "宫格分镜",
+    "multi_keyframe": "多关键帧",
     "first_last": "首尾帧",
     "digital_human": "数字人",
     "t2v": "文生视频",
@@ -192,10 +194,29 @@ overall_soundscape: <ambience and physical sounds, or N/A>
 
 non_diegetic_music: <instrumentation and tempo, or N/A>
 
-Use one complete shot unless the user explicitly requests multiple shots. Never end with a placeholder such as "At MM:00.000, the camera cuts to...". Keep the whole prompt concise enough to finish.
+Use one complete shot unless the user or selected clip type requests multiple shots. Never end with a placeholder such as "At MM:00.000, the camera cuts to...". Keep the whole prompt concise enough to finish.
 """
 
+_STORYBOARD_ROLE_HINTS = {
+    "grid_storyboard": (
+        "Treat storyboard grids as ordered shot-planning references. Identify the panel count and layout visually; "
+        "an explicit filename suffix _G4, _G6, or _G9 overrides uncertain visual counting. "
+        "If the count is unclear and no suffix exists, do not invent a count. "
+        "Read panels left to right, top to bottom unless the user specifies another order. "
+        "Map panel actions and compositions to timed shots within the clip duration. "
+        "Multiple shots are explicitly requested by this clip type. Each grid remains ONE <Picture n>; "
+        "refer to its panels without inventing new picture tags. Render full-screen scenes, never borders, "
+        "panel numbers, captions, or a split-screen grid. Character turnarounds remain identity references."
+    ),
+    "multi_keyframe": (
+        "Treat the attached stills as ordered keyframe targets, retaining their existing <Picture n> tags. "
+        "Use user-provided times when present; otherwise propose evenly spaced keyframe times across the clip duration. "
+        "Describe the action and camera movement connecting successive keyframes; use explicit cuts for distinct shots. "
+        "Multiple shots are allowed by this clip type. Do not claim that prompt timestamps create hard frame bindings."
+    ),
+}
 _H3_ROLE_HINTS = {
+    **_STORYBOARD_ROLE_HINTS,
     "multi_ref": "Treat stills as identity / scene / prop references. Keep every <Picture n> tag and number. Do not invent extra tags.",
     "digital_human": "Use the character image for identity and the supplied audio for exact lip synchronization. Match only audible speech or lead vocals; during instrumental sections and vocal pauses keep the lips gently closed with natural breathing. Keep the face visible. Never invent lyrics or dialogue, and do not mouth along to instruments.",
     "first_last": "The first still is the start frame and the last still is the end frame. Describe a continuous motion that begins on the first and lands on the last.",
@@ -211,7 +232,7 @@ _LTX_FORMAT = (
     "Keep it concise and directly usable by LTX."
 )
 _REF_SHEET_RULE = (
-    "Character sheets, turnarounds, four-view 人设图, orthographic lineups, and reference boards "
+    "Character sheets, turnarounds, four-view 人设图, orthographic lineups, and character reference boards "
     "are identity sources only. Never write that the camera shows those layouts, multiple views "
     "of the same character, or a model sheet. Put appearance (face, hair, body, outfit, colors) "
     "in subject_definitions. detailed_description must be a real cinematic scene: camera, action, "
@@ -252,6 +273,7 @@ def agent_system_prompt(agent: str, clip_role: str) -> str:
     label = _CLIP_ROLE_LABELS.get(role, role)
     if agent == "LTX":
         role_hint = {
+            **_STORYBOARD_ROLE_HINTS,
             "first_last": (
                 "The first attached image is the start frame and the second is the end frame. "
                 "Describe one continuous transition that begins exactly at the first frame and lands naturally on the last frame."
@@ -913,6 +935,31 @@ def _file_label(index: int, kind: str, row: dict) -> str:
     return "\n".join((line, *details))
 
 
+def storyboard_image_hint(row, index, role):
+    media_type = str(row.get("media_type") or "")
+    if media_type in ("character", "scene", "prop"):
+        return f"<Picture {index}> is a {media_type} setting reference, not a storyboard. Preserve its identity/appearance; do not interpret its sheet layout as narrative panels."
+    if media_type != "grid_storyboard" and role != "grid_storyboard":
+        return ""
+    count = row.get("grid_panels")
+    if count in (4, 6, 9):
+        source = "explicit asset setting; takes priority over filename and visual estimates"
+    else:
+        count, source = None, "filename suffix"
+        for name in (row.get("name"), row.get("file")):
+            stem = os.path.splitext(str(name or "").replace("\\", "/").rsplit("/", 1)[-1])[0]
+            match = re.search(r"_G(4|6|9)$", stem, re.IGNORECASE)
+            if match:
+                count = int(match[1])
+                break
+    if media_type != "grid_storyboard" and count is None:
+        return ""
+    panels = f"storyboard panel count: {count} ({source})" if count else "storyboard panel count: determine visually; do not invent a count if unclear"
+    return (f"<Picture {index}> {panels}. Determine row/column layout visually. Read left-to-right, top-to-bottom unless instructed otherwise. "
+            "Use panels as successive narrative actions, preserve character setting references, and omit grid borders/labels from the video. "
+            "This entire image remains one Picture reference; panels do not get separate Picture numbers.")
+
+
 def build_user_prompt(payload: dict) -> str:
     role = str(payload.get("clip_role") or "multi_ref")
     agent = str(payload.get("agent") or "MiniMaxH3")
@@ -952,6 +999,10 @@ def build_user_prompt(payload: dict) -> str:
             picture_n += 1
             index = picture_n
         media_lines.append(_file_label(index, kind if kind in ("image", "video", "audio") else "image", row))
+        if kind == "image":
+            hint = storyboard_image_hint(row, index, role)
+            if hint:
+                media_lines.append(hint)
     if media_lines:
         lines.append("Reference media:")
         lines.extend(media_lines)
@@ -967,6 +1018,8 @@ def build_user_prompt(payload: dict) -> str:
         )
         if picture_n:
             lines.append(_REF_SHEET_RULE)
+            if role in _STORYBOARD_ROLE_HINTS:
+                lines.append(_STORYBOARD_ROLE_HINTS[role])
         if has_generated_result:
             lines.append(
                 "<Previous Generated Video> is the latest generated result for this Clip, not a generation reference and not an allowed output tag. "

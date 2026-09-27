@@ -7,10 +7,10 @@ import unittest
 BACKEND = Path(__file__).resolve().parents[1] / "backend"
 GROUPS = {
     "Timeline": ("cap_data_json_parser", "cap_timeline_preview"),
-    "MiniMaxH3": ("cap_minimax_h3", "cap_h3_fast_audio_refine", "cap_h3_timeline_sequence", "cap_h3_video_generator"),
+    "MiniMaxH3": ("cap_minimax_h3", "cap_h3_fast_audio_refine", "cap_h3_timeline_sequence", "cap_h3_video_generator", "cap_h3_audio_refine", "cap_h3_face_refine", "cap_h3_interpolation", "cap_h3_selflift"),
     "Video": ("cap_seq_to_video", "cap_compose_clip_videos", "cap_model_preview"),
     "Image": ("cap_load_image_metadata", "cap_save_images", "cap_load_images_from_dir", "cap_image_batch"),
-    "Prompt": ("prompt_input_rich", "cap_prompt_group", "cap_clip_prompt_vl"),
+    "Prompt": ("prompt_input_rich", "cap_prompt_group", "cap_clip_prompt_vl", "cap_h3_prompt_generator"),
     "Utils": ("cap_size_settings", "cap_clear_directory", "cap_windows_shutdown", "cap_format_json", "cap_show_anything", "cap_join_strings"),
 }
 INTERNAL = {"CAP_H3SequenceContinuation", "CAP_H3SequenceTrimVideo", "CAP_H3SequenceAudioJoin", "CAP_H3SequenceTrimAudio"}
@@ -38,7 +38,7 @@ class NodeCategoryTests(unittest.TestCase):
                     category = expected[path.stem] + ("/Internal" if cls.name in INTERNAL else "")
                     self.assertEqual(categories, [category])
                     found[cls.name] = category
-        self.assertEqual(len(found), 34)
+        self.assertEqual(len(found), 39)
         self.assertEqual({name for name, category in found.items() if category.endswith("/Internal")}, INTERNAL)
 
 

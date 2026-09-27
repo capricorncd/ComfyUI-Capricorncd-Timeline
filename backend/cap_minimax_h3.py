@@ -609,6 +609,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
             ref_audios[f"ref_audio_{n}"] = audio
             prompt_references[-1] = (material, f"<Audio {len(ref_video_audios) + n}>")
 
+        if clip_row.get("auto_prompt") and not clip_row.get("h3_generated_prompt"):
+            raise ValueError("Auto prompt is enabled. Connect H3 Shared Model Prompt Generator before video generation.")
         fixed_prompts = "prepend_prompt" in data or "append_prompt" in data
         prompt = parser._compose_prompt(
             clip_row, data.get("global_prompt", ""),

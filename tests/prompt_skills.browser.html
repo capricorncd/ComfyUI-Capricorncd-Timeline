@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><title>Clip Prompt Skills</title>
+<style>body {font:16px system-ui;background:#192226;color:#e4edeb;--cat-text:#e4edeb;--cat-muted:#a3b5b8;--cat-bg:#192226;--cat-border-soft:#34464b;--cat-border:#34464b;--cat-accent:#64d8c5;margin:28px;max-width:620px} pre {white-space:pre-wrap}</style>
+<h2>Clip A · Prompt Skill</h2><cap-prompt-skills></cap-prompt-skills><pre id="result"></pre>
+<script type="module">
+import '../js/components/Button.js';
+import '../js/components/FormControls.js';
+import '../js/components/StatusMessage.js';
+import {iconHtml} from '../js/cap_icons.js';
+const source=await (await fetch('../js/components/PromptSkills.js')).text();
+new Function('makeT','iconHtml',source.replace(/^import .*;\r?\n/gm,'').replaceAll('export ',''))(dictionary=>key=>dictionary.zh[key],iconHtml);
+const el=document.querySelector('cap-prompt-skills');
+el.configure([{id:'official__example',name:'电影镜头',text:'保持人物身份一致；镜头缓慢推进。',enabled:true},{id:'custom-1',name:'自然动作',text:'避免突然转身，动作承接上一镜。',enabled:false}]);
+el.addEventListener('skills-change',e=>document.querySelector('#result').textContent=JSON.stringify(e.detail.rows,null,2));
+</script>

@@ -7,9 +7,10 @@ pre {white-space: pre-wrap;}
 <cap-button id="open">选择关键帧区间</cap-button><pre id="result"></pre>
 <script type="module">
 import '../js/components/Dialog.js';
+import { iconHtml } from '../js/cap_icons.js';
 const source = await (await fetch('../js/editor/KeyframeRun.js')).text();
 const makeT = dictionary => (key, args = {}) => Object.entries(args).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), dictionary.zh[key]);
-const confirmKeyframeRun = new Function('makeT', source.replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '') + '\nreturn confirmKeyframeRun;')(makeT);
+const confirmKeyframeRun = new Function('makeT', 'iconHtml', source.replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '') + '\nreturn confirmKeyframeRun;')(makeT, iconHtml);
 const clip = {id: 'clip-1', name: '参考视频 · 100 个关键帧区间', startTime: 0, duration: 1000};
 const target = {start: 0, rate: 1, media: {id: 'video-1'}};
 const editor = {_overlay: document.body, getFps: () => 24, _ensureClipMeta: () => ({agent: 'MiniMaxH3'}),

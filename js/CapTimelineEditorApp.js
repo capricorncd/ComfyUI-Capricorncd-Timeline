@@ -1,3 +1,4 @@
+import { copyPromptSkills, enabledPromptSkills } from './components/PromptSkills.js';
 import { H3DraftVersions, draftT } from "./editor/H3DraftVersions.js";
 import { openInsertClip } from './editor/InsertClip.js';
 /*!
@@ -81,7 +82,6 @@ const MIN_GEN_EDIT_TL_H = 160;
 const STORAGE_MEDIA_LIST_VIEW = "cat-te-media-list-view";
 /** Per-node timeline viewport (scroll) when project settings lack it. */
 const STORAGE_AI_PROMPT_MODEL = "cat-te-ai-prompt-model";
-const STORAGE_AI_PROMPT_SKILL = "cat-te-ai-prompt-skill";
 const STORAGE_AI_PROMPT_LANG = "cat-te-ai-prompt-lang";
 const STORAGE_AI_PROMPT_CONTEXT = "cat-te-ai-prompt-context";
 const STORAGE_MODEL_PREVIEW_WORKFLOW = "cat-te-model-preview-workflow";
@@ -135,6 +135,8 @@ const MEDIA_LIBRARY_TABS = [
 ];
 const CLIP_ROLES = [
     { id: "multi_ref", get label() { return T("clip_role_multi_ref"); } },
+    { id: "grid_storyboard", get label() { return T("clip_role_grid_storyboard"); } },
+    { id: "multi_keyframe", get label() { return T("clip_role_multi_keyframe"); } },
     { id: "first_last", get label() { return T("clip_role_first_last"); } },
     { id: "digital_human", get label() { return T("clip_role_digital_human"); } },
     { id: "t2v", get label() { return T("clip_role_t2v"); } },
@@ -158,6 +160,7 @@ const DEFAULT_AI_PROMPT_CONTEXT = {
     generated_video_data: false,
 };
 const MEDIA_ASSET_TYPES = [
+    { id: "grid_storyboard", get label() { return T("asset_type_grid_storyboard"); } },
     { id: "character", get label() { return T("asset_type_character"); } },
     { id: "scene", get label() { return T("asset_type_scene"); } },
     { id: "prop", get label() { return T("asset_type_prop"); } },
@@ -463,6 +466,8 @@ function defaultImageMeta(trackIndex = 0) {
         muted: false,
         volume: 1,
         secondSample: false,
+        autoPrompt: false,
+        promptSkills: [],
         h3MotionContextLength: 0,
         saveLatent: false,
         h3Drafts: [],
@@ -3743,6 +3748,8 @@ export class CapTimelineEditorApp {
                   <span>${T("type_label")}</span>
                   <select class="cat-te-clip-role" disabled>
                     <option value="multi_ref">${T("clip_role_multi_ref")}</option>
+                    <option value="grid_storyboard">${T("clip_role_grid_storyboard")}</option>
+                    <option value="multi_keyframe">${T("clip_role_multi_keyframe")}</option>
                     <option value="first_last">${T("clip_role_first_last")}</option>
                     <option value="digital_human">${T("clip_role_digital_human")}</option>
                     <option value="t2v">${T("clip_role_t2v")}</option>
@@ -3772,6 +3779,10 @@ export class CapTimelineEditorApp {
                 <label class="cat-te-clip-setting-check">
                   <input class="cat-te-use-audio-track" type="checkbox" disabled />
                   <span>${T("use_audio_track_audio_label")}</span>
+                </label>
+                <label class="cat-te-clip-setting-check" title="${T("auto_prompt_title")}">
+                  <input class="cat-te-auto-prompt" type="checkbox" disabled />
+                  <span>${T("auto_prompt_label")}</span>
                 </label>
                 <label class="cat-te-clip-setting-check">
                   <input class="cat-te-second-sample" type="checkbox" disabled />
@@ -3990,8 +4001,18 @@ export class CapTimelineEditorApp {
                         <option value="character">${T("asset_type_character")}</option>
                         <option value="scene">${T("asset_type_scene")}</option>
                         <option value="prop">${T("asset_type_prop")}</option>
+                        <option value="grid_storyboard">${T("asset_type_grid_storyboard")}</option>
                         <option value="other">${T("asset_type_other")}</option>
                       </select>
+                    </label>
+                    <label class="cat-te-media-preview-meta-row cat-te-media-preview-grid-row" hidden>
+                      <span>${T("grid_panels_label")}</span>
+                      <cap-select><select class="cat-te-media-preview-grid-panels">
+                        <option value="0">${T("grid_panels_auto")}</option>
+                        <option value="4">${T("grid_panels_count", {n: 4})}</option>
+                        <option value="6">${T("grid_panels_count", {n: 6})}</option>
+                        <option value="9">${T("grid_panels_count", {n: 9})}</option>
+                      </select></cap-select>
                     </label>
                     <label class="cat-te-media-preview-meta-row cat-te-media-preview-type-custom-row" hidden>
                       <span>${T("custom_type_label")}</span>
@@ -4434,6 +4455,8 @@ export class CapTimelineEditorApp {
                       <span>${T("prompt_generation_mode_label")}</span>
                       <select class="cat-te-ai-target-role">
                         <option value="multi_ref">${T("clip_role_multi_ref")}</option>
+                        <option value="grid_storyboard">${T("clip_role_grid_storyboard")}</option>
+                        <option value="multi_keyframe">${T("clip_role_multi_keyframe")}</option>
                         <option value="first_last">${T("clip_role_first_last")}</option>
                         <option value="digital_human">${T("clip_role_digital_human")}</option>
                         <option value="t2v">${T("clip_role_t2v")}</option>
@@ -4492,10 +4515,9 @@ export class CapTimelineEditorApp {
                     <div class="cat-te-ai-skill-actions">
                       <cap-button class="cat-te-skill-pick-btn">${T("select_btn")}</cap-button>
                       <cap-button class="cat-te-skill-sync-btn" title="${T("sync_latest_skill_title")}">${iconHtml("refresh", 12)}<span>${T("update_btn")}</span></cap-button>
-                      <cap-button variant="danger" class="cat-te-skill-clear-btn">${T("prompt_clear")}</cap-button>
                     </div>
                   </div>
-                  <textarea class="cat-te-ai-skill" rows="3" placeholder="${T("skill_placeholder")}"></textarea>
+                  <cap-prompt-skills class="cat-te-ai-skills"></cap-prompt-skills>
                   </div>
                   <div class="cat-te-ai-right-pane cat-te-ai-right-preview" data-right-pane="preview" hidden>
                   <label><cap-form-row>
@@ -4835,6 +4857,7 @@ export class CapTimelineEditorApp {
         this.promptIncludeChips = el.querySelectorAll(".cat-te-prompt-include-chip");
         this.useAudioTrackAudioCb = el.querySelector(".cat-te-use-audio-track");
         this.secondSampleCb = el.querySelector(".cat-te-second-sample");
+        this.autoPromptCb = el.querySelector(".cat-te-auto-prompt");
         this.h3MotionContextInput = el.querySelector(".cat-te-h3-motion-context");
         this.saveLatentCb = el.querySelector(".cat-te-save-latent");
         this.clipSeedInput = el.querySelector(".cat-te-clip-seed");
@@ -4912,6 +4935,8 @@ export class CapTimelineEditorApp {
         this.mediaSettingDescription = el.querySelector(".cat-te-media-setting-description");
         attachRichPromptHandler(this.mediaGenerationPrompt, { mode: "widget" });
         attachRichPromptHandler(this.mediaSettingDescription, { mode: "widget" });
+        this.mediaPreviewGridRow = el.querySelector(".cat-te-media-preview-grid-row");
+        this.mediaPreviewGridPanels = el.querySelector(".cat-te-media-preview-grid-panels");
         this.mediaPreviewType = el.querySelector(".cat-te-media-preview-type");
         this.mediaPreviewTypeCustom = el.querySelector(".cat-te-media-preview-type-custom");
         this.mediaPreviewTypeCustomRow = el.querySelector(".cat-te-media-preview-type-custom-row");
@@ -5019,13 +5044,11 @@ export class CapTimelineEditorApp {
         this.aiAudioModeSelect = el.querySelector(".cat-te-ai-audio-mode");
         this.aiContextInputs = el.querySelectorAll(".cat-te-ai-context input[data-context]");
         this.aiSystemInput = el.querySelector(".cat-te-ai-system");
-        this.aiSkillInput = el.querySelector(".cat-te-ai-skill");
+        this.aiSkills = el.querySelector(".cat-te-ai-skills");
         attachRichPromptHandler(this.aiSystemInput, { mode: "widget" });
-        attachRichPromptHandler(this.aiSkillInput, { mode: "widget" });
         this.agentPromptPickBtn = el.querySelector(".cat-te-agent-prompt-pick");
         this.agentPromptRefreshBtn = el.querySelector(".cat-te-agent-prompt-refresh");
         this.agentPromptClearBtn = el.querySelector(".cat-te-agent-prompt-clear");
-        this.skillClearBtn = el.querySelector(".cat-te-skill-clear-btn");
         this.agentPromptPicker = el.querySelector(".cat-te-agent-prompt-picker");
         this.skillPickBtn = el.querySelector(".cat-te-skill-pick-btn");
         this.skillSyncBtn = el.querySelector(".cat-te-skill-sync-btn");
@@ -5367,6 +5390,7 @@ export class CapTimelineEditorApp {
         if (this.secondSampleCb && !this.secondSampleCb._catTeBound) {
             this.secondSampleCb._catTeBound = true;
             this.secondSampleCb?.addEventListener("change", () => this._onSecondSampleChange());
+            this.autoPromptCb?.addEventListener("change", () => this._onAutoPromptChange());
             this.h3MotionContextInput?.addEventListener("change", () => this._onH3MotionContextChange());
             this.saveLatentCb?.addEventListener("change", () => this._onSaveLatentChange());
             this.clipSeedInput?.addEventListener("change", () => this._onClipSeedChange());
@@ -5533,6 +5557,7 @@ export class CapTimelineEditorApp {
         for (const event of ["input", "change", "click"]) {
             this.composeModal?.addEventListener(event, () => this._onComposeSettingsChange());
         }
+        this.mediaPreviewGridPanels?.addEventListener("change", () => this._saveMediaPreviewMeta());
         this.mediaPreviewType?.addEventListener("change", () => this._onMediaPreviewTypeChange());
         this.mediaPreviewTypeCustom?.addEventListener("change", () => this._saveMediaPreviewMeta());
         this.mediaPreviewTypeCustom?.addEventListener("blur", () => this._saveMediaPreviewMeta());
@@ -5595,9 +5620,12 @@ export class CapTimelineEditorApp {
         this.agentPromptPickBtn.addEventListener("click", () => void this._openAgentPromptPicker());
         this.agentPromptRefreshBtn.addEventListener("click", () => void this._openAgentPromptPicker());
         this.agentPromptClearBtn.addEventListener("click", () => { setRichPromptValue(this.aiSystemInput, ""); });
-        this.skillClearBtn.addEventListener("click", () => {
-            setRichPromptValue(this.aiSkillInput, "");
-            localStorage.removeItem(STORAGE_AI_PROMPT_SKILL);
+        this.aiSkills.addEventListener("skills-change", (event) => {
+            const clip = this._findClipById(this._aiOptimizeClipId);
+            if (!clip || this._aiOptimizeBusy) return;
+            this._recordUndo();
+            this._ensureClipMeta(clip).promptSkills = copyPromptSkills(event.detail.rows);
+            this._saveToWidgets();
         });
         this.skillPickBtn?.addEventListener("click", (e) => {
             e.preventDefault();
@@ -6357,6 +6385,7 @@ export class CapTimelineEditorApp {
                 generation_prompt: local.generationPrompt || "",
                 setting_description: local.settingDescription || "",
                 media_type: local.mediaType || "",
+                grid_panels: local.gridPanels || 0,
                 tags: Array.isArray(local.tags) ? [...local.tags] : [],
             };
             if (local.stars) row.stars = local.stars;
@@ -6391,6 +6420,7 @@ export class CapTimelineEditorApp {
                 generation_prompt: String(row.generation_prompt || ""),
                 setting_description: String(row.setting_description || ""),
                 media_type: String(row.media_type || "").trim(),
+                grid_panels: [4, 6, 9].includes(Number(row.grid_panels)) ? Number(row.grid_panels) : 0,
                 ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
                 ...(row.voice_language ? { voice_language: String(row.voice_language) } : {}),
                 ...(row.video_trim ? { video_trim: { ...row.video_trim } } : {}),
@@ -6493,6 +6523,7 @@ export class CapTimelineEditorApp {
                 generation_prompt: String(row.generation_prompt || row.generationPrompt || local.generationPrompt || ""),
                 setting_description: String(row.setting_description || row.settingDescription || local.settingDescription || ""),
                 media_type: String(row.media_type || row.mediaType || local.mediaType || "").trim(),
+                grid_panels: [4, 6, 9].includes(Number(row.grid_panels ?? local.gridPanels)) ? Number(row.grid_panels ?? local.gridPanels) : 0,
                 ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
                 ...(row.voice_language ? { voice_language: String(row.voice_language) } : {}),
                 ...(row.video_trim ? { video_trim: { ...row.video_trim } } : {}),
@@ -6783,6 +6814,8 @@ export class CapTimelineEditorApp {
         else if (typeof raw.generation_prompt === "string") out.generationPrompt = raw.generation_prompt;
         if (typeof raw.settingDescription === "string") out.settingDescription = raw.settingDescription;
         else if (typeof raw.setting_description === "string") out.settingDescription = raw.setting_description;
+        const gridPanels = Number(raw.gridPanels ?? raw.grid_panels);
+        out.gridPanels = [4, 6, 9].includes(gridPanels) ? gridPanels : 0;
         if (typeof raw.mediaType === "string") out.mediaType = raw.mediaType.trim();
         if (typeof raw.mediaTypeCustom === "string") out.mediaTypeCustom = raw.mediaTypeCustom;
         if (Array.isArray(raw.tags)) {
@@ -6801,6 +6834,7 @@ export class CapTimelineEditorApp {
                 generationPrompt: String(row.generation_prompt || ""),
                 settingDescription: String(row.setting_description || ""),
                 mediaType: String(row.media_type || "").trim(),
+                gridPanels: Number(row.grid_panels) || 0,
                 tags: Array.isArray(row.tags) ? [...row.tags] : [],
             };
         }
@@ -6816,6 +6850,7 @@ export class CapTimelineEditorApp {
             row.generation_prompt = next.generationPrompt || "";
             row.setting_description = next.settingDescription || "";
             row.media_type = next.mediaType || "";
+            row.grid_panels = next.gridPanels || 0;
             row.tags = Array.isArray(next.tags) ? [...next.tags] : [];
             if (next.stars) row.stars = next.stars;
             else delete row.stars;
@@ -10941,7 +10976,7 @@ export class CapTimelineEditorApp {
             mentions.addEventListener("asset-mention", ({ detail: asset }) => {
                 if (textarea.matches(".cat-te-settings-prompt-input, .cat-te-media-setting-description, .cat-te-media-generation-prompt")) return;
                 if (textarea === this.aiSrcText && SETTING_PROMPT_KEYS.includes(this._aiOptimizeSrc)) return;
-                const clip = textarea === this.aiSrcText || textarea === this.aiSystemInput || textarea === this.aiSkillInput
+                const clip = textarea === this.aiSrcText || textarea === this.aiSystemInput
                     ? this._findClipById(this._aiOptimizeClipId) : textarea === this.genEditPrompt
                     ? this._findClipById(this._genEditState?.clipId) : this._selClip;
                 this._linkPromptMention(clip, asset);
@@ -15003,6 +15038,8 @@ export class CapTimelineEditorApp {
                 agent: c.agent || "MiniMaxH3",
                 agentCustom: c.agent_custom ?? "",
                 secondSample: !!c.second_sample,
+                autoPrompt: !!c.auto_prompt,
+                promptSkills: copyPromptSkills(c.prompt_skills),
                 h3MotionContextLength: Math.max(0, Math.round(Number(c.h3_motion_context_length) || 0)),
                 saveLatent: !!c.save_latent,
                 h3Drafts: Array.isArray(c.h3_drafts) ? c.h3_drafts : [],
@@ -15087,6 +15124,8 @@ export class CapTimelineEditorApp {
                 muted: !!c.muted,
                 volume: normalizeClipVolume(c.volume),
                 secondSample: !!c.second_sample,
+                autoPrompt: !!c.auto_prompt,
+                promptSkills: copyPromptSkills(c.prompt_skills),
             items: (Array.isArray(c.items) && c.items.length
                 ? c.items.map(normalizeClipItem).filter(Boolean)
                 : clipItemsFromLegacy(vf, c.end_image, "video")
@@ -15150,6 +15189,8 @@ export class CapTimelineEditorApp {
             visible: c.visible !== false,
             volume: normalizeClipVolume(c.volume),
                 secondSample: !!c.second_sample,
+                autoPrompt: !!c.auto_prompt,
+                promptSkills: copyPromptSkills(c.prompt_skills),
             items: (Array.isArray(c.items) && c.items.length
                 ? c.items.map(normalizeClipItem).filter(Boolean)
                 : clipItemsFromLegacy(img, c.end_image, "image")
@@ -15890,11 +15931,16 @@ export class CapTimelineEditorApp {
         if (this.mediaPreviewTypeCustomRow) {
             this.mediaPreviewTypeCustomRow.hidden = this.mediaPreviewType?.value !== "other";
         }
+        if (this.mediaPreviewGridPanels) this.mediaPreviewGridPanels.value = String(meta.gridPanels || 0);
+        if (this.mediaPreviewGridRow) this.mediaPreviewGridRow.hidden = kind !== "image" || meta.mediaType !== "grid_storyboard";
+        const gridOption = this.mediaPreviewType?.querySelector('option[value="grid_storyboard"]');
+        if (gridOption) gridOption.disabled = kind !== "image";
         if (this.mediaPreviewTags) this.mediaPreviewTags.value = (meta.tags || []).join(", ");
         this._characterVoice?.refresh();
     }
 
     _onMediaPreviewTypeChange() {
+        if (this.mediaPreviewGridRow) this.mediaPreviewGridRow.hidden = this._mediaPreviewItem()?.kind !== "image" || this.mediaPreviewType?.value !== "grid_storyboard";
         if (this.mediaPreviewTypeCustomRow) {
             this.mediaPreviewTypeCustomRow.hidden = this.mediaPreviewType?.value !== "other";
         }
@@ -15911,13 +15957,15 @@ export class CapTimelineEditorApp {
             mediaType = String(this.mediaPreviewTypeCustom?.value || "").trim() || "other";
         }
         const name = this.mediaPreviewName?.value.trim() || file.split(/[\\/]/).pop() || file;
-        if (name !== (prev.name || file.split(/[\\/]/).pop() || file)) this._recordUndo();
+        const gridPanels = Number(this.mediaPreviewGridPanels?.value) || 0;
+        if (name !== (prev.name || file.split(/[\\/]/).pop() || file) || mediaType !== prev.mediaType || gridPanels !== (prev.gridPanels || 0)) this._recordUndo();
         this._writeMediaMeta(kind, file, {
             ...prev,
             name,
             generationPrompt: String(this.mediaGenerationPrompt?.value || ""),
             settingDescription: String(this.mediaSettingDescription?.value || ""),
             mediaType,
+            gridPanels,
             tags: this._parseTagList(this.mediaPreviewTags?.value),
         });
         this._saveToWidgets();
@@ -16984,6 +17032,7 @@ export class CapTimelineEditorApp {
                 row && typeof row === "object" ? { ...row } : row
             ));
         }
+        m.promptSkills = copyPromptSkills(meta?.promptSkills);
         if (Array.isArray(meta?.h3Drafts)) m.h3Drafts = meta.h3Drafts.map(row => ({...row}));
         if (Array.isArray(meta?.h3DraftRemoved)) m.h3DraftRemoved = [...meta.h3DraftRemoved];
         if (Array.isArray(meta?.genEditAudios)) {
@@ -18916,6 +18965,7 @@ export class CapTimelineEditorApp {
         const agent = el.querySelector(".cat-te-clip-agent");
         if (!secondSample) return;
         this.secondSampleCb = secondSample;
+        this.autoPromptCb = el.querySelector(".cat-te-auto-prompt");
         this.h3MotionContextInput = h3Motion;
         this.saveLatentCb = saveLatent;
         this.clipSeedInput = seed;
@@ -18929,6 +18979,7 @@ export class CapTimelineEditorApp {
         if (!secondSample._catTeBound) {
             secondSample._catTeBound = true;
             secondSample?.addEventListener("change", () => this._onSecondSampleChange());
+            this.autoPromptCb?.addEventListener("change", () => this._onAutoPromptChange());
             h3Motion?.addEventListener("change", () => this._onH3MotionContextChange());
             saveLatent?.addEventListener("change", () => this._onSaveLatentChange());
             seed?.addEventListener("change", () => this._onClipSeedChange());
@@ -18946,6 +18997,10 @@ export class CapTimelineEditorApp {
         if (this.useAudioTrackAudioCb) {
             this.useAudioTrackAudioCb.disabled = disabled;
             this.useAudioTrackAudioCb.checked = enabled && !!m?.useAudioTrackAudio;
+        }
+        if (this.autoPromptCb) {
+            this.autoPromptCb.disabled = disabled;
+            this.autoPromptCb.checked = enabled && !!m?.autoPrompt;
         }
         if (this.secondSampleCb) {
             this.secondSampleCb.disabled = disabled;
@@ -19660,6 +19715,7 @@ export class CapTimelineEditorApp {
                 location: status?.location || media?.location || "input",
                 setting_description: String(media?.setting_description || ""),
                 media_type: String(media?.media_type || ""),
+                grid_panels: Number(media?.grid_panels) || 0,
                 tags: Array.isArray(media?.tags) ? media.tags : [],
                 include_description: context.resource_description !== false && item.useMediaPrompt !== false,
                 include_data: item.kind === "video"
@@ -20019,8 +20075,8 @@ export class CapTimelineEditorApp {
         for (const button of [this.agentPromptPickBtn, this.agentPromptRefreshBtn, this.agentPromptClearBtn]) {
             if (button) button.disabled = !!this._aiOptimizeBusy;
         }
-        if (this.skillClearBtn) this.skillClearBtn.disabled = !isH3 || this._aiOptimizeBusy;
-        if (this.aiSkillInput) this.aiSkillInput.disabled = !isH3 || this._aiOptimizeBusy;
+        const skillClip = this._findClipById(this._aiOptimizeClipId);
+        if (this.aiSkills) this.aiSkills.configure(skillClip ? this._ensureClipMeta(skillClip).promptSkills : [], !isH3 || this._aiOptimizeBusy);
         if (this.skillPickBtn) this.skillPickBtn.disabled = !isH3 || this._aiOptimizeBusy;
         if (this.skillSyncBtn) this.skillSyncBtn.disabled = !isH3 || this._aiOptimizeBusy || this._skillSyncBusy;
     }
@@ -20080,9 +20136,7 @@ export class CapTimelineEditorApp {
         if (this.aiOptimizeTitle) {
             this.aiOptimizeTitle.textContent = T("prompt_manager_title");
         }
-        if (this.aiSkillInput && !String(this.aiSkillInput.value || "").trim()) {
-            setRichPromptValue(this.aiSkillInput, localStorage.getItem(STORAGE_AI_PROMPT_SKILL) || "");
-        }
+        this.aiSkills?.configure(meta.promptSkills);
         this._restoreAiOutputLanguage();
         this._restoreAiPromptContext();
         if (this.modelPreviewSeedInput) this.modelPreviewSeedInput.value = String(this._normalizeClipSeed(meta.seed));
@@ -20251,8 +20305,7 @@ export class CapTimelineEditorApp {
             this.aiGenerateStatus.setStatus(T("local_model_audio_unsupported"), "error");
             return;
         }
-        const skill = targetAgent === "MiniMaxH3" ? String(this.aiSkillInput?.value || "") : "";
-        localStorage.setItem(STORAGE_AI_PROMPT_SKILL, skill);
+        const skill = targetAgent === "MiniMaxH3" ? enabledPromptSkills(meta.promptSkills) : "";
         const outputLanguage = this._aiOutputLanguage();
         localStorage.setItem(STORAGE_AI_PROMPT_LANG, outputLanguage);
         const ac = new AbortController();
@@ -20435,14 +20488,23 @@ export class CapTimelineEditorApp {
 
     async _applyH3Skill(skillId) {
         const id = String(skillId || "").trim();
-        if (!id) return;
+        const clip = this._findClipById(this._aiOptimizeClipId);
+        if (!id || !clip || this._aiOptimizeBusy) return;
         try {
             const response = await fetch(api.apiURL(`/audio_keyframe_timeline/h3_skill?id=${encodeURIComponent(id)}`));
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
             const text = String(data.text || "");
-            if (this.aiSkillInput) setRichPromptValue(this.aiSkillInput, text);
-            localStorage.setItem(STORAGE_AI_PROMPT_SKILL, text);
+            if (this._findClipById(clip.id) !== clip) return;
+            const meta = this._ensureClipMeta(clip);
+            const rows = copyPromptSkills(meta.promptSkills);
+            const entry = {id, name: this._h3Skills?.find(row => row.id === id)?.title || this._h3Skills?.find(row => row.id === id)?.name || id, text, enabled: true};
+            const index = rows.findIndex(row => row.id === id);
+            if (index < 0) rows.push(entry); else rows[index] = entry;
+            this._recordUndo();
+            meta.promptSkills = rows;
+            this._saveToWidgets();
+            this._syncAiPromptTargetControls();
             this._closeSkillPicker();
         } catch (error) {
             alert(T("apply_skill_failed", { msg: error instanceof Error ? error.message : String(error) }));
@@ -20511,6 +20573,13 @@ export class CapTimelineEditorApp {
         m.agentCustom = String(this.clipAgentCustomInput.value || "").trim();
         this.clipAgentCustomInput.value = m.agentCustom;
         this._meta.set(this._selClip.id, m);
+    }
+
+    _onAutoPromptChange() {
+        if (!this._selClip || this.autoPromptCb?.disabled) return;
+        this._recordUndo();
+        this._ensureClipMeta(this._selClip).autoPrompt = !!this.autoPromptCb?.checked;
+        this._saveToWidgets();
     }
 
     _onSecondSampleChange() {
@@ -20726,6 +20795,8 @@ export class CapTimelineEditorApp {
                     row.use_append_prompt = m.useAppendPrompt !== false;
                     row.media_enabled = items.map((item) => item.enabled !== false);
                     row.second_sample = !!m.secondSample;
+                    row.auto_prompt = !!m.autoPrompt;
+                    row.prompt_skills = copyPromptSkills(m.promptSkills);
                     row.h3_motion_context_length = this._clampH3MotionContextLength(m.h3MotionContextLength);
                     row.save_latent = !!m.saveLatent;
                     row.h3_drafts = m.h3Drafts || [];
@@ -21100,6 +21171,7 @@ export class CapTimelineEditorApp {
         this._renderMediaGrid();
         if (this._aiOptimizeClipId && this._aiOptimizeSrc === "resource") this._renderAiResource();
         if (this._h3DraftVersions?.dialog.open) this._h3DraftVersions.render();
+        if (this.aiOptimizeModal && !this.aiOptimizeModal.hidden) this._syncAiPromptTargetControls();
     }
 
     async undo() {

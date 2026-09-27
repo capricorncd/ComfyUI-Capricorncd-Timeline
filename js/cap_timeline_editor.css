@@ -3611,8 +3611,7 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-ai-src-text,
 .cat-te-ai-resource-description,
-.cat-te-ai-system,
-.cat-te-ai-skill {
+.cat-te-ai-system {
     width: 100%;
     box-sizing: border-box;
     resize: none;
@@ -3671,8 +3670,7 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-gen-edit-prompt {
     font-size: var(--cat-te-prompt-font-size, 11px) !important;
 }
-.cat-te-ai-system,
-.cat-te-ai-skill {
+.cat-te-ai-system {
     flex: 0 0 auto;
     min-height: 72px;
 }
@@ -3781,7 +3779,7 @@ body.cat-te-media-dnd-over-tl {
     font-size: calc(var(--cat-font-size, 1rem) * 0.857143);
 }
 .cat-te-ai-system { min-height: 110px; flex: 1; }
-.cat-te-ai-skill { min-height: 64px; flex: 0 0 auto; height: 64px; }
+.cat-te-ai-skills { flex: 0 0 auto; min-width: 0; }
 .cat-te-ai-skill-link {
     color: var(--cat-accent);
     text-decoration: none;
@@ -4178,7 +4176,9 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-keyframe-run-body p { color: var(--cat-muted); margin: 0; line-height: 1.6; }
 .cat-te-keyframe-run-body label { display: flex; gap: 10px; align-items: start; flex-wrap: wrap; }
 .cat-te-keyframe-run-body small { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--cat-muted); line-height: 1.6; }
-.cat-te-keyframe-run-body input[type="text"], .cat-te-keyframe-run-body select { width: 100%; min-width: 0; box-sizing: border-box; padding: 8px; border: 1px solid var(--cat-border); border-radius: 6px; background: var(--cat-input); color: var(--cat-text); font: inherit; }
+.cat-te-keyframe-run-body input[type="text"] { width: 100%; min-width: 0; box-sizing: border-box; padding: 8px; border: 1px solid var(--cat-border); border-radius: 6px; background: var(--cat-input); color: var(--cat-text); font: inherit; }
+.cat-te-keyframe-range-header { display: flex; align-items: center; gap: 8px; }
+.cat-te-keyframe-range-header .cat-te-keyframe-exclude { margin-left: auto; align-items: center; flex-wrap: nowrap; }
 .cat-te-keyframe-run-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 @media (max-width: 600px) { .cat-te-keyframe-run-body { padding: 16px 18px; } }
 

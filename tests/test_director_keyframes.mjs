@@ -72,4 +72,42 @@ assert.equal(media.video_shots, saved, 'Existing shot data is reused, not replac
 editor.select(editor.target(clip), saved.points[0]); editor.remove(); editor.sync(clip);
 assert.equal(saved.points.some(point => point.time === 10), false, 'Deleting the initial marker persists');
 assert.ok(saves > 0);
+
+const appSource = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
+const deleteStart = appSource.indexOf('    handleDeleteKey(');
+const handleDeleteKey = new Function('isEditingField', 'T', 'return ({' +
+    appSource.slice(deleteStart, appSource.indexOf('\n    }', deleteStart) + 6) +
+    '}).handleDeleteKey')(event => !!event.editing, key => key);
+let clipDeletePrompts = 0, envelopeDeletes = 0;
+app._overlay = {classList:{contains:()=>true}};
+app._directorKeyframes = editor;
+app._openDeleteConfirm = () => clipDeletePrompts++;
+clip.audioEnvelope = {deleteSelected(){envelopeDeletes++; return false;}};
+timeline.getSelectedClips = () => [clip];
+const deleteKey = (extra = {}) => ({key:'Delete', preventDefault(){this.prevented=true;},
+    stopPropagation(){}, stopImmediatePropagation(){}, ...extra});
+for (const key of ['Delete', 'Backspace']) {
+    editor.add(clip, 22);
+    const selected = editor.selection.point;
+    const count = media.video_shots.points.length;
+    const typing = deleteKey({key, editing:true});
+    assert.equal(handleDeleteKey.call(app, typing), false);
+    assert.equal(media.video_shots.points.length, count, 'Typing only edits text');
+    clip.track.locked = true;
+    handleDeleteKey.call(app, deleteKey({key}));
+    assert(media.video_shots.points.includes(selected), 'Locked keyframes remain intact');
+    clip.track.locked = false;
+    const event = deleteKey({key});
+    assert.equal(handleDeleteKey.call(app, event), true);
+    assert(event.prevented);
+    assert(!media.video_shots.points.includes(selected), 'Global delete removes the selected keyframe');
+    assert.equal(media.video_shots.points.length, count - 1);
+    handleDeleteKey.call(app, deleteKey({key, repeat:true}));
+    assert.equal(clipDeletePrompts, 0, 'Holding delete after removing a keyframe never deletes its Clip');
+    assert.equal(envelopeDeletes, 0, 'Selected keyframes take priority over volume points');
+    assert(timeline.tracks[0].clips.includes(clip));
+}
+handleDeleteKey.call(app, deleteKey());
+assert.equal(clipDeletePrompts, 1, 'A fresh delete without a selected keyframe still handles the Clip');
+console.log('Global delete: keyframe priority, locked points, text editing and key-repeat protection passed.');
 console.log('Director keyframes: shared data, source timing, typing undo, frame moves, lock, detection merge, Ctrl+P and reload passed.');

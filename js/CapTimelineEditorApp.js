@@ -6228,6 +6228,10 @@ export class CapTimelineEditorApp {
         if (!this._overlay?.classList.contains("open")) return false;
         if (isEditingField(e)) return false;
         if (e.key !== "Delete" && e.key !== "Backspace") return false;
+        if (e.repeat || this._directorKeyframes?.remove()) {
+            e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.();
+            return true;
+        }
         if (this._timeline?.getSelectedClips().some(c => c.audioEnvelope?.deleteSelected())) {
             e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.();
             return true;

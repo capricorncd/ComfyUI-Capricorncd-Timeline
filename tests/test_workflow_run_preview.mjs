@@ -280,3 +280,21 @@ assert.deepEqual(pipeline._collectExecutedOutputVideos({output: {
     'temp': {images: [{filename: 'input.mp4', type: 'temp'}]},
 }}), ['project/saved.webm'], 'history lookup also ignores planned filenames and temporary inputs');
 console.log('PASS: queue-aware workflow run, prompt ownership, noise after Show Text, real saved outputs, media errors and scoped stop');
+
+pipeline._workflowPreview.active = true;
+pipeline._workflowPreview.entry = null;
+pipeline._workflowPreview.clipIds = ['first', 'selected', 'third'];
+pipeline._clipIdFromSpecifiedVideoPath = file => file.includes('selected') ? 'selected' : file.includes('first') ? 'first' : null;
+pipeline._findPendingGeneratedJob = () => null;
+for (const filename of ['saved_first.mp4', 'composed_all.mp4']) {
+    pipeline._onPromptExecuted({detail: {prompt_id: 'own', output: {
+        video: [{filename, subfolder: 'project', type: 'output'}],
+    }}});
+    assert(pipeline._workflowPreview.active, 'another Clip or final composition cannot complete the selected preview');
+    assert.equal(pipeline._workflowPreview.entry, null);
+}
+pipeline._onPromptExecuted({detail: {prompt_id: 'own', output: {
+    video: [{filename: 'saved_selected.mp4', subfolder: 'project', type: 'output'}],
+}}});
+assert.equal(pipeline._workflowPreview.entry.url, '/view/project/saved_selected.mp4');
+console.log('PASS: related previews reject other Clip outputs and final composition.');

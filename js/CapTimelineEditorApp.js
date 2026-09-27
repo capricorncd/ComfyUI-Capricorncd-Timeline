@@ -2464,8 +2464,9 @@ export class CapTimelineEditorApp {
                         if (node.class_type !== "CAP_TimelineEditor" || typeof node.inputs?.project_json !== "string") continue;
                         const project = JSON.parse(node.inputs.project_json);
                         const ids = project.settings?.runtime_only_clip_ids;
-                        if (ids?.length !== 1 || String(ids[0]) !== String(job.clipId)) continue;
-                        const row = project.tracks?.flatMap(t => t.clips || []).find(c => String(c.id) === String(job.clipId));
+                        const previewClipId = job.workflowPreview.clipId;
+                        if (!ids?.map(String).includes(previewClipId)) continue;
+                        const row = project.tracks?.flatMap(t => t.clips || []).find(c => String(c.id) === previewClipId);
                         if (row && previewSeedValue(row.seed) === null) {
                             row.seed = editor._randomClipSeed();
                             node.inputs.project_json = JSON.stringify(project);
@@ -2475,7 +2476,7 @@ export class CapTimelineEditorApp {
                     job.workflowPreview.nodeIds = new Set(Object.entries(result.output || {})
                         .filter(([, node]) => ["ModelPreviewOverrideKJ", "CAP_ModelPreviewOverride"].includes(node.class_type)
                             || (node.class_type === "CAP_H3VideoGenerator" && node.inputs?.sampling_preview !== false)).map(([id]) => id));
-                    job.workflowPreview.seed = workflowPreviewSeed(result.output || {}, String(job.clipId), job.workflowPreview.nodeIds);
+                    job.workflowPreview.seed = workflowPreviewSeed(result.output || {}, job.workflowPreview.clipId, job.workflowPreview.nodeIds);
                     previewRequests.set(result.output, {editor, session: job.workflowPreview});
                 }
                 return result;
@@ -8609,7 +8610,7 @@ export class CapTimelineEditorApp {
         if (!files.length) return;
         const promptId = this._promptIdFromEvent(e);
         if (promptId && this._workflowPreview?.promptId === promptId) {
-            const file = files.find(file => this._clipIdFromSpecifiedVideoPath(file) === this._workflowPreview.clipId) || files[0];
+            const file = files.find(file => this._clipIdFromSpecifiedVideoPath(file) === this._workflowPreview.clipId) || (this._workflowPreview.clipIds?.length > 1 ? null : files[0]);
             if (file) this._finishWorkflowPreview(T("model_preview_complete"), file);
         }
         for (const file of files) {
@@ -8643,7 +8644,7 @@ export class CapTimelineEditorApp {
                     const outputs = history[promptId]?.outputs;
                     if (outputs) {
                         const files = this._collectExecutedOutputVideos({output: outputs});
-                        file = files.find(file => this._clipIdFromSpecifiedVideoPath(file) === session.clipId) || files[0];
+                        file = files.find(file => this._clipIdFromSpecifiedVideoPath(file) === session.clipId) || (session.clipIds?.length > 1 ? null : files[0]);
                         break;
                     }
                     await new Promise(resolve => setTimeout(resolve, 250));
@@ -17306,10 +17307,7 @@ export class CapTimelineEditorApp {
         if (relatedRun === "cancel") return;
         const clips = Array.isArray(relatedRun) ? relatedRun : [clip];
         if (!await this._validateClipRunDurations(clips)) return;
-        if (workflowPreview && clips.length > 1) {
-            this._finishWorkflowPreview(T("workflow_run_queue"));
-            workflowPreview = null;
-        }
+        if (workflowPreview) workflowPreview.clipIds = clips.map(current => String(current.id));
         if (typeof app?.queuePrompt !== "function") {
             alert(T("queue_prompt_not_found"));
             return;

@@ -22,7 +22,7 @@ const app = {
 };
 const CapTimelineEditorApp = { _clipRunJobs: [] };
 const errors = [];
-const deps = { stripPromptComments, app, api, CapTimelineEditorApp, T: key => key, draftT: key => key, isDirectorTrackType: type => type === "director", alert: msg => errors.push(msg),
+const deps = { confirmKeyframeRun: async () => ({}), stripPromptComments, app, api, CapTimelineEditorApp, T: key => key, draftT: key => key, isDirectorTrackType: type => type === "director", alert: msg => errors.push(msg),
     defaultImageMeta: () => ({}), isSubtitleTrackType: () => false, isSubtitleClipMeta: () => false };
 function method(name) {
     const start = source.search(new RegExp(`    (?:static |async )?${name}\\(`));
@@ -33,6 +33,7 @@ function method(name) {
 CapTimelineEditorApp._installClipRunJobHook = method('_installClipRunJobHook');
 const editor = {
     node: {}, _timeline: {}, _timelineReady: true, _meta: new Map(), _pendingGeneratedJobs: [],
+    _hasH3VideoGeneratorDownstream: () => false,
     _isEmptyGroupClip: () => false, _confirmRelatedClipRun: async () => choice,
     async _validateClipRunDurations(selected) { this.validated = selected.map(c => c.id); return valid; },
     _makeGenVideoStamp: () => 'stamp', _clipSpecifiedVideoPath: id => `${id}.mp4`,
@@ -157,3 +158,18 @@ previewProject = JSON.parse(submissions.at(-1).output.timeline.inputs.project_js
 assert.deepEqual(previewProject.settings.runtime_only_clip_ids, ['second']);
 assert.deepEqual(previewProject.settings.h3_generation, {action: 'draft'});
 console.log('All/selected preview batches preserve scope and exclude media tracks');
+
+const previewSession = {clipId: 'second', active: true};
+let previewQueued;
+const previewEditor = {...editor,
+    _confirmRelatedClipRun: async () => clips,
+    _validateClipRunDurations: async () => true,
+    _finishWorkflowPreview: () => assert.fail('related run must retain its selected Clip preview'),
+    _queueClipsDownstream: async (selected, session) => { previewQueued = {selected, session}; return true; },
+};
+assert.equal(await run.call(previewEditor, clips[1], previewSession), true);
+assert.equal(previewQueued.session, previewSession);
+assert.equal(previewSession.active, true);
+assert.equal(previewSession.clipId, 'second');
+assert.deepEqual(previewSession.clipIds, ['first', 'second', 'third']);
+console.log('Related runs keep the selected Clip preview session.');

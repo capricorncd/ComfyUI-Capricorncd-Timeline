@@ -1,5 +1,23 @@
 # Release notes / 更新记录
 
+## 0.17.25 — 2026-09-27
+
+### English
+
+- Add explicit last-frame assignment for First+Last Frame Clips. Move the assigned image to the end when a first frame exists; keep tail-only ordering unchanged. H3 and Data Json Clip Parser honor the assignment.
+- Add director keyframe controls and segmented H3 runs, plus merge and cleanup actions in the generated-video editor.
+- Add named prompt references and H3 reference compilation; fix reference suggestions after IME input and reconnection.
+- Fix H3 continuation selecting its own previous output; update the bundled workflow and long-form video documentation.
+- Restart ComfyUI and refresh the browser after updating.
+
+### 简体中文
+
+- 首尾帧 Clip 新增尾帧指定：有首帧时自动将指定图片移到末尾，仅有尾帧时保持顺序；H3 和数据解析节点按指定关系读取首尾帧。
+- 新增导演关键帧控制和 H3 分段运行，以及生成视频编辑器中的合并、清理操作。
+- 新增提示词素材名称引用及 H3 引用转换，修复输入法输入和重新连接后的引用建议。
+- 修复 H3 续接选到自身历史视频的问题，更新配套工作流和长视频创作文档。
+- 更新后重启 ComfyUI 并刷新浏览器。
+
 ## 0.17.24 — 2026-09-27
 
 ### English

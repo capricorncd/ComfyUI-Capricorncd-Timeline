@@ -174,23 +174,22 @@ def _prev_clip_output_video_path(data_json: str, index: int, previous_output_vid
         data = {}
     if not isinstance(data, dict):
         return ""
-    clips = data.get("clips")
-    rel = str(previous_output_video or "").strip().replace("\\", "/")
-    if not rel and isinstance(clips, list) and 0 <= index < len(clips):
-        current = clips[index]
-        rel = str(current.get("previous_output_video") or "").strip().replace("\\", "/")
-        owner = (current.get("h3_timing") or {}).get("previous_source_clip_id")
-        prev = next((row for row in clips[:index] if str(row.get("source_clip_id") or row.get("id")) == str(owner)), None) if owner else (clips[index - 1] if index else None)
-        if isinstance(prev, dict):
-            rel = rel or str(prev.get("output_video") or "").strip().replace("\\", "/")
-    if not rel:
-        return ""
-    path = _resolve_output_file(rel)
-    if path:
-        return path
-    # Absolute / already-resolved path.
-    if os.path.isfile(rel):
-        return os.path.normpath(rel)
+    clips = data.get("clips") or []
+    current = clips[index] if 0 <= index < len(clips) else {}
+    owner = (current.get("h3_timing") or {}).get("previous_source_clip_id")
+    prev = next((row for row in reversed(clips[:index])
+                 if str(row.get("source_clip_id") or row.get("id")) == str(owner)), None) if owner else (clips[index - 1] if index else None)
+    candidates = [(prev or {}).get("output_video"), previous_output_video,
+                  current.get("previous_output_video"), current.get("previous_reference_video")]
+    for candidate in candidates:
+        rel = str(candidate or "").strip().replace("\\", "/")
+        if not rel:
+            continue
+        path = _resolve_output_file(rel)
+        if path:
+            return path
+        if os.path.isfile(rel):
+            return os.path.normpath(rel)
     return ""
 
 

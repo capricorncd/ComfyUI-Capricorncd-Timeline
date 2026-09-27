@@ -45,6 +45,17 @@ def choose_h3_context(previous, requested=22):
 
 
 def plan_h3_clips(clips, fps):
+    # Resolve dependencies before planning any clip, including single-clip runs.
+    previous_by_track = {}
+    for clip in clips:
+        previous = previous_by_track.get(clip.get("z_index", 0))
+        if "reference_previous" in clip:
+            clip["h3_motion_context_length"] = (int(clip.get("h3_motion_context_length", 0)) or 22) if clip["reference_previous"] else 0
+            if (clip["reference_previous"] and previous
+                    and clip.get("agent", "MiniMaxH3") == previous.get("agent", "MiniMaxH3") == "MiniMaxH3"
+                    and abs(previous["preview_end_ms"] - clip["preview_start_ms"]) <= 1):
+                previous["save_latent"] = True
+        previous_by_track[clip.get("z_index", 0)] = clip
     previous_by_track = {}
     plans = []
     for clip in clips:
@@ -53,7 +64,7 @@ def plan_h3_clips(clips, fps):
         start = clip["preview_start_ms"]
         end = clip["preview_end_ms"]
         is_h3 = clip.get("agent", "MiniMaxH3") == "MiniMaxH3"
-        linked = bool(is_h3 and previous and previous.get("h3_timing")
+        linked = bool(is_h3 and clip.get("reference_previous", True) and previous and previous.get("h3_timing")
                       and previous.get("save_latent") and previous.get("z_index", 0) == track
                       and abs(previous["preview_end_ms"] - start) <= 1)
         requested = int(clip.get("h3_motion_context_length", 0)) or (22 if linked else 0)

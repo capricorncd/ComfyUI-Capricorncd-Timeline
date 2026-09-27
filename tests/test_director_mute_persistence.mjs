@@ -1,3 +1,5 @@
+import { applyContinuationSettings, migrateContinuationSettings } from '../js/editor/ClipContinuation.js';
+const copyPromptSkills = value => structuredClone(value || []);
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
@@ -9,6 +11,7 @@ const { normalizeVolumePoints, migrateAudioFades, volumeAt } = await import('../
 
 const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
 const globals = {
+    applyContinuationSettings, migrateContinuationSettings, copyPromptSkills,
     isSubtitleTrackType: () => false, isVoiceoverTrackType: () => false, isMediaTrackType: () => false,
     encodeClipTimingMs: (start, duration) => ({ startMs: start * 1000, durationMs: duration * 1000 }),
     decodeClipTimingSecs: (start, duration) => ({ startTime: start / 1000, duration: duration / 1000 }),
@@ -61,7 +64,7 @@ console.log('Director mute survives project JSON save and restore for empty, ima
     let saved = 0;
     const app = {_selClip: {id: 'director'}, clipRoleSelect: {value: 'digital_human'},
         _recordUndo() {}, _ensureClipMeta: () => meta, _knownClipRole: value => value,
-        _meta: new Map(), _setVisualSettingsEnabled() {}, _saveToWidgets() {saved++;}, _updatePromptPanel() {}};
+        _meta: new Map(), _setVisualSettingsEnabled() {}, _saveToWidgets() {saved++;}, _updatePromptPanel() {}, _refreshClipResourceViews() {}};
     method('_onClipRoleChange').call(app);
     assert.equal(meta.useAudioTrackAudio, true);
     assert.equal(saved, 1);

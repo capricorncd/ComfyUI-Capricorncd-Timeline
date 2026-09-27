@@ -29,3 +29,7 @@ Manual H3 prompt generation uses enabled entries in list order. Shared-model aut
 ## Storyboard image assets
 
 In image asset settings, choose **宫格图（故事板图）** and panel count **Auto / 4 / 6 / 9**. Projects store `media_type: "grid_storyboard"` and `grid_panels: 0|4|6|9` on the asset. Explicit counts take precedence over `_G4/_G6/_G9` suffixes; Auto uses the suffix when present, otherwise asks the model to inspect the image. This is model interpretation, not deterministic grid detection. Character, scene and prop assets remain setting references even in a storyboard Clip. Manual and shared-model prompt generation both receive these fields; each grid remains a single image reference. No image file metadata or pixels are modified by this setting.
+
+## Clip continuation
+
+Clip settings now expose **衔接上一片段 / Continue previous clip** (`reference_previous`, default false). Enabling it prefers 22 context frames and automatically saves the adjacent preceding H3 clip’s latent, even when only that preceding clip is queued. At generation time use the new preceding output, its existing generated video, then its enabled video reference if latent is unavailable. The clips must be adjacent on the same track. Disabling explicitly breaks continuation. Legacy projects without the flag retain their runtime timing behavior. The unused Clip second-sampling checkbox is removed; the generator node’s separate two-stage sampling option is unchanged.

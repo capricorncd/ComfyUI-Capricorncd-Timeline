@@ -27,6 +27,7 @@ import { parseStoryboardDocument, buildStoryboardDocument } from "./editor/Story
 import { FontPicker } from "./editor/FontPicker.js";
 import { stripH3Timing, h3TimingFromFilename, applyH3VideoTrim, restoreH3ClipTiming, replaceH3ContextTail } from "./editor/H3Timing.js";
 import { confirmKeyframeRun, addKeyframeVideo } from "./editor/KeyframeRun.js";
+import { applyContinuationSettings, migrateContinuationSettings } from "./editor/ClipContinuation.js";
 import { planClipRunLayout, clipLayoutList, relatedH3ClipIds } from "./editor/ClipRunValidation.js";
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
@@ -465,11 +466,10 @@ function defaultImageMeta(trackIndex = 0) {
         visible: true,
         muted: false,
         volume: 1,
-        secondSample: false,
         autoPrompt: false,
         promptSkills: [],
         h3MotionContextLength: 0,
-        saveLatent: false,
+        referencePrevious: false,
         h3Drafts: [],
         h3DraftRemoved: [],
         seed: -1,
@@ -3784,26 +3784,9 @@ export class CapTimelineEditorApp {
                   <input class="cat-te-auto-prompt" type="checkbox" disabled />
                   <span>${T("auto_prompt_label")}</span>
                 </label>
-                <label class="cat-te-clip-setting-check">
-                  <input class="cat-te-second-sample" type="checkbox" disabled />
-                  <span>${T("second_sample_label")}</span>
-                </label>
-                <label class="cat-te-clip-setting-row" title="${T("h3_motion_context_length_title")}">
-                  <span>${T("h3_motion_context_length_label")}</span>
-                  <input class="cat-te-h3-motion-context" type="number" min="0" step="1" list="cat-te-h3-motion-context-values" value="0" disabled />
-                  <datalist id="cat-te-h3-motion-context-values">
-                    <option value="0"></option>
-                    <option value="5"></option>
-                    <option value="22"></option>
-                    <option value="39"></option>
-                    <option value="90"></option>
-                    <option value="141"></option>
-                    <option value="192"></option>
-                  </datalist>
-                </label>
-                <label class="cat-te-clip-setting-check" title="${T("save_latent_title")}">
-                  <input class="cat-te-save-latent" type="checkbox" disabled />
-                  <span>${T("save_latent_label")}</span>
+                <label class="cat-te-clip-setting-check" title="${T("reference_previous_title")}">
+                  <input class="cat-te-reference-previous" type="checkbox" disabled />
+                  <span>${T("reference_previous_label")}</span>
                 </label>
                 <div class="cat-te-clip-setting-row cat-te-seed-row" title="${T("clip_seed_title")}">
                   <span>${T("clip_seed_label")}</span>
@@ -4856,10 +4839,8 @@ export class CapTimelineEditorApp {
         this.promptIncludesHost = el.querySelector(".cat-te-prompt-includes");
         this.promptIncludeChips = el.querySelectorAll(".cat-te-prompt-include-chip");
         this.useAudioTrackAudioCb = el.querySelector(".cat-te-use-audio-track");
-        this.secondSampleCb = el.querySelector(".cat-te-second-sample");
+        this.referencePreviousCb = el.querySelector(".cat-te-reference-previous");
         this.autoPromptCb = el.querySelector(".cat-te-auto-prompt");
-        this.h3MotionContextInput = el.querySelector(".cat-te-h3-motion-context");
-        this.saveLatentCb = el.querySelector(".cat-te-save-latent");
         this.clipSeedInput = el.querySelector(".cat-te-clip-seed");
         this.clipSeedRandomBtn = el.querySelector(".cat-te-clip-seed-random");
         this.clipRoleSelect = el.querySelector(".cat-te-clip-role");
@@ -5387,12 +5368,10 @@ export class CapTimelineEditorApp {
                 this._onPromptIncludeToggle(chip.dataset.include);
             });
         });
-        if (this.secondSampleCb && !this.secondSampleCb._catTeBound) {
-            this.secondSampleCb._catTeBound = true;
-            this.secondSampleCb?.addEventListener("change", () => this._onSecondSampleChange());
+        if (this.referencePreviousCb && !this.referencePreviousCb._catTeBound) {
+            this.referencePreviousCb._catTeBound = true;
+            this.referencePreviousCb?.addEventListener("change", () => this._onReferencePreviousChange());
             this.autoPromptCb?.addEventListener("change", () => this._onAutoPromptChange());
-            this.h3MotionContextInput?.addEventListener("change", () => this._onH3MotionContextChange());
-            this.saveLatentCb?.addEventListener("change", () => this._onSaveLatentChange());
             this.clipSeedInput?.addEventListener("change", () => this._onClipSeedChange());
             this.clipSeedRandomBtn?.addEventListener("click", () => this._randomizeClipSeed());
         }
@@ -6701,7 +6680,7 @@ export class CapTimelineEditorApp {
 
     _clipsFromProjectTracks(project, fps) {
         const clips = [];
-        const projectTracks = Array.isArray(project?.tracks) ? project.tracks : [];
+        const projectTracks = migrateContinuationSettings(Array.isArray(project?.tracks) ? project.tracks : []);
         projectTracks.forEach((track, trackIndex) => {
             const trackType = String(track?.type || "visual").toLowerCase();
             for (const clip of Array.isArray(track.clips) ? track.clips : []) {
@@ -15037,11 +15016,10 @@ export class CapTimelineEditorApp {
                 clipRoleCustom: c.clip_role_custom ?? "",
                 agent: c.agent || "MiniMaxH3",
                 agentCustom: c.agent_custom ?? "",
-                secondSample: !!c.second_sample,
                 autoPrompt: !!c.auto_prompt,
                 promptSkills: copyPromptSkills(c.prompt_skills),
                 h3MotionContextLength: Math.max(0, Math.round(Number(c.h3_motion_context_length) || 0)),
-                saveLatent: !!c.save_latent,
+                referencePrevious: c.reference_previous ?? (Number(c.h3_motion_context_length) > 0),
                 h3Drafts: Array.isArray(c.h3_drafts) ? c.h3_drafts : [],
                 h3DraftRemoved: Array.isArray(c.h3_draft_removed) ? c.h3_draft_removed : [],
                 seed: this._normalizeClipSeed(c.seed),
@@ -15123,7 +15101,6 @@ export class CapTimelineEditorApp {
                 sourceDuration: sourceDur,
                 muted: !!c.muted,
                 volume: normalizeClipVolume(c.volume),
-                secondSample: !!c.second_sample,
                 autoPrompt: !!c.auto_prompt,
                 promptSkills: copyPromptSkills(c.prompt_skills),
             items: (Array.isArray(c.items) && c.items.length
@@ -15146,7 +15123,7 @@ export class CapTimelineEditorApp {
                     Number(c.resource_start_sec) || startTime,
                 ),
                 h3MotionContextLength: Math.max(0, Math.round(Number(c.h3_motion_context_length) || 0)),
-                saveLatent: !!c.save_latent,
+                referencePrevious: c.reference_previous ?? (Number(c.h3_motion_context_length) > 0),
                 h3Drafts: Array.isArray(c.h3_drafts) ? c.h3_drafts : [],
                 h3DraftRemoved: Array.isArray(c.h3_draft_removed) ? c.h3_draft_removed : [],
                 seed: this._normalizeClipSeed(c.seed),
@@ -15188,7 +15165,6 @@ export class CapTimelineEditorApp {
             disabled: !!c.disabled,
             visible: c.visible !== false,
             volume: normalizeClipVolume(c.volume),
-                secondSample: !!c.second_sample,
                 autoPrompt: !!c.auto_prompt,
                 promptSkills: copyPromptSkills(c.prompt_skills),
             items: (Array.isArray(c.items) && c.items.length
@@ -15211,7 +15187,7 @@ export class CapTimelineEditorApp {
                 Number(c.resource_start_sec) || startTime,
             ),
             h3MotionContextLength: Math.max(0, Math.round(Number(c.h3_motion_context_length) || 0)),
-            saveLatent: !!c.save_latent,
+            referencePrevious: c.reference_previous ?? (Number(c.h3_motion_context_length) > 0),
             h3Drafts: Array.isArray(c.h3_drafts) ? c.h3_drafts : [],
             h3DraftRemoved: Array.isArray(c.h3_draft_removed) ? c.h3_draft_removed : [],
             seed: this._normalizeClipSeed(c.seed),
@@ -18956,18 +18932,14 @@ export class CapTimelineEditorApp {
     _syncClipSettingRefs() {
         const el = this._overlay;
         if (!el) return;
-        const secondSample = el.querySelector(".cat-te-second-sample");
-        const h3Motion = el.querySelector(".cat-te-h3-motion-context");
-        const saveLatent = el.querySelector(".cat-te-save-latent");
+        const referencePrevious = el.querySelector(".cat-te-reference-previous");
         const seed = el.querySelector(".cat-te-clip-seed");
         const seedRandom = el.querySelector(".cat-te-clip-seed-random");
         const role = el.querySelector(".cat-te-clip-role");
         const agent = el.querySelector(".cat-te-clip-agent");
-        if (!secondSample) return;
-        this.secondSampleCb = secondSample;
+        if (!referencePrevious) return;
+        this.referencePreviousCb = referencePrevious;
         this.autoPromptCb = el.querySelector(".cat-te-auto-prompt");
-        this.h3MotionContextInput = h3Motion;
-        this.saveLatentCb = saveLatent;
         this.clipSeedInput = seed;
         this.clipSeedRandomBtn = seedRandom;
         this.clipRoleSelect = role;
@@ -18976,12 +18948,10 @@ export class CapTimelineEditorApp {
         this.clipAgentSelect = agent;
         this.clipAgentCustomInput = el.querySelector(".cat-te-clip-agent-custom");
         this.clipAgentCustomRow = el.querySelector(".cat-te-clip-agent-custom-row");
-        if (!secondSample._catTeBound) {
-            secondSample._catTeBound = true;
-            secondSample?.addEventListener("change", () => this._onSecondSampleChange());
+        if (!referencePrevious._catTeBound) {
+            referencePrevious._catTeBound = true;
+            referencePrevious?.addEventListener("change", () => this._onReferencePreviousChange());
             this.autoPromptCb?.addEventListener("change", () => this._onAutoPromptChange());
-            h3Motion?.addEventListener("change", () => this._onH3MotionContextChange());
-            saveLatent?.addEventListener("change", () => this._onSaveLatentChange());
             seed?.addEventListener("change", () => this._onClipSeedChange());
             seedRandom?.addEventListener("click", () => this._randomizeClipSeed());
         }
@@ -19002,19 +18972,9 @@ export class CapTimelineEditorApp {
             this.autoPromptCb.disabled = disabled;
             this.autoPromptCb.checked = enabled && !!m?.autoPrompt;
         }
-        if (this.secondSampleCb) {
-            this.secondSampleCb.disabled = disabled;
-            this.secondSampleCb.checked = enabled && !!m?.secondSample;
-        }
-        if (this.h3MotionContextInput) {
-            this.h3MotionContextInput.disabled = disabled;
-            this.h3MotionContextInput.value = enabled
-                ? String(this._clampH3MotionContextLength(m?.h3MotionContextLength))
-                : "0";
-        }
-        if (this.saveLatentCb) {
-            this.saveLatentCb.disabled = disabled;
-            this.saveLatentCb.checked = enabled && !!m?.saveLatent;
+        if (this.referencePreviousCb) {
+            this.referencePreviousCb.disabled = disabled;
+            this.referencePreviousCb.checked = enabled && !!m?.referencePrevious;
         }
         if (this.clipSeedInput) {
             this.clipSeedInput.disabled = disabled;
@@ -20582,33 +20542,17 @@ export class CapTimelineEditorApp {
         this._saveToWidgets();
     }
 
-    _onSecondSampleChange() {
-        if (!this._selClip || this.secondSampleCb?.disabled) return;
+    _onReferencePreviousChange() {
+        if (!this._selClip || this.referencePreviousCb?.disabled) return;
         this._recordUndo();
-        const m = this._meta.get(this._selClip.id) ?? defaultImageMeta();
-        m.secondSample = !!this.secondSampleCb.checked;
-        this._meta.set(this._selClip.id, m);
+        const m = this._ensureClipMeta(this._selClip);
+        m.referencePrevious = !!this.referencePreviousCb.checked;
+        m.h3MotionContextLength = m.referencePrevious ? 22 : 0;
+        this._saveToWidgets();
     }
 
     _clampH3MotionContextLength(frames) {
         return Math.max(0, Math.round(Number(frames) || 0));
-    }
-
-    _onH3MotionContextChange() {
-        if (!this._selClip || this.h3MotionContextInput?.disabled) return;
-        this._recordUndo();
-        const m = this._meta.get(this._selClip.id) ?? defaultImageMeta();
-        m.h3MotionContextLength = this._clampH3MotionContextLength(this.h3MotionContextInput.value);
-        this.h3MotionContextInput.value = String(m.h3MotionContextLength);
-        this._meta.set(this._selClip.id, m);
-    }
-
-    _onSaveLatentChange() {
-        if (!this._selClip || this.saveLatentCb?.disabled) return;
-        this._recordUndo();
-        const m = this._meta.get(this._selClip.id) ?? defaultImageMeta();
-        m.saveLatent = !!this.saveLatentCb.checked;
-        this._meta.set(this._selClip.id, m);
     }
 
     _normalizeClipSeed(value) {
@@ -20794,11 +20738,11 @@ export class CapTimelineEditorApp {
                     row.use_prepend_prompt = m.usePrependPrompt !== false;
                     row.use_append_prompt = m.useAppendPrompt !== false;
                     row.media_enabled = items.map((item) => item.enabled !== false);
-                    row.second_sample = !!m.secondSample;
                     row.auto_prompt = !!m.autoPrompt;
                     row.prompt_skills = copyPromptSkills(m.promptSkills);
-                    row.h3_motion_context_length = this._clampH3MotionContextLength(m.h3MotionContextLength);
-                    row.save_latent = !!m.saveLatent;
+                    row.reference_previous = !!m.referencePrevious;
+                    row.h3_motion_context_length = m.referencePrevious ? (this._clampH3MotionContextLength(m.h3MotionContextLength) || 22) : 0;
+                    row.save_latent = false;
                     row.h3_drafts = m.h3Drafts || [];
                     row.h3_draft_removed = m.h3DraftRemoved || [];
                     row.seed = this._normalizeClipSeed(m.seed);
@@ -20909,6 +20853,7 @@ export class CapTimelineEditorApp {
                 clips,
             };
         });
+        applyContinuationSettings(tracks);
         return {
             project_version: this._currentVersion(),
             schema_version: this._currentSchemaVersion(),

@@ -9,7 +9,7 @@ const active = clip => clip.enabled !== false && clip.visible !== false
         || clip.start_image || clip.end_image || clip.source?.file);
 const h3 = clip => (clip.agent || 'MiniMaxH3') === 'MiniMaxH3';
 const linked = (prev, next) => active(prev) && active(next) && h3(prev) && h3(next)
-    && prev.save_latent
+    && (next.reference_previous ?? prev.save_latent)
     && Math.abs(start(prev) + duration(prev) - start(next)) <= 1;
 
 export function relatedH3ClipIds(project, clipId) {

@@ -762,6 +762,7 @@ class CAP_TimelineEditor:
 
         runtime_clips = []
         generated_outputs = {}
+        reference_outputs = {}
         materials = []
         seen_materials = set()
         for clip, start, end, z_index in segments:
@@ -789,6 +790,9 @@ class CAP_TimelineEditor:
             source_clip_id = str(clip.get("id", ""))
             generated_outputs[source_clip_id] = next((str(video["file"]) for video in clip.get("generated_videos", [])
                 if video.get("enabled", True) and video.get("file") and not video.get("h3_context_from")), "")
+            reference_outputs[source_clip_id] = next((resolve_media_path(
+                entry["row"].get("file", ""), assets_dir="", location=entry["row"].get("location", "input"))
+                for entry in entries if entry.get("enabled") and entry["row"].get("kind") == "video"), "")
             prompt_includes = _timeline_prompt_includes(clip)
             runtime_row = {
                 "id": f"runtime_{len(runtime_clips) + 1:04d}",
@@ -805,7 +809,7 @@ class CAP_TimelineEditor:
                 "end_ms": ext_end,
                 "preview_start_ms": int(start),
                 "preview_end_ms": int(end),
-                "second_sample": bool(clip.get("second_sample", False)),
+                "second_sample": False,
                 "auto_prompt": bool(clip.get("auto_prompt", False)),
                 "prompt_skills": clip.get("prompt_skills", []),
                 "h3_motion_context_length": _h3_motion_context_length(clip),
@@ -832,6 +836,8 @@ class CAP_TimelineEditor:
                 runtime_row["output_video"] = (
                     f"CapTimelineEditor/{project_name_safe}/{gen_video_stamp}_{clip_id_safe}.mp4"
                 )
+            if "reference_previous" in clip:
+                runtime_row["reference_previous"] = bool(clip["reference_previous"])
             runtime_clips.append(runtime_row)
 
         plan_h3_clips(runtime_clips, fps)
@@ -839,6 +845,8 @@ class CAP_TimelineEditor:
             previous = (row.get("h3_timing") or {}).get("previous_source_clip_id")
             if previous and generated_outputs.get(previous):
                 row["previous_output_video"] = generated_outputs[previous]
+            if previous and reference_outputs.get(previous):
+                row["previous_reference_video"] = reference_outputs[previous]
         if only_ids is not None:
             runtime_clips = [clip for clip in runtime_clips if clip["source_clip_id"] in only_ids]
         total_frame_count = max(1, sum(

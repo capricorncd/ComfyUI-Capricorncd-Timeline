@@ -52,6 +52,22 @@ class TimelineOutputsTests(unittest.TestCase):
         self.assertEqual(rows[0]['h3_timing']['play_frames'], 120)
         for removed in ('head_extend_sec', 'tail_extend_sec', 'generate_preview_video'):
             self.assertNotIn(removed, rows[0])
+        first['save_latent'] = False
+        first['reference_previous'] = False
+        second['reference_previous'] = True
+        second['h3_motion_context_length'] = 0
+        project['settings']['runtime_only_clip_ids'] = ['a']
+        prior = json.loads(namespace['execute'](instance, 24, 864, 480, 'test', json.dumps(project))[3])['clips'][0]
+        self.assertTrue(prior['save_latent'], 'future dependency must survive single-clip filtering')
+        project['settings']['runtime_only_clip_ids'] = ['b']
+        current = json.loads(namespace['execute'](instance, 24, 864, 480, 'test', json.dumps(project))[3])['clips'][0]
+        self.assertEqual(current['h3_timing']['context_frames'], 22)
+        namespace['_clip_visual_entries'] = lambda project, clip: [dict(id='ref', enabled=True, row=dict(id='ref', file='reference.mp4', kind='video', location='input'))] if clip['id']=='a' else []
+        namespace['_add_material'] = lambda *args: 'ref'
+        namespace['resolve_media_path'] = lambda name, **kwargs: 'input/' + name
+        current = json.loads(namespace['execute'](instance, 24, 864, 480, 'test', json.dumps(project))[3])['clips'][0]
+        self.assertEqual(current['previous_reference_video'], 'input/reference.mp4')
+        namespace['_clip_visual_entries'] = lambda *args: []
         original_videos = first['generated_videos']
         first['generated_videos'] = original_videos[:1]
         result = namespace['execute'](instance, 24, 864, 480, 'test', json.dumps(project))

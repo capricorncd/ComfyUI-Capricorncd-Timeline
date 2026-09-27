@@ -55,7 +55,7 @@ export class Button extends HTMLElement {
                 :host([variant="amber"]) button { background: rgba(217,164,65,0.15); border-color: rgba(217,164,65,0.4); color: var(--cat-amber, #e8c483); }
                 :host([variant="amber"]) button:hover { background: rgba(217,164,65,0.25); color: var(--cat-amber, #f5d9a8); }
                 :host([variant="danger"]) button { color: var(--cat-danger, #ff8080); }
-                :host([variant="danger"]) button:hover { color: var(--cat-danger, #ffaaaa); background: rgba(255,80,80,0.2); border-color: rgba(255,80,80,0.45); }
+                :host([variant="danger"]) button:hover { color: var(--cat-danger, #ff8080); background: color-mix(in srgb, var(--cat-danger, #ff8080) 20%, var(--cat-surface, #192226)); border-color: color-mix(in srgb, var(--cat-danger, #ff8080) 45%, transparent); }
                 :host([aria-pressed="true"]) button, :host([aria-pressed="true"]) button:hover,
                 :host([role="radio"][aria-checked="true"]) button,
                 :host([aria-selected="true"]) button, :host([aria-selected="true"]) button:hover {

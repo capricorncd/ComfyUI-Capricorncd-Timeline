@@ -29,7 +29,7 @@ export class ShotControl extends HTMLElement {
             </style>
             <header><strong></strong><span class="time"></span></header>
             <label><span></span><textarea></textarea></label>
-            <p class="hint"></p><div class="actions"><cap-button data-delete></cap-button><cap-button data-insert></cap-button></div>`;
+            <p class="hint"></p><div class="actions"><cap-button variant="danger" data-delete></cap-button><cap-button data-insert></cap-button></div>`;
         this.description = this.shadowRoot.querySelector('textarea');
         this.description.addEventListener('input', () => this.dispatchEvent(new CustomEvent('prompt-change', {detail: this.description.value})));
         this.description.addEventListener('blur', () => this.dispatchEvent(new Event('prompt-commit')));

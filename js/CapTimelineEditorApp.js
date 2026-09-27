@@ -4065,7 +4065,7 @@ export class CapTimelineEditorApp {
                   <span>${T("note_label")}</span>
                   <textarea class="cat-te-gen-video-note" rows="3" placeholder="${T("video_note_placeholder")}"></textarea>
                 </label>
-                <cap-button class="cat-te-gen-video-delete">${T("delete_btn")}</cap-button>
+                <cap-button variant="danger" class="cat-te-gen-video-delete">${T("delete_btn")}</cap-button>
               </div>
             </div>
           </div>
@@ -4121,8 +4121,8 @@ export class CapTimelineEditorApp {
               <div class="cat-te-gen-edit-actions">
                 <cap-status-message class="cat-te-gen-edit-status" hidden></cap-status-message>
                 <div class="cat-te-gen-edit-action-row">
-                  <cap-button class="cat-te-gen-edit-clear-clips">${T("gen_edit_clear_clips")}</cap-button>
-                  <cap-button class="cat-te-gen-edit-clear-tracks">${T("gen_edit_clear_tracks")}</cap-button>
+                  <cap-button variant="danger" class="cat-te-gen-edit-clear-clips">${T("gen_edit_clear_clips")}</cap-button>
+                  <cap-button variant="danger" class="cat-te-gen-edit-clear-tracks">${T("gen_edit_clear_tracks")}</cap-button>
                   <cap-button variant="primary" class="cat-te-gen-edit-merge">${T("gen_edit_merge")}</cap-button>
                 </div>
               </div>
@@ -4482,7 +4482,7 @@ export class CapTimelineEditorApp {
                       <span class="cat-te-ai-skill-actions">
                         <cap-button class="cat-te-agent-prompt-pick">${T("select_btn")}</cap-button>
                         <cap-button class="cat-te-agent-prompt-refresh">${iconHtml("refresh", 12)}${T("agent_prompt_refresh")}</cap-button>
-                        <cap-button variant="ghost" class="cat-te-agent-prompt-clear">${T("prompt_clear")}</cap-button>
+                        <cap-button variant="danger" class="cat-te-agent-prompt-clear">${T("prompt_clear")}</cap-button>
                       </span>
                     </span>
                     <textarea class="cat-te-ai-system" rows="6"></textarea>
@@ -4492,7 +4492,7 @@ export class CapTimelineEditorApp {
                     <div class="cat-te-ai-skill-actions">
                       <cap-button class="cat-te-skill-pick-btn">${T("select_btn")}</cap-button>
                       <cap-button class="cat-te-skill-sync-btn" title="${T("sync_latest_skill_title")}">${iconHtml("refresh", 12)}<span>${T("update_btn")}</span></cap-button>
-                      <cap-button variant="ghost" class="cat-te-skill-clear-btn">${T("prompt_clear")}</cap-button>
+                      <cap-button variant="danger" class="cat-te-skill-clear-btn">${T("prompt_clear")}</cap-button>
                     </div>
                   </div>
                   <textarea class="cat-te-ai-skill" rows="3" placeholder="${T("skill_placeholder")}"></textarea>
@@ -4518,7 +4518,7 @@ export class CapTimelineEditorApp {
                       </span>
                       <div class="cat-te-model-preview-config-actions">
                         <cap-button class="cat-te-model-preview-import">${T("import_preview_workflow_btn")}</cap-button>
-                        <cap-button class="cat-te-model-preview-clear">${T("clear_btn")}</cap-button>
+                        <cap-button variant="danger" class="cat-te-model-preview-clear">${T("clear_btn")}</cap-button>
                       </div>
                     </div>
                     <label><cap-form-row>
@@ -4729,7 +4729,7 @@ export class CapTimelineEditorApp {
                     <label><span>API Key</span><input class="cat-te-agent-key" type="password" autocomplete="new-password" placeholder="${T("enter_api_key")}" /></label>
                     <label class="cat-te-agent-enabled"><input type="checkbox" checked /><span>${T("enable_show_in_ai_optimize_label")}</span></label>
                     <div class="cat-te-agent-form-actions">
-                      <cap-button class="cat-te-agent-delete" hidden>${T("delete_btn")}</cap-button>
+                      <cap-button variant="danger" class="cat-te-agent-delete" hidden>${T("delete_btn")}</cap-button>
                       <span></span>
                       <cap-button class="cat-te-agent-cancel">${T("cancel_btn")}</cap-button>
                       <cap-button variant="primary" class="cat-te-agent-save">${T("save_btn")}</cap-button>
@@ -13001,7 +13001,7 @@ export class CapTimelineEditorApp {
         moreBtn.bindMenu(e => {
             const rect = e.currentTarget.getBoundingClientRect();
             return this._buildCtxMenu([{
-                label: T("clear_unreferenced_media"), icon: "trash",
+                label: T("clear_unreferenced_media"), icon: "trash", danger: true,
                 disabled: !this._unreferencedProjectMedia().length,
                 fn: () => this._clearUnreferencedProjectMedia(),
             }], rect.left, rect.bottom + 4, { ignoreNextClick: false });
@@ -18313,12 +18313,12 @@ export class CapTimelineEditorApp {
                 { label: storyboardT(this._storyboardMode ? "playback" : "mode"), icon: "image", fn: () => this._setStoryboardMode(!this._storyboardMode) },
                 { label: T("reset_track_order"), icon: "refresh", fn: () => this._resetTrackOrder() },
                 {
-                    label: T("clear_generated_video_links"), icon: "close",
+                    label: T("clear_generated_video_links"), icon: "close", danger: true,
                     disabled: !this._clipsWithGeneratedVideoLinks().length,
                     fn: () => void this._clearAllGeneratedVideoLinks(),
                 },
                 {
-                    label: T("clear_unused_video_links"), icon: "trash",
+                    label: T("clear_unused_video_links"), icon: "trash", danger: true,
                     disabled: !this._clipsWithGeneratedVideoLinks().some(({ meta }) => meta.generatedVideos.some(video => video.enabled === false)),
                     fn: () => void this._clearUnusedGeneratedVideoLinks(),
                 },

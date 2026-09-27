@@ -36,8 +36,30 @@ class KeyframeRunTests(unittest.TestCase):
         self.assertEqual(data['clips'][0]['keyframe_segment']['start_frame'], 120)
         self.assertEqual(data['clips'][1]['keyframe_segment']['end_frame'], 600)
         self.assertEqual([row['video_trim']['start'] for row in data['materials'][1:]], [17, 37])
-        self.assertEqual(data['clips'][0]['prompt'], 'base\n\nturn')
+        self.assertEqual([row['prompt'] for row in data['clips']], ['turn', 'turn'])
+        self.assertTrue(all(row['keyframe_segment']['prompt'] == 'turn' for row in data['clips']))
         self.assertEqual(original['images'], [dict(id='ref')])
+
+    def test_blank_keyframe_prompts_fall_back_per_interval(self):
+        data = self.data()
+        prompts = ['first shot', '', ' \n\t ', None]
+        data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24,
+            intervals=[dict(start_frame=i * 120, end_frame=(i + 1) * 120, prompt=prompt)
+                       for i, prompt in enumerate(prompts)])])
+        original = data['clips'][0]
+        module.expand_keyframe_runs(data)
+        expected = ['first shot', 'base', 'base', 'base']
+        self.assertEqual([row['prompt'] for row in data['clips']], expected)
+        self.assertEqual([row['keyframe_segment']['prompt'] for row in data['clips']], expected)
+        self.assertEqual(original['prompt'], 'base')
+
+    def test_unsegmented_clip_keeps_its_prompt(self):
+        for role in ['video_ref', 't2v']:
+            with self.subTest(role=role):
+                data = self.data()
+                data['clips'][0].update(clip_role=role, end_ms=6000)
+                self.assertFalse(module.expand_keyframe_runs(data))
+                self.assertEqual(data['clips'][0]['prompt'], 'base')
 
     def test_no_end_only_interval_and_no_empty_run(self):
         data = self.data()

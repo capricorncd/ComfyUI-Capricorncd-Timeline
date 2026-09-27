@@ -35,6 +35,8 @@ def expand_keyframe_runs(data):
             if local_start < start_ms - 1 or local_end > end_ms + 1:
                 raise ValueError("Keyframe interval is outside the Clip. Confirm the intervals again.")
             count = math.ceil((last - first) / max(1, math.floor(10 * fps)))
+            keyframe_prompt = interval.get("prompt") or ""
+            prompt = keyframe_prompt if keyframe_prompt.strip() else clip.get("prompt", "")
             previous_id = None
             carry = 0
             for part in range(count):
@@ -57,9 +59,9 @@ def expand_keyframe_runs(data):
                     save_latent=row["save_latent"], previous_source_clip_id=previous_id)
                 stem, extension = clip["output_video"].rsplit(".", 1)
                 row["output_video"] = f"{stem}__kf{interval_number}_{part + 1}.{extension}"
-                row["prompt"] = "\n\n".join(text for text in (clip.get("prompt", ""), interval.get("prompt", "")) if text)
+                row["prompt"] = prompt
                 row["keyframe_segment"] = dict(clip_id=parent, start_frame=begin, end_frame=end, fps=fps,
-                    interval=interval_number, part=part + 1, parts=count, prompt=interval.get("prompt", ""))
+                    interval=interval_number, part=part + 1, parts=count, prompt=prompt)
                 offset_start = row["start_ms"] - start_ms
                 offset_end = row["end_ms"] - start_ms
                 row["audios"] = []

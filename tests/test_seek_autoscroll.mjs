@@ -8,7 +8,7 @@ const window = {
     addEventListener: (name, fn) => listeners.set(name, fn),
     removeEventListener(name, fn) {if (listeners.get(name) === fn) listeners.delete(name);},
 };
-const deps = {window, clamp: (v, lo, hi) => Math.min(Math.max(v, lo), hi),
+const deps = {window, BASE_PPS: 100, clamp: (v, lo, hi) => Math.min(Math.max(v, lo), hi),
     requestAnimationFrame(fn) {frames.set(++id, fn); return id;},
     cancelAnimationFrame: key => frames.delete(key),
     bindDragSession(e, handlers) {drag = handlers; return () => {drag = null; handlers.onEnd();};},
@@ -18,15 +18,15 @@ function method(name) {
     return new Function(...Object.keys(deps), `return ({${source.slice(start, source.indexOf('\n  }', start) + 4)}}).${name}`)(...Object.values(deps));
 }
 function timeline(width = 500, content = 2000) {
-    const tl = {pixelsPerSecond: 100, currentTime: 0, _endSeekScrub: null,
+    const tl = {pixelsPerSecond: 100, startInset: 10, currentTime: 0, _endSeekScrub: null,
         scrollEl: {clientWidth: width, scrollWidth: content, scrollLeft: 0,
             getBoundingClientRect: () => ({left: 100})},
-        _seekMaxTime: () => content / 100,
+        _seekMaxTime: () => (content - 10) / 100,
+        _snapTime: value => value,
         _snapSeekToClipEdges(value) {this.snapCalls = (this.snapCalls || 0) + 1; return value;},
-        clientXToTime(x) {return Math.max(0, Math.min(this._seekMaxTime(), (x - 100 + this.scrollEl.scrollLeft) / 100));},
         setCurrentTime(value) {this.currentTime = value;},
     };
-    for (const name of ['_beginSeekScrub', '_seekFromEvent']) tl[name] = method(name);
+    for (const name of ['_beginSeekScrub', '_seekFromEvent', 'clientXToTime']) tl[name] = method(name);
     return tl;
 }
 const start = tl => tl._beginSeekScrub({button: 0, clientX: 300, preventDefault() {}});
@@ -35,11 +35,14 @@ const frame = () => {
     const queued = [...frames.values()]; frames.clear(); queued.forEach(fn => fn(time));
 };
 function visible(tl) {
-    const x = tl.currentTime * tl.pixelsPerSecond - tl.scrollEl.scrollLeft;
+    const x = tl.startInset + tl.currentTime * tl.pixelsPerSecond - tl.scrollEl.scrollLeft;
     assert(x >= -1e-7 && x <= tl.scrollEl.clientWidth + 1e-7, `seek outside viewport: ${x}`);
 }
 
 const tl = timeline();
+assert.equal(tl.clientXToTime(100), 0, 'inset never seeks to negative time');
+assert.equal(tl.clientXToTime(110), 0, 'zero starts ten pixels inside the viewport');
+assert.equal(tl.clientXToTime(210), 1, 'seek accounts for the inset');
 start(tl);
 drag.onMove({clientX: 700}); // Beyond the right viewport edge at 600.
 visible(tl);
@@ -56,7 +59,7 @@ assert.equal(frames.size, 0);
 drag.onMove({clientX: 700});
 for (let n = 0; n < 200; n++) frame();
 assert.equal(tl.scrollEl.scrollLeft, 1500);
-assert.equal(tl.currentTime, 20, 'can reach the exact timeline end');
+assert.equal(tl.currentTime, 19.9, 'can reach the exact timeline end');
 assert.equal(frames.size, 0, 'no animation loop at the scroll limit');
 drag.onMove({clientX: 20});
 for (let n = 0; n < 200; n++) {frame(); visible(tl);}
@@ -86,4 +89,14 @@ const destroyStart = source.indexOf('  destroy() {');
 assert(source.slice(destroyStart).includes('this._endSeekScrub?.()'), 'teardown stops active drag');
 const playhead = readFileSync(new URL('../js/timeline/PlayHead.js', import.meta.url), 'utf8');
 assert(playhead.includes('this.timeline._beginSeekScrub(e)'), 'head and ruler share scrubbing behavior');
+const zoom = timeline();
+Object.defineProperty(zoom, 'pixelsPerSecond', {get() {return 100 * this._zoom;}});
+Object.assign(zoom, {_zoom: 1, minZoom: 0.05, maxZoom: 20, tracks: [],
+    _syncContentWidth() {}, _playhead: {update() {}}, _ruler: {render() {}},
+    _zoomSlider: {}, _zoomLabel: {}, emit() {},
+});
+zoom.scrollEl.scrollLeft = 200;
+const pivotTime = zoom.clientXToTime(350);
+method('setZoom').call(zoom, 2, 250);
+assert.equal(zoom.clientXToTime(350), pivotTime, 'zoom keeps the time under the pointer fixed with the inset');
 console.log('PASS: seek edge auto-scroll, stationary pointer, viewport visibility, bounds, snapping and drag cleanup');

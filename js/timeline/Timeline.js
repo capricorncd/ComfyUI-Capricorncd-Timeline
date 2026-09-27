@@ -58,10 +58,11 @@ export class Timeline extends EventEmitter {
   // ─── public getters ───────────────────────────────────────────────────────
 
   get pixelsPerSecond() { return BASE_PPS * this._zoom; }
+  get startInset() { return 10; }
   /** Scrollable width: at least one viewport wide (matches ruler canvas). */
   get totalWidth() {
     const contentW = this.duration * this.pixelsPerSecond;
-    const viewW = this.scrollEl?.clientWidth ?? 0;
+    const viewW = (this.scrollEl?.clientWidth ?? 0) - this.startInset;
     return Math.max(contentW, viewW);
   }
 
@@ -344,6 +345,7 @@ export class Timeline extends EventEmitter {
     this.scrollEl = el('div', 'tl-scroll');
 
     this._contentEl = el('div', 'tl-content');
+    this._contentEl.style.marginLeft = `${this.startInset}px`;
 
     this._playhead = new PlayHead(this);
     this._contentEl.appendChild(this._playhead.el);
@@ -418,6 +420,8 @@ export class Timeline extends EventEmitter {
       if (e.target.closest?.('cap-dialog')) return;
       if (e.code !== 'Space' && e.target.closest?.('cap-button, cap-tab-button, cap-dropdown-button')) return;
       if (isEditingField(e)) return;
+      this.emit('key', e);
+      if (e.defaultPrevented) return;
       switch (e.code) {
         case 'Space':
           consume(e); this.togglePlay(); break;
@@ -664,7 +668,7 @@ export class Timeline extends EventEmitter {
   /** Convert viewport X to timeline seconds (accounts for horizontal scroll). */
   clientXToTime(clientX) {
     const r = this.scrollEl.getBoundingClientRect();
-    const x = clientX - r.left + this.scrollEl.scrollLeft;
+    const x = clientX - r.left + this.scrollEl.scrollLeft - this.startInset;
     const secs = x / this.pixelsPerSecond;
     return Math.max(0, Math.min(this._seekMaxTime(), this._snapTime(secs)));
   }
@@ -766,7 +770,7 @@ export class Timeline extends EventEmitter {
 
   _boxSelect(e) {
     const rect = this.scrollEl.getBoundingClientRect();
-    const point = ev => ({ x: ev.clientX - rect.left + this.scrollEl.scrollLeft,
+    const point = ev => ({ x: ev.clientX - rect.left + this.scrollEl.scrollLeft - this.startInset,
       y: ev.clientY - rect.top + this.scrollEl.scrollTop });
     const start = point(e);
     const candidates = this.tracks.filter(t => !t.locked).flatMap(t => t.clips);
@@ -788,7 +792,7 @@ export class Timeline extends EventEmitter {
       for (const c of candidates) {
         if (c.track.locked) continue;
         const r = c.el.getBoundingClientRect();
-        const x = r.left - rect.left + this.scrollEl.scrollLeft;
+        const x = r.left - rect.left + this.scrollEl.scrollLeft - this.startInset;
         const y = r.top - rect.top + this.scrollEl.scrollTop;
         if (x < right && x + r.width > left && y < bottom && y + r.height > top) ids.add(c.id);
       }
@@ -1042,7 +1046,7 @@ export class Timeline extends EventEmitter {
         : clientX > right - 24 ? Math.min(720, (clientX - right + 24) * 20) : 0;
       if (!speed) { previousTime = null; return; }
       const maxScroll = Math.max(0, Math.min(scroll.scrollWidth - scroll.clientWidth,
-        this._seekMaxTime() * this.pixelsPerSecond - scroll.clientWidth + 8));
+        this.startInset + this._seekMaxTime() * this.pixelsPerSecond - scroll.clientWidth + 8));
       const before = scroll.scrollLeft;
       scroll.scrollLeft = clamp(before + speed * elapsed, 0, maxScroll);
       if (scroll.scrollLeft !== before) {
@@ -1070,7 +1074,7 @@ export class Timeline extends EventEmitter {
     this._timeEl.textContent = this.formatTime(this.currentTime);
 
     if (this._playing && !this._endSeekScrub) {
-      const x = this.currentTime * this.pixelsPerSecond;
+      const x = this.startInset + this.currentTime * this.pixelsPerSecond;
       const sl = this.scrollEl.scrollLeft;
       const vw = this.scrollEl.clientWidth;
       if (x < sl + 20 || x > sl + vw - 60) {
@@ -1101,7 +1105,7 @@ export class Timeline extends EventEmitter {
 
     let pivotTime = null;
     if (pivotX !== null) {
-      pivotTime = (this.scrollEl.scrollLeft + pivotX) / (BASE_PPS * oldZoom);
+      pivotTime = (this.scrollEl.scrollLeft + pivotX - this.startInset) / (BASE_PPS * oldZoom);
     }
 
     this._zoom = newZoom;
@@ -1110,7 +1114,7 @@ export class Timeline extends EventEmitter {
     this._playhead.update();
 
     if (pivotTime !== null) {
-      this.scrollEl.scrollLeft = Math.max(0, pivotTime * this.pixelsPerSecond - pivotX);
+      this.scrollEl.scrollLeft = Math.max(0, this.startInset + pivotTime * this.pixelsPerSecond - pivotX);
     }
 
     this._ruler.render();

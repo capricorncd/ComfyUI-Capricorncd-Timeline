@@ -6,12 +6,14 @@ const start = source.indexOf('function normalizeOutputVideoPath(');
 const normalizeOutputVideoPath = new Function('OUTPUT_VIDEO_EXT',
     `return ${source.slice(start, source.indexOf('\n}', start) + 2)}`)(/\.(mp4|webm|mov|mkv|avi|m4v)$/i);
 let nextId = 0;
+const keyframeSource = readFileSync(new URL('../js/editor/KeyframeRun.js', import.meta.url), 'utf8');
+const addKeyframeVideo = new Function('makeT', keyframeSource.replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '') + '\nreturn addKeyframeVideo;')(() => () => '');
 function method(name) {
     const start = source.indexOf(`    ${name}(`);
     assert(start >= 0, name);
-    return new Function('normalizeOutputVideoPath', 'normalizeGeneratedVideo', 'genVideoUid', 'T',
+    return new Function('normalizeOutputVideoPath', 'normalizeGeneratedVideo', 'genVideoUid', 'T', 'addKeyframeVideo',
         `return ({${source.slice(start, source.indexOf('\n    }', start) + 6)}}).${name}`)(
-        normalizeOutputVideoPath, row => ({...row}), () => `gv_${++nextId}`, key => key);
+        normalizeOutputVideoPath, row => ({...row}), () => `gv_${++nextId}`, key => key, addKeyframeVideo);
 }
 
 function editor(ready = true) {
@@ -27,7 +29,7 @@ function editor(ready = true) {
         _clearRunPreview() {}, _syncClipRunDecorations() {}, _maybeClearGenVideoStamp() {},
         _promptIdFromEvent: e => e.detail.prompt_id,
     };
-    for (const name of ['_onH3ClipVideoReady', '_onTimelineVideoSaved', '_onPromptExecuted',
+    for (const name of ['_onH3ClipVideoReady', '_receiveKeyframeVideo', '_onTimelineVideoSaved', '_onPromptExecuted',
         '_persistGeneratedVideosToProjectJson', '_collectExecutedOutputVideos',
         '_teNotifyBelongsHere', '_safeProjectFilename']) e[name] = method(name);
     return e;
@@ -118,3 +120,21 @@ draftEditor._onTimelineVideoSaved({detail: {clip_id: 'a', file: draft.file}});
 assert.equal(files(draftEditor).length, 0, 'generic save notification excludes low-resolution previews');
 assert.deepEqual(draftEditor._collectExecutedOutputVideos({output: {video: [{filename: draft.file, type: 'output'}]}}), []);
 console.log('PASS: first-pass closed-editor persistence, disabled/deleted replay and composition isolation');
+const segmentsEditor = editor(false);
+const segmentEvent = event('a', 'segment1.mp4');
+segmentEvent.detail.video.keyframe_segment = {start_frame: 0, end_frame: 240, fps: 24, output_fps: 24, trim_frames: 0, raw_frames: 243};
+segmentsEditor._onH3ClipVideoReady(segmentEvent);
+const secondEvent = event('a', 'segment2.mp4');
+secondEvent.detail.video.keyframe_segment = {start_frame: 240, end_frame: 480, fps: 24, output_fps: 24, trim_frames: 19, raw_frames: 260};
+segmentsEditor._onH3ClipVideoReady(secondEvent);
+let segmentRows = segmentsEditor.project.tracks[0].clips[0].generated_videos;
+assert.equal(segmentRows.length, 2);
+assert(segmentRows.every(row => row.enabled));
+assert.equal(segmentRows[0].edit_start_sec, 10);
+assert.equal(segmentRows[0].trim_out_sec - segmentRows[0].trim_in_sec, 10);
+segmentRows[0].trim_out_sec -= 1;
+segmentsEditor._onH3ClipVideoReady(secondEvent);
+segmentRows = segmentsEditor.project.tracks[0].clips[0].generated_videos;
+assert.equal(segmentRows.length, 2);
+assert.equal(segmentRows[0].trim_out_sec - segmentRows[0].trim_in_sec, 9, 'completion replay preserves manual trimming');
+console.log('PASS: keyframe outputs persist with independent positions/trims and survive completion replay');

@@ -782,6 +782,27 @@ def _register_routes():
         except OSError as exc:
             return web.json_response({"error": str(exc)}, status=500)
 
+    @routes.post("/audio_keyframe_timeline/detect_video_scenes")
+    async def api_detect_video_scenes(request: web.Request) -> web.Response:
+        from .scene_detection import detect_video_scenes
+        try:
+            payload = await request.json()
+            if not isinstance(payload, dict):
+                raise ValueError("Invalid scene detection request.")
+            location = payload.get("location", "input")
+            if location not in ("input", "output"):
+                raise ValueError("Invalid media location.")
+            base = folder_paths.get_input_directory() if location == "input" else folder_paths.get_output_directory()
+            src = _safe_join(base, str(payload.get("file") or ""))
+            if not src or not os.path.isfile(src):
+                raise ValueError("Video file not found.")
+            points = await asyncio.to_thread(detect_video_scenes, src, payload.get("start", 0), payload.get("duration"))
+            return web.json_response({"times": points})
+        except (ValueError, TypeError) as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        except (RuntimeError, OSError) as exc:
+            return web.json_response({"error": str(exc)}, status=500)
+
     @routes.post("/audio_keyframe_timeline/trim_video")
     async def api_trim_video(request: web.Request) -> web.Response:
         try:

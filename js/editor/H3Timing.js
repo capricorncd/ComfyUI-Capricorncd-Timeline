@@ -46,8 +46,8 @@ export function replaceH3ContextTail(previousRows, nextRows, previousDuration) {
             delete row.h3_context_original_out;
         }
     }
-    const previous = rows.find(row => row.enabled !== false);
-    const next = nextRows.find(row => row.enabled !== false && !row.h3_context_from);
+    const previous = rows.find(row => row.enabled !== false && !row.keyframe_segment);
+    const next = nextRows.find(row => row.enabled !== false && !row.h3_context_from && !row.keyframe_segment);
     const a = previous && h3TimingFromFilename(previous.file);
     const b = next && h3TimingFromFilename(next.file);
     if (!a?.save || !b?.context || a.fps !== b.fps || !previous.h3_trim_applied || !next.h3_trim_applied) return retained();

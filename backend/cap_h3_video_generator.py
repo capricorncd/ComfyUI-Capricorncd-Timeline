@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import math
+import os
 import secrets
 
 import torch
@@ -22,6 +22,7 @@ from .cap_size_settings import CAP_SizeFromMegapixels
 from .cap_te_notify import EVENT_CLIP_RUNNING, notify_timeline
 from .cap_video_metadata import execution_graph
 from .h3_timing import timing_filename, plan_h3_clips
+from .h3_keyframe_runs import expand_keyframe_runs
 from .cap_h3_face_refine import FACE_NODES, validate_face_config
 from .cap_h3_selflift import validate_selflift_config
 from .cap_h3_interpolation import validate_interpolation_config
@@ -65,6 +66,12 @@ def _call(name, records, **inputs):
 
 def _clip_id(row):
     return str(row.get("source_clip_id") or row.get("id") or "")
+
+
+def _rename_context_latent(path, video, suffix=""):
+    target = os.path.join(os.path.dirname(path), os.path.splitext(os.path.basename(video))[0] + suffix + ".safetensors")
+    os.replace(path, target)
+    return target
 
 
 def _context_source(row, earlier):
@@ -190,6 +197,9 @@ class CAP_H3VideoGenerator:
         stage = request.get("action", "normal")
         if stage not in ("normal", "draft", "refine"):
             raise ValueError("Unknown H3 generation action.")
+        segmented = stage == "normal" and expand_keyframe_runs(data)
+        if segmented:
+            compose_final = False
         previews = {i: latest_draft(data, row) for i, row in enumerate(data["clips"]) if row.get("h3_drafts")} if stage == "normal" else {}
         previews = {i: value for i, value in previews.items() if value is not None}
         draft_manifest = None
@@ -393,7 +403,7 @@ class CAP_H3VideoGenerator:
                     if _clip_id(prior) == previous and prior.get("output_video"):
                         row["previous_output_video"] = prior["output_video"]
                         break
-            notify_timeline(EVENT_CLIP_RUNNING, clip_id=cid, index=index)
+            notify_timeline(EVENT_CLIP_RUNNING, clip_id=(row.get("keyframe_segment") or {}).get("clip_id", cid), index=index)
             clip_data, clip_index = data, index
             clip_stage, clip_manifest = stage, draft_manifest
             clip_low_width, clip_low_height = low_width, low_height
@@ -416,6 +426,13 @@ class CAP_H3VideoGenerator:
                         span["output_video"] = filename
             paths.append(filename)
             info = {**saved["ui"]["video"][0], "preview_key": f"{run_token}_{index}", "clip_id": cid}
+            if row.get("keyframe_segment"):
+                multiplier = interpolation["multiplier"] if interpolation else 1
+                timing = row["h3_timing"]
+                info["clip_id"] = row["keyframe_segment"]["clip_id"]
+                info["keyframe_segment"] = {**row["keyframe_segment"], "output_fps": fps * multiplier,
+                    "trim_frames": (timing["context_frames"] - timing.get("context_carry_frames", 0)) * multiplier,
+                    "raw_frames": timing["raw_frames"] * multiplier}
             if saved.get("h3_draft"):
                 info["h3_draft"] = saved["h3_draft"]
             videos.append(info)
@@ -521,10 +538,11 @@ class CAP_H3VideoGenerator:
         if stage == "draft":
             candidate = save_draft(low_result, data, index, low_width, low_height, frame_count, composed_prompt, steps)
             row["output_video"] = f"{DRAFT_ROOT}/{candidate['id']}/preview.mp4"
-        context_prefix = f"h3_context/cap_generator/{run_token}/{hashlib.sha256(cid.encode()).hexdigest()[:16]}"
+        context_prefix = row["output_video"].strip().rsplit(".", 1)[0]
+        low_prefix = context_prefix + ("_low" if second_sampling else "")
         low_path = high_path = ""
         if save_latent and not (motion_deblur or face_refine_config):
-            low_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=low_result, filename_prefix=context_prefix + "/low", clip_index=1)
+            low_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=low_result, filename_prefix=low_prefix, clip_index=1)
         result = low_result
         del low_result
         if second_sampling:
@@ -555,7 +573,7 @@ class CAP_H3VideoGenerator:
             result, denoised = _call("SamplerCustomAdvanced", records, noise=noise, guider=guider, sampler=sampler, sigmas=sigmas, latent_image=latent)
             del denoised, latent, guider
             if save_latent and not (motion_deblur or face_refine_config):
-                high_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=result, filename_prefix=context_prefix + "/high", clip_index=1)
+                high_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=result, filename_prefix=context_prefix + "_high", clip_index=1)
         audio = None
         if generate_audio and audio_refine:
             if progress:
@@ -601,13 +619,13 @@ class CAP_H3VideoGenerator:
             if second_sampling:
                 context_video, = _call("VAEEncode", records, pixels=images, vae=vae)
                 context, = _call("LTXVConcatAVLatent", records, video_latent=context_video, audio_latent=context_audio)
-                high_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=context, filename_prefix=context_prefix + "/high", clip_index=1)
+                high_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=context, filename_prefix=context_prefix + "_high", clip_index=1)
                 del context, context_video
                 context_images, = _call("ImageScale", records, image=images, upscale_method="area",
                                         width=low_width, height=low_height, crop="disabled")
             context_video, = _call("VAEEncode", records, pixels=context_images, vae=vae)
             context, = _call("LTXVConcatAVLatent", records, video_latent=context_video, audio_latent=context_audio)
-            low_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=context, filename_prefix=context_prefix + "/low", clip_index=1)
+            low_path, = _call("MiniMaxH3MotionContextSaveLatent", records, latent=context, filename_prefix=low_prefix, clip_index=1)
             del context, context_video, context_audio, context_images
         del result
         output_fps = fps
@@ -642,7 +660,7 @@ class CAP_H3VideoGenerator:
         if progress:
             progress("save")
         saved = CAP_SeqToVideo().execute("", output_fps, output, images=images, audio=audio,
-                                        metadata=json.dumps({"clip_id": cid, "strict_keyframes": strict_keyframes,
+                                        metadata=json.dumps({"clip_id": cid, "keyframe_segment": row.get("keyframe_segment"), "strict_keyframes": strict_keyframes,
                                                              "generate_audio": generate_audio, "audio_refine": bool(generate_audio and audio_refine),
                                                              "audio_refine_config": audio_refine_config if generate_audio and audio_refine else None,
                                                              "digital_human": digital_human,
@@ -655,6 +673,10 @@ class CAP_H3VideoGenerator:
                                                              "frame_interpolation": interpolation, "output_fps": output_fps,
                                                              "h3_timing": output_timing}),
                                         save_sidecar=False, prompt=records, extra_pnginfo=extra_pnginfo, seed=seed, clip_id=cid)
+        if low_path:
+            low_path = _rename_context_latent(low_path, saved["result"][0], "_low" if second_sampling else "")
+        if high_path:
+            high_path = _rename_context_latent(high_path, saved["result"][0], "_high")
         if candidate:
             saved["h3_draft"] = finish_draft(candidate, saved["result"][0])
         return saved, (low_path, high_path) if save_latent else None

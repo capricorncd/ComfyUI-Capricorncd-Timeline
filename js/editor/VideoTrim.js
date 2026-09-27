@@ -5,7 +5,6 @@ import '../components/Dialog.js';
 import '../components/ExportRange.js';
 import '../components/StatusMessage.js';
 import { formatTimecode } from '../timecode.js';
-import { shotPrompt } from '../components/ShotControl.js';
 
 export function videoFrameSeekTime(frame, fps) {
     // MP4 time bases can round a frame's PTS slightly past frame / fps.
@@ -38,9 +37,10 @@ export class VideoTrim {
         this.dialog = document.createElement('cap-dialog');
         this.dialog.className = 'cat-te-video-trim-dialog';
         host.append(this.dialog);
+        this.progressDialog = document.createElement('cap-dialog');
+        this.progressDialog.className = 'cat-te-video-convert-dialog';
+        host.append(this.progressDialog);
         this.dialog.addEventListener('close', () => {
-            this._saveShotDrafts?.();
-            this._saveShotDrafts = null;
             this.stop();
         });
     }
@@ -51,10 +51,16 @@ export class VideoTrim {
     }
 
     progress(active) {
-        this.dialog.closeDisabled = active;
-        if (!active) { this.dialog.close(); return; }
-        this.dialog.innerHTML = `<span slot="title">${T('convert_to_director_clip')}</span><p>${T('composing_please_wait')}</p>`;
-        this.dialog.showModal();
+        const dialog = this.progressDialog;
+        dialog.closeDisabled = active;
+        if (!active) { dialog.close(); return; }
+        dialog.innerHTML = `<span slot="title">${T('convert_to_director_clip')}</span>
+            <div class="cat-te-video-convert-body">
+                <cap-status-message>${T('director_video_converting')}</cap-status-message>
+                <progress aria-label="${T('director_video_converting')}"></progress>
+                <p>${T('director_video_converting_hint')}</p>
+            </div>`;
+        dialog.showModal();
     }
 
     open(clip) {
@@ -75,7 +81,7 @@ export class VideoTrim {
             <label>${T('trim_video_original')}<select data-source></select></label>
             <div class="cat-te-video-trim-stage"><video preload="metadata"></video></div>
             <div class="cat-te-video-trim-summary"></div>
-            <cap-export-range hide-current-time></cap-export-range><cap-shot-control><cap-button slot="actions" data-insert>${T('shot_insert')}</cap-button></cap-shot-control><cap-status-message></cap-status-message></div>
+            <cap-export-range hide-current-time></cap-export-range><cap-status-message></cap-status-message></div>
             <div slot="footer"><cap-button data-cancel>${T('cancel_btn')}</cap-button><cap-button data-resize>${T('trim_apply_resize')}</cap-button><cap-button data-save variant="primary">${T('apply_btn')}</cap-button></div>`;
         const select = dialog.querySelector('[data-asset]');
         const previous = dialog.querySelector('[data-prev]');
@@ -106,44 +112,10 @@ export class VideoTrim {
         const save = dialog.querySelector('[data-save]');
         const resize = dialog.querySelector('[data-resize]');
         const cancel = dialog.querySelector('[data-cancel]');
-        const insert = dialog.querySelector('[data-insert]');
-        const shots = dialog.querySelector('cap-shot-control');
-        const shotDrafts = new Map();
-        const changedShots = new Set();
-        shots.onchange = () => changedShots.add(Number(select.value));
-        this._saveShotDrafts = () => {
-            if (!changedShots.size || app._destroyed || app._findClipById(clip.id) !== clip || clip.track.locked) return;
-            const currentItems = app._clipItems(app._ensureClipMeta(clip));
-            const changed = [...changedShots].filter(index => currentItems[index]?.id === items[index].id
-                && app._findMediaById(items[index].id));
-            if (!changed.length) return;
-            app._recordUndo();
-            for (const index of changed) {
-                app._findMediaById(items[index].id).video_shots = structuredClone(shotDrafts.get(index));
-            }
-            changedShots.clear();
-            app._saveToWidgets();
-        };
-        for (const {item, index} of videos) {
-            const saved = app._findMediaById(item.id)?.video_shots;
-            if (saved) shotDrafts.set(index, structuredClone(saved));
-        }
         const fps = app.getFps();
         let source;
         let sourceChanged = false;
         const drafts = new Map();
-        const configureShots = () => {
-            const index = Number(select.value);
-            let draft = shotDrafts.get(index);
-            if (!draft || draft.source_id !== source?.item.id) {
-                draft = {source_id: source?.item.id, points: []};
-                shotDrafts.set(index, draft);
-            }
-            shots.configure(draft.points, fps, range.startFrame, range.endFrame, {
-                title: T('shot_control'), cursor: T('compose_range_current'), add: T('shot_add'), remove: T('shot_delete'),
-                description: T('shot_description'), hint: T('shot_hint'),
-            });
-        };
         const rememberRange = () => {
             if (!source || !range.totalFrames || save.disabled) return;
             source = {...source, start: range.startFrame / fps, duration: (range.endFrame - range.startFrame) / fps};
@@ -165,7 +137,6 @@ export class VideoTrim {
                 video.pause(); video.currentTime = videoFrameSeekTime(range.startFrame, fps);
             }
             range.update(video.currentTime * fps || 0, !video.paused);
-            shots.update(video.currentTime * fps || 0);
             dialog.querySelector('.cat-te-video-trim-summary').textContent = T('trim_video_summary', {
                 total: formatTimecode(range.totalFrames * 1000 / Math.ceil(fps), Math.ceil(fps)),
             });
@@ -182,14 +153,12 @@ export class VideoTrim {
                 : Math.max(range.startFrame + 1, Math.min(range.totalFrames, Math.round((source.start + source.duration) * fps)));
             video.currentTime = videoFrameSeekTime(range.startFrame, fps);
             video.playbackRate = source.rate;
-            configureShots();
-            insert.disabled = false;
             sync();
             save.disabled = resize.disabled = !range.totalFrames;
             if (sourceChanged || drafts.has(Number(select.value))) rememberRange();
         };
         video.ontimeupdate = video.onplay = video.onpause = video.onseeked = sync;
-        video.onerror = () => { save.disabled = resize.disabled = insert.disabled = true; status.setStatus(T('asset_missing_cannot_preview'), 'error'); };
+        video.onerror = () => { save.disabled = resize.disabled = true; status.setStatus(T('asset_missing_cannot_preview'), 'error'); };
         range.addEventListener('toggleplay', () => {
             if (!range.totalFrames) return;
             if (!video.paused) { video.pause(); return; }
@@ -198,13 +167,12 @@ export class VideoTrim {
         });
         const seek = event => { video.currentTime = videoFrameSeekTime(event.detail.frame, fps); sync(); };
         range.addEventListener('seek', seek);
-        shots.addEventListener('seek', event => { video.pause(); seek(event); });
         range.addEventListener('matchrange', () => {
             if (source) range.setRangeLength(clip.duration * source.rate * fps);
         });
-        range.addEventListener('rangechange', event => { video.pause(); rememberRange(); configureShots(); seek(event); });
+        range.addEventListener('rangechange', event => { video.pause(); rememberRange(); seek(event); });
         select.onchange = () => {
-            video.pause(); save.disabled = resize.disabled = insert.disabled = true;
+            video.pause(); save.disabled = resize.disabled = true;
             status.setStatus('');
             source = null;
             sourceChanged = false;
@@ -213,7 +181,7 @@ export class VideoTrim {
                 const item = items[Number(select.value)];
                 const draft = drafts.get(Number(select.value));
                 const missingOrigin = !draft && !app._findMediaById(item.id)?.video_trim && /_trim_[a-f0-9]{8}\.mp4$/i.test(item.file);
-                shots.hidden = range.hidden = dialog.querySelector('.cat-te-video-trim-summary').hidden = missingOrigin;
+                range.hidden = dialog.querySelector('.cat-te-video-trim-summary').hidden = missingOrigin;
                 if (missingOrigin) {
                     source = null; originalSelect.value = '';
                     video.removeAttribute('src'); video.load();
@@ -231,24 +199,21 @@ export class VideoTrim {
         originalSelect.onchange = () => {
             const item = app._findMediaById(originalSelect.value);
             if (!item) return;
-            video.pause(); save.disabled = resize.disabled = insert.disabled = true; status.setStatus('');
-            shots.hidden = range.hidden = dialog.querySelector('.cat-te-video-trim-summary').hidden = false;
+            video.pause(); save.disabled = resize.disabled = true; status.setStatus('');
+            range.hidden = dialog.querySelector('.cat-te-video-trim-summary').hidden = false;
             source = { item, start: 0, duration: null, rate: 1 };
             sourceChanged = true;
             video.src = app._videoUrl(item.file);
         };
         select.onchange();
         cancel.onclick = () => dialog.close();
-        const apply = async (insertPrompt = false, resizeClip = false) => {
+        const apply = async (resizeClip = false) => {
             if (this.busy || save.disabled) return;
-            const currentShots = shots.points.filter(point => point.time * fps >= range.startFrame - 1e-6 && point.time * fps < range.endFrame - 1e-6);
-            const prompt = insertPrompt ? shotPrompt(currentShots) : '';
-            if (insertPrompt && !prompt) { status.setStatus(T('shot_empty'), 'warning'); return; }
             const duration = (range.endFrame - range.startFrame) / fps / source.rate;
             const edits = [...drafts];
-            this.busy = dialog.closeDisabled = save.disabled = resize.disabled = insert.disabled = cancel.disabled = select.disabled = originalSelect.disabled = true;
+            this.busy = dialog.closeDisabled = save.disabled = resize.disabled = cancel.disabled = select.disabled = originalSelect.disabled = true;
             updateNavigation();
-            shots.inert = range.inert = true;
+            range.inert = true;
             video.pause(); status.setStatus(T('composing_please_wait'));
             try {
                 const results = [];
@@ -257,7 +222,7 @@ export class VideoTrim {
                     results.push({index, result});
                 }
                 if (app._destroyed || app._findClipById(clip.id) !== clip || clip.track.locked
-                    || [...new Set([...drafts.keys(), ...shotDrafts.keys()])].some(index => app._clipItems(app._ensureClipMeta(clip))[index]?.file !== items[index].file)) throw new Error(T('local_audio_target_changed'));
+                    || [...drafts.keys()].some(index => app._clipItems(app._ensureClipMeta(clip))[index]?.file !== items[index].file)) throw new Error(T('local_audio_target_changed'));
                 app._recordUndo();
                 for (const {index, result} of results) app._replaceDirectorVideo(clip, index, result.file, result.trim);
                 if (resizeClip) {
@@ -269,27 +234,13 @@ export class VideoTrim {
                     app._refreshTimelineDuration();
                     if (app._selClip === clip) app._updateClipInfoPanel(clip);
                 }
-                const updatedItems = app._clipItems(app._ensureClipMeta(clip));
-                for (const [index, draft] of shotDrafts) {
-                    const media = app._findMediaById(updatedItems[index]?.id);
-                    if (media) media.video_shots = structuredClone(draft);
-                }
-                if (prompt) {
-                    const meta = app._ensureClipMeta(clip);
-                    meta.prompt = [String(meta.prompt || '').trimEnd(), prompt].filter(Boolean).join('\n\n');
-                    app._refreshFinalPromptDisplay();
-                    if (app._selClip === clip) app._updateClipInfoPanel(clip);
-                }
                 app._saveToWidgets(); app._scheduleProgramPreview();
-                changedShots.clear();
                 dialog.closeDisabled = false; dialog.close();
-                if (prompt) void app._openAiOptimizeModal(clip);
             } catch (error) { status.setStatus(error.message, 'error'); }
-            finally { this.busy = dialog.closeDisabled = save.disabled = resize.disabled = insert.disabled = cancel.disabled = select.disabled = originalSelect.disabled = false; shots.inert = range.inert = false; updateNavigation(); }
+            finally { this.busy = dialog.closeDisabled = save.disabled = resize.disabled = cancel.disabled = select.disabled = originalSelect.disabled = false; range.inert = false; updateNavigation(); }
         };
         save.onclick = () => apply();
-        resize.onclick = () => apply(false, true);
-        insert.onclick = () => apply(true);
+        resize.onclick = () => apply(true);
         dialog.showModal();
     }
 }

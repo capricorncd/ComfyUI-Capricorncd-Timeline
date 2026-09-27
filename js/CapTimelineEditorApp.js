@@ -24,6 +24,7 @@ import { StoryboardPage, normalizeStoryboards, storyboardT } from "./editor/Stor
 import { parseStoryboardDocument, buildStoryboardDocument } from "./editor/StoryboardDocument.js";
 import { FontPicker } from "./editor/FontPicker.js";
 import { stripH3Timing, h3TimingFromFilename, applyH3VideoTrim, restoreH3ClipTiming, replaceH3ContextTail } from "./editor/H3Timing.js";
+import { confirmKeyframeRun, addKeyframeVideo } from "./editor/KeyframeRun.js";
 import { planClipRunLayout, clipLayoutList, relatedH3ClipIds } from "./editor/ClipRunValidation.js";
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
@@ -31,6 +32,7 @@ import { BgmSettings } from "./editor/BgmSettings.js";
 import { LocalAudioJobs } from "./editor/LocalAudioJobs.js";
 import { ClipExport } from "./editor/ClipExport.js";
 import { VideoTrim, cutVideo, videoTrimSource } from "./editor/VideoTrim.js";
+import { DirectorKeyframes } from "./editor/DirectorKeyframes.js";
 import { SubtitleSpeech } from "./editor/SubtitleSpeech.js";
 import { ImageCrop } from "./editor/ImageCrop.js";
 import { CharacterVoice } from "./editor/CharacterVoice.js";
@@ -268,6 +270,7 @@ function normalizeGeneratedVideo(row) {
         note: String(row.note || row.remark || ""),
         prompt: String(row.prompt || ""),
         h3_trim_applied: row.h3_trim_applied === true,
+        ...(row.keyframe_segment ? {keyframe_segment: {...row.keyframe_segment}} : {}),
         playback_rate: normalizePlaybackRate(row.playback_rate),
         volume: normalizeClipVolume(row.volume),
         media_scale: Math.max(1, Math.min(300, Number(row.media_scale ?? 100))),
@@ -3729,6 +3732,7 @@ export class CapTimelineEditorApp {
               </div>
               <div class="cat-te-visual-clip-body">
               <div class="cat-te-clip-settings">
+                <cap-shot-control class="cat-te-director-keyframe" hidden></cap-shot-control>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("type_label")}</span>
                   <select class="cat-te-clip-role" disabled>
@@ -5095,6 +5099,7 @@ export class CapTimelineEditorApp {
         el.querySelector(".cat-te-h3-drafts-open").addEventListener("click", () => this._h3DraftVersions.open(this._selClip));
         this._clipExport = new ClipExport(el);
         this._videoTrim = new VideoTrim(this, el);
+        this._directorKeyframes = new DirectorKeyframes(this, el.querySelector('.cat-te-director-keyframe'), isDirectorTrackType);
         this._imageCrop = new ImageCrop(this, el);
         el.querySelector(".cat-te-media-crop").addEventListener("click", () => {
             const item = this._mediaPreviewItem();
@@ -7570,12 +7575,49 @@ export class CapTimelineEditorApp {
         // The final composition has no clip_id and must not become a Clip take.
         if (!video?.clip_id || video.type !== "output") return;
         if (video.h3_draft) { this._receiveH3Draft(video.h3_draft); return; }
+        if (video.keyframe_segment) { this._receiveKeyframeVideo(video); return; }
         this._onTimelineVideoSaved({ detail: {
             ...e.detail,
             clip_id: video.clip_id,
             filename: video.filename,
             subfolder: video.subfolder,
         } });
+    }
+
+    _receiveKeyframeVideo(video) {
+        if (this._destroyed || !this._isNodeOnLiveGraph()) return;
+        const file = normalizeOutputVideoPath([video.subfolder, video.filename].filter(Boolean).join('/'));
+        const clipId = String(video.clip_id);
+        if (!file || !this._teNotifyBelongsHere(clipId, file)) return;
+        const clip = this._findClipById(clipId);
+        if (clip && this._timelineReady) {
+            if (this._genEditState?.clipId === clip.id) this._pullGenEditDraftFromTimeline();
+            const meta = this._ensureClipMeta(clip);
+            const rows = this._clipGeneratedVideos(meta);
+            const next = addKeyframeVideo(rows, video, file, genVideoUid());
+            if (next === rows) return;
+            this._recordUndo();
+            meta.generatedVideos = next.map(normalizeGeneratedVideo);
+            this._decorateClip(clip);
+            this._saveToWidgets();
+            if (this._historyReady) this._openedProjectJson = this._editorContentJson();
+            this._syncClipPrimaryAppearance(clip, {refreshVideo: true});
+            if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
+            if (this._genEditState?.clipId === clip.id) {
+                const time = this._genEditState.timeline?.currentTime || 0;
+                this._genEditState.draft = addKeyframeVideo(this._genEditState.draft, video, file, next[0].id)
+                    .map(row => this._cloneGenVideoDraft(row));
+                this._buildGenEditTimeline();
+                this._genEditState.timeline.setCurrentTime(time);
+            }
+            this._scheduleProgramPreview();
+        } else {
+            const {project} = this._parseProjectWidgetValue();
+            const row = project?.tracks?.flatMap(track => track.clips || []).find(row => String(row.id) === clipId);
+            if (!row) return;
+            row.generated_videos = addKeyframeVideo(row.generated_videos || [], video, file, genVideoUid());
+            this._writeProjectJson(JSON.stringify(project));
+        }
     }
 
     /** Attach each saved Clip immediately, before the next Clip or final composition. */
@@ -15029,7 +15071,7 @@ export class CapTimelineEditorApp {
             || tl._findTrackAtY(clientY, "video");
         if (!track) return null;
         const rect = tl.scrollEl.getBoundingClientRect();
-        const x = clientX - rect.left + tl.scrollEl.scrollLeft;
+        const x = clientX - rect.left + tl.scrollEl.scrollLeft - tl.startInset;
         const t = Math.max(0, x / Math.max(1e-6, tl.pixelsPerSecond));
         return track.clips.find(c => t >= c.startTime - 1e-6 && t < c.endTime + 1e-6) ?? null;
     }
@@ -15066,6 +15108,7 @@ export class CapTimelineEditorApp {
 
     _decorateClip(clip) {
         if (!clip?.el) return;
+        this._directorKeyframes?.sync(clip);
         const m = this._ensureClipMeta(clip);
         if (clip.audioEnvelope) {
             clip.audioEnvelope.points = normalizeVolumePoints(m.volumePoints);
@@ -16534,6 +16577,10 @@ export class CapTimelineEditorApp {
         const t = this._timeline.currentTime;
         const canSplit = t > clip.startTime && t < clip.endTime;
         const generation = [], media = [], audio = [];
+        const keyframes = this._directorKeyframes?.target(clip) ? [
+            { label: T("shot_add"), shortcut: "Ctrl+P", icon: "pin", fn: () => this._directorKeyframes.add(clip, t) },
+            { label: T("shot_detect"), icon: "layersPlus", disabled: this._directorKeyframes.detecting.has(clip.id), fn: () => void this._directorKeyframes.detect(clip) },
+        ] : [];
         const editing = [
             { label: T("insert_clip_title"), icon: "insert", fn: () => openInsertClip(this, clip) },
             ...(canSplit ? [{ label: T("menu_split"), icon: "scissors", fn: () => this._splitClip(clip) }] : []),
@@ -16614,7 +16661,7 @@ export class CapTimelineEditorApp {
             { label: T("delete_btn"), icon: "trash", shortcut: "Delete", fn: () => this._deleteClip(clip), danger: true },
         ];
         const items = [];
-        for (const group of [generation, editing, prompts, media, audio, grouping, state]) {
+        for (const group of [generation, keyframes, editing, prompts, media, audio, grouping, state]) {
             if (!group.length) continue;
             if (items.length) items.push({ separator: true });
             items.push(...group);
@@ -16663,6 +16710,7 @@ export class CapTimelineEditorApp {
         if (previous) {
             const { id, file: oldFile, location, ...description } = previous;
             Object.assign(media, description, { location: "input" });
+            if (previous.video_shots) media.video_shots = structuredClone(previous.video_shots);
         }
         media.video_trim = { ...trim };
         items[index] = { ...items[index], id: media.id, file };
@@ -17077,6 +17125,13 @@ export class CapTimelineEditorApp {
     }
 
     async _queueClipsDownstream(clips, workflowPreview = null, h3Generation = null) {
+        if (!h3Generation && this._hasH3VideoGeneratorDownstream()) {
+            h3Generation = await confirmKeyframeRun(this, clips);
+            if (h3Generation === null) return false;
+            const excluded = new Set((h3Generation.keyframe_runs || []).filter(run => !run.intervals.length).map(run => run.clip_id));
+            clips = clips.filter(clip => !excluded.has(String(clip.id)));
+            if (!clips.length) return false;
+        }
         CapTimelineEditorApp._installClipRunJobHook();
         let expectedFile = null;
         let stamp = null;
@@ -18153,6 +18208,11 @@ export class CapTimelineEditorApp {
                 e.preventDefault();
                 e.stopPropagation();
                 this._timeline.selectClip(clip);
+                if (this._directorKeyframes?.target(clip)) {
+                    const rect = clip.el.getBoundingClientRect();
+                    this._directorKeyframes.add(clip, clip.startTime + (e.clientX - rect.left) / this._timeline.pixelsPerSecond);
+                    return;
+                }
                 void this._openAiOptimizeModal(clip);
                 return;
             }
@@ -18161,7 +18221,7 @@ export class CapTimelineEditorApp {
             const track = tl.tracks.find((row) => row.el === trackEl);
             if (!isSubtitleTrackType(track?.type) || track.locked) return;
             const rect = tl.scrollEl.getBoundingClientRect();
-            const x = e.clientX - rect.left + tl.scrollEl.scrollLeft;
+            const x = e.clientX - rect.left + tl.scrollEl.scrollLeft - tl.startInset;
             const at = Math.max(0, x / Math.max(1e-6, tl.pixelsPerSecond));
             this._insertSubtitleAtTime(at, track);
         });
@@ -18222,6 +18282,7 @@ export class CapTimelineEditorApp {
             this._overlay.focus({ preventScroll: true });
         }, true);
         tl.on("clip:select", ({ selected }) => {
+            this._directorKeyframes?.clearSelection();
             this._selClips = selected ?? tl.getSelectedClips();
             this._syncSelectedClip();
             this._updateMediaPreviewInsertBtn();
@@ -18241,6 +18302,7 @@ export class CapTimelineEditorApp {
             this._scheduleProgramPreview();
         });
         tl.on("clip:deselect", () => {
+            this._directorKeyframes?.clearSelection();
             this._selClip = null;
             this._selClips = [];
             this._updateMediaPreviewInsertBtn();
@@ -18283,6 +18345,7 @@ export class CapTimelineEditorApp {
             if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
         });
         tl.on("clip:resize", ({ clip }) => {
+            this._directorKeyframes?.sync(clip);
             if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
         });
         // A drag (move/trim) fires many per-frame events; only the gesture
@@ -18335,6 +18398,7 @@ export class CapTimelineEditorApp {
             this._scheduleProgramPreview();
         });
         tl.on("clip:volumestart", () => this._beginPendingUndo());
+        tl.on("key", event => this._directorKeyframes?.key(event));
         tl.on("clip:volumeend", ({ clip }) => {
             const m = this._ensureClipMeta(clip);
             m.volumePoints = normalizeVolumePoints(clip.audioEnvelope.points);
@@ -18431,6 +18495,7 @@ export class CapTimelineEditorApp {
         this.clipVideosList?.replaceChildren();
     }
     _updateClipInfoPanel(clip) {
+        this._directorKeyframes?.refreshPanel();
         if (this.outputVideosModal?.open && this._outputVideosClipId === clip?.id) this._syncOutputVideosPickerTitle(clip);
         if (!clip) {
             this._clearClipInfoPanel();
@@ -20486,6 +20551,7 @@ export class CapTimelineEditorApp {
                             media_offset_y: v.media_offset_y ?? 0,
                             note: v.note || "",
                             ...(v.h3_trim_applied ? { h3_trim_applied: true } : {}),
+                            ...(v.keyframe_segment ? { keyframe_segment: {...v.keyframe_segment} } : {}),
                             ...(v.h3_context_from ? { h3_context_from: v.h3_context_from } : {}),
                             ...(v.h3_context_original_out != null ? { h3_context_original_out: v.h3_context_original_out } : {}),
                             ...(v.prompt ? { prompt: String(v.prompt) } : {}),

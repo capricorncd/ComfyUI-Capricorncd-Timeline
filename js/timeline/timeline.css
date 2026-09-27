@@ -338,6 +338,16 @@
   background-color: var(--clip-color, #4a9eff);
 }
 
+.tl-clip:has(> cap-shot-markers) {
+  overflow: visible;
+  border-width: 1px;
+}
+
+.tl-clip:has(> cap-shot-markers) > .tl-clip-body {
+  overflow: hidden;
+  border-radius: inherit;
+}
+
 .tl-clip::before {
   content: '';
   position: absolute;

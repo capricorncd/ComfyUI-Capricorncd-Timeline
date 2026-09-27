@@ -7,9 +7,7 @@ const api = {fetchApi: async (_, options) => {
     requests.push(JSON.parse(options.body));
     return {ok: true, json: async () => ({file: `cut-${requests.length}.mp4`})};
 }};
-const shotCode = readFileSync(new URL('../js/components/ShotControl.js', import.meta.url), 'utf8');
-const shotPrompt = new Function(shotCode.slice(shotCode.indexOf('export function'), shotCode.indexOf('export class')).replace('export ', '') + ';return shotPrompt;')();
-const VideoTrim = new Function('formatTimecode', 'api', 'T', 'iconHtml', 'shotPrompt', code + ';return VideoTrim;')(formatTimecode, api, key => key, () => '', shotPrompt);
+const VideoTrim = new Function('formatTimecode', 'api', 'T', 'iconHtml', code + ';return VideoTrim;')(formatTimecode, api, key => key, () => '');
 const elements = new Map();
 function element(key) {
     if (!elements.has(key)) elements.set(key, {value: '', disabled: false, parentElement: {}, append() {},
@@ -61,35 +59,6 @@ assert.equal(clip.duration, 8, 'Ordinary Apply preserves Clip duration');
 assert.equal(promptDialogs.length, 0, 'Ordinary Apply does not open prompt management');
 console.log('Reference video navigation retains independent ranges and applies all edits to the correct items.');
 
-editor.open(clip);
-video.onloadedmetadata();
-const shots = element('cap-shot-control');
-shots.points.push({time: 4, description: 'Second shot'}, {time: 1, description: 'First shot'});
-await element('[data-insert]').onclick();
-assert.equal(meta.prompt, 'Original prompt\n\ndetailed_description:\n[Shot 1] At 00:01.000, First shot\n[Shot 2] At 00:04.000, Second shot');
-assert.equal(requests.length, 2, 'Inserting shot text alone must not recut a video');
-assert.deepEqual(promptDialogs, [{target: clip, prompt: meta.prompt}], 'Open prompt management for the edited Clip after inserting its prompt');
-assert.equal(items[0].video_shots.points.length, 2);
-editor.open(clip);
-video.onloadedmetadata();
-assert.equal(shots.points.length, 2, 'Reopening restores shot points');
-console.log('Shot descriptions persist, append in chronological order, and do not trigger unnecessary video cuts.');
-
-shots.points[0].description = 'Edited without Apply';
-shots.onchange();
-editor._saveShotDrafts();
-editor.open(clip);
-video.onloadedmetadata();
-assert.equal(element('cap-shot-control').points[0].description, 'Edited without Apply');
-element('cap-shot-control').points.splice(0);
-element('cap-shot-control').onchange();
-editor._saveShotDrafts();
-editor.open(clip);
-video.onloadedmetadata();
-assert.equal(element('cap-shot-control').points.length, 0, 'Deleting all markers persists on close');
-assert.equal(requests.length, 2, 'Closing with marker edits does not cut video');
-console.log('Closing without Apply saves shot descriptions and deletions for the next opening.');
-
 let geometry = 0, timelineEnd;
 clip._applyPosition = () => geometry++;
 Object.assign(app, {
@@ -115,6 +84,6 @@ assert.equal(clip.duration, 3, 'Failed cut cannot resize Clip');
 assert.equal(geometry, 1);
 assert.equal(element('[data-resize]').disabled, false, 'Failure restores action');
 api.fetchApi = fetchApi;
-assert.match(editor.dialog.innerHTML, /<cap-button slot="actions" data-insert>/);
+assert.doesNotMatch(editor.dialog.innerHTML, /cap-shot-control|data-insert/);
 assert.match(editor.dialog.innerHTML, /data-resize[^]*data-save/);
 console.log('Apply-and-resize honors playback rate, refreshes geometry, preserves start and leaves duration unchanged on failure.');

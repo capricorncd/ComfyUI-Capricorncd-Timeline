@@ -4025,6 +4025,14 @@ body.cat-te-media-dnd-over-tl {
     box-shadow: inset 0 0 0 1px var(--track-color);
     background-color: color-mix(in srgb, var(--track-color) 16%, var(--cat-bg, #151d21));
 }
+.cat-te-video-convert-dialog { --cap-dialog-width: 460px; --cap-dialog-height: fit-content; --cap-dialog-min-width: 280px; --cap-dialog-min-height: 180px; }
+.cat-te-video-convert-body { padding: 20px 28px; display: grid; gap: 14px; min-width: 0; }
+.cat-te-video-convert-body progress { width: 100%; height: 6px; accent-color: var(--cat-accent); }
+.cat-te-video-convert-body p { margin: 0; color: var(--cat-muted); font-size: calc(var(--cat-font-size, 1rem) * 0.857143); line-height: 1.6; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+    .cat-te-video-convert-body { padding: 16px 18px; }
+}
+
 .cat-te-video-trim-dialog { --cap-dialog-width: 960px; --cap-dialog-height: fit-content; --cap-dialog-min-width: 360px; --cap-dialog-min-height: 240px; }
 .cat-te-video-trim-body { padding: 16px; display: grid; gap: 12px; min-width: 0; }
 .cat-te-video-trim-body label { display: grid; gap: 5px; color: var(--cat-muted); font-size: calc(var(--cat-font-size, 1rem) * 0.857143); }
@@ -4141,6 +4149,8 @@ body.cat-te-media-dnd-over-tl {
 }
 
 /* First-pass versions share the editor dialog and controls. */
+.cat-te-h3-drafts-open { margin: 0 12px 10px; flex-shrink: 0; }
+
 .cat-te-h3-drafts { --cap-dialog-width: 940px; --cap-dialog-height: 660px; --cap-dialog-min-width: 420px; --cap-dialog-min-height: 320px; }
 .cat-te-h3-drafts-body { padding: 20px 28px; container-type: inline-size; }
 .cat-te-h3-drafts-hint { color: var(--cat-muted); line-height: 1.6; margin: 0 0 18px; }
@@ -4161,3 +4171,11 @@ body.cat-te-media-dnd-over-tl {
 @container (max-width: 560px) {
     .cat-te-h3-drafts-layout { grid-template-columns: minmax(0, 1fr); }
 }
+.cat-te-keyframe-run { --cap-dialog-width: 580px; --cap-dialog-min-width: 300px; --cap-dialog-min-height: 220px; }
+.cat-te-keyframe-run-body { display: grid; gap: 12px; padding: 20px 28px; }
+.cat-te-keyframe-run-body p { color: var(--cat-muted); margin: 0; line-height: 1.6; }
+.cat-te-keyframe-run-body label { display: flex; gap: 10px; align-items: start; flex-wrap: wrap; }
+.cat-te-keyframe-run-body small { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--cat-muted); line-height: 1.6; }
+.cat-te-keyframe-run-body input[type="text"], .cat-te-keyframe-run-body select { width: 100%; min-width: 0; box-sizing: border-box; padding: 8px; border: 1px solid var(--cat-border); border-radius: 6px; background: var(--cat-input); color: var(--cat-text); font: inherit; }
+.cat-te-keyframe-run-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+@media (max-width: 600px) { .cat-te-keyframe-run-body { padding: 16px 18px; } }

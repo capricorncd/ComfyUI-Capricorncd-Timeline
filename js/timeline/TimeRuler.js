@@ -21,7 +21,7 @@ export class TimeRuler {
   render() {
     const tl = this.timeline;
     const pps = tl.pixelsPerSecond;
-    const scrollLeft = tl.scrollEl.scrollLeft;
+    const scrollLeft = tl.scrollEl.scrollLeft - tl.startInset;
     const viewWidth = tl.scrollEl.clientWidth || tl.scrollEl.offsetWidth;
 
     if (viewWidth <= 0) return;

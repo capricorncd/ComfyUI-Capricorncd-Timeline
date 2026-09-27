@@ -1,12 +1,13 @@
 import ast
 import copy
-import hashlib
 import json
 import logging
 import math
+import os
 import re
 from pathlib import Path
 import secrets
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
@@ -56,7 +57,9 @@ class GeneratorTests(unittest.TestCase):
                 owner.composed.append((json.loads(data_json), kw))
                 return {"result": ("compose/final.mp4",), "ui": {"video": [{"filename": "final.mp4", "subfolder": "compose", "type": "output"}]}}
 
-        scope = dict(copy=copy, json=json, hashlib=hashlib, math=math, secrets=secrets,
+        scope = dict(copy=copy, json=json, math=math, secrets=secrets,
+                     os=SimpleNamespace(path=os.path, replace=Mock()),
+                     expand_keyframe_runs=load_definitions("h3_keyframe_runs.py", dict(copy=copy, math=math))["expand_keyframe_runs"],
                      plan_h3_clips=h3.plan_h3_clips,
                      _prev_clip_output_video_path=Mock(return_value=""),
                      folder_paths=SimpleNamespace(get_full_path_or_raise=lambda *a: "valid"),
@@ -140,6 +143,38 @@ class GeneratorTests(unittest.TestCase):
         self.run_node(rows=[dict(id="a", start_ms=0, end_ms=5000, h3_drafts=[{"id": "missing"}])])
         self.assertNotIn("ManualSigmas", [name for name, _ in self.calls])
         self.assertEqual(len(self.saved), 1)
+
+    def test_keyframe_long_interval_saves_continuations_without_composing(self):
+        result = self.run_node([dict(id="a", clip_role="video_ref", start_ms=0, end_ms=25000)])
+        self.assertEqual(len(self.saved), 3)
+        self.assertFalse(self.composed)
+        self.assertEqual(sum(name == "MiniMaxH3MotionContextSaveLatent" for name, _ in self.calls), 2)
+        self.assertEqual(sum(name == "MiniMaxH3MotionContextLoadLatent" for name, _ in self.calls), 2)
+        videos = result["ui"]["clip_videos"]
+        self.assertEqual([video["clip_id"] for video in videos], ["a"] * 3)
+        self.assertEqual([video["keyframe_segment"]["start_frame"] for video in videos], [0, 200, 400])
+        self.assertEqual(videos[-1]["keyframe_segment"]["end_frame"], 600)
+        for video in videos:
+            segment = video["keyframe_segment"]
+            self.assertGreaterEqual(segment["raw_frames"] - segment["trim_frames"], segment["end_frame"] - segment["start_frame"])
+
+    def test_latent_name_matches_video_and_two_pass_names_do_not_collide(self):
+        self.run_node([dict(id="a", start_ms=0, end_ms=5000, save_latent=True)])
+        self.assertEqual(self.scope["os"].replace.call_args.args[1], os.path.normpath("project/a.safetensors"))
+        self.scope["os"].replace.reset_mock()
+        self.run_node([dict(id="b", start_ms=0, end_ms=5000, save_latent=True)], second_sampling=True, upscaler_model="up")
+        self.assertEqual([call.args[1] for call in self.scope["os"].replace.call_args_list],
+                         [os.path.normpath("project/b_low.safetensors"), os.path.normpath("project/b_high.safetensors")])
+
+    def test_latent_rename_preserves_bytes_and_uses_actual_video_name(self):
+        self.scope["os"] = os
+        with tempfile.TemporaryDirectory() as folder:
+            original = Path(folder) / "clip_low_00001.safetensors"
+            original.write_bytes(b"latent-test-bytes")
+            target = self.scope["_rename_context_latent"](str(original), "project/clip__h3v2_f48000.mp4", "_low")
+            self.assertEqual(Path(target).name, "clip__h3v2_f48000_low.safetensors")
+            self.assertEqual(Path(target).read_bytes(), b"latent-test-bytes")
+            self.assertFalse(original.exists())
 
     def test_preview_batch_defaults_to_one(self):
         self.enable_drafts()
@@ -515,7 +550,7 @@ class GeneratorTests(unittest.TestCase):
         saved = [kw for n, kw in self.calls if n == "MiniMaxH3MotionContextSaveLatent"]
         self.assertEqual([kw["latent"] for kw in saved], ["LTXVConcatAVLatent_output"] * 2)
         loaded = [kw["latent_path"] for n, kw in self.calls if n == "MiniMaxH3MotionContextLoadLatent"]
-        self.assertEqual(loaded, [saved[1]["filename_prefix"] + ".safetensors", saved[0]["filename_prefix"] + ".safetensors"])
+        self.assertEqual(loaded, [os.path.normpath(saved[i]["filename_prefix"] + ".safetensors") for i in [1, 0]])
         self.assertFalse(any(n in ("H3AudioSmear", "VAEEncodeAudio", "VAEDecodeAudio") for n, _ in self.calls))
 
     def test_motion_deblur_single_pass_saves_only_repaired_context(self):
@@ -681,7 +716,7 @@ class GeneratorTests(unittest.TestCase):
         self.run_node(rows, second_sampling=True, upscaler_model="up.safetensors")
         saves = [k["filename_prefix"] for n, k in self.calls if n == "MiniMaxH3MotionContextSaveLatent"]
         loads = [k["latent_path"] for n, k in self.calls if n == "MiniMaxH3MotionContextLoadLatent"]
-        self.assertEqual(loads, [saves[0] + ".safetensors", saves[1] + ".safetensors"])
+        self.assertEqual(loads, [os.path.normpath(path + ".safetensors") for path in saves[:2]])
         self.assertNotIn(saves[2] + ".safetensors", loads)
 
     def test_missing_chain_generates_independently_with_persistent_warning(self):

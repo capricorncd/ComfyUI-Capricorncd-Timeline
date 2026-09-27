@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8"><title>Director keyframes</title>
+<link rel="stylesheet" href="../js/timeline/timeline.css">
+<style>
+:root {font:16px system-ui; color-scheme:dark; --cat-text:#e4edeb;--cat-muted:#a3b5b8;--cat-input:#152126;--cat-border:#34464b;--cat-bg:#152126;--cat-raised:#24343a;--cat-accent:#64d8c5;--cat-font-size:1rem;}
+body {margin:28px;background:var(--cat-bg);color:var(--cat-text)}
+main {display:grid;grid-template-columns:minmax(220px,1fr) 310px;gap:28px;max-width:1100px;margin-top:24px}
+.track {position:relative;height:90px;background:#202c31;margin-top:40px} .tl-clip {top:6px;left:0;width:100%;height:76px;--clip-color:#6a2da3;background:#50345f} .tl-clip-body{padding:8px}
+aside{padding:0 18px;background:var(--cat-raised);border-radius:8px} .light {color-scheme:light;--cat-bg:#f3f6f7;--cat-text:#223138;--cat-muted:#52636c;--cat-input:white;--cat-raised:#e6ecef;--cat-border:#a3b5b8;--cat-accent:#137e6f}
+@media(max-width:700px){main{grid-template-columns:1fr}}
+</style>
+<h2>视频参考 · 主时间轴关键帧</h2>
+<cap-button id="theme">切换主题</cap-button> <cap-button id="detect">智能打点</cap-button> <cap-button id="narrow">窄屏布局</cap-button>
+<p>双击添加；Ctrl+P 在播放头处打点；选中菱形后可用左右键和 Delete。</p>
+<main><div><div class="track"><div class="tl-clip selected"><div class="tl-clip-body">参考视频 · 6 秒</div></div></div><p id="time"></p></div><aside><cap-shot-control hidden></cap-shot-control></aside></main>
+<script type="module">
+import '../js/components/ShotControl.js';
+import '../js/components/StatusMessage.js';
+import {shotPrompt} from '../js/components/ShotControl.js';
+const labels={shot_control:'关键帧',shot_description:'关键帧提示词',shot_hint:'← / → 逐帧移动，Delete 删除。',shot_delete:'删除关键帧',shot_insert:'插入到 Clip 提示词',shot_detecting:'正在检测…',shot_detected:'检测完成，已有提示词保留。'};
+const code=await (await fetch('../js/editor/DirectorKeyframes.js')).text();
+const {DirectorKeyframes}=new Function('T','api','shotPrompt','videoTrimSource',code.replace(/^import .*;\r?\n/gm,'').replace(/^export /gm,'')+';return {DirectorKeyframes};')(key=>labels[key]||key,{fetchApi:async()=>({ok:true,json:async()=>({times:[0,1,2,3,4,5]})})},shotPrompt,()=>({item:{id:'source',file:'source.mp4'},start:0,rate:1}));
+const clip={id:'clip',startTime:0,sourceOffset:0,duration:6,playbackRate:1,selected:true,track:{type:'image'},el:document.querySelector('.tl-clip')};
+const media={id:'source',file:'source.mp4',kind:'video',video_shots:{source_id:'source',points:[{time:0,description:'开场：角色走入画面。'},{time:2,description:'镜头缓慢推进，人物回头。'},{time:4,description:'结束：远景展示环境。'}]}};
+let editor;
+const app={_selClip:clip,_mediaStatus:new Map(),getFps:()=>24,_ensureClipMeta:()=>({clipRole:'video_ref'}),_clipItems:()=>[media],_clipPreviewItemIndex:()=>0,_findClipById:()=>clip,_findMediaById:()=>media,_recordUndo(){},_saveToWidgets(){},_refreshFinalPromptDisplay(){},_updateClipInfoPanel(){}};
+app._timeline={currentTime:3,tracks:[{clips:[clip]}],selectClip(){editor.clearSelection();},setCurrentTime(time){this.currentTime=time;document.querySelector('#time').textContent='播放头：'+time.toFixed(3)+' 秒';}};
+editor=new DirectorKeyframes(app,document.querySelector('cap-shot-control'),()=>true);
+editor.sync(clip);
+clip.el.addEventListener('dblclick',event=>{const rect=clip.el.getBoundingClientRect();editor.add(clip,(event.clientX-rect.left)/rect.width*6);});
+window.addEventListener('keydown',event=>{if(event.composedPath().some(el=>el.matches?.('textarea,input')))return;editor.key(event);});
+document.querySelector('#theme').onclick=()=>document.documentElement.classList.toggle('light');
+document.querySelector('#narrow').onclick=()=>{const main=document.querySelector('main');main.style.gridTemplateColumns='1fr';main.style.maxWidth='360px';};
+document.querySelector('#detect').onclick=()=>editor.detect(clip);
+</script>

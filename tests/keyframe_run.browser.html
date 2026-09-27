@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title>Keyframe interval selection</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>
+body {font: 14px system-ui; background: #10191d; color: #e4edeb; --cat-text: #e4edeb; --cat-muted: #a3b5b8; --cat-bg: #10191d; --cat-surface: #192226; --cat-raised: #202c31; --cat-input: #10191d; --cat-border: #34464b; --cat-border-soft: #34464b; --cat-accent: #64d8c5;}
+pre {white-space: pre-wrap;}
+</style>
+<cap-button id="open">选择关键帧区间</cap-button><pre id="result"></pre>
+<script type="module">
+import '../js/components/Dialog.js';
+const source = await (await fetch('../js/editor/KeyframeRun.js')).text();
+const makeT = dictionary => (key, args = {}) => Object.entries(args).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), dictionary.zh[key]);
+const confirmKeyframeRun = new Function('makeT', source.replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '') + '\nreturn confirmKeyframeRun;')(makeT);
+const clip = {id: 'clip-1', name: '参考视频 · 100 个关键帧区间', startTime: 0, duration: 1000};
+const target = {start: 0, rate: 1, media: {id: 'video-1'}};
+const editor = {_overlay: document.body, getFps: () => 24, _ensureClipMeta: () => ({agent: 'MiniMaxH3'}),
+    _directorKeyframes: {target: () => target, points: () => Array.from({length: 100}, (_, index) => ({time: index * 10, description: `镜头 ${index + 1}`}))}};
+document.querySelector('#open').onclick = async () => {
+    const result = await confirmKeyframeRun(editor, [clip]);
+    document.querySelector('#result').textContent = result ? JSON.stringify(result.keyframe_runs[0].intervals.map(row => row.start_frame / 240 + 1)) : 'Cancelled';
+};
+</script>

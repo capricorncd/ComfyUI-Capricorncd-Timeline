@@ -12503,6 +12503,7 @@ export class CapTimelineEditorApp {
                 : { ...item, useMediaPrompt, enabled };
         });
         meta.mediaIds = meta.items.map((item) => item.id).filter(Boolean);
+        if (!meta.items.some(item => item.id === meta.lastFrameMediaId && item.kind === "image")) meta.lastFrameMediaId = "";
         const first = items.find((it) => it.enabled !== false) || items[0] || null;
         const images = items.filter((it) => it.kind === "image");
         clip.src = first?.file || "";
@@ -14983,6 +14984,7 @@ export class CapTimelineEditorApp {
                 muted: !!c.muted,
                 prompt: c.prompt ?? "",
                 promptMediaIds: [...(c.prompt_media_ids || [])],
+                lastFrameMediaId: c.last_frame_media_id || "",
                 promptIncludes,
                 usePrependPrompt: c.use_prepend_prompt !== false,
                 useAppendPrompt: c.use_append_prompt !== false,
@@ -15070,6 +15072,7 @@ export class CapTimelineEditorApp {
                 agentCustom: c.agent_custom ?? "",
                 prompt: c.prompt ?? "",
                 promptMediaIds: [...(c.prompt_media_ids || [])],
+                lastFrameMediaId: c.last_frame_media_id || "",
                 endImage: c.end_image ?? null,
                 promptIncludes,
                 usePrependPrompt: c.use_prepend_prompt !== false,
@@ -15134,6 +15137,7 @@ export class CapTimelineEditorApp {
             agentCustom: c.agent_custom ?? "",
             prompt: c.prompt ?? "",
             promptMediaIds: [...(c.prompt_media_ids || [])],
+                lastFrameMediaId: c.last_frame_media_id || "",
             endImage: c.end_image ?? null,
             promptIncludes,
             usePrependPrompt: c.use_prepend_prompt !== false,
@@ -19715,22 +19719,45 @@ export class CapTimelineEditorApp {
         return rows.filter((row) => row.include_data || row.include_description);
     }
 
+    _toggleClipLastFrame(clip, index) {
+        if (!clip || clip.track?.locked) return;
+        const meta = this._ensureClipMeta(clip);
+        const items = this._clipItems(meta);
+        const item = items[index];
+        if (meta.clipRole !== "first_last" || item?.kind !== "image" || !item.id || item.enabled === false) return;
+        this._recordUndo();
+        meta.lastFrameMediaId = meta.lastFrameMediaId === item.id ? "" : item.id;
+        if (meta.lastFrameMediaId && index < items.length - 1
+            && items.some(other => other.id !== item.id && other.kind === "image" && other.enabled !== false)) {
+            meta.items = [...items.slice(0, index), ...items.slice(index + 1), item];
+            this._setClipPreviewItemIndex(clip, meta.items.length - 1);
+            this._syncClipPrimaryAppearance(clip);
+            this._scheduleProgramPreview();
+        }
+        this._saveToWidgets();
+        this._refreshClipResourceViews(clip);
+    }
+
     _configureClipResourceCarousel(carousel, clip, items, index) {
         const allowList = !!clip && clip.track?.type !== "audio"
             && !isVoiceoverTrackType(clip.track?.type) && !isSubtitleTrackType(clip.track?.type);
+        const meta = clip ? this._ensureClipMeta(clip) : {};
         carousel.setItems(items.map(item => {
             const media = (item.id && this._findMediaById(item.id)) || this._findMedia(item.kind, item.file);
             const location = this._mediaStatus.get(`${item.kind}:${item.file}`)?.location || media?.location || "input";
             return {
                 name: media?.name || item.file, kind: item.kind, enabled: item.enabled !== false,
+                lastFrame: !!item.id && item.id === meta.lastFrameMediaId,
                 url: this._assetFileUrl(item.file, item.kind, location),
             };
         }), {
             index, allowList, editable: allowList && !clip.track?.locked,
+            allowLastFrame: allowList && meta.clipRole === "first_last",
             labels: {
                 list: T("resource_list"), preview: T("resource_full_preview"),
                 enable: T("enable_label"), disable: T("disable_label"),
                 remove: T("remove_from_clip_title"), empty: T("prompt_resource_empty"),
+                setLastFrame: T("set_last_frame"), clearLastFrame: T("clear_last_frame"),
             },
         });
         return carousel.index;
@@ -19760,6 +19787,7 @@ export class CapTimelineEditorApp {
             if (!clip || clip.track?.locked || clip.track?.type === "audio") return;
             const items = this._clipItems(this._ensureClipMeta(clip));
             const { action, index, from, to } = event.detail;
+            if (action === "last-frame") this._toggleClipLastFrame(clip, index);
             if (action === "toggle" && items[index]) this._setClipItemEnabled(clip, index, items[index].enabled === false);
             if (action === "delete" && items[index]) this._removeClipItem(clip, index);
             if (action === "reorder" && Number.isInteger(from) && Number.isInteger(to)
@@ -20443,6 +20471,7 @@ export class CapTimelineEditorApp {
         this._recordUndo();
         const m = this._ensureClipMeta(this._selClip);
         m.clipRole = this._knownClipRole(this.clipRoleSelect.value);
+        this._refreshClipResourceViews(this._selClip);
         if (m.clipRole === "digital_human") m.useAudioTrackAudio = true;
         if (m.clipRole !== "other") m.clipRoleCustom = "";
         this._meta.set(this._selClip.id, m);
@@ -20659,6 +20688,7 @@ export class CapTimelineEditorApp {
                     duration_ms: durationMs,
                     media_ids: mediaIds,
                     prompt_media_ids: [...(m.promptMediaIds || [])],
+                    ...(m.lastFrameMediaId ? { last_frame_media_id: m.lastFrameMediaId } : {}),
                     ...(this._canChangeClipSpeed(clip) ? { playback_rate: clip.playbackRate || 1 } : {}),
                     volume: normalizeClipVolume(m.volume),
                 };

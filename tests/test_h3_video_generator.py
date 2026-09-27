@@ -879,7 +879,7 @@ class StrictKeyframeTests(unittest.TestCase):
         self.node._stack_frames = lambda frames, blank: frames
         self.node._visual_refs = lambda row, parser: row.get("images", [])
         self.node._material_for_ref = lambda ref, materials, parser: (ref["file"], ref)
-        self.parser = SimpleNamespace(_load_image=lambda path: path, _compose_prompt=lambda *a, **kw: "prompt",
+        self.parser = SimpleNamespace(_ref_id=lambda ref: ref.get("id", ""), _load_image=lambda path: path, _compose_prompt=lambda *a, **kw: "prompt",
                                       _uses_master_audio=lambda *a: False, _clip_audio_from_audios=lambda *a, **kw: None)
 
     def prepare(self, images, strict=True, **extra):
@@ -902,6 +902,22 @@ class StrictKeyframeTests(unittest.TestCase):
         self.assertEqual(self.reference.call_args.kwargs["prompt"], "<Picture 1> walks")
         self.prepare([{"file": "hero", "name": "Hero"}])
         self.assertEqual(self.native.call_args.args[2], "the subject in the first frame walks")
+
+    def test_assigned_last_frame_ignores_resource_order(self):
+        images = [{"id": "end", "file": "last", "name": "End"}, {"id": "start", "file": "first", "name": "Start"}]
+        self.parser._compose_prompt = lambda *a, **kw: "@Start reaches @End"
+        for refs in (images, list(reversed(images))):
+            self.prepare(refs, last_frame_media_id="end")
+            self.assertEqual(self.native.call_args.kwargs, {"first_frame": "first", "last_frame": "last"})
+            self.assertEqual(self.native.call_args.args[2], "the subject in the first frame reaches the subject in the last frame")
+
+    def test_assigned_last_frame_only(self):
+        self.prepare([{"id": "end", "file": "last"}], last_frame_media_id="end")
+        self.assertEqual(self.native.call_args.kwargs, {"first_frame": None, "last_frame": "last"})
+
+    def test_disabled_last_frame_is_not_replaced_by_first(self):
+        self.prepare([{"id": "start", "file": "first"}], last_frame_media_id="disabled")
+        self.assertEqual(self.native.call_args.kwargs, {"first_frame": "first", "last_frame": None})
 
     def test_single_first_frame(self):
         self.prepare([{"file": "first"}])

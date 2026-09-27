@@ -795,6 +795,7 @@ class CAP_TimelineEditor:
                 "h3_drafts": clip.get("h3_drafts") or [],
                 "clip_type": str(clip.get("type") or "image"),
                 "clip_role": clip_role,
+                "last_frame_media_id": str(clip.get("last_frame_media_id") or ""),
                 "clip_role_custom": clip_role_custom,
                 "use_audio_track_audio": use_audio_track_audio,
                 "agent": agent,

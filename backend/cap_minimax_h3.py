@@ -545,6 +545,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
         ref_video_audios = {}
         ref_audios = {}
         image_frames = []
+        first_frame = last_frame = None
+        last_frame_id = str(clip_row.get("last_frame_media_id") or "")
         video_frames = []
         prompt_references = []
 
@@ -581,7 +583,15 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 continue
             n = len(ref_images) + 1
             ref_images[f"ref_image_{n}"] = img
-            tag = ("the subject in the first frame" if n == 1 else "the subject in the last frame") if strict_keyframes else f"<Picture {n}>"
+            is_last = parser._ref_id(ref) == last_frame_id if last_frame_id else n == 2
+            if strict_keyframes:
+                if is_last:
+                    last_frame = img
+                elif first_frame is None:
+                    first_frame = img
+                else:
+                    raise ValueError("Only one first frame is allowed alongside the designated last frame.")
+            tag = ("the subject in the last frame" if is_last else "the subject in the first frame") if strict_keyframes else f"<Picture {n}>"
             prompt_references[-1] = (row, tag)
             image_frames.append(img)
 
@@ -636,8 +646,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 raise ValueError("Strict first/last frames needs at least one image. Disable strict_keyframes for text-to-video.")
             out = MiniMaxH3ImageToVideo.execute(
                 clip, vae, prompt, width, height, length,
-                first_frame=image_frames[0],
-                last_frame=image_frames[1] if len(image_frames) == 2 else None,
+                first_frame=first_frame,
+                last_frame=last_frame,
             )
         else:
             out = MiniMaxH3ReferenceToVideo.execute(

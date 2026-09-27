@@ -233,6 +233,24 @@ try {
         selected: () => c.index, editor,
     };
     editor._clearAiResourcePreview();
+    const tail = document.createElement('cap-media-carousel');
+    document.querySelector('#sidebar').append(tail);
+    const tailItems = [{kind:'image',name:'first.png',url:svg}, {kind:'image',name:'last.png',url:svg,lastFrame:true}];
+    const options = {editable:true,allowLastFrame:true,labels:{setLastFrame:'设为尾帧',clearLastFrame:'取消尾帧指定'}};
+    tail.setItems(tailItems,options);
+    const button = tail.shadowRoot.querySelector('.last-frame');
+    assert(!button.hidden && button.title === '设为尾帧', 'localized tail-frame icon');
+    let action;
+    tail.addEventListener('media-edit',e=>action=e.detail);
+    button.click();
+    assert(action.action === 'last-frame' && action.index === 0, 'tail-frame action uses current image');
+    tail.setSelection(1,2);
+    assert(button.getAttribute('aria-pressed') === 'true' && button.title === '取消尾帧指定', 'assigned tail-frame state');
+    tail.setItems(tailItems,{...options,editable:false,index:1});
+    assert(button.disabled,'locked Clip disables assignment');
+    tail.setItems(tailItems,{...options,allowLastFrame:false});
+    assert(button.hidden,'other Clip roles hide assignment');
+    tail.setItems(tailItems,{...options,index:1});
     result.textContent = 'PASS: shared preview/list, responsive 16:9, descriptions, drag reorder, enable/delete, selection, undo snapshots, locks and playback cleanup';
 } catch (error) {
     result.textContent = 'FAIL: ' + error.stack;

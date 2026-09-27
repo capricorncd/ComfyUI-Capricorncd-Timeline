@@ -31,7 +31,7 @@ class TimelineOutputsTests(unittest.TestCase):
         first = dict(id='a', prompt='First', save_latent=True, generated_videos=[
             dict(file='b_previous_run.mp4', enabled=True, h3_context_from='b-video'),
             dict(file='disabled.mp4', enabled=False), dict(file='existing.mp4'), dict(file='older.mp4')])
-        second = dict(id='b', prompt='Second', h3_motion_context_length=22, h3_drafts=[{'id': 'preview', 'enabled': True}],
+        second = dict(last_frame_media_id='tail-image', id='b', prompt='Second', h3_motion_context_length=22, h3_drafts=[{'id': 'preview', 'enabled': True}],
                       head_extend_sec=2, tail_extend_sec=3, generate_preview_video=True)
         instance = SimpleNamespace(
             _project=lambda value: json.loads(value),
@@ -43,6 +43,7 @@ class TimelineOutputsTests(unittest.TestCase):
         rows = json.loads(result[3])['clips']
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['source_clip_id'], 'b')
+        self.assertEqual(rows[0]['last_frame_media_id'], 'tail-image')
         self.assertEqual(rows[0]['h3_drafts'], second['h3_drafts'])
         self.assertEqual(rows[0]['previous_output_video'], 'existing.mp4')
         self.assertEqual(rows[0]['h3_timing']['context_frames'], 22)
@@ -99,6 +100,20 @@ class TimelineOutputsTests(unittest.TestCase):
         for language in ('en', 'zh', 'ja'):
             locale = json.loads((ROOT / 'locales' / language / 'nodeDefs.json').read_text(encoding='utf-8-sig'))
             self.assertEqual(tuple(locale['CAP_TimelineEditor']['outputs']), contract['RETURN_NAMES'])
+
+
+class ParserLastFrameTests(unittest.TestCase):
+    def test_explicit_assignment_and_disabled_tail(self):
+        tree = ast.parse((Path(__file__).parents[1] / 'backend/cap_data_json_parser.py').read_text(encoding='utf-8'))
+        parser = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'CAP_DataJsonClipParser')
+        execute = next(n for n in parser.body if isinstance(n, ast.FunctionDef) and n.name == 'execute')
+        begin = next(i for i, n in enumerate(execute.body) if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name) and n.targets[0].id == 'last_frame_id')
+        code = compile(ast.Module(body=execute.body[begin:begin + 5], type_ignores=[]), '<parser frame assignment>', 'exec')
+        node = SimpleNamespace(_ref_id=lambda ref: ref['id'], _first_loadable_image=lambda refs, materials: refs[0]['id'] if refs else None)
+        for refs, expected in [([{'id':'tail'}, {'id':'head'}], ('head','tail')), ([{'id':'tail'}], (None,'tail')), ([{'id':'head'}], ('head',None))]:
+            scope = dict(self=node, clip={'clip_role':'first_last','last_frame_media_id':'tail'}, refs=refs, materials={})
+            exec(code, scope)
+            self.assertEqual((scope['first_frame'],scope['last_frame']), expected)
 
 
 if __name__ == '__main__':

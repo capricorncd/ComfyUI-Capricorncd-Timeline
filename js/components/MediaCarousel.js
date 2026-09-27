@@ -51,6 +51,7 @@ export class MediaCarousel extends HTMLElement {
                 <div class="list" role="listbox" hidden></div>
                 <cap-button shape="square" size="small" class="view" hidden></cap-button>
                 <div class="actions">
+                    <cap-button shape="square" size="small" class="last-frame" hidden>${iconHtml('arrowRightToLine', 16)}</cap-button>
                     <cap-button shape="square" size="small" class="toggle" hidden>${iconHtml('eye', 16)}</cap-button>
                     <cap-button variant="danger" shape="square" size="small" class="remove" hidden>${iconHtml('trash', 16)}</cap-button>
                 </div>
@@ -62,6 +63,11 @@ export class MediaCarousel extends HTMLElement {
         this._view = root.querySelector('.view');
         this._remove = root.querySelector('.remove');
         this._toggle = root.querySelector('.toggle');
+        this._lastFrame = root.querySelector('.last-frame');
+        this._lastFrame.addEventListener('click', event => {
+            event.stopPropagation();
+            if (!this._lastFrame.hidden) this._request('last-frame', { index: this.index });
+        });
         this._toggle.addEventListener('click', event => {
             event.stopPropagation();
             if (this.index >= 0) this._request('toggle', { index: this.index });
@@ -101,13 +107,20 @@ export class MediaCarousel extends HTMLElement {
         this._counter.textContent = indices.length ? `${indices.indexOf(this.index) + 1}/${indices.length}` : '';
         this._remove.hidden = this._toggle.hidden = this.mode === 'list' || !indices.length || this._view.hidden;
         this._remove.disabled = this._toggle.disabled = !this.editable;
+        const item = this.items[this.index];
+        this._lastFrame.hidden = this.mode === 'list' || !this.allowLastFrame || item?.kind !== 'image' || item.enabled === false;
+        this._lastFrame.disabled = !this.editable;
+        this._lastFrame.setAttribute('aria-pressed', String(!!item?.lastFrame));
+        this._lastFrame.title = item?.lastFrame ? this.labels.clearLastFrame : this.labels.setLastFrame;
+        this._lastFrame.setAttribute('aria-label', this._lastFrame.title || 'Set as last frame');
         for (const [i, row] of [...this._list.children].entries()) {
             row.setAttribute('aria-selected', String(i === this.index));
         }
     }
 
-    setItems(items, { index = 0, editable = false, labels = {}, allowList = true } = {}) {
+    setItems(items, { index = 0, editable = false, labels = {}, allowList = true, allowLastFrame = false } = {}) {
         this.items = items;
+        this.allowLastFrame = allowLastFrame;
         this.editable = editable;
         this.labels = labels;
         this._view.hidden = !allowList;

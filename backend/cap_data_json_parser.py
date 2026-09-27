@@ -701,8 +701,11 @@ class CAP_DataJsonClipParser:
         refs = self._ref_list(clip.get("images"))
         if not refs:
             refs = self._ref_list(clip.get("start_image")) + self._ref_list(clip.get("end_image"))
-        first_frame = self._first_loadable_image(refs, materials)
-        last_frame = self._first_loadable_image(list(reversed(refs)), materials)
+        last_frame_id = str(clip.get("last_frame_media_id") or "") if clip.get("clip_role") == "first_last" else ""
+        first_refs = [ref for ref in refs if self._ref_id(ref) != last_frame_id] if last_frame_id else refs
+        last_refs = [ref for ref in refs if self._ref_id(ref) == last_frame_id] if last_frame_id else list(reversed(refs))
+        first_frame = self._first_loadable_image(first_refs, materials)
+        last_frame = self._first_loadable_image(last_refs, materials)
         if first_frame is None:
             first_frame = blank
         if last_frame is None:

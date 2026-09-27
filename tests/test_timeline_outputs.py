@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from test_h3_prompt_mentions import h3 as mentions
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,7 +18,7 @@ execute = next(n for n in node.body if isinstance(n, ast.FunctionDef) and n.name
 class TimelineOutputsTests(unittest.TestCase):
     def test_single_clip_keeps_existing_predecessor_video_before_filtering(self):
         from test_h3_timing import h3
-        namespace = dict(json=json, datetime=datetime, PROJECT_VERSION='test', SCHEMA_VERSION=4,
+        namespace = dict(prompt_reference_rows=mentions.prompt_reference_rows, json=json, datetime=datetime, PROJECT_VERSION='test', SCHEMA_VERSION=4,
                          clear_clip_prompt_vl=lambda: None, _setting_prompt=lambda s, k: s.get(k, ''),
                          _safe_filename_part=lambda name, default: name or default,
                          plan_h3_clips=h3.plan_h3_clips, _is_subtitle_clip=lambda c: False,

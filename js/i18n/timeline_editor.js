@@ -1623,7 +1623,7 @@ export const DICT = {
         shot_add: "插入关键帧",
         shot_delete: "删除关键帧",
         shot_description: "描述从此点开始的镜头",
-        shot_hint: "选中时间轴关键帧后，用 ← / → 逐帧移动，Delete 删除。双击 Clip 可在该位置插入关键帧。",
+        shot_hint: "选中时间轴关键帧后，用 ← / → 逐帧移动，Delete 删除。Ctrl+P 在播放头位置插入关键帧。",
         shot_insert: "插入到 Clip 提示词",
         shot_empty: "请先在裁剪范围内添加镜头点。",
         trim_video_previous: "上一个视频",

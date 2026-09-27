@@ -1,4 +1,5 @@
 import "./Button.js";
+import "./PromptMentions.js";
 import { formatTimecode } from "../timecode.js";
 
 export function shotPrompt(points) {
@@ -34,7 +35,16 @@ export class ShotControl extends HTMLElement {
         this.description.addEventListener('blur', () => this.dispatchEvent(new Event('prompt-commit')));
         for (const action of ['delete', 'insert']) this.shadowRoot.querySelector(`[data-${action}]`).onclick = () => this.dispatchEvent(new Event(action));
     }
+    setMentionSource(getAssets) {
+        if (!this.mentions) {
+            this.mentions = document.createElement('cap-prompt-mentions');
+            this.shadowRoot.append(this.mentions);
+            this.mentions.addEventListener('asset-mention', event => this.dispatchEvent(new CustomEvent('asset-mention', {detail: event.detail})));
+        }
+        this.mentions.bind(this.description, getAssets);
+    }
     configure(point, time, fps, locked, labels) {
+        this.mentions?.close();
         this.hidden = !point;
         if (!point) return;
         this.shadowRoot.querySelector('strong').textContent = labels.title;

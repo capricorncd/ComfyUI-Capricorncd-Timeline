@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const src=readFileSync(new URL('../js/components/PromptMentions.js',import.meta.url),'utf8');
+const {mentionQuery,PromptMentions}=new Function('HTMLElement','customElements','makeT','iconHtml',src.replace(/^import .*;\r?\n/gm,'').replaceAll('export ','')+';return {mentionQuery,PromptMentions};')(class {},{define(){}},dict=>key=>dict.en[key],()=> '');
+assert.deepEqual(mentionQuery('Hello @角色',9),{start:6,end:9,query:'角色'});
+assert.equal(mentionQuery('@角色 A ',6),null);
+assert.equal(mentionQuery('normal',6),null);
+assert.equal(mentionQuery('@a\ntext',7),null);
+assert.deepEqual(mentionQuery('@x @y',5),{start:3,end:5,query:'y'});
+const calls=[];
+const picker={textarea:{focus(){},setRangeText(...args){calls.push(args)},dispatchEvent(e){calls.push(e.type)}},match:{start:3,end:5},dispatchEvent(e){calls.push(e.detail)},close(){this.hidden=true}};
+globalThis.CustomEvent=class {constructor(type,opts){this.detail=opts.detail}};
+PromptMentions.prototype.select.call(picker,{id:'id2',name:'角色 A'});
+assert.deepEqual(calls[0],['@角色 A ',3,5,'end']);assert.equal(calls[1],'input');assert.equal(calls[2].id,'id2');assert(picker.hidden);
+const appSource=readFileSync(new URL('../js/CapTimelineEditorApp.js',import.meta.url),'utf8');
+function method(name){const start=appSource.indexOf('    '+name+'(');return new Function('return ({'+appSource.slice(start,appSource.indexOf('\n    }',start)+6)+'}).'+name)();}
+const row={id:'m1',kind:'image',file:'folder/hero.png'};
+const app={_parseMediaMeta:method('_parseMediaMeta'),_getMediaMeta:method('_getMediaMeta'),_writeMediaMeta:method('_writeMediaMeta'),_findMedia:()=>row,_ensureMedia:()=>row,_mediaStarsByDir:{},_mediaStarsId:()=> 'hero',_saveMediaStarsForDir(){this.saved=true}};
+assert.equal(app._getMediaMeta('image',row.file).name,'hero.png');
+app._writeMediaMeta('image',row.file,{name:'新角色',settingDescription:'Description'});
+assert.equal(row.name,'新角色');assert.equal(app._getMediaMeta('image',row.file).name,'新角色');
+assert.equal(app._parseMediaMeta(JSON.parse(JSON.stringify(app._mediaStarsByDir.hero))).name,'新角色');
+assert.equal(row.setting_description,'Description');
+app._writeMediaMeta('image',row.file,{name:'  '});assert.equal(row.name,'hero.png');
+const dbl=appSource.slice(appSource.indexOf('tl._tracksEl?.addEventListener("dblclick"'),appSource.indexOf('const scroll = tl.scrollEl;',appSource.indexOf('tl._tracksEl?.addEventListener("dblclick"')));
+assert(dbl.includes('_openAiOptimizeModal(clip)'));assert(!dbl.includes('_directorKeyframes.add'));
+console.log('PASS: @ queries, named insertion, stable selection ID, media name persistence/defaults, double-click prompt routing');
+
+const linkStart=appSource.indexOf('    _linkPromptMention(');
+const link=new Function('isDirectorTrackType','return ({'+appSource.slice(linkStart,appSource.indexOf('\n    }',linkStart)+6)+'})._linkPromptMention')(()=>true);
+const meta={items:[{id:'video',kind:'video'}]};
+const host={_ensureClipMeta:()=>meta,_recordUndo(){},_saveToWidgets(){this.saved=true;}};
+link.call(host,{track:{}},{id:'hero'});link.call(host,{track:{}},{id:'hero'});
+assert.deepEqual(meta.items,[{id:'video',kind:'video'}],'mentions do not change visible clip media');
+assert.deepEqual(meta.promptMediaIds,['hero']);assert(host.saved);
+assert(appSource.includes('prompt_media_ids: [...(m.promptMediaIds || [])]'));
+console.log('PASS: prompt-only references stay separate from visible materials and persist');

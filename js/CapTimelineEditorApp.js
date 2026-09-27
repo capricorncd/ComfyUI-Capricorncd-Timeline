@@ -12,6 +12,7 @@ import "./components/ExportRange.js";
 import "./components/MediaCarousel.js";
 import { AgentSettings } from "./editor/AgentSettings.js";
 import "./components/StatusMessage.js";
+import "./components/PromptMentions.js";
 import "./components/DropdownButton.js";
 import "./components/ContextMenu.js";
 import "./components/ThemePicker.js";
@@ -2700,7 +2701,7 @@ export class CapTimelineEditorApp {
         const project = this._buildProject();
         if (includeUnused || !project.media) return project;
         const used = new Set((project.tracks || []).flatMap(track =>
-            (track.clips || []).flatMap(clip => [...(clip.media_ids || []), clip.character_media_id].filter(Boolean))).map(String));
+            (track.clips || []).flatMap(clip => [...(clip.media_ids || []), ...(clip.prompt_media_ids || []), clip.character_media_id].filter(Boolean))).map(String));
         for (const shot of this._storyboards || []) if (shot.image_id) used.add(String(shot.image_id));
         const mediaById = new Map(project.media.map(media => [String(media.id), media]));
         for (const id of used) {
@@ -3979,6 +3980,10 @@ export class CapTimelineEditorApp {
                 <div class="cat-te-media-settings-panel" role="tabpanel">
                   <div class="cat-te-media-preview-meta-grid">
                     <label class="cat-te-media-preview-meta-row">
+                      <span>${T("name_label")}</span>
+                      <input class="cat-te-media-preview-name" type="text" />
+                    </label>
+                    <label class="cat-te-media-preview-meta-row">
                       <span>${T("type_label")}</span>
                       <select class="cat-te-media-preview-type">
                         <option value="">${T("not_set_option")}</option>
@@ -4821,6 +4826,7 @@ export class CapTimelineEditorApp {
         this.promptInput = el.querySelector(".cat-te-clip-panel .cat-te-prompt-input");
         this.aiOptimizeBtn = el.querySelector(".cat-te-ai-optimize-btn");
         this._attachPromptCopyButtons(el);
+        this._attachPromptMentions(el);
         for (const key of SETTING_PROMPT_KEYS) {
             const input = this._settingPromptInputs[key];
             if (input) attachRichPromptHandler(input, { mode: "widget" });
@@ -4901,6 +4907,8 @@ export class CapTimelineEditorApp {
         this.mediaPreviewFooter = el.querySelector(".cat-te-media-preview-footer");
         this.mediaPreviewHint = el.querySelector(".cat-te-media-preview-hint");
         this.mediaGenerationPrompt = el.querySelector(".cat-te-media-generation-prompt");
+        this.mediaPreviewName = el.querySelector(".cat-te-media-preview-name");
+        this.mediaPreviewName.addEventListener("change", () => this._saveMediaPreviewMeta());
         this.mediaSettingDescription = el.querySelector(".cat-te-media-setting-description");
         attachRichPromptHandler(this.mediaGenerationPrompt, { mode: "widget" });
         attachRichPromptHandler(this.mediaSettingDescription, { mode: "widget" });
@@ -6340,7 +6348,7 @@ export class CapTimelineEditorApp {
                 kind,
                 file,
                 location: "input",
-                name: file.split(/[\\/]/).pop() || file,
+                name: local.name || file.split(/[\\/]/).pop() || file,
                 prompt: local.prompt || "",
                 generation_prompt: local.generationPrompt || "",
                 setting_description: local.settingDescription || "",
@@ -6476,7 +6484,7 @@ export class CapTimelineEditorApp {
                 kind,
                 file,
                 location: "input",
-                name: row.name || file.split(/[\\/]/).pop() || file,
+                name: row.name || local.name || file.split(/[\\/]/).pop() || file,
                 prompt: String(row.prompt || local.prompt || ""),
                 generation_prompt: String(row.generation_prompt || row.generationPrompt || local.generationPrompt || ""),
                 setting_description: String(row.setting_description || row.settingDescription || local.settingDescription || ""),
@@ -6763,6 +6771,7 @@ export class CapTimelineEditorApp {
         }
         if (!raw || typeof raw !== "object") return {};
         const out = {};
+        if (typeof raw.name === "string") out.name = raw.name.trim();
         const stars = Number(raw.stars);
         if (Number.isFinite(stars) && stars >= 1 && stars <= 5) out.stars = stars;
         if (typeof raw.prompt === "string") out.prompt = raw.prompt;
@@ -6782,6 +6791,7 @@ export class CapTimelineEditorApp {
         const row = this._findMedia(kind, file);
         if (row) {
             return {
+                name: row.name || file.split(/[\\/]/).pop() || file,
                 stars: Number.isFinite(Number(row.stars)) ? Number(row.stars) : undefined,
                 prompt: String(row.prompt || ""),
                 generationPrompt: String(row.generation_prompt || ""),
@@ -6797,6 +6807,7 @@ export class CapTimelineEditorApp {
         const next = this._parseMediaMeta(meta);
         const row = this._ensureMedia(kind, file);
         if (row) {
+            row.name = next.name || file.split(/[\\/]/).pop() || file;
             row.prompt = next.prompt || "";
             row.generation_prompt = next.generationPrompt || "";
             row.setting_description = next.settingDescription || "";
@@ -6806,7 +6817,7 @@ export class CapTimelineEditorApp {
             else delete row.stars;
         }
         const id = this._mediaStarsId(kind, file);
-        if (!next.stars && !next.prompt && !next.generationPrompt && !next.settingDescription && !next.mediaType && !(next.tags?.length)) {
+        if (!next.name && !next.stars && !next.prompt && !next.generationPrompt && !next.settingDescription && !next.mediaType && !(next.tags?.length)) {
             delete this._mediaStarsByDir[id];
         } else {
             this._mediaStarsByDir[id] = next;
@@ -10901,6 +10912,39 @@ export class CapTimelineEditorApp {
         return this._audioUrl(rel) || this._outputVideoUrl(rel);
     }
 
+    _promptMentionAssets() {
+        return this._projectResources.map(row => ({
+            id: row.id, name: row.name || row.file.split(/[\\/]/).pop(), file: row.file,
+            kind: row.kind, category: MEDIA_ASSET_TYPES.some(type => type.id === row.media_type) ? row.media_type : "other",
+            preview: row.kind === "image" ? this._imgUrl(row.file) : row.kind === "video" ? this._videoUrl(row.file) : "",
+        }));
+    }
+
+    _linkPromptMention(clip, asset) {
+        if (!clip || clip.track?.locked || !isDirectorTrackType(clip.track?.type)) return;
+        const meta = this._ensureClipMeta(clip);
+        if (meta.promptMediaIds?.includes(asset.id)) return;
+        this._recordUndo();
+        meta.promptMediaIds = [...(meta.promptMediaIds || []), asset.id];
+        this._saveToWidgets();
+    }
+
+    _attachPromptMentions(root) {
+        for (const textarea of root.querySelectorAll("textarea[data-prompt-copy-attached]")) {
+            const mentions = document.createElement("cap-prompt-mentions");
+            textarea.parentElement.append(mentions);
+            mentions.bind(textarea, () => this._promptMentionAssets());
+            mentions.addEventListener("asset-mention", ({ detail: asset }) => {
+                if (textarea.matches(".cat-te-settings-prompt-input, .cat-te-media-setting-description, .cat-te-media-generation-prompt")) return;
+                if (textarea === this.aiSrcText && SETTING_PROMPT_KEYS.includes(this._aiOptimizeSrc)) return;
+                const clip = textarea === this.aiSrcText || textarea === this.aiSystemInput || textarea === this.aiSkillInput
+                    ? this._findClipById(this._aiOptimizeClipId) : textarea === this.genEditPrompt
+                    ? this._findClipById(this._genEditState?.clipId) : this._selClip;
+                this._linkPromptMention(clip, asset);
+            });
+        }
+    }
+
     _attachPromptCopyButtons(root) {
         if (!root) return;
         const selector = [
@@ -14938,6 +14982,7 @@ export class CapTimelineEditorApp {
                 mediaOffsetY: Math.max(-100, Math.min(100, Number(c.media_offset_y ?? 0))),
                 muted: !!c.muted,
                 prompt: c.prompt ?? "",
+                promptMediaIds: [...(c.prompt_media_ids || [])],
                 promptIncludes,
                 usePrependPrompt: c.use_prepend_prompt !== false,
                 useAppendPrompt: c.use_append_prompt !== false,
@@ -15024,6 +15069,7 @@ export class CapTimelineEditorApp {
                 agent: c.agent || "MiniMaxH3",
                 agentCustom: c.agent_custom ?? "",
                 prompt: c.prompt ?? "",
+                promptMediaIds: [...(c.prompt_media_ids || [])],
                 endImage: c.end_image ?? null,
                 promptIncludes,
                 usePrependPrompt: c.use_prepend_prompt !== false,
@@ -15087,6 +15133,7 @@ export class CapTimelineEditorApp {
             agent: c.agent || "MiniMaxH3",
             agentCustom: c.agent_custom ?? "",
             prompt: c.prompt ?? "",
+            promptMediaIds: [...(c.prompt_media_ids || [])],
             endImage: c.end_image ?? null,
             promptIncludes,
             usePrependPrompt: c.use_prepend_prompt !== false,
@@ -15823,6 +15870,7 @@ export class CapTimelineEditorApp {
     _fillMediaPreviewMeta(kind, file) {
         const meta = this._getMediaMeta(kind, file);
         const known = MEDIA_ASSET_TYPES.some((t) => t.id === meta.mediaType);
+        if (this.mediaPreviewName) this.mediaPreviewName.value = meta.name || file.split(/[\\/]/).pop() || file;
         if (this.mediaGenerationPrompt) setRichPromptValue(this.mediaGenerationPrompt, meta.generationPrompt || "", true);
         if (this.mediaSettingDescription) setRichPromptValue(this.mediaSettingDescription, meta.settingDescription || "", true);
         if (this.mediaPreviewType) {
@@ -15854,8 +15902,11 @@ export class CapTimelineEditorApp {
         if (mediaType === "other") {
             mediaType = String(this.mediaPreviewTypeCustom?.value || "").trim() || "other";
         }
+        const name = this.mediaPreviewName?.value.trim() || file.split(/[\\/]/).pop() || file;
+        if (name !== (prev.name || file.split(/[\\/]/).pop() || file)) this._recordUndo();
         this._writeMediaMeta(kind, file, {
             ...prev,
+            name,
             generationPrompt: String(this.mediaGenerationPrompt?.value || ""),
             settingDescription: String(this.mediaSettingDescription?.value || ""),
             mediaType,
@@ -16431,7 +16482,7 @@ export class CapTimelineEditorApp {
         const fileKey = (kind, file) => `${kind}:${String(file || "").replace(/\\/g, "/")}`;
         for (const track of project.tracks || []) {
             for (const clip of track.clips || []) {
-                for (const id of [...(clip.media_ids || []), clip.character_media_id]) {
+                for (const id of [...(clip.media_ids || []), ...(clip.prompt_media_ids || []), clip.character_media_id]) {
                     if (id) used.add(String(id));
                 }
                 for (const row of clip.generated_videos || []) if (row.file) files.add(fileKey("video", row.file));
@@ -18318,11 +18369,6 @@ export class CapTimelineEditorApp {
                 e.preventDefault();
                 e.stopPropagation();
                 this._timeline.selectClip(clip);
-                if (this._directorKeyframes?.target(clip)) {
-                    const rect = clip.el.getBoundingClientRect();
-                    this._directorKeyframes.add(clip, clip.startTime + (e.clientX - rect.left) / this._timeline.pixelsPerSecond);
-                    return;
-                }
                 void this._openAiOptimizeModal(clip);
                 return;
             }
@@ -19591,14 +19637,18 @@ export class CapTimelineEditorApp {
                 });
             }
         }
-        rows.push(...this._clipItems(m)
-            .filter((item) => item.enabled !== false && item.kind !== "audio")
+        const visibleItems = this._clipItems(m).filter(item => item.enabled !== false);
+        const references = (m.promptMediaIds || []).map(id => this._findMediaById(id))
+            .filter(row => row && !visibleItems.some(item => item.id === row.id));
+        rows.push(...[...visibleItems, ...references]
+            .filter((item) => item.kind !== "audio")
             .map((item) => {
             const media = (item.id && this._findMediaById(item.id)) || this._findMedia(item.kind, item.file);
             const status = this._mediaStatus.get(`${item.kind}:${item.file}`);
             return {
                 kind: item.kind,
                 file: item.file,
+                name: media?.name || item.file.split(/[\\/]/).pop(),
                 location: status?.location || media?.location || "input",
                 setting_description: String(media?.setting_description || ""),
                 media_type: String(media?.media_type || ""),
@@ -19611,7 +19661,11 @@ export class CapTimelineEditorApp {
         }));
         const start = Number(clip.startTime) || 0;
         const end = start + Math.max(0, Number(clip.duration) || 0);
-        const audioRows = [];
+        const audioRows = references.filter(row => row.kind === "audio").map(row => ({
+            kind: "audio", file: row.file, name: row.name, location: row.location || "input",
+            include_description: context.resource_description !== false,
+            include_data: context.audio_data !== false,
+        }));
         for (const track of this._timeline?.tracks || []) {
             if (track.type !== "audio" || track.muted) continue;
             const info = this._trackInfo.get(track.id) || {};
@@ -20604,6 +20658,7 @@ export class CapTimelineEditorApp {
                     start_ms: startMs,
                     duration_ms: durationMs,
                     media_ids: mediaIds,
+                    prompt_media_ids: [...(m.promptMediaIds || [])],
                     ...(this._canChangeClipSpeed(clip) ? { playback_rate: clip.playbackRate || 1 } : {}),
                     volume: normalizeClipVolume(m.volume),
                 };

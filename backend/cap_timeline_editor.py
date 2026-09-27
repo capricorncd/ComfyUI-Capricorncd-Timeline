@@ -11,6 +11,7 @@ import shutil
 
 import torch
 import folder_paths
+from .h3_prompt_mentions import prompt_reference_rows
 from .audio_envelope import apply_volume_points, normalize_volume_points
 from .media_speed import playback_rate
 from .h3_timing import plan_h3_clips, source_clip_timing
@@ -766,6 +767,11 @@ class CAP_TimelineEditor:
             if _is_subtitle_clip(clip):
                 continue
             entries = _clip_visual_entries(project, clip)
+            prompt_refs = prompt_reference_rows(project, clip)
+            visible_ids = {entry["id"] for entry in entries if entry.get("enabled")}
+            for ref in prompt_refs:
+                if ref.get("kind") != "audio" and ref.get("id") not in visible_ids:
+                    entries.append({"row": ref, "id": ref["id"], "enabled": True, "use_prompt": True})
             has_media = any(e.get("enabled") and e.get("id") for e in entries)
             has_prompt = bool(_strip_comment_lines(clip.get("prompt") or "").strip())
             # Empty package clips are timeline placeholders (preview only).
@@ -811,6 +817,12 @@ class CAP_TimelineEditor:
                     ext_start, ext_end, audio_clips, resolve_media, project, materials, seen_materials,
                 ) if use_audio_track_audio else [],
             }
+            audio_ids = {row.get("id") for row in runtime_row["audios"]}
+            for ref in prompt_refs:
+                if ref.get("kind") == "audio" and ref.get("id") not in audio_ids:
+                    mid = _add_material(materials, seen_materials, ref, resolve_media)
+                    runtime_row["audios"].append({"id": mid, "source_start_ms": 0,
+                        "source_end_ms": ext_end - ext_start, "clip_offset_ms": 0})
             if use_clip_video_name:
                 clip_id_safe = _safe_filename_part(source_clip_id, "clip")
                 runtime_row["output_video"] = (

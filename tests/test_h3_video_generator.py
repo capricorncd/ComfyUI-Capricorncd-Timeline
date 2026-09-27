@@ -862,12 +862,13 @@ class GeneratorTests(unittest.TestCase):
 
 class StrictKeyframeTests(unittest.TestCase):
     def setUp(self):
+        from test_h3_prompt_mentions import h3 as mentions
         path = BACKEND / "cap_minimax_h3.py"
         tree = ast.parse(path.read_text(encoding="utf-8"))
         tree.body = [n for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef)) and n.name in ("CAP_MiniMaxH3ReferenceToVideo", "_snap_h3_grid", "_h3_audio_clip")]
         self.native = Mock(return_value=SimpleNamespace(args=("positive", "latent")))
         self.reference = Mock(return_value=SimpleNamespace(args=("positive", "latent")))
-        self.scope = dict(playback_rate=lambda value: float(value or 1), nodes=SimpleNamespace(MAX_RESOLUTION=16384), H3_FPS=24, align_frame_count=lambda x: x,
+        self.scope = dict(compile_h3_mentions=mentions.compile_h3_mentions, playback_rate=lambda value: float(value or 1), nodes=SimpleNamespace(MAX_RESOLUTION=16384), H3_FPS=24, align_frame_count=lambda x: x,
                           os=SimpleNamespace(path=SimpleNamespace(isfile=lambda p: True)),
                           CAP_DataJsonClipParser=object, torch=SimpleNamespace(Tensor=object, zeros=lambda *a: "blank"), MAX_REF_IMAGES=9, MAX_REF_VIDEOS=3, MAX_REF_AUDIOS=3,
                           _kind_of=lambda row, path: row.get("kind", "image"),
@@ -893,6 +894,14 @@ class StrictKeyframeTests(unittest.TestCase):
         self.reference.assert_not_called()
         self.prepare(images, strict=False)
         self.assertEqual(self.reference.call_count, 1)
+
+    def test_named_references_follow_loaded_order(self):
+        self.parser._compose_prompt = lambda *a, **kw: "@Hero walks"
+        self.parser._load_image = lambda path: None if path == "missing" else path
+        self.prepare([{"file": "missing", "name": "Unused"}, {"file": "hero", "name": "Hero"}], strict=False)
+        self.assertEqual(self.reference.call_args.kwargs["prompt"], "<Picture 1> walks")
+        self.prepare([{"file": "hero", "name": "Hero"}])
+        self.assertEqual(self.native.call_args.args[2], "the subject in the first frame walks")
 
     def test_single_first_frame(self):
         self.prepare([{"file": "first"}])

@@ -17,6 +17,7 @@ from .cap_data_json_parser import CAP_DataJsonClipParser
 from .cap_timeline_project_io import _resolve_output_file
 from .timecode import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
 from .media_speed import playback_rate
+from .h3_prompt_mentions import compile_h3_mentions
 
 MAX_REF_IMAGES = 9
 MAX_REF_VIDEOS = 3
@@ -545,9 +546,11 @@ class CAP_MiniMaxH3ReferenceToVideo:
         ref_audios = {}
         image_frames = []
         video_frames = []
+        prompt_references = []
 
         for ref in self._visual_refs(clip_row, parser):
             path, row = self._material_for_ref(ref, materials, parser)
+            prompt_references.append((row, None))
             if not path or not os.path.isfile(path):
                 if strict_keyframes:
                     raise ValueError("Strict first/last frame image is missing or unreadable.")
@@ -564,6 +567,7 @@ class CAP_MiniMaxH3ReferenceToVideo:
                     continue
                 n = len(ref_videos) + 1
                 ref_videos[f"ref_video_{n}"] = frames
+                prompt_references[-1] = (row, f"<Video {n}>")
                 video_frames.append(frames)
                 if soundtrack is not None:
                     ref_video_audios[f"ref_video_audio_{n}"] = soundtrack
@@ -577,6 +581,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 continue
             n = len(ref_images) + 1
             ref_images[f"ref_image_{n}"] = img
+            tag = ("the subject in the first frame" if n == 1 else "the subject in the last frame") if strict_keyframes else f"<Picture {n}>"
+            prompt_references[-1] = (row, tag)
             image_frames.append(img)
 
         for row in audio_clip.get("audios") if isinstance(audio_clip.get("audios"), list) else []:
@@ -584,11 +590,14 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 break
             if not isinstance(row, dict):
                 continue
+            material = materials.get(parser._ref_id(row)) or materials.get(row.get("file")) or row
+            prompt_references.append((material, None))
             audio = self._load_audio_ref(row, materials, parser)
             if audio is None:
                 continue
             n = len(ref_audios) + 1
             ref_audios[f"ref_audio_{n}"] = audio
+            prompt_references[-1] = (material, f"<Audio {len(ref_video_audios) + n}>")
 
         fixed_prompts = "prepend_prompt" in data or "append_prompt" in data
         prompt = parser._compose_prompt(
@@ -601,6 +610,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
             prepend_prompt=data.get("prepend_prompt", "") if fixed_prompts else None,
             append_prompt=data.get("append_prompt", "") if fixed_prompts else None,
         )
+
+        prompt = compile_h3_mentions(prompt, prompt_references)
 
         if parser._uses_master_audio(data, clip_row):
             if clip_row.get("clip_role") == "digital_human" and not os.path.isfile(str(data.get("audio_path") or "")):

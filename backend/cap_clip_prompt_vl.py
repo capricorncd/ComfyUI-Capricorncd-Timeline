@@ -21,6 +21,7 @@ import numpy as np
 import torch
 from PIL import Image
 
+from .h3_prompt_mentions import h3_prompt_skill
 from .cap_i18n import get_last_known_lang, t as _t
 from .local_config import CONFIG_PATH, read_config, write_config
 from .prompt_text import strip_comment_lines
@@ -1166,7 +1167,7 @@ def _generate_with_agent(payload: dict, agent_id: str) -> str:
         system_prompt,
         payload.get("output_language") or payload.get("language") or DEFAULT_OUTPUT_LANGUAGE,
     )
-    system_prompt = with_prompt_skill(system_prompt, payload.get("skill") or "")
+    system_prompt = with_prompt_skill(system_prompt, h3_prompt_skill(payload))
     images, videos = media_from_payload(payload)
     encoded_images = _remote_images(images, videos)
     encoded_audio = audio_from_payload(payload)
@@ -1262,7 +1263,7 @@ def generate_from_payload(payload: dict) -> str:
         model_name=model_name,
         system_prompt=system_prompt,
         user_prompt=user_prompt,
-        skill=str(payload.get("skill") or ""),
+        skill=h3_prompt_skill(payload),
         images=images,
         videos=videos,
         max_new_tokens=int(payload.get("max_new_tokens") or 2048),

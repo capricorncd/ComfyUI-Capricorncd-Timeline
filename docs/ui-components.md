@@ -229,3 +229,11 @@ Video-reference H3 runs use `editor/KeyframeRun.js` and a shared `cap-dialog` to
 `js/editor/H3DraftVersions.js` manages director Clip first-pass candidates in a non-modal `cap-dialog`. Each version links a low-resolution preview to its persisted AV latent and prompt/seed snapshot. Disabled versions remain viewable. Run automatically uses the latest enabled preview whose latent files exist and duration/fps match; other Clips follow ordinary generation. Deleting confirms first, then unlinks the version and records a tombstone so completion-event replay cannot resurrect it. Video, latent and metadata files remain on disk; undo restores the association. Editor history owns undo; version arrays are copied in Clip snapshots.
 
 Batch preview actions are injected into only the queued Timeline Editor API snapshot, not saved as a project generation mode. The H3 generator controls preview megapixels and sequential candidate count (`preview_sampling_batch`, default 1). `tests/h3_drafts.browser.html` exercises browsing, disabled state, non-modal behavior and serialization; queue and saved-output tests cover event replay and isolation from finished videos.
+
+## Prompt asset mentions
+
+`PromptMentions.js` provides `<cap-prompt-mentions>`. Append it beside an existing textarea and call `bind(textarea, getAssets)`. Assets contain `id`, `name`, `file`, `kind`, optional `category` and `preview`. Typing `@` opens name search, category filters and thumbnails; arrows/Enter select and Escape closes. Selection inserts `@name` and emits `asset-mention` with the asset. The component leaves persistence to the caller. Read-only fields do not open suggestions; disconnection removes listeners.
+
+Timeline prompt fields and `ShotControl.setMentionSource(getAssets)` share this component. Prompt references persist as `prompt_media_ids`, separately from visible `media_ids`, and participate in export and unused-media checks. The H3 generation adapter converts names using actual loaded reference order. The bundled `backend/h3_reference_skill.md` guides Agent generation without imposing a fixed output structure.
+
+Verify with `node tests/test_prompt_mentions.mjs`, `python -m unittest discover -s tests -p test_h3_prompt_mentions.py`, and `tests/prompt_mentions.browser.html`.

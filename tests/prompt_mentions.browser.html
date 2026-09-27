@@ -1,0 +1,27 @@
+<!doctype html><meta charset="utf-8"><title>Prompt material mentions</title>
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app={extensionManager:{setting:{get:()=> 'zh'}}};"}}</script>
+<style>body {font:14px system-ui;background:#10191d;color:#e4edeb;--cat-text:#e4edeb;--cat-muted:#a3b5b8;--cat-bg:#10191d;--cat-surface:#192226;--cat-raised:#202c31;--cat-input:#10191d;--cat-border-soft:#34464b} main {margin:40px;max-width:720px}textarea {box-sizing:border-box;width:100%;height:340px;background:#192226;color:inherit;font:inherit;padding:12px}pre{white-space:pre-wrap}</style>
+<main><label>Clip 提示词<textarea aria-label="Clip 提示词"></textarea></label><cap-prompt-mentions></cap-prompt-mentions><pre id="result"></pre></main>
+<script type="module">
+import '../js/components/PromptMentions.js';
+import '../js/components/ShotControl.js';
+import {attachRichPromptHandler} from '../js/components/RichPrompt.js';
+const ta=document.querySelector('textarea'), picker=document.querySelector('cap-prompt-mentions');
+attachRichPromptHandler(ta,{mode:'widget'});
+const assets=[
+{id:'a',name:'角色 A',category:'character',kind:'image',file:'hero-a.png'},
+{id:'b',name:'角色 A',category:'character',kind:'image',file:'hero-b.png'},
+{id:'c',name:'雨夜街道',category:'scene',kind:'image',file:'street.png'},
+{id:'d',name:'<img onerror=alert(1)>',category:'prop',kind:'image',file:'safe.png'},
+];
+picker.bind(ta,()=>assets);
+picker.addEventListener('asset-mention',e=>document.querySelector('#result').textContent=JSON.stringify({id:e.detail.id,prompt:ta.value}));
+</script>
+
+<script type="module">
+const panel=document.createElement('cap-shot-control');document.querySelector('main').append(panel);
+const source={id:'hero',name:'女主角',kind:'image',file:'hero.png',category:'character'};
+panel.setMentionSource(()=>[source]);
+panel.configure({description:''},2,24,false,{title:'关键帧',description:'关键帧提示词',hint:'Ctrl+P 添加关键帧',delete:'删除',insert:'插入提示词'});
+panel.addEventListener('asset-mention',e=>document.querySelector('#result').textContent='关键帧已引用 '+e.detail.id);
+</script>

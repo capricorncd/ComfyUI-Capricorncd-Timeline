@@ -15,6 +15,8 @@ export class DirectorKeyframes {
         this.panel = panel;
         this.isDirector = isDirector;
         this.selection = null;
+        panel.setMentionSource(() => app._promptMentionAssets());
+        panel.addEventListener('asset-mention', event => app._linkPromptMention(this.selectedTarget()?.clip, event.detail));
         this.editing = false;
         this.detecting = new Set();
         this.status = document.createElement('cap-status-message');

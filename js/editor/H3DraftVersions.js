@@ -6,6 +6,7 @@ import { t as T } from '../i18n/timeline_editor.js';
 
 export const draftT = makeT({
     en: {
+        playback_mode: "Preview versions", playback_hint: "Play preview versions along the timeline (latest enabled version per Clip)", playback_exit: "Exit preview version playback",
         generate_all: "Batch preview sampling — all clips", generate_selected: "Batch preview sampling — selected clips",
         title: 'Preview sampling manager', generate: 'Batch preview sampling',
         empty: 'No first-pass versions. Generate candidates to save low-resolution previews and their latents.',
@@ -15,6 +16,7 @@ export const draftT = makeT({
         failed: 'Could not run: {message}', prompt: 'Preview sampling prompt', delete_failed: 'Could not delete: {message}', removed: 'Remove this version from the Clip? Video, latent and metadata files will be kept. Undo restores the association.',
     },
     zh: {
+        playback_mode: "预览版模式", playback_hint: "沿时间轴播放各 Clip 最新启用的预览版", playback_exit: "退出预览版播放模式",
         generate_all: "全部片段批量预览采样", generate_selected: "选中片段批量预览采样",
         title: '预览采样管理', generate: '批量预览采样',
         empty: '暂无预览采样。批量预览采样后，这里会保存低清预览与对应的 latent。',
@@ -24,6 +26,7 @@ export const draftT = makeT({
         failed: '运行失败：{message}', prompt: '预览采样提示词', delete_failed: '删除失败：{message}', removed: '从 Clip 删除此版本关联？磁盘上的视频、latent 和版本信息均会保留，可通过撤销恢复关联。',
     },
     ja: {
+        playback_mode: "プレビュー版モード", playback_hint: "各 Clip の最新の有効なプレビューをタイムラインで再生", playback_exit: "プレビュー版モードを終了",
         generate_all: "全クリップのプレビューバッチ生成", generate_selected: "選択クリップのプレビューバッチ生成",
         title: 'プレビューサンプリング管理', generate: 'プレビューバッチ生成',
         empty: '候補はまだありません。低解像度プレビューと latent を生成してください。',

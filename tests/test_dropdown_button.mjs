@@ -69,7 +69,7 @@ assert.match(app, /packageBtn = document.createElement\("cap-dropdown-button"\)/
 assert.match(app, /runMenuBtn = document.createElement\("cap-dropdown-button"\)/);
 assert.match(app, /moreBtn = document.createElement\("cap-dropdown-button"\)/);
 assert.match(app, /moreBtn.bindMenu\(e =>/);
-for (const name of ['editModeBtn', 'undoBtn', 'redoBtn']) {
+for (const name of ['undoBtn', 'redoBtn']) {
     assert(app.includes(`this.${name} = document.createElement("cap-button")`));
 }
 assert(!timeline.includes("el('button', 'tl-btn"), 'toolbar controls all use shared buttons');
@@ -157,7 +157,7 @@ try {
     const mode = new Button(); let active = false, targets = [];
     const owner = { editModeBtn: mode, _allGeneratedPreviewActive: () => active, _clipsWithEnabledGeneratedVideo: () => targets };
     update.call(owner);
-    assert(mode.disabled); assert.equal(mode.getAttribute('aria-pressed'), 'false');
+    assert(!mode.disabled); assert.equal(mode.getAttribute('aria-pressed'), 'false');
     targets = ['clip']; active = true; update.call(owner);
     assert(!mode.disabled); assert.equal(mode.getAttribute('aria-pressed'), 'true');
     assert.equal(mode.getAttribute('aria-label'), 'edit_mode_back_to_resource_title');
@@ -166,3 +166,16 @@ try {
     assert.equal(mode.getAttribute('aria-label'), 'edit_mode_switch_to_generated_title');
 }
 console.log('Dropdown button: shared trigger, fixed caret, native disabled/focus behavior and timeline/header integration passed');
+
+let primaryClicks = 0, menuOpens = 0;
+const split = new DropdownButton();
+split.bindMenu(() => { menuOpens++; return {isConnected:true,addEventListener(){},remove(){},focus(){}}; }, {primaryAction:()=>primaryClicks++});
+split.listeners.pointerenter({pointerType:'mouse'});
+assert.equal(menuOpens,1);
+split.listeners.click({stopPropagation(){}});
+assert.equal(primaryClicks,1); assert.equal(menuOpens,1);
+split.listeners.keydown({key:'ArrowDown',preventDefault(){}});
+assert.equal(menuOpens,2);
+split.disabled=true;
+split.listeners.click({stopPropagation(){}});
+assert.equal(primaryClicks,1);

@@ -243,3 +243,5 @@ The media carousel accepts `allowLastFrame` and item `lastFrame` state; its bott
 ## Clip Prompt Skills
 
 `PromptSkills.js` provides `<cap-prompt-skills>`. Call `configure(rows, disabled)` with `{id, name, text, enabled}` entries. It emits `skills-change` with copied `detail.rows`; the caller owns Clip binding, undo and project persistence. The component owns custom entry editing, enable switches, deletion, JSON export and atomic JSON/Markdown/TXT import. File contents are displayed as text. Preset selection remains in the existing Skill picker. Tests: `test_prompt_skills.mjs` and `test_h3_shared_prompt.py`.
+
+The timeline preview mode dropdown opens on hover. Its `bindMenu` uses `primaryAction` for direct clicks to switch Clip/generated video; ArrowDown opens the menu for keyboard users. The menu toggles preview-version playback without changing saved Clip modes or output associations. It plays the latest enabled preview per director Clip, capped to Clip duration, and keeps timeline audio tracks while excluding finished-video audio. Tests: `test_draft_playback.mjs`.

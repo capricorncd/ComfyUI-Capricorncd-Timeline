@@ -2,7 +2,7 @@ import "./Button.js";
 
 /** Shared hover trigger; callers create and position their menu. */
 export class DropdownButton extends HTMLElement {
-    static observedAttributes = ["disabled", "variant", "aria-label", "size"];
+    static observedAttributes = ["disabled", "variant", "aria-label", "aria-pressed", "size"];
 
     constructor() {
         super();
@@ -31,7 +31,17 @@ export class DropdownButton extends HTMLElement {
         this.addEventListener("click", event => {
             if (!this._openMenu) return;
             event.stopPropagation();
+            if (this.disabled) return;
+            if (this._primaryAction) {
+                this._hideMenu();
+                this._primaryAction(event);
+            } else this._showMenu(event);
+        });
+        this.addEventListener("keydown", event => {
+            if (event.key !== "ArrowDown" || this.disabled) return;
+            event.preventDefault();
             this._showMenu(event);
+            this._menu?.focus();
         });
     }
 
@@ -50,9 +60,10 @@ export class DropdownButton extends HTMLElement {
     click() { this._button.click(); }
     focus(options) { this._button.focus(options); }
 
-    bindMenu(openMenu) {
+    bindMenu(openMenu, { primaryAction = null } = {}) {
         this._hideMenu();
         this._openMenu = openMenu;
+        this._primaryAction = primaryAction;
     }
 
     _showMenu(event) {

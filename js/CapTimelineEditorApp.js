@@ -924,6 +924,7 @@ export class CapTimelineEditorApp {
          * Legacy projects may still carry settings.timeline_edit_mode.
          */
         this._legacyTimelineEditMode = null;
+        this._draftPreviewMode = false;
         /** Temporary stamp written into project settings for one queuePrompt. */
         this._genVideoStamp = null;
         this._fontPicker = new FontPicker(() => {
@@ -7241,6 +7242,22 @@ export class CapTimelineEditorApp {
         // Main-timeline resize no longer writes gen trim (see gen-edit modal).
     }
 
+    _draftPreviewVideo(meta, clip) {
+        const row = (meta.h3Drafts || []).find(row => row.enabled !== false && row.file);
+        if (!row) return null;
+        const seconds = Number(row.frames) / Number(row.fps);
+        return { id: `draft-${row.id}`, file: row.file, enabled: true, muted: true,
+            duration_sec: Math.min(clip.duration, seconds > 0 ? seconds : clip.duration),
+            trim_in_sec: 0, edit_start_sec: 0, playback_rate: 1 };
+    }
+
+    _toggleDraftPreview() {
+        this._draftPreviewMode = !this._draftPreviewMode;
+        this._updateEditModeToolbar();
+        this._scheduleProgramPreview();
+        if (this._timeline?._playing) this._startAudioPlayback();
+    }
+
     _updateEditModeToolbar() {
         if (this.insertClipBtn) {
             this.insertClipBtn.disabled = false;
@@ -7252,12 +7269,11 @@ export class CapTimelineEditorApp {
         }
         const modeBtn = this.editModeBtn;
         if (modeBtn) {
-            const active = this._allGeneratedPreviewActive();
-            const hasTargets = this._clipsWithEnabledGeneratedVideo().length > 0;
-            modeBtn.disabled = !hasTargets;
-            modeBtn.setAttribute("aria-pressed", String(active));
-            modeBtn.innerHTML = iconHtml(active ? "videoOff" : "video", 14);
-            modeBtn.title = active
+            const active = !this._draftPreviewMode && this._allGeneratedPreviewActive();
+            modeBtn.disabled = false;
+            modeBtn.setAttribute("aria-pressed", String(active || !!this._draftPreviewMode));
+            modeBtn.innerHTML = iconHtml(this._draftPreviewMode ? "listCollapse" : active ? "videoOff" : "video", 14);
+            modeBtn.title = this._draftPreviewMode ? draftT("playback_mode") : active
                 ? T("edit_mode_back_to_resource_title")
                 : T("edit_mode_switch_to_generated_title");
             modeBtn.setAttribute("aria-label", modeBtn.title);
@@ -7270,8 +7286,12 @@ export class CapTimelineEditorApp {
 
     _toggleAllGeneratedPreview() {
         const targets = this._clipsWithEnabledGeneratedVideo();
-        if (!targets.length) return;
-        const next = this._allGeneratedPreviewActive() ? "media" : "generated";
+        if (!targets.length) {
+            if (this._draftPreviewMode) this._toggleDraftPreview();
+            return;
+        }
+        const next = !this._draftPreviewMode && this._allGeneratedPreviewActive() ? "media" : "generated";
+        this._draftPreviewMode = false;
         this._recordUndo();
         for (const { clip, meta } of targets) {
             meta.previewMode = next;
@@ -14251,6 +14271,7 @@ export class CapTimelineEditorApp {
                     if (track.muted || m?.muted) continue;
                     // Generated-video preview audio is scheduled separately
                     // via Web Audio (canvas <video> stays muted).
+                    if (this._draftPreviewMode && isDirectorTrackType(track.type)) continue;
                     if (this._clipUsesGeneratedPreview(m)) continue;
                 }
                 out.push(clip);
@@ -14268,6 +14289,7 @@ export class CapTimelineEditorApp {
         const t0 = Math.max(0, Number(fromTime) || 0);
         for (const track of this._allImageTracks()) {
             if (track.visible === false || track.muted) continue;
+            if (this._draftPreviewMode && !onlyClip && isDirectorTrackType(track.type)) continue;
             const info = this._trackInfo.get(track.id) || {};
             if (info.enabled === false) continue;
             for (const clip of track.clips) {
@@ -18063,8 +18085,10 @@ export class CapTimelineEditorApp {
                 if (!(t >= clip.startTime - 1e-6 && t < clip.endTime - 1e-9)) continue;
                 const m = this._meta.get(clip.id) ?? defaultImageMeta();
                 if (m.disabled || m.visible === false) continue;
-                if (isDirectorTrackType(track.type) && (onlyClip || this._clipUsesGeneratedPreview(m))) {
-                    const gens = this._clipGeneratedVideos(m).filter((g) => g.enabled !== false);
+                const drafts = this._draftPreviewMode && !onlyClip && isDirectorTrackType(track.type);
+                if (isDirectorTrackType(track.type) && (drafts || onlyClip || this._clipUsesGeneratedPreview(m))) {
+                    const preview = drafts ? this._draftPreviewVideo(m, clip) : null;
+                    const gens = drafts ? (preview ? [preview] : []) : this._clipGeneratedVideos(m).filter((g) => g.enabled !== false);
                     if (!gens.length) {
                         layers.push({ kind: "package", clip, meta: m, mediaTrack: false });
                         continue;
@@ -18343,13 +18367,16 @@ export class CapTimelineEditorApp {
         packageBtn.bindMenu(e => this._showInsertClipMenu(e));
         this.insertClipBtn = packageBtn;
 
-        this.editModeBtn = document.createElement("cap-button");
+        this.editModeBtn = document.createElement("cap-dropdown-button");
         this.editModeBtn.className = "tl-btn-edit-mode tl-btn-all-gen-preview";
         this.editModeBtn.setAttribute("variant", "accent");
-        this.editModeBtn.setAttribute("shape", "square");
-        this.editModeBtn.addEventListener("click", () => {
-            this._toggleAllGeneratedPreview();
-        });
+        this.editModeBtn.bindMenu(event => {
+            const r = event.currentTarget.getBoundingClientRect();
+            return this._buildCtxMenu([
+                { label: draftT("playback_mode"), icon: this._draftPreviewMode ? "check" : "listCollapse",
+                    fn: () => this._toggleDraftPreview() },
+            ], r.left, r.bottom + 4, { ignoreNextClick: false });
+        }, { primaryAction: () => this._toggleAllGeneratedPreview() });
         this.genEditModeBtn = null;
         // Keep old alias so lingering call sites still refresh the toolbar.
         this.allGenPreviewBtn = this.editModeBtn;

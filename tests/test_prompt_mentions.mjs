@@ -35,3 +35,25 @@ assert.deepEqual(meta.items,[{id:'video',kind:'video'}],'mentions do not change 
 assert.deepEqual(meta.promptMediaIds,['hero']);assert(host.saved);
 assert(appSource.includes('prompt_media_ids: [...(m.promptMediaIds || [])]'));
 console.log('PASS: prompt-only references stay separate from visible materials and persist');
+
+globalThis.document = new EventTarget();
+globalThis.window = new EventTarget();
+const textarea = Object.assign(new EventTarget(), {value:'@', selectionStart:1, selectionEnd:1});
+const livePicker = Object.assign(Object.create(PromptMentions.prototype), {
+    search:{value:''}, render(){this.results=this.assets;}, place(){}, onKey(){}, hidden:true,
+});
+livePicker.bind(textarea, () => [{id:'hero', name:'角色'}]);
+const composingInput = new Event('input');
+composingInput.isComposing = true;
+textarea.dispatchEvent(composingInput);
+assert(livePicker.hidden, 'do not open during IME composition');
+textarea.dispatchEvent(new Event('compositionend'));
+assert.equal(livePicker.hidden, false, 'open after IME commits @ without another input event');
+livePicker.disconnectedCallback();
+assert(livePicker.controller.signal.aborted);
+livePicker.connectedCallback();
+textarea.dispatchEvent(new Event('input'));
+assert.equal(livePicker.hidden, false, 'reconnect restores prompt input listeners');
+assert.equal(livePicker.results[0].id, 'hero');
+livePicker.disconnectedCallback();
+console.log('PASS: IME commit and reconnect keep @ suggestions active');

@@ -81,6 +81,7 @@ export class PromptMentions extends HTMLElement {
             this.place();
         };
         textarea.addEventListener('input', update, {signal});
+        textarea.addEventListener('compositionend', update, {signal});
         textarea.addEventListener('click', () => this.close(), {signal});
         textarea.addEventListener('keydown', this.onKey, {signal, capture:true});
         document.addEventListener('pointerdown', event => {
@@ -92,7 +93,10 @@ export class PromptMentions extends HTMLElement {
         }, {signal});
     }
 
-    connectedCallback() { this.hidden = true; }
+    connectedCallback() {
+        this.hidden = true;
+        if (this.controller?.signal.aborted) this.bind(this.textarea, this.getAssets);
+    }
     disconnectedCallback() { this.controller?.abort(); }
     close() { this.hidden = true; }
     place() {

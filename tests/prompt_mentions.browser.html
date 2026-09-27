@@ -15,6 +15,8 @@ const assets=[
 {id:'d',name:'<img onerror=alert(1)>',category:'prop',kind:'image',file:'safe.png'},
 ];
 picker.bind(ta,()=>assets);
+// Moving an already bound editor must not permanently drop its input listeners.
+picker.remove(); document.querySelector('main').append(picker);
 picker.addEventListener('asset-mention',e=>document.querySelector('#result').textContent=JSON.stringify({id:e.detail.id,prompt:ta.value}));
 </script>
 
@@ -22,6 +24,20 @@ picker.addEventListener('asset-mention',e=>document.querySelector('#result').tex
 const panel=document.createElement('cap-shot-control');document.querySelector('main').append(panel);
 const source={id:'hero',name:'女主角',kind:'image',file:'hero.png',category:'character'};
 panel.setMentionSource(()=>[source]);
+panel.remove(); document.querySelector('main').append(panel);
 panel.configure({description:''},2,24,false,{title:'关键帧',description:'关键帧提示词',hint:'Ctrl+P 添加关键帧',delete:'删除',insert:'插入提示词'});
 panel.addEventListener('asset-mention',e=>document.querySelector('#result').textContent='关键帧已引用 '+e.detail.id);
+const status = document.createElement('pre');
+document.querySelector('main').append(status);
+try {
+    for (const [input, mentions] of [[document.querySelector('textarea'), document.querySelector('cap-prompt-mentions')], [panel.description, panel.mentions]]) {
+        input.value = '@'; input.setSelectionRange(1, 1);
+        input.dispatchEvent(new InputEvent('input', {bubbles:true, isComposing:true}));
+        if (!mentions.hidden) throw new Error('Popup opened during composition');
+        input.dispatchEvent(new CompositionEvent('compositionend', {bubbles:true, data:'@'}));
+        if (mentions.hidden || !mentions.shadowRoot.querySelector('[role="option"]')) throw new Error('No suggestions after IME commit/reconnect');
+        input.value = ''; input.dispatchEvent(new Event('input', {bubbles:true}));
+    }
+    status.textContent = 'PASS: Clip / 关键帧输入法提交与重新挂载';
+} catch (error) { status.textContent = `FAIL: ${error.message}`; throw error; }
 </script>

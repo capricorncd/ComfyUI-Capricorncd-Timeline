@@ -72,6 +72,7 @@ export class FontPicker {
 
         const menu = document.createElement("div");
         menu.className = "cat-te-font-picker";
+        menu.addEventListener("wheel", (event) => event.stopPropagation(), { passive: true });
         menu.tabIndex = -1;
         const r = select.getBoundingClientRect();
         menu.style.left = `${r.left}px`;
@@ -79,11 +80,18 @@ export class FontPicker {
         menu.style.minWidth = `${Math.max(r.width, 200)}px`;
 
         const items = [];
-        const applyFontAt = (index, { commit = false } = {}) => {
+        const applyFontAt = (index, { commit = false, reveal = true } = {}) => {
             activeIndex = Math.max(0, Math.min(fonts.length - 1, index));
             items.forEach((row, i) => row.setAttribute("aria-pressed", String(i === activeIndex)));
             const row = items[activeIndex];
-            row?.scrollIntoView({ block: "nearest" });
+            if (row && reveal) {
+                const itemRect = row.getBoundingClientRect();
+                const menuRect = menu.getBoundingClientRect();
+                const top = menuRect.top + menu.clientTop;
+                const bottom = top + menu.clientHeight;
+                if (itemRect.top < top) menu.scrollTop += itemRect.top - top;
+                else if (itemRect.bottom > bottom) menu.scrollTop += itemRect.bottom - bottom;
+            }
             const f = fonts[activeIndex];
             if (!f) return;
             select.value = f.family;
@@ -104,7 +112,7 @@ export class FontPicker {
             row.style.fontFamily = this._cssFontFamily(f.family);
             row.textContent = f.label;
             row.title = f.family;
-            row.addEventListener("mouseenter", () => applyFontAt(index));
+            row.addEventListener("mouseenter", () => applyFontAt(index, { reveal: false }));
             row.addEventListener("click", (e) => {
                 e.stopPropagation();
                 applyFontAt(index, { commit: true });

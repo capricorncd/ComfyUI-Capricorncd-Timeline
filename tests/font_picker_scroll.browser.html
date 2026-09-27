@@ -1,0 +1,24 @@
+<!doctype html><meta charset="utf-8"><title>Font picker scrolling</title>
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app={};"}}</script>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>body{background:#101619;color:#e4edeb;font:16px sans-serif}.panel{height:420px;overflow:auto;width:500px}.content{height:1500px;padding:20px}select{margin-top:120px;width:260px}</style>
+<div class="panel"><div class="content"><label>Subtitle font <select aria-label="Subtitle font"></select></label></div></div>
+<pre id="result">RUNNING</pre>
+<script type="module">
+import {FontPicker} from '../js/editor/FontPicker.js';
+const select=document.querySelector('select');
+const picker=new FontPicker(()=>{});
+picker.fill(select,Array.from({length:100},(_,i)=>({family:`Font ${i}`})),'Font 50');
+picker.open(select);
+const menu=document.querySelector('.cat-te-font-picker');
+const panel=document.querySelector('.panel');
+const initialPanel=panel.scrollTop, initialMenu=menu.scrollTop;
+menu.firstElementChild.dispatchEvent(new MouseEvent('mouseenter'));
+if(menu.scrollTop!==initialMenu) throw Error('Hover changed list scroll position');
+if(panel.scrollTop!==initialPanel) throw Error('Hover scrolled underlying panel');
+let escaped=false;
+document.addEventListener('wheel',()=>escaped=true,{once:true});
+menu.dispatchEvent(new WheelEvent('wheel',{bubbles:true,deltaY:100}));
+if(escaped) throw Error('Wheel escaped font list');
+document.querySelector('#result').textContent='PASS: hover keeps scroll position; wheel stays in font list';
+</script>

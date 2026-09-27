@@ -2264,6 +2264,7 @@ body.cat-te-media-dnd-over-tl {
     max-height: min(360px, 50vh);
     overflow-x: hidden;
     overflow-y: auto;
+    overscroll-behavior: contain;
     background: var(--cat-raised);
     border: 1px solid var(--cat-border);
     border-radius: 6px;

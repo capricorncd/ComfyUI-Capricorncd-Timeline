@@ -2,6 +2,7 @@ import '../components/Dialog.js';
 import '../components/FormControls.js';
 import '../components/StatusMessage.js';
 import { makeT } from '../cap_i18n.js';
+import { t as T } from '../i18n/timeline_editor.js';
 
 export const draftT = makeT({
     en: {
@@ -129,7 +130,16 @@ export class H3DraftVersions {
                     this.render();
                 }
             });
-            actions.append(remove);
+            const folder = document.createElement('cap-button');
+            folder.setAttribute('size', 'small');
+            folder.textContent = T('open_folder_btn');
+            folder.disabled = !row.file;
+            folder.addEventListener('click', async () => {
+                folder.disabled = true;
+                try { await this.editor._revealOutput({ filename: row.file }); }
+                finally { folder.disabled = !row.file; }
+            });
+            actions.append(folder, remove);
             card.append(view, label, actions);
             list.append(card);
         }

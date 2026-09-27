@@ -13,14 +13,14 @@ body { margin: 0; background: #10151d; color: #e2e8f0; font: 16px system-ui; }
 <script type="module">
 import { H3DraftVersions } from '../js/editor/H3DraftVersions.js';
 const root = document.querySelector('.fixture');
-const rows = [1, 2, 3].map((number) => ({id: String(number).repeat(32), file: '', seed: 20260926 + number,
+const rows = [1, 2, 3].map((number) => ({id: String(number).repeat(32), file: number === 1 ? 'capricorncd-timeline/h3_drafts/demo/preview.mp4' : '', seed: 20260926 + number,
     width: 608, height: 352, frames: 124, fps: 24, enabled: number !== 3,
     prompt: 'summary: 黄昏的站台，少女停下脚步，回头望向远处。\n\n时间推进：\n0–2s：镜头缓慢推进，头发与衣角随风摆动。\n2–5s：人物回头，保持面部、服装和环境光一致。\n\n风格：暖色逆光，浅景深，稳定的电影镜头。'}));
 const meta = {h3Drafts: rows};
 const clip = {id: 'demo-director-clip', name: '镜头 03 · 站台回望', track: {type: 'image', locked: false}};
 const calls = [];
 const editor = {_findClipById: id => id === clip.id ? clip : null, _ensureClipMeta: () => meta,
-    _outputVideoUrl: () => '', _recordUndo() {calls.push('undo');}, _saveToWidgets() {calls.push('save');},
+    _outputVideoUrl: () => '', _revealOutput: async output => {calls.push(output);}, _recordUndo() {calls.push('undo');}, _saveToWidgets() {calls.push('save');},
     _confirmDraftRemoval: async () => true, _runH3Stage: async (_clip, action) => {calls.push(action);}};
 const view = new H3DraftVersions(editor, root);
 const assert = (condition, message) => {if (!condition) throw Error(message);};
@@ -28,6 +28,11 @@ try {
     view.open(clip);
     assert(view.dialog.open && !view.dialog.hasAttribute('modal'), 'non-modal dialog');
     assert(view.dialog.querySelectorAll('.cat-te-h3-draft-row').length === 3, 'three versions');
+    const folder = view.dialog.querySelector('.cat-te-h3-draft-actions cap-button');
+    folder.click();
+    assert(calls.at(-1).filename === rows[0].file, 'opens the selected version output folder');
+    assert(!calls.includes('undo') && !calls.includes('save'), 'opening folder does not edit project');
+    assert(view.dialog.querySelectorAll('.cat-te-h3-draft-actions')[1].firstElementChild.disabled, 'missing file disables folder action');
     const disabled = view.dialog.querySelectorAll('.cat-te-h3-draft-row')[2];
     const checkbox = view.dialog.querySelectorAll('input[type=checkbox]')[1];
     checkbox.checked = false;

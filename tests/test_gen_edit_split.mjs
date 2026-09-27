@@ -6,7 +6,7 @@ const split = new Function('genAudioUid', 'normalizeVolumePoints', 'normalizePla
   source.slice(start, source.indexOf('\n    }', start) + 6) + '})._splitGenEditClip')(
   () => 'right', points => points.map(p => ({ ...p })), rate => rate || 1, () => 'video-right');
 const points = [{ source_ms: 3000, gain: 2 }, { source_ms: 8000, gain: 0.5 }];
-const state = { timeline: { currentTime: 7 }, audioMap: new Map([['clip', 'left']]),
+const state = { timeline: { currentTime: 7, setCurrentTime(time) { this.currentTime = time; } }, audioMap: new Map([['clip', 'left']]),
   audioDraft: [{ id: 'left', file: 'audio.wav', edit_start_sec: 5, source_offset: 3,
     duration: 5, volume_points: points, muted: false }] };
 const app = { _genEditState: state, _pullGenEditDraftFromTimeline() {},

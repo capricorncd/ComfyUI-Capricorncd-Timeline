@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title>Gen edit actions layout</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>body {font:14px system-ui;color:var(--cat-text);--cat-bg:#10191d;--cat-surface:#192226;--cat-raised:#202c31;--cat-text:#e4edeb;--cat-muted:#a3b5b8;--cat-border:#34464b;--cat-border-soft:#34464b;--cat-accent:#64d8c5;--cat-input:#10191d}</style>
+<script type="module">
+import '../js/components/Button.js';
+import '../js/components/StatusMessage.js';
+import '../js/components/Slider.js';
+import {iconHtml} from '../js/cap_icons.js';
+const source=await (await fetch('../js/CapTimelineEditorApp.js')).text();
+const dictSource=await (await fetch('../js/i18n/timeline_editor.js')).text();
+const dict=new Function(dictSource.slice(dictSource.indexOf('export const DICT')).replace('export const DICT','const DICT').split('export const t')[0]+'return DICT;')();
+const T=key=>dict.zh[key]||key;
+const start=source.indexOf('<div class="cat-te-modal-backdrop cat-te-gen-edit-modal"');
+const end=source.indexOf('<div class="cat-te-modal-backdrop cat-te-vo-edit-modal"',start);
+document.body.insertAdjacentHTML('beforeend',new Function('T','iconHtml','return `'+source.slice(start,end)+'`;')(T,iconHtml));
+const modal=document.querySelector('.cat-te-gen-edit-modal');modal.hidden=false;
+if(location.search.includes('narrow')) modal.querySelector('.cat-te-gen-edit-dialog').style.width='560px';
+modal.querySelector('.cat-te-gen-edit-status').setStatus('合并失败：测试用视频文件缺失。原有轨道已保留。','error');
+</script>

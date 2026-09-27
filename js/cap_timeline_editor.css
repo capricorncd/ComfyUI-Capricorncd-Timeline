@@ -1625,6 +1625,7 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-gen-edit-body {
     flex: 1;
     min-height: 0;
+    overflow: auto;
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
     gap: 12px;
@@ -4179,3 +4180,19 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-keyframe-run-body input[type="text"], .cat-te-keyframe-run-body select { width: 100%; min-width: 0; box-sizing: border-box; padding: 8px; border: 1px solid var(--cat-border); border-radius: 6px; background: var(--cat-input); color: var(--cat-text); font: inherit; }
 .cat-te-keyframe-run-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 @media (max-width: 600px) { .cat-te-keyframe-run-body { padding: 16px 18px; } }
+
+.cat-te-gen-edit-actions {
+    flex-shrink: 0;
+    padding: 12px 18px;
+    border-top: 1px solid var(--cat-border-soft);
+}
+.cat-te-gen-edit-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.cat-te-gen-edit-status:not([hidden]) {
+    display: block;
+    margin-bottom: 10px;
+}

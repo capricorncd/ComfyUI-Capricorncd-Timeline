@@ -1062,6 +1062,11 @@ export class CapTimelineEditorApp {
      */
     handleGenEditKey(e) {
         if (!this.genEditModal || this.genEditModal.hidden) return false;
+        if (this._genEditState?.merging) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return true;
+        }
         if (e.target?.closest?.("input, textarea, select, [contenteditable='true']")) return false;
         const key = this._shortcutModKey(e);
         if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && ["c", "v", "x", "b"].includes(key)) {
@@ -4108,6 +4113,14 @@ export class CapTimelineEditorApp {
                   <p class="cat-te-gen-edit-hint">${T("gen_edit_select_hint")}</p>
                 </div>
               </div>
+              <div class="cat-te-gen-edit-actions">
+                <cap-status-message class="cat-te-gen-edit-status" hidden></cap-status-message>
+                <div class="cat-te-gen-edit-action-row">
+                  <cap-button class="cat-te-gen-edit-clear-clips">${T("gen_edit_clear_clips")}</cap-button>
+                  <cap-button class="cat-te-gen-edit-clear-tracks">${T("gen_edit_clear_tracks")}</cap-button>
+                  <cap-button variant="primary" class="cat-te-gen-edit-merge">${T("gen_edit_merge")}</cap-button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="cat-te-modal-backdrop cat-te-vo-edit-modal" hidden>
@@ -4926,6 +4939,10 @@ export class CapTimelineEditorApp {
         this.genEditSpeed = el.querySelector('.cat-te-gen-edit-speed');
         this.genEditSpeedValue = el.querySelector('.cat-te-gen-edit-speed-value');
         this.genEditDubBtn = el.querySelector(".cat-te-gen-edit-dub");
+        this.genEditStatus = el.querySelector(".cat-te-gen-edit-status");
+        el.querySelector(".cat-te-gen-edit-merge").addEventListener("click", () => void this._mergeGenEditVideos());
+        el.querySelector(".cat-te-gen-edit-clear-clips").addEventListener("click", () => this._clearDisabledGenEdit(false));
+        el.querySelector(".cat-te-gen-edit-clear-tracks").addEventListener("click", () => this._clearDisabledGenEdit(true));
         this.voEditModal = el.querySelector(".cat-te-vo-edit-modal");
         this.voEditTitle = el.querySelector(".cat-te-vo-edit-title");
         this.voEditTlHost = el.querySelector(".cat-te-vo-edit-tl-host");
@@ -9269,7 +9286,7 @@ export class CapTimelineEditorApp {
     }
 
     async _openGenEditModal(clip) {
-        if (!this.genEditModal || !clip || clip.track?.type === "audio") return;
+        if (!this.genEditModal || !clip || clip.track?.type === "audio" || this._genEditState?.merging) return;
         if (isSubtitleTrackType(clip.track?.type)) return;
         const loadSeq = this._loadSeq;
         // Resolve both sides of Context splices before taking the editable snapshot.
@@ -9279,7 +9296,7 @@ export class CapTimelineEditorApp {
         }
         const m = this._ensureClipMeta(clip);
         const rows = this._clipGeneratedVideos(m);
-        if (!rows.length) {
+        if (!rows.length && !m.genEditAudios?.length) {
             alert(T("gen_edit_no_videos"));
             return;
         }
@@ -9320,6 +9337,7 @@ export class CapTimelineEditorApp {
             this.genEditTitle.textContent = T("gen_edit_modal_title_named", { name: clip.name || DEFAULT_CLIP_NAME })
                 + (m.muted ? ` · ${T("muted_label")}` : '');
         }
+        this.genEditStatus.setStatus("");
         this.genEditModal.hidden = false;
         try { this._timeline?.pause?.(); } catch { /* ignore */ }
         this._stopAudioPlayback?.();
@@ -9448,6 +9466,7 @@ export class CapTimelineEditorApp {
                 aTrack.el.style.height = `${TRACK_HEIGHT}px`;
                 aTrack.headerEl.style.height = `${TRACK_HEIGHT}px`;
                 aTrack.setMuted(audioRows.filter(a => (a.track_id || `gen-audio-${a.id}`) === trackId).every(a => a.muted === true));
+                aTrack.setVisible(audioRows.some(a => (a.track_id || `gen-audio-${a.id}`) === trackId && a.enabled !== false));
                 this._setupGenEditAudioTrackControls(aTrack);
                 audioTracks.set(trackId, aTrack);
             }
@@ -9729,7 +9748,7 @@ export class CapTimelineEditorApp {
         actions.append(makeBtn("lock"), makeBtn("visible"), makeBtn("mute"));
     }
 
-    /** Audio track in gen-edit: lock + mute (visibility slot is a placeholder). */
+    /** Audio track controls update all clips in the track. */
     _setupGenEditAudioTrackControls(track) {
         const actions = track?.actionsEl;
         if (!actions) return;
@@ -9741,12 +9760,6 @@ export class CapTimelineEditorApp {
             btn.className = "cat-te-track-btn";
             btn.setAttribute("shape", "square");
             btn.setAttribute("size", "small");
-            if (kind === null) {
-                btn.classList.add("placeholder");
-                btn.disabled = true;
-                btn.tabIndex = -1;
-                return btn;
-            }
             if (kind === "lock") {
                 const render = () => {
                     btn.innerHTML = track.locked ? ICONS.lock : ICONS.lockOpen;
@@ -9758,6 +9771,23 @@ export class CapTimelineEditorApp {
                     e.stopPropagation();
                     track.setLocked(!track.locked);
                     render();
+                });
+                render();
+            } else if (kind === "visible") {
+                const render = () => {
+                    btn.innerHTML = track.visible ? ICONS.eye : ICONS.eyeOff;
+                    btn.setAttribute("aria-pressed", String(!track.visible));
+                    btn.title = T("track_visibility_title");
+                };
+                btn.addEventListener("click", () => {
+                    const st = this._genEditState;
+                    track.setVisible(!track.visible);
+                    const ids = new Set(track.clips.map(c => st.audioMap.get(c.id)));
+                    for (const row of st.audioDraft) if (ids.has(row.id)) row.enabled = track.visible;
+                    for (const c of track.clips) this._syncGenEditClipDisabled(c, track.visible);
+                    render();
+                    this._applyGenEditChanges();
+                    if (st.timeline._playing) void this._startGenEditAudioPlayback();
                 });
                 render();
             } else if (kind === "mute") {
@@ -9790,8 +9820,7 @@ export class CapTimelineEditorApp {
             return btn;
         };
 
-        // Same columns as main timeline audio: lock / (empty) / mute.
-        actions.append(makeSlot("lock"), makeSlot(null), makeSlot("mute"));
+        actions.append(makeSlot("lock"), makeSlot("visible"), makeSlot("mute"));
     }
 
     _pullGenEditDraftFromTimeline() {
@@ -9854,6 +9883,86 @@ export class CapTimelineEditorApp {
     _syncGenEditClipDisabled(clip, enabled) {
         if (!clip?.el) return;
         clip.el.classList.toggle("cat-te-clip-disabled", enabled === false);
+    }
+
+    _clearDisabledGenEdit(tracksOnly) {
+        const st = this._genEditState;
+        if (!st?.timeline || st.merging) return;
+        st.timeline.pause();
+        this._pullGenEditDraftFromTimeline();
+        const videoIds = new Set();
+        const audioIds = new Set();
+        for (const track of st.timeline.tracks) {
+            if (tracksOnly && track.visible !== false) continue;
+            for (const clip of track.clips) {
+                const vid = st.clipMap.get(clip.id);
+                const aid = st.audioMap.get(clip.id);
+                if (vid && (tracksOnly || st.draft.find(row => row.id === vid)?.enabled === false)) videoIds.add(vid);
+                if (aid && (tracksOnly || st.audioDraft.find(row => row.id === aid)?.enabled === false)) audioIds.add(aid);
+            }
+        }
+        st.draft = st.draft.filter(row => !videoIds.has(row.id));
+        st.audioDraft = st.audioDraft.filter(row => !audioIds.has(row.id));
+        if (!st.draft.some(row => row.id === st.selectedId)) st.selectedId = st.draft[0]?.id || null;
+        const time = st.timeline.currentTime;
+        this._applyGenEditChanges();
+        this._buildGenEditTimeline();
+        st.timeline.setCurrentTime(time);
+        this._syncGenEditInspector();
+        this._scheduleGenEditPreview();
+        this.genEditStatus.setStatus(T("gen_edit_cleared", { n: videoIds.size + audioIds.size }), "success");
+    }
+
+    async _mergeGenEditVideos() {
+        const st = this._genEditState;
+        if (!st?.timeline || st.merging) return;
+        st.timeline.pause();
+        this._pullGenEditDraftFromTimeline();
+        const duration = this._genEditParentDuration();
+        const project = this._buildProject();
+        project.tracks = [{ type: "director", clips: [{ id: st.clipId, start_ms: 0,
+            duration_ms: Math.round(duration * 1000), generated_videos: structuredClone(st.draft),
+            gen_edit_audios: structuredClone(st.audioDraft) }] }];
+        const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "");
+        st.merging = true;
+        const body = this.genEditModal.querySelector(".cat-te-gen-edit-body");
+        const buttons = this.genEditModal.querySelectorAll(".cat-te-gen-edit-actions cap-button, .cat-te-gen-edit-close");
+        body.inert = true;
+        st.timeline._keyboardSuspended = true;
+        for (const button of buttons) button.disabled = true;
+        this.genEditStatus.setStatus(T("composing_please_wait"));
+        try {
+            const response = await api.fetchApi("/audio_keyframe_timeline/compose_video", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ project, filename: `merged_${st.clipId}_${stamp}`,
+                    filename_prefix: "cap_clip_merges/", export_video: true, export_audio: false,
+                    output_resolution: "project", output_fps: project.settings.fps, export_quality: "maximum",
+                    export_range: { start_frame: 0, end_frame: Math.max(1, Math.round(duration * project.settings.fps)) },
+                }),
+            });
+            const result = await response.json();
+            if (!response.ok || result.ok === false) throw new Error(result.error || T("compose_failed_http", { status: response.status }));
+            if (this._genEditState !== st) return;
+            const file = [result.subfolder, result.filename].filter(Boolean).join("/");
+            if (!result.filename) throw new Error(T("gen_edit_merge_missing"));
+            const merged = normalizeGeneratedVideo({ id: genVideoUid(), file,
+                duration_sec: result.duration_sec, trim_in_sec: 0, trim_out_sec: duration, edit_start_sec: 0 });
+            for (const row of [...st.draft, ...st.audioDraft]) row.enabled = false;
+            st.draft.unshift(merged);
+            st.selectedId = merged.id;
+            this._applyGenEditChanges();
+            this._buildGenEditTimeline();
+            this._syncGenEditInspector();
+            this._scheduleGenEditPreview();
+            this.genEditStatus.setStatus(T("gen_edit_merged"), "success");
+        } catch (error) {
+            if (this._genEditState === st) this.genEditStatus.setStatus(error.message, "error");
+        } finally {
+            st.merging = false;
+            body.inert = false;
+            if (st.timeline) st.timeline._keyboardSuspended = false;
+            for (const button of buttons) button.disabled = false;
+        }
     }
 
     _exportGenEditClip(clip) {
@@ -10767,6 +10876,7 @@ export class CapTimelineEditorApp {
     }
 
     _closeGenEditModal() {
+        if (this._genEditState?.merging) return;
         this._removeCtxMenu();
         this._destroyGenEditTimeline();
         this._genEditState = null;

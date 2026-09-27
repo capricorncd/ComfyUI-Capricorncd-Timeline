@@ -31,7 +31,7 @@ function fixture() {
     _setupGenEditTrackDeleteMenu:method('_setupGenEditTrackDeleteMenu'),
     _openDeleteConfirm(message,fn){this.message=message;this.confirm=fn;},
     _buildCtxMenu(items){this.menu=items; return new Element();},
-    _pullGenEditDraftFromTimeline(){}, _removeCtxMenu(){}, _scheduleTrackTypeMenuHide(){},
+    _setupTrackHeaderHover(){}, _pullGenEditDraftFromTimeline(){}, _removeCtxMenu(){}, _scheduleTrackTypeMenuHide(){},
     _applyGenEditChanges(){this.saved=true;}, _buildGenEditTimeline(){this.rebuilt=true;},
     _syncGenEditInspector(){}, _scheduleGenEditPreview(){},_closeGenEditModal(){this.closed=true;},
   };
@@ -78,7 +78,7 @@ function fixture() {
   mute.handlers.click({stopPropagation(){}});
   assert.equal(st.audioDraft[0].muted,false);
   assert(!mutedClasses.has('cat-te-clip-muted'),'unmute restores the clip color');
-  assert.match(source,/c\.el\.classList\.toggle\("cat-te-clip-muted", aTrack\.muted\)/,
+  assert.match(source,/c\.el\.classList\.toggle\("cat-te-clip-muted", row\.muted === true\)/,
     'rebuilding the dialog preserves muted styling');
 }
 {

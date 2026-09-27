@@ -1,3 +1,4 @@
+import { renameAssetMentions } from './prompt_asset_rename.js';
 import { copyPromptSkills, enabledPromptSkills } from './components/PromptSkills.js';
 import { H3DraftVersions, draftT } from "./editor/H3DraftVersions.js";
 import { openInsertClip } from './editor/InsertClip.js';
@@ -15945,7 +15946,38 @@ export class CapTimelineEditorApp {
             gridPanels,
             tags: this._parseTagList(this.mediaPreviewTags?.value),
         });
+        if (name !== (prev.name || file.split(/[\\/]/).pop() || file)) {
+            this._renameMediaPromptReferences(prev.name || file.split(/[\\/]/).pop() || file, name);
+        }
         this._saveToWidgets();
+    }
+
+    _renameMediaPromptReferences(oldName, newName) {
+        const names = (this._projectResources || []).map(row => row.name || String(row.file || "").split(/[\\/]/).pop());
+        const replace = text => renameAssetMentions(text, oldName, newName, names);
+        for (const meta of this._meta.values()) {
+            for (const key of ["prompt", "stylePrompt", "speechPrompt"]) {
+                if (typeof meta[key] === "string") meta[key] = replace(meta[key]);
+            }
+            if (Array.isArray(meta.promptSkills)) meta.promptSkills = meta.promptSkills.map(row => ({...row, text: replace(row.text)}));
+        }
+        for (const row of this._projectResources || []) {
+            for (const point of row.video_shots?.points || []) point.description = replace(point.description);
+        }
+        for (const shot of this._storyboards || []) shot.description = replace(shot.description);
+        for (const key of SETTING_PROMPT_KEYS) {
+            const input = this._settingPromptInputs?.[key];
+            if (input && replace(input.value) !== input.value) setRichPromptValue(input, replace(input.value), true);
+        }
+        this._syncScalarsToProjectJson();
+        this._updatePromptPanel();
+        if (this.aiOptimizeModal && !this.aiOptimizeModal.hidden) {
+            const clip = this._findClipById(this._aiOptimizeClipId);
+            if (clip && this.aiSrcText && !this.aiSrcText.readOnly) {
+                setRichPromptValue(this.aiSrcText, this._promptManagerValue(this._aiOptimizeSrc, clip), true);
+            }
+            this._syncAiPromptTargetControls();
+        }
     }
 
     _chooseMaterialFile(relink = null) {

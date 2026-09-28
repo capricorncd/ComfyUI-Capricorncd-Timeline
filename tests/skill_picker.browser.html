@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8"><title>Skill picker</title>
+<style>body {font-family:system-ui;background:#101b20;color:#e4edeb}</style>
+<p id="result">Skill picker fixture — mocked library</p><cap-skill-picker></cap-skill-picker>
+<script type="module">
+import '../js/components/SkillPicker.js';
+const rows = [{id:'official__one',title:'H3 Prompt Writing Generator',source:'official',has_preview:false}];
+for (let i = 0; i < 24; i++) rows.push({id:`community__${i}`,title:`Preview Skill ${i + 1}`,source:'community',has_preview:false});
+window.fetch = async (url, options) => {
+    if (options?.method === 'POST') {
+        rows.push({id:'custom__two',title:options.body.get('name'),source:'custom',has_preview:false});
+        return Response.json({id:'custom__two'});
+    }
+    return Response.json({skills:rows});
+};
+const picker = document.querySelector('cap-skill-picker');
+picker.addEventListener('skill-select', e => {document.querySelector('#result').textContent = `Applied: ${e.detail.skill.title}`;picker.close();});
+await picker.show(path => path);
+const root = picker.shadowRoot;
+const body = picker.dialog.shadowRoot.querySelector('.body');
+body.scrollTop = body.scrollHeight;
+root.querySelector('.add').click();
+await new Promise(requestAnimationFrame);
+const formRect = picker.form.getBoundingClientRect();
+const bodyRect = body.getBoundingClientRect();
+if (picker.form.hidden || formRect.top < bodyRect.top - 1 || formRect.top >= bodyRect.bottom || root.activeElement !== root.querySelector('.name')) throw new Error('New Skill must reveal and focus the form after scrolling');
+for (const selector of ['.import-file', '.media']) {
+    root.querySelector(selector).dispatchEvent(new Event('cancel', {bubbles:true}));
+    if (!picker.open) throw new Error(`${selector} cancellation closed the Skill picker`);
+}
+picker.dialog.shadowRoot.querySelector('dialog').dispatchEvent(new Event('cancel', {cancelable:true}));
+if (picker.open) throw new Error('Dialog cancellation should still close the picker');
+await picker.show(path => path);
+document.querySelector('#result').textContent = 'PASS: scrolled Add reveals/focuses form; import/media cancellation stays open; dialog cancellation closes';
+</script>

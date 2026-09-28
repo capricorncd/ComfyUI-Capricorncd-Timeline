@@ -1245,6 +1245,22 @@ def _register_routes():
         except (ValueError, OSError) as exc:
             return web.json_response({"error": str(exc)}, status=400)
 
+    @routes.post("/audio_keyframe_timeline/h3_skill_custom")
+    async def api_h3_skill_custom(request: web.Request) -> web.Response:
+        from .cap_h3_skills import save_custom_skill
+        origin = request.headers.get("Origin")
+        if request.headers.get("Sec-Fetch-Site") == "cross-site" or (origin and origin.rstrip("/") != f"{request.scheme}://{request.host}"):
+            return web.json_response({"error": "Same-origin requests only"}, status=403)
+        try:
+            data = await request.post()
+            preview = data.get("preview")
+            content = preview.file.read() if isinstance(preview, web.FileField) else b""
+            suffix = os.path.splitext(preview.filename)[1].lower() if isinstance(preview, web.FileField) else ""
+            skill_id = save_custom_skill(str(data.get("name", "")), str(data.get("text", "")), content, suffix)
+            return web.json_response({"id": skill_id})
+        except (ValueError, OSError) as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+
     @routes.get("/audio_keyframe_timeline/h3_skills")
     async def api_h3_skills(_request: web.Request) -> web.Response:
         from .cap_h3_skills import SKILL_REPOS, list_h3_skills, skill_repo_root

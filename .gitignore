@@ -227,3 +227,5 @@ config.local.yml.*
 desktop.ini
 agent_prompts/*
 !agent_prompts/.gitkeep
+
+/user_skills/

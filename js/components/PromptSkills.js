@@ -1,6 +1,5 @@
 import './Button.js';
 import './FormControls.js';
-import './StatusMessage.js';
 import { makeT } from '../cap_i18n.js';
 import { iconHtml } from '../cap_icons.js';
 
@@ -97,33 +96,7 @@ class PromptSkills extends HTMLElement {
             remove.addEventListener('click', () => { this.commit(this.rows.filter((_, i) => i !== index)); this.render(); });
             header.append(nameWrap, label, remove); article.append(header, textWrap); list.append(article);
         });
-        const add = document.createElement('cap-button'); add.textContent = t('add'); add.disabled = this.disabled;
-        add.addEventListener('click', () => { this.commit([...this.rows, {id: crypto.randomUUID(), name: t('name'), text: '', enabled: true}]); this.render(); });
-        const actions = document.createElement('div'); actions.className = 'actions';
-        const input = document.createElement('input'); input.type = 'file'; input.accept = '.json,.md,.txt'; input.multiple = true; input.hidden = true;
-        const status = document.createElement('cap-status-message');
-        const importButton = document.createElement('cap-button'); importButton.textContent = t('import'); importButton.disabled = this.disabled;
-        let importVersion;
-        importButton.addEventListener('click', () => { importVersion = this.version; input.click(); });
-        input.addEventListener('change', async () => {
-            // Keep one import bound to the Clip that opened the picker.
-            const version = importVersion;
-            try {
-                const incoming = [];
-                for (const file of input.files) incoming.push(...parsePromptSkills(await file.text(), file.name));
-                if (version !== this.version || this.disabled) return;
-                this.commit(mergePromptSkills(this.rows, incoming)); this.render();
-            } catch { status.setStatus(t('invalid'), 'error'); }
-            input.value = '';
-        });
-        const exportButton = document.createElement('cap-button'); exportButton.textContent = t('export'); exportButton.disabled = this.disabled || !this.rows.length;
-        exportButton.addEventListener('click', () => {
-            const blob = new Blob([JSON.stringify({schema_version: 1, prompt_skills: this.rows}, null, 2)], {type: 'application/json'});
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a'); link.href = url; link.download = 'prompt-skills.json'; link.click();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-        });
-        actions.append(add, importButton, exportButton, input); list.append(actions, status);
+
     }
 }
 customElements.define('cap-prompt-skills', PromptSkills);

@@ -44,7 +44,7 @@ class GeneratorTests(unittest.TestCase):
                 owner.prepared.append((width, height, row, kw))
                 latent = owner.digital_latent if row.get("clip_role") == "digital_human" else "empty"
                 audio = owner.digital_audio if row.get("clip_role") == "digital_human" else None
-                return ("positive", latent, 124, "clip prompt", None, None, audio, "",
+                return ("positive", latent, 124, row.get("h3_generated_prompt", row.get("prompt", "clip prompt")), None, None, audio, "",
                         (row.get("h3_timing") or {}).get("context_frames", 0), row.get("save_latent", False), row["seed"])
 
         class Save:
@@ -72,6 +72,7 @@ class GeneratorTests(unittest.TestCase):
         config_scope = load_definitions("cap_h3_interpolation.py", {})
         scope["validate_interpolation_config"] = config_scope["validate_interpolation_config"]
         self.interpolation_node = config_scope["CAP_H3InterpolationConfig"]()
+        scope["generate_h3_prompts"] = Mock()
         self.scope = load_definitions("cap_h3_video_generator.py", scope)
         scope["_node_class"] = lambda name: object
 
@@ -98,6 +99,24 @@ class GeneratorTests(unittest.TestCase):
         kw.setdefault("sampling_preview", False)
         kw.setdefault("base_model", "base")
         return self.node.generate("base", "clip", "vae", "audio_vae", json.dumps(data), **kw)
+
+    def test_auto_prompt_runs_inside_generator_before_prepare(self):
+        config = {"skill": "camera"}
+        def generate(clip, data, settings):
+            self.assertEqual(clip, "clip")
+            self.assertIs(settings, config)
+            self.assertEqual(self.prepared, [])
+            data['clips'][0]['h3_generated_prompt'] = 'generated camera prompt'
+        self.scope['generate_h3_prompts'].side_effect = generate
+        result = self.run_node(auto_prompt_config=config)
+        self.assertEqual(json.loads(result['result'][1])['clips'][0]['h3_generated_prompt'], 'generated camera prompt')
+
+    def test_prompt_output_lists_actual_prompts_in_clip_order(self):
+        result = self.run_node(rows=[dict(id='a', start_ms=0, end_ms=5000, prompt='manual text'),
+                                    dict(id='b', start_ms=5000, end_ms=10000, prompt='draft text', h3_generated_prompt='generated text')])
+        output = result['result'][3]
+        self.assertEqual(output, f"Clip a · {result['result'][0][0]}\nmanual text\n\nClip b · {result['result'][0][1]}\ngenerated text")
+        self.assertNotIn('draft text', output)
 
     def enable_drafts(self):
         self.scope["DRAFT_ROOT"] = "capricorncd-timeline/h3_drafts"
@@ -194,7 +213,9 @@ class GeneratorTests(unittest.TestCase):
             return data, manifest
         self.scope["restore_draft"] = restore
         self.scope["load_draft_latent"] = Mock(return_value="persisted-av-latent")
-        self.run_node(h3_generation={"action": "refine", "version_id": "saved"}, upscaler_model="up.safetensors")
+        result = self.run_node(h3_generation={"action": "refine", "version_id": "saved"}, upscaler_model="up.safetensors")
+        self.assertTrue(result["result"][3].endswith("\nsaved prompt"))
+        self.scope["generate_h3_prompts"].assert_not_called()
         samples = [kw for name, kw in self.calls if name == "SamplerCustomAdvanced"]
         self.assertEqual(len(samples), 1)
         self.assertEqual(samples[0]["sigmas"], "ManualSigmas_output")
@@ -628,7 +649,7 @@ class GeneratorTests(unittest.TestCase):
         self.assertGreaterEqual(row["seed"], 0)
         self.assertEqual(self.saved[0][1]["seed"], row["seed"])
         self.assertEqual(result["result"][0], [row["output_video"]])
-        self.assertEqual(self.node.OUTPUT_IS_LIST, (True, False, False))
+        self.assertEqual(self.node.OUTPUT_IS_LIST, (True, False, False, False))
         self.assertFalse(any(n == "MinimaxH3LatentUpscaler3D" for n, _ in self.calls))
         self.assertEqual(next(k["steps"] for n, k in self.calls if n == "BasicScheduler"), 4)
 

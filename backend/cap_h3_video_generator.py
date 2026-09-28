@@ -25,6 +25,7 @@ from .h3_timing import timing_filename, plan_h3_clips
 from .h3_keyframe_runs import expand_keyframe_runs
 from .cap_h3_face_refine import FACE_NODES, validate_face_config
 from .cap_h3_selflift import validate_selflift_config
+from .cap_h3_prompt_generator import generate_h3_prompts
 from .cap_h3_interpolation import validate_interpolation_config
 from .cap_h3_drafts import DRAFT_ROOT, save_draft, finish_draft, restore_draft, load_draft_latent, latest_draft
 
@@ -117,9 +118,9 @@ def _validate(data):
 class CAP_H3VideoGenerator:
     CATEGORY = "Capricorncd/MiniMaxH3"
     FUNCTION = "generate"
-    RETURN_TYPES = ("STRING", "STRING", "STRING")
-    RETURN_NAMES = ("video_files", "data_json", "composed_video")
-    OUTPUT_IS_LIST = (True, False, False)
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("video_files", "data_json", "composed_video", "generated_prompts")
+    OUTPUT_IS_LIST = (True, False, False, False)
     OUTPUT_NODE = True
     DOC_SLUG = "h3-video-generator"
     DESCRIPTION = (
@@ -172,6 +173,7 @@ class CAP_H3VideoGenerator:
                 "motion_deblur": ("BOOLEAN", {"default": False, "tooltip": "Experimental MAINodes motion repair after video sampling. Requires ComfyUI-MAINodes and base_model without acceleration LoRA. Extra sampling/encode/decode increases time and memory; motion details may change. Keeps original frame count, audio and context prefix."}),
                 "audio_refine_config": ("CAP_H3_AUDIO_REFINE_CONFIG", {"tooltip": "Connect H3 Audio Refine Config. Disconnected or disabled skips audio repair."}),
                 "face_refine_config": ("CAP_H3_FACE_REFINE_CONFIG", {"tooltip": "Connect H3 Face Refine Config. Enable or disable repair on that config node."}),
+                "auto_prompt_config": ("CAP_H3_AUTO_PROMPT_CONFIG", {"tooltip": "Connect H3 Auto Prompt Config. Clip auto_prompt controls generation using this node's CLIP; preview refinement reuses its saved prompt."}),
                 "selflift_config": ("CAP_H3_SELFLIFT_CONFIG",),
                 "interpolation_config": ("CAP_H3_INTERPOLATION_CONFIG", {"tooltip": "Connect H3 Interpolation Config. Enable or disable interpolation on that config node."}),
                 "concat_full_videos": ("BOOLEAN", {"default": False, "tooltip": "When compose_final is enabled, concatenate complete generated files in generation order. Keep all frames and original audio; ignore Clip durations, context replacement and head/tail trimming. Also supports keyframe interval runs. A single file is reused."}),
@@ -191,7 +193,7 @@ class CAP_H3VideoGenerator:
                  prompt=None, extra_pnginfo=None,
                  unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False,
                  face_refine_config=None, selflift_config=None,
-                 interpolation_config=None, audio_refine_config=None, preview_sampling_batch=1, concat_full_videos=False):
+                 interpolation_config=None, audio_refine_config=None, preview_sampling_batch=1, concat_full_videos=False, auto_prompt_config=None):
         data = json.loads(data_json)
         width, height, fps = _validate(data)
         request = data.get("h3_generation") or {}
@@ -335,6 +337,8 @@ class CAP_H3VideoGenerator:
                     row["h3_motion_context_length"] = 0
             earlier.append(row)
 
+        if stage != "refine":
+            generate_h3_prompts(clip, data, auto_prompt_config)
         records = execution_graph(prompt, dynprompt, unique_id)
         if base_model is None:
             base_model = model
@@ -359,6 +363,7 @@ class CAP_H3VideoGenerator:
                     candidates.append(item)
             data["clips"] = candidates
         paths, videos, context_paths = [], [], {}
+        generated_prompts = []
         workflow_id = (extra_pnginfo or {}).get("workflow", {}).get("id")
         run_token = secrets.token_hex(8)
         display_id = dynprompt.get_display_node_id(unique_id) if dynprompt is not None else unique_id
@@ -413,7 +418,7 @@ class CAP_H3VideoGenerator:
                 clip_index, clip_stage = 0, "refine"
                 clip_low_width, clip_low_height = clip_manifest["width"], clip_manifest["height"]
                 prior_paths = None
-            saved, contexts = self._generate_clip(
+            saved, contexts, composed_prompt = self._generate_clip(
                 model, base_model, clip, vae, audio_vae, clip_data, clip_index, width, height, clip_low_width, clip_low_height,
                 fps, steps, row.get("clip_role") == "first_last", second_sampling or clip_stage == "refine", upscaler_model, refine_sigmas,
                 audio_refine, audio_refine_steps, normalize_audio, attention, prior_paths,
@@ -426,6 +431,7 @@ class CAP_H3VideoGenerator:
                     if span.get("source_clip_id") == cid:
                         span["output_video"] = filename
             paths.append(filename)
+            generated_prompts.append(f"Clip {cid} · {filename}\n{composed_prompt}")
             info = {**saved["ui"]["video"][0], "preview_key": f"{run_token}_{index}", "clip_id": cid}
             if row.get("keyframe_segment"):
                 multiplier = interpolation["multiplier"] if interpolation else 1
@@ -470,7 +476,7 @@ class CAP_H3VideoGenerator:
             preview = {**composed["ui"]["video"][0], "preview_key": f"{run_token}_final"}
             notify_timeline("cat_h3_video_ready", node_id=display_id, workflow_id=workflow_id, video=preview)
         return {"ui": {"video": [preview], "clip_videos": videos, "h3_progress": [progress("done")]},
-                "result": (paths, json.dumps(data, ensure_ascii=False), composed_video)}
+                "result": (paths, json.dumps(data, ensure_ascii=False), composed_video, "\n\n".join(generated_prompts))}
 
     def _generate_clip(self, model, base_model, clip, vae, audio_vae, data, index, width, height, low_width, low_height,
                        fps, steps, strict_keyframes, second_sampling, upscaler_model, refine_sigmas,
@@ -680,7 +686,7 @@ class CAP_H3VideoGenerator:
             high_path = _rename_context_latent(high_path, saved["result"][0], "_high")
         if candidate:
             saved["h3_draft"] = finish_draft(candidate, saved["result"][0])
-        return saved, (low_path, high_path) if save_latent else None
+        return saved, (low_path, high_path) if save_latent else None, composed_prompt
 
     def _refine_faces(self, model, positive, samples, images, vae, noise, steps, config,
                       trim_frames, strict_keyframes, records, preview_id, preview_tiny_vae, fps):

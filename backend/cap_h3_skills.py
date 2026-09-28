@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import uuid
 from pathlib import Path
 
 from .cap_i18n import get_last_known_lang, t
@@ -25,13 +26,15 @@ SKILL_REPOS = {
         "sparse": ("skills", "catalog"),
     },
 }
-_SKILL_ID_RE = re.compile(r"^(?:(official|community)__)?([a-zA-Z0-9][a-zA-Z0-9._-]{0,120})$")
+_SKILL_ID_RE = re.compile(r"^(?:(official|community|custom)__)?([a-zA-Z0-9][a-zA-Z0-9._-]{0,120})$")
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
 _TITLE_RE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 _SYNC_LOCK = threading.Lock()
 
 
 def skill_repo_root(source: str = "community") -> Path:
+    if source == "custom":
+        return Path(__file__).resolve().parents[1] / "user_skills"
     config = SKILL_REPOS.get(source) or SKILL_REPOS["community"]
     return Path(__file__).resolve().parents[1] / "vendor" / str(config["folder"])
 
@@ -140,25 +143,32 @@ def _list_repo_skills(source: str) -> list[dict]:
             continue
         skill_id = child.name
         text = _read_text(skill_md)
-        preview = _preview_path_for_skill(skill_id, cases_by_slug) if source == "community" else None
+        preview = resolve_skill_preview(f"custom__{skill_id}") if source == "custom" else (_preview_path_for_skill(skill_id, cases_by_slug) if source == "community" else None)
         case = cases_by_slug.get(skill_id) or {}
         out.append({
             "id": f"{source}__{skill_id}",
             "name": skill_id,
-            "title": _title_for_skill(skill_id, text, cases_by_slug),
+            "title": _read_text(child / "name.txt").strip() if source == "custom" else _title_for_skill(skill_id, text, cases_by_slug),
             "summary": str(case.get("summary") or "").strip(),
             "has_preview": bool(preview),
+            "preview_type": "video" if preview and preview.suffix in {".mp4", ".webm"} else "image",
             "source": source,
         })
     return out
 
 
 def list_h3_skills() -> list[dict]:
-    return [row for source in ("official", "community") for row in _list_repo_skills(source)]
+    return [row for source in ("official", "community", "custom") for row in _list_repo_skills(source)]
 
 
 def resolve_skill_preview(skill_id: str) -> Path | None:
     source, skill_id = _skill_parts(skill_id)
+    if source == "custom":
+        for suffix in (".gif", ".mp4", ".webm"):
+            path = _skills_dir(source) / skill_id / f"preview{suffix}"
+            if path.is_file():
+                return path
+        return None
     if source != "community":
         return None
     cases_by_slug = {}
@@ -249,3 +259,18 @@ def sync_skill_repo() -> dict:
     finally:
         _SYNC_LOCK.release()
 
+
+
+def save_custom_skill(name: str, text: str, preview: bytes = b"", suffix: str = "") -> str:
+    if not name.strip() or not text.strip():
+        raise ValueError("Skill name and text are required")
+    if preview and suffix not in {".gif", ".mp4", ".webm"}:
+        raise ValueError("Preview must be GIF, MP4 or WebM")
+    skill_id = uuid.uuid4().hex
+    folder = _skills_dir("custom") / skill_id
+    folder.mkdir(parents=True)
+    (folder / "SKILL.md").write_text(text, encoding="utf-8")
+    (folder / "name.txt").write_text(name.strip(), encoding="utf-8")
+    if preview:
+        (folder / f"preview{suffix}").write_bytes(preview)
+    return f"custom__{skill_id}"

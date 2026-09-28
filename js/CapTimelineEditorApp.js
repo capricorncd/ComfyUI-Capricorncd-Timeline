@@ -1,3 +1,4 @@
+import "./components/SkillPicker.js";
 import { renameAssetMentions } from './prompt_asset_rename.js';
 import { copyPromptSkills, enabledPromptSkills } from './components/PromptSkills.js';
 import { H3DraftVersions, draftT } from "./editor/H3DraftVersions.js";
@@ -4757,16 +4758,7 @@ export class CapTimelineEditorApp {
               <div class="cat-te-agent-list cat-te-agent-prompt-files"></div>
             </div>
           </cap-dialog>
-          <div class="cat-te-modal-backdrop cat-te-skill-picker-modal" hidden>
-            <div class="cat-te-modal cat-te-skill-picker-dialog">
-              <div class="cat-te-modal-header">
-                <span>${T("select_prompt_skill_title")}</span>
-                <input class="cat-te-skill-picker-filter" type="search" placeholder="${T("search_name_placeholder")}" />
-                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-skill-picker-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
-              </div>
-              <div class="cat-te-skill-picker-body"></div>
-            </div>
-          </div>
+          <cap-skill-picker class="cat-te-skill-picker-modal"></cap-skill-picker>
           <div class="cat-te-modal-backdrop cat-te-track-rename-modal" role="dialog" aria-modal="true" aria-labelledby="cat-te-track-rename-title" hidden>
             <div class="cat-te-modal cat-te-confirm-dialog">
               <div class="cat-te-modal-header">
@@ -5212,8 +5204,6 @@ export class CapTimelineEditorApp {
         this.skillPickBtn = el.querySelector(".cat-te-skill-pick-btn");
         this.skillSyncBtn = el.querySelector(".cat-te-skill-sync-btn");
         this.skillPickerModal = el.querySelector(".cat-te-skill-picker-modal");
-        this.skillPickerBody = el.querySelector(".cat-te-skill-picker-body");
-        this.skillPickerFilter = el.querySelector(".cat-te-skill-picker-filter");
         this.trackRenameModal = el.querySelector(".cat-te-track-rename-modal");
         this.trackRenameInput = el.querySelector(".cat-te-track-rename-input");
         this.trackColorModal = el.querySelector(".cat-te-track-color-modal");
@@ -5795,13 +5785,8 @@ export class CapTimelineEditorApp {
             e.stopPropagation();
             void this._syncH3Skills();
         });
-        el.querySelector(".cat-te-skill-picker-close")?.addEventListener("click", () => this._closeSkillPicker());
-        this.skillPickerFilter?.addEventListener("input", () => this._renderSkillPicker());
-        this.skillPickerBody?.addEventListener("click", (e) => {
-            const btn = e.target.closest?.(".cat-te-skill-apply");
-            if (!btn) return;
-            e.preventDefault();
-            void this._applyH3Skill(btn.dataset.skillId);
+        this.skillPickerModal.addEventListener("skill-select", e => {
+            void this._applyH3Skill(e.detail.skill.id);
         });
 
         el.addEventListener("keydown", e => {
@@ -16369,7 +16354,7 @@ export class CapTimelineEditorApp {
             || this._subtitleBatchDialog?.open
             || (this.outputVideosModal?.open && this._outputPickerKind === "audio")
             || (this.aiOptimizeModal && !this.aiOptimizeModal.hidden)
-            || (this.skillPickerModal && !this.skillPickerModal.hidden),
+            || this.skillPickerModal?.open,
         );
     }
 
@@ -20586,7 +20571,7 @@ export class CapTimelineEditorApp {
     }
 
     _closeSkillPicker() {
-        if (this.skillPickerModal) this.skillPickerModal.hidden = true;
+        this.skillPickerModal?.close();
     }
 
     _setSkillSyncBusy(busy) {
@@ -20606,7 +20591,7 @@ export class CapTimelineEditorApp {
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
             this._h3Skills = Array.isArray(data.skills) ? data.skills : [];
-            if (!this.skillPickerModal?.hidden) this._renderSkillPicker();
+            if (this.skillPickerModal?.open) this.skillPickerModal.setSkills(this._h3Skills);
             alert(T("synced_n_skills", { n: this._h3Skills.length }));
         } catch (error) {
             alert(T("sync_failed", { msg: error instanceof Error ? error.message : String(error) }));
@@ -20616,67 +20601,8 @@ export class CapTimelineEditorApp {
     }
 
     async _openSkillPicker() {
-        if (!this.skillPickerModal) return;
-        this.skillPickerModal.hidden = false;
-        if (this.skillPickerFilter) this.skillPickerFilter.value = "";
-        this.skillPickerBody && (this.skillPickerBody.textContent = T("loading_ellipsis"));
-        try {
-            const response = await fetch(api.apiURL("/audio_keyframe_timeline/h3_skills"));
-            const data = await response.json().catch(() => ({}));
-            this._h3Skills = Array.isArray(data.skills) ? data.skills : [];
-            this._renderSkillPicker();
-        } catch (error) {
-            if (this.skillPickerBody) {
-                this.skillPickerBody.textContent = T("load_failed", { msg: error instanceof Error ? error.message : String(error) });
-            }
-        }
-    }
-
-    _renderSkillPicker() {
-        const body = this.skillPickerBody;
-        if (!body) return;
-        const query = String(this.skillPickerFilter?.value || "").trim().toLowerCase();
-        const rows = (this._h3Skills || []).filter((row) => {
-            if (!query) return true;
-            const title = String(row.title || "").toLowerCase();
-            const name = String(row.name || row.id || "").toLowerCase();
-            return title.includes(query) || name.includes(query);
-        });
-        body.replaceChildren();
-        if (!rows.length) {
-            const empty = document.createElement("div");
-            empty.className = "cat-te-skill-picker-empty";
-            empty.textContent = (this._h3Skills || []).length
-                ? T("no_matching_skill")
-                : T("no_local_skills_hint");
-            body.appendChild(empty);
-            return;
-        }
-        const grid = document.createElement("div");
-        grid.className = "cat-te-skill-picker-grid";
-        for (const row of rows) {
-            const card = document.createElement("div");
-            card.className = "cat-te-skill-card";
-            const img = document.createElement("img");
-            img.alt = "";
-            img.loading = "lazy";
-            if (row.has_preview) {
-                img.src = api.apiURL(`/audio_keyframe_timeline/h3_skill_preview?id=${encodeURIComponent(row.id)}`);
-            }
-            const name = document.createElement("div");
-            name.className = "cat-te-skill-card-name";
-            const source = row.source === "official" ? T("skill_source_official") : T("skill_source_community");
-            name.textContent = `${source} · ${row.title || row.name || row.id}`;
-            name.title = row.summary || name.textContent;
-            const apply = document.createElement("cap-button");
-            apply.className = "cat-te-skill-apply";
-            apply.setAttribute("variant", "primary");
-            apply.dataset.skillId = row.id;
-            apply.textContent = T("apply_btn");
-            card.append(img, name, apply);
-            grid.appendChild(card);
-        }
-        body.appendChild(grid);
+        await this.skillPickerModal.show(path => api.apiURL(path), this.aiSkills?.rows || []);
+        this._h3Skills = this.skillPickerModal.skills;
     }
 
     async _applyH3Skill(skillId) {
@@ -20691,7 +20617,7 @@ export class CapTimelineEditorApp {
             if (this._findClipById(clip.id) !== clip) return;
             const meta = this._ensureClipMeta(clip);
             const rows = copyPromptSkills(meta.promptSkills);
-            const entry = {id, name: this._h3Skills?.find(row => row.id === id)?.title || this._h3Skills?.find(row => row.id === id)?.name || id, text, enabled: true};
+            const entry = {id, name: this.skillPickerModal.skills.find(row => row.id === id)?.title || this.skillPickerModal.skills.find(row => row.id === id)?.name || id, text, enabled: true};
             const index = rows.findIndex(row => row.id === id);
             if (index < 0) rows.push(entry); else rows[index] = entry;
             this._recordUndo();

@@ -820,6 +820,9 @@
       "preview_sampling_batch": {
         "name": "预览采样批次",
         "tooltip": "每个 Clip 的预览候选数量，按不同种子逐个生成。仅用于「批量预览采样」，默认 1。"
+      },
+      "auto_prompt_config": {
+        "name": "H3 自动提示词配置"
       }
     },
     "outputs": {
@@ -831,6 +834,9 @@
       },
       "data_json": {
         "name": "更新后的时间轴数据"
+      },
+      "generated_prompts": {
+        "name": "生成的提示词"
       }
     }
   },
@@ -1074,5 +1080,22 @@
       }
     },
     "description": "实验性 SelfLift 配置。连接 MiniMax H3 视频生成节点，并开启本配置；未连接或关闭时使用普通采样。低分辨率采样步数必须小于主节点总步数。总步数为 4 时设为 3（3 步低清 + 1 步高清，可用范围 1–3）；总步数为 8 时设为 6（6 步低清 + 2 步高清，可用范围 1–7）。切换总步数后，请同步修改此值并选择匹配的 4/8 步 LoRA；不会自动切换。"
+  },
+  "CAP_H3AutoPromptConfig": {
+    "inputs": {
+      "skill_preset": {
+        "name": "Skill 预设",
+        "tooltip": "与提示词管理共用本地预设。none 表示不选；可在下方文本框补充要求。"
+      },
+      "skill": {
+        "name": "补充 Skill 要求"
+      }
+    },
+    "display_name": "H3 自动提示词配置",
+    "outputs": {
+      "auto_prompt_config": {
+        "name": "H3 自动提示词配置"
+      }
+    }
   }
 }

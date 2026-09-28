@@ -177,6 +177,7 @@ export class Dialog extends HTMLElement {
         this._closeButton = root.querySelector("cap-button");
         this._closeButton.addEventListener("click", () => this.requestClose());
         this._dialog.addEventListener("cancel", event => {
+            if (event.target !== this._dialog) return;
             event.preventDefault();
             this.requestClose();
         });

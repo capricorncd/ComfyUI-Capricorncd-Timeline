@@ -3040,7 +3040,7 @@ export class CapTimelineEditorApp {
 
     _openComposeModal() {
         if (!this.composeModal) return;
-        this.composeDirectory?.restore(this._launcherProject?.session?.directory);
+        this.composeDirectory?.restore();
         if (this.composeFilenameInput) this.composeFilenameInput.value = this._composeDefaultFilename();
         if (this.composeResolutionSelect) this.composeResolutionSelect.value = "project";
         if (this.composeQualitySelect) this.composeQualitySelect.value = "maximum";
@@ -3151,7 +3151,7 @@ export class CapTimelineEditorApp {
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || T("compose_failed_http", { status: response.status }));
-            this.composeDirectory?.remember(this._composeSubmittedSettings.output_directory || "");
+            this.composeDirectory?.remember(this._composeSubmittedSettings.output_directory || `output/${this._composeSubmittedSettings.filename_prefix || ""}`);
 
             const outName = data.filename || filename;
             const sub = String(data.subfolder || "").replace(/^\/+|\/+$/g, "");
@@ -4840,7 +4840,7 @@ export class CapTimelineEditorApp {
                 <cap-radio-button indicator size="regular" value="directory">${T("export_files")}</cap-radio-button>
                 <cap-radio-button indicator size="regular" value="zip">ZIP</cap-radio-button>
               </cap-radio-group>
-              <cap-export-directory class="cat-te-export-directory cat-te-export-path" default-dir="output/cap_timeline_projects/"></cap-export-directory>
+              <cap-export-directory class="cat-te-export-directory cat-te-export-path" export-kind="project" default-dir="output/cap_timeline_projects/"></cap-export-directory>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-workflow" type="checkbox" checked /><span>${T("export_workflow")}</span></label>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-generated" type="checkbox" checked /><span>${T("export_generated")}</span></label>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-unused" type="checkbox" /><span>${T("export_unused")}</span></label>

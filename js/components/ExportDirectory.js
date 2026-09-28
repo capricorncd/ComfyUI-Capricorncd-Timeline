@@ -13,13 +13,13 @@ const T = makeT({
 
 const STORAGE_KEY = 'capricorncd.timeline.last-export-directory';
 
-export function lastExportDirectory() {
-    try { return localStorage.getItem(STORAGE_KEY) || ''; }
+export function lastExportDirectory(kind = 'video') {
+    try { return localStorage.getItem(`${STORAGE_KEY}.${kind}`) || ''; }
     catch { return ''; }
 }
 
-export function rememberExportDirectory(directory) {
-    try { localStorage.setItem(STORAGE_KEY, directory || ''); }
+export function rememberExportDirectory(directory, kind = 'video') {
+    try { localStorage.setItem(`${STORAGE_KEY}.${kind}`, directory || ''); }
     catch { /* A completed export must not fail because preference storage is full. */ }
 }
 
@@ -91,8 +91,16 @@ export class ExportDirectory extends HTMLElement {
 
     attributeChangedCallback() { if (this.input) this.render(); }
     get nativePicker() { return Boolean(window.__COMFYUI_LAUNCHER__?.capabilities?.projectDirectory); }
-    restore(preferredDirectory = '') { this.value = this.hasAttribute('project-directory') ? preferredDirectory : preferredDirectory || (this.nativePicker ? lastExportDirectory() : ''); }
-    remember(directory = this.value) { if (this.nativePicker) rememberExportDirectory(directory); }
+    get exportKind() { return this.getAttribute('export-kind') === 'project' ? 'project' : 'video'; }
+    set exportKind(value) { this.setAttribute('export-kind', value); }
+    restore(preferredDirectory = '') {
+        this.value = this.hasAttribute('project-directory') ? preferredDirectory
+            : (this.nativePicker ? lastExportDirectory(this.exportKind) : '')
+                || (this.exportKind === 'project' ? preferredDirectory : '');
+    }
+    remember(directory = this.value) {
+        if (this.nativePicker && !this.hasAttribute('project-directory')) rememberExportDirectory(directory || this.defaultDir, this.exportKind);
+    }
 
     get value() { return this._value || ''; }
     set value(value) { this._value = value || ''; this.status.setStatus(''); this.render(); }

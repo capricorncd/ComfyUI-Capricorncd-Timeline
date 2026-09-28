@@ -1,18 +1,16 @@
-# Shared H3 prompt generation
+# H3 Auto Prompt Config
 
-In Clip settings, **自动生成提示词 / Generate prompt automatically** saves the boolean `auto_prompt` (default `false`). Enabled Clips run the new prompt stage; disabled Clips retain their existing prompts.
+[README](../README.md) · [All nodes](nodes.md) · [简体中文](zh/h3-shared-prompt.md)
 
-Connect the same H3 CLIP loader to **H3 Shared Model Prompt Generator** and **H3 Video Generator**. Connect Timeline Editor `data_json` to the prompt generator, then its `data_json` to the video generator. This data connection makes prompt generation finish before video sampling starts.
+Connect `Timeline Editor.data_json → MiniMax H3 Video Generator.data_json` and `H3 Auto Prompt Config.auto_prompt_config → MiniMax H3 Video Generator.auto_prompt_config`. The config does not take CLIP or data_json: prompt generation runs inside the video generator, using its connected CLIP before video sampling.
 
-The prompt generator also needs **H3 Qwen VL Generation Tail Loader** from [ComfyUI-H3-Qwen3VL-TextGen](https://github.com/ethanfel/ComfyUI-H3-Qwen3VL-TextGen). Select a compatible `generation_tail_50_63` file in `models/text_encoders`. The upstream implementation temporarily loads the missing language layers and output head, then unloads the tail while leaving the connected base CLIP available to ComfyUI. No diffusion LoRA or VAE is needed for writing text.
+Install ComfyUI-H3-Qwen3VL-TextGen and a compatible generation tail in `models/text_encoders`, then select `tail_name`, a Skill preset or custom Skill, output language, token limit and seed in the config. No separate tail-loader connection, diffusion LoRA or VAE is needed for writing text. Video generation still needs its normal model and VAEs.
 
-Enter the creative Skill in the prompt node's `skill` field. The node combines it with Clip type, enabled prompt sections, image metadata and visual references. Videos supply up to eight sampled frames from their trim range. Audio is not transcribed: supply lyrics/dialogue explicitly when needed. Grid filenames ending in `_G4`, `_G6`, or `_G9` specify the panel count.
+Enable **Generate prompt automatically** on the intended Clips (`auto_prompt`, default false). There is no node-level enable switch. Disabled Clips keep their existing prompts. Valid preview refinement reuses the saved prompt; keyframe intervals and long video-reference runs retain their interval prompts rather than rewriting them.
 
-Original Clip text stays in `prompt`. The generated final text is stored in `h3_generated_prompt` in runtime data and exposed through `generated_prompts`; it is not written over the editor draft. H3 consumes that complete prompt without appending the global sections again. Refining an existing preview skips prompt rewriting. If automatic prompting is enabled but this stage is not connected, video generation reports the missing step.
+The generator combines enabled prompt sections, Skills, image descriptions and visual references. Videos contribute up to eight sampled frames. Audio is not transcribed; supply dialogue or lyrics explicitly. Original Clip text remains in `prompt`; generated text is held in runtime `h3_generated_prompt`. Connect the video generator's `generated_prompts` output to Show Anything to inspect the actual sampling text.
 
-The optional node-level `enabled` switch bypasses the prompt stage. Turn off the Clip flag as well to intentionally use the original video path.
-
-Open `workflows/MiniMaxH3_Shared_AutoPrompt.json` for a connected example. On an RTX 4090, `qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors` with `qwen3vl_32b_h3_instruct_generation_tail_50_63_int8_convrot.safetensors` passed text generation followed by finite H3 conditioning on the same CLIP. The NVFP4 AWQ generation tail produced non-finite values in this configuration; use the INT8 tail. Full video sampling and visual-reference generation have not been verified by this smoke test.
+Older workflows using H3 Shared Model Prompt Generator must replace it with this config and restore the direct Timeline Editor → Video Generator connection. The bundled `MiniMaxH3_Shared_AutoPrompt.json` still contains the removed node; migrate it using the connections above.
 
 ## Clip Prompt Skills
 

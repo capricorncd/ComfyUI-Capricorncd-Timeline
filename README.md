@@ -1,6 +1,6 @@
 # ComfyUI-Capricorncd-Timeline
 
-[简体中文](README.zh.md) · [Editor guide](docs/timeline-editor.md) · [Example workflows](workflows/) · [Release notes](CHANGELOG.md)
+[简体中文](README.zh.md) · [All nodes](docs/nodes.md) · [Editor guide](docs/timeline-editor.md) · [Example workflows](workflows/) · [Release notes](CHANGELOG.md)
 
 <p align="center">
   <img src="./docs/branding/timeline-mark.svg" width="160" alt="Capricorncd Timeline" />
@@ -53,6 +53,42 @@ The interface follows ComfyUI's locale setting: **English / 简体中文 / 日�
 
 Generation requires the models and nodes used by your chosen workflow. The editor organizes the process; it does not include model weights.
 
+## Two main nodes: edit, connect, generate
+
+| Node | What it does | Guide |
+|---|---|---|
+| **Timeline Editor** | Arrange Clips, prompts, reference assets and audio; choose the Clips to run. | [Editor guide](docs/timeline-editor.md) |
+| **MiniMax H3 Video Generator** | Read the timeline, sample and save each Clip, then optionally join the generated videos. | [H3 generation](docs/h3-video-generator.md) |
+
+Connect the two nodes' **`data_json`** ports. Load the H3 model, CLIP, video VAE and audio VAE into the generator's matching inputs, then run from the timeline:
+
+```mermaid
+flowchart LR
+    T["Timeline Editor"] -->|data_json| H["MiniMax H3 Video Generator"]
+    M["H3 model / CLIP / video VAE / audio VAE"] -->|model / clip / vae / audio_vae| H
+    H --> V["Saved Clip videos + optional final video"]
+```
+
+1. Set project width and height to **positive multiples of 32** (for example, 1344 × 768). Add director Clips with prompts and references, and select the Clip type.
+2. Connect `Timeline Editor.data_json → MiniMax H3 Video Generator.data_json`. Choose compatible model weights and generation settings. Two-pass generation needs the latent upscaler; sampling preview needs KJNodes. See [dependencies](docs/h3-video-generator.md#optional-dependencies), or disable those options for single-pass generation without sampling preview.
+3. Run a Clip or the requested group from the editor. The generator handles sampling, decoding and saving; no separate Clip Parser, sampler or Seq To Video is needed for this path.
+4. `compose_final` defaults to on and reuses a single output directly. `video_files` and `composed_video` contain file paths. For the full timeline with music, subtitles and media overlays, use **Export → Compose Video** in the editor.
+
+### Optional extensions
+
+These nodes connect to **MiniMax H3 Video Generator** only when needed:
+
+| Extension | Connection / use |
+|---|---|
+| [H3 Auto Prompt Config](docs/h3-shared-prompt.md) | `auto_prompt_config → auto_prompt_config`; enable **Generate prompt automatically** on the intended Clips. Reuses the generator's CLIP; select a compatible generation tail in the config. |
+| [H3 Audio Refine Config](docs/h3-video-generator.md#audio-repair-configuration) / [H3 Face Refine Config](docs/h3-face-refine.md) | Connect to `audio_refine_config` / `face_refine_config`; configure and enable the desired repair. |
+| [H3 Interpolation Config](docs/h3-video-generator.md#rife-frame-interpolation) / [H3 SelfLift Config](docs/h3-video-generator.md#selflift-progressive-sampling-experimental) | Connect to `interpolation_config` / `selflift_config`; each feature needs its documented dependency. |
+| [Show Anything](docs/show-anything.md) | Connect `generated_prompts` to inspect the actual sampling prompts. |
+
+For custom model workflows, use [Data Json Clip Parser](docs/data-json-clip-parser.md) to extract one Clip, connect its prompt/images/frame count to your model, then decoded images and optional audio to [Seq To Video](docs/seq-to-video.md). For a custom H3 sampler, [MiniMaxH3](docs/minimax-h3.md) supplies conditioning and latent. [Compose Clip Videos](docs/compose-clip-videos.md) accepts `data_json` with saved video paths; the compact H3 generator already composes when `compose_final` is on.
+
+See [all nodes, menu hierarchy and connection paths](docs/nodes.md) for the complete catalog.
+
 ## Export controls
 
 The compose dialog defaults to **project dimensions** and **Maximum quality (H.264 CRF 16)**. CRF 16 is high-quality lossy encoding, not lossless.
@@ -79,10 +115,6 @@ Select one or more subtitle clips, bind characters, then **Convert to audio** to
 
 Click a generated video's filename to inspect its recorded Clip ID, seed, models and sampling parameters. **Set as Clip seed** reuses the value without starting generation. `Seq To Video` records identifiable sampler settings; connect dynamically supplied sampling seeds to its `seed` input as well, e.g. `MiniMaxH3.seed → Seq To Video.seed`. `Compose Clip Videos` preserves each source clip's generation record. Records are embedded in MP4 and included in the optional JSON sidecar. Missing historical records are not inferred from current settings.
 
-## Other nodes
-
-See the [node documentation index](docs/nodes.md) for supporting prompt, image, audio/video and file utilities.
-
 ## Source layout
 
 `backend/` contains Python nodes and API handlers; `js/` contains the editor frontend, with extracted panels and state modules in `js/editor/`. The root `__init__.py` is the ComfyUI entry point. Tests, documentation scripts and bundled assets are in `tests/`, `scripts/` and `vendor/` respectively.
@@ -90,9 +122,3 @@ See the [node documentation index](docs/nodes.md) for supporting prompt, image, 
 ## License
 
 [Apache-2.0](LICENSE)
-
-### H3 audio repair configuration
-
-This release targets **ComfyUI 0.37.0**. Update ComfyUI to **0.37.0 or newer** and install its matching `requirements.txt` dependencies before use. Also update this node pack and [ComfyUI-H3-AudioRefine](https://github.com/Adudeguyman/ComfyUI-H3-AudioRefine) (at least **1.0.4**, which includes the compiler compatibility fix). Restart ComfyUI and refresh the browser.
-
-Connect `H3 Audio Refine Config` to the generator's `audio_refine_config`. It controls enabled, steps, audio denoise strength and cache mode (`off`/`auto`/`ram`/`vram`). Cache defaults to off while audio repair remains enabled. A disconnected or disabled configuration skips repair. Move the old audio repair settings to this node in existing workflows. Silent generation and Digital Human clips still skip repair; loudness normalization stays on the generator.

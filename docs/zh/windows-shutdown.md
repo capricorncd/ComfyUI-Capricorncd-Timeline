@@ -1,6 +1,6 @@
 # 工作流完成后强制关机 (Windows)
 
-此节点由 `ComfyUI-Capricorncd-Timeline` 提供，位于 `Capricorncd` 分类。
+此节点由 `ComfyUI-Capricorncd-Timeline` 提供，位于 `Capricorncd/Utils` 分类。
 
 重启 ComfyUI，搜索 `CAP_WindowsShutdown` 或「工作流完成后强制关机」，添加到工作流。
 

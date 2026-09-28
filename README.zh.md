@@ -1,6 +1,6 @@
 # ComfyUI-Capricorncd-Timeline
 
-[English](README.md) · [编辑器完整指南](docs/zh/timeline-editor.md) · [示例工作流](workflows/) · [更新记录](CHANGELOG.md)
+[English](README.md) · [全部节点](docs/zh/nodes.md) · [编辑器完整指南](docs/zh/timeline-editor.md) · [示例工作流](workflows/) · [更新记录](CHANGELOG.md)
 
 <p align="center">
   <img src="./docs/branding/timeline-mark.svg" width="160" alt="Capricorncd Timeline" />
@@ -53,6 +53,42 @@ git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline
 
 生成视频需要安装所选工作流使用的模型和节点；编辑器负责组织流程，不附带模型权重。
 
+## 两个核心节点：编辑时间轴，连接后生成
+
+| 节点 | 用途 | 详细说明 |
+|---|---|---|
+| **时间轴编辑器（Timeline Editor）** | 编排 Clip、提示词、参考素材和音频，选择需要运行的片段。 | [编辑器指南](docs/zh/timeline-editor.md) |
+| **MiniMax H3 视频生成（MiniMax H3 Video Generator）** | 读取时间轴，逐个 Clip 采样并保存视频，可自动拼接生成结果。 | [H3 生成指南](docs/zh/h3-video-generator.md) |
+
+两个节点的 **`data_json`** 连接后即可配合使用；再将 H3 模型、CLIP、视频 VAE 和音频 VAE 接到生成节点的对应输入，从时间轴运行：
+
+```mermaid
+flowchart LR
+    T["时间轴编辑器"] -->|data_json| H["MiniMax H3 视频生成"]
+    M["H3 模型 / CLIP / 视频 VAE / 音频 VAE"] -->|model / clip / vae / audio_vae| H
+    H --> V["各 Clip 视频 + 可选最终拼接视频"]
+```
+
+1. 项目宽、高设为 **32 的正整数倍**，例如 1344 × 768；添加导演 Clip，填写提示词、绑定素材并选择 Clip 类型。
+2. 连接 `Timeline Editor.data_json → MiniMax H3 Video Generator.data_json`，选择匹配的模型和生成参数。二采需要 Latent 放大模型，动态采样预览需要 KJNodes；参见[依赖说明](docs/zh/h3-video-generator.md#按功能需要的依赖)，也可关闭这两项，使用无采样预览的单采流程。
+3. 在编辑器中运行单个 Clip 或指定的一组 Clip。生成节点完成采样、解码和保存，这条流程无需另外接片段解析、采样器或序列帧保存节点。
+4. “合成最终视频”默认开启，只有一个输出时直接复用；`video_files`、`composed_video` 输出文件路径。需要包含背景音乐、字幕和媒体叠层的完整成片时，使用编辑器的 **导出 → 合成视频**。
+
+### 按需添加的节点
+
+以下节点按需要接入 **MiniMax H3 视频生成**：
+
+| 扩展 | 连接与使用 |
+|---|---|
+| [H3 自动提示词配置](docs/zh/h3-shared-prompt.md) | `auto_prompt_config → auto_prompt_config`；在目标 Clip 中开启“自动生成提示词”。共用生成节点的 CLIP，在配置中选择兼容的 generation tail。 |
+| [H3 音频修复配置](docs/zh/h3-video-generator.md#音频修复配置) / [H3 人脸修复配置](docs/zh/h3-face-refine.md) | 分别连接 `audio_refine_config` / `face_refine_config`，在配置节点启用所需修复。 |
+| [H3 插帧配置](docs/zh/h3-video-generator.md#rife-插帧) / [H3 SelfLift 配置](docs/zh/h3-video-generator.md#selflift-渐进采样实验) | 分别连接 `interpolation_config` / `selflift_config`，安装各自文档要求的依赖。 |
+| [Show Anything](docs/zh/show-anything.md) | 接入 `generated_prompts`，查看实际用于采样的提示词。 |
+
+自定义模型流程可用[片段数据解析](docs/zh/data-json-clip-parser.md)提取单个 Clip，将提示词、图片和帧数接入模型，再将解码图像与可选音频交给[序列帧合成视频](docs/zh/seq-to-video.md)。自行搭建 H3 采样时，可用 [MiniMaxH3](docs/zh/minimax-h3.md) 提供条件和 latent。[多段视频合成](docs/zh/compose-clip-videos.md)读取包含已保存视频路径的 `data_json`；核心 H3 生成节点开启最终合成后已包含这一步。
+
+全部节点及分类层级、连接关系见[完整节点索引](docs/zh/nodes.md)。
+
 ## 合成与导出
 
 合成窗口默认使用 **项目设置尺寸** 和 **最高画质（H.264 CRF 16）**。CRF 16 是高画质有损编码，并非无损。
@@ -79,10 +115,6 @@ git clone https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline
 
 点击生成视频文件名，在预览信息中查看已记录的 Clip ID、seed、模型与采样参数；点击 seed 旁的 **设为 Clip 种子** 可复用该值（不会自动运行）。`Seq To Video` 自动记录可确认的采样参数；连线提供的实际种子请同时接入保存节点的 `seed` 输入，例如 `MiniMaxH3.seed → Seq To Video.seed`。`Compose Clip Videos` 保留各源片段的生成记录。记录嵌入 MP4，开启同名 JSON 时同步保存；旧视频缺失的记录不从当前设置推测。
 
-## 其他节点
-
-提示词、图像、音视频及文件工具见[节点文档索引](docs/zh/nodes.md)。
-
 ## Launcher 中保存项目
 
 使用支持目录桥接的 ComfyUI Launcher 时，「导入 → 从目录导入」会记住项目目录。定时自动保存和关闭编辑器会更新 `project.json.bak`、`storyboard.json.bak`；Ctrl+S 或时间轴「更多 → 保存项目」更新正式的 `project.json`、`storyboard.json` 和当前工作流 `workflow.json`。「更多 → 打开项目目录」可打开该文件夹。
@@ -102,22 +134,3 @@ Ctrl+S 相当于导出到当前关联目录，不新建时间戳子目录。素�
 ## 许可证
 
 [Apache-2.0](LICENSE)
-
-### H3 音频修复配置
-
-本次按 **ComfyUI 0.37.0** 适配，使用前请更新至 **0.37.0 或更新版本**，并同步安装对应 `requirements.txt` 依赖。同时更新本节点包和 [ComfyUI-H3-AudioRefine](https://github.com/Adudeguyman/ComfyUI-H3-AudioRefine)。AudioRefine 至少需要 **1.0.4**，其中包含编译器兼容修复；更新后重启 ComfyUI 并刷新浏览器。
-
-添加「H3 音频修复配置」，连接生成器的 `audio_refine_config`。配置节点控制启用、步数、音频修复强度和缓存模式（off/auto/ram/vram）；默认关闭缓存、保留音频修复。不连接或关闭启用开关时跳过修复。旧工作流的音频修复开关与步数需迁移到配置节点。关闭生成音频或数字人片段仍会跳过修复，响度归一化保留在生成器。
-
-### 预览采样管理与自动二采
-
-选中导演 Clip，在左侧打开「预览采样管理」，或在运行菜单选择「批量预览采样」。在 H3 生成节点设置「预览采样百万像素」和「预览采样批次」，默认为 0.2MP、1 版。候选按不同种子逐个生成，每版保存低清视频、音视频 latent、提示词及参数快照，不自动加入成片合成。一采候选阶段不执行 SelfLift、二采、音频/人脸修复和插帧。
-
-在预览采样管理中浏览、禁用或删除关联。点击「运行」时，每个 Clip 自动采用最新的已启用且文件存在、时长和帧率匹配的预览；无有效预览时按原配置生成。精修加载该版 latent 和原有条件输入快照，跳过一采；放大模型与二采 SIGMAS 仍使用生成器现有设置。精修结果进入「生成的视频」，生成记录包含来源版本 ID。改变 Clip 时长或项目帧率后需要重新生成候选。
-
-禁用版本仍可预览，不能作为精修选择。点击整张卡片即可播放，当前播放项显示高亮边框。删除经确认后将视频、latent 和版本信息移入系统回收站，不支持 Ctrl+Z；需要手动还原全部文件，再通过「关联已有文件夹」重新关联当前 Clip 的版本。关联支持选择 `output/capricorncd-timeline/h3_drafts/` 或其中的单个版本目录；当前回收站操作支持 Windows，不支持的平台会报错而不会永久删除。当前工程包不打包这些 latent，跨机器使用需另外保留该目录和参考素材。自动二采沿用生成器的放大模型和二采参数。升级后重启 ComfyUI 并刷新浏览器以更新节点参数。
-
-
-自动提示词：将「H3 自动提示词配置」连接到「MiniMax H3 视频生成」的同名输入，配置 tail、Skill、输出语言和文本生成参数。是否生成由时间轴各 Clip 的开关控制，直接复用视频节点的 CLIP；从有效预览版生成高清时使用预览保存的提示词，不再次生成。关键帧区间保持关键帧提示词／Clip 提示词及选中的全局提示词规则。
-
-视频生成节点的「生成的提示词」输出为文本，按生成顺序列出 Clip、视频文件及实际采样提示词，包含预览精修复用的内容，可直接连接文本查看节点。

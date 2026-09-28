@@ -1,5 +1,26 @@
 # MiniMax H3 Video Generator
 
+[README](../README.md) · [All nodes](nodes.md)
+
+Node ID: `CAP_H3VideoGenerator`. Category: `Capricorncd/MiniMaxH3`.
+
+## Basic connections
+
+Connect **Timeline Editor `data_json` → this node's `data_json`**, plus H3 `model`, `clip`, video `vae` and `audio_vae`. Run the requested Clips from the timeline. Project width and height must be positive multiples of 32; select model/LoRA weights compatible with the Clip type and 4/8-step setting.
+
+The node prepares conditioning, samples, decodes and saves videos; no separate Clip Parser or Seq To Video is needed. See below for dependencies of two-pass sampling, preview and optional features; disable unused options to avoid those dependencies.
+
+| Output | Use |
+|---|---|
+| `video_files` | List of saved Clip paths, not IMAGE/VIDEO objects. |
+| `data_json` | Updated video paths and timing; can feed Compose Clip Videos. |
+| `composed_video` | Final composition path when enabled; a single video is reused. |
+| `generated_prompts` | Actual sampling prompts; connect to Show Anything. |
+
+`compose_final` defaults to on and joins this run's generated videos. Use the editor's Export → Compose Video for the complete music, subtitle and media tracks. `concat_full_videos` keeps the full output lengths instead of trimming to Clip timing. There is no need to add another Compose Clip Videos when automatic composition is enabled.
+
+Connect [H3 Auto Prompt Config](h3-shared-prompt.md) to `auto_prompt_config`. Other optional configs feed `audio_refine_config`, `face_refine_config`, `interpolation_config` and `selflift_config`.
+
 ## RIFE frame interpolation
 
 Connect **H3 Interpolation Config** to `interpolation_config`, then use the enable switch on the config node (disconnect or disable to skip interpolation) to run the installed ComfyUI-Frame-Interpolation RIFE node after deblur, face repair and context latent saving. Model, multiplier, scale, ensemble and cache interval live on the config node. Defaults: rife426.pth, 2x, scale 1.0, ensemble off, cache interval 10. Supports integer 2–4x; the plugin may download the selected model on first use. RIFE 4.26 ignores ensemble. Output fps and timing snapshots are multiplied, including composition and returned data_json. Hold the final frame to preserve exact duration and original audio. Sampling and latent contexts retain the original frame rate. Disabled interpolation ignores its parameters.
@@ -66,7 +87,7 @@ Connect the **sampling MODEL after external LoRA loading**, CLIP text encoder, v
 ## MV and audio switches
 
 - `generate_audio=true` (default) preserves existing audio output. Off produces silent Clip and composed videos, skipping audio repair sampling, audio VAE decoding and loudness normalization.
-- `audio_refine=false` by default. It only takes effect when `generate_audio` is on; MV users can turn off audio generation without also resetting the repair/normalization switches.
+- Audio repair is controlled by `audio_refine_config`; disconnect or disable the config to skip it. Repair only runs when `generate_audio` is on.
 - The current H3 core still jointly samples video/audio latents. This switch does not remove the audio latent, rewrite sound prompts or discard audio references; it cannot eliminate all audio-side sampling cost. AV latents remain intact for second sampling and Save Latent continuity. Keep the audio VAE connected for reference conditioning.
 - Silent mode does not require audio-repair or normalization dependencies. Preview and composition still work; progress omits skipped audio repair stages.
 
@@ -88,3 +109,19 @@ The existing **Cap MiniMaxH3** conditioning node also exposes the same optional 
 - `preview_tiny_vae`: choose an installed `taeh3.safetensors` in `models/vae_approx` for H3 RGB previews. `none` uses approximate latent colors. Sampling previews are approximate; the completed video uses the full video VAE. Turn off `sampling_preview` to run without KJNodes.
 
 No dependencies are downloaded automatically. Restart ComfyUI and refresh its frontend after installation. CPU/mock contract tests do not replace a GPU generation test.
+
+
+## Audio repair configuration
+
+
+This release targets **ComfyUI 0.37.0**. Update ComfyUI to **0.37.0 or newer** and install its matching `requirements.txt` dependencies before use. Also update this node pack and [ComfyUI-H3-AudioRefine](https://github.com/Adudeguyman/ComfyUI-H3-AudioRefine) (at least **1.0.4**, which includes the compiler compatibility fix). Restart ComfyUI and refresh the browser.
+
+Connect `H3 Audio Refine Config` to the generator's `audio_refine_config`. It controls enabled, steps, audio denoise strength and cache mode (`off`/`auto`/`ram`/`vram`). Cache defaults to off while audio repair remains enabled. A disconnected or disabled configuration skips repair. Move the old audio repair settings to this node in existing workflows. Silent generation and Digital Human clips still skip repair; loudness normalization stays on the generator.
+
+## Preview sampling management
+
+Select a director Clip and open Preview sampling management, or choose Batch preview sampling from the run menu. The generator defaults to 0.2 megapixels and one candidate. Each candidate saves its video, AV latent, prompt and input snapshot; preview sampling skips upscale/refine, SelfLift, repair, interpolation and final composition.
+
+Run reuses the latest enabled compatible preview for each Clip and refines its saved latent; Clips without a valid preview generate normally. Changing duration or project fps requires new candidates. Keyframe previews retain their interval metadata, and the manager follows the selected director Clip.
+
+Deleting a version moves its video, latent and manifest to the Windows recycle bin and cannot be undone with Ctrl+Z. Restore all files manually, then use Associate existing folder. Other platforms reject recycling without permanently deleting files. Project packages do not bundle these latents; retain output/capricorncd-timeline/h3_drafts/ separately when moving machines.

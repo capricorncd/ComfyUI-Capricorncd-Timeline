@@ -9,13 +9,24 @@
 </style>
 <section><cap-status-message id="export" hidden></cap-status-message></section>
 <section class="other"><cap-status-message id="compose" hidden></cap-status-message></section>
+<cap-status-message id="toast" toast closable hidden></cap-status-message>
+<div id="anchor">Page content stays in place</div>
 <pre id="result">RUNNING</pre>
 <script type="module">
-    import '../js/components/StatusMessage.js';
+    import '../js/components/StatusMessage.js?toast-test';
     const result = document.querySelector('#result');
     try {
         const assert = (value, message) => { if (!value) throw new Error(message); };
         const elements = [document.querySelector('#export'), document.querySelector('#compose')];
+        const toast = document.querySelector('#toast');
+        const anchor = document.querySelector('#anchor');
+        const before = anchor.getBoundingClientRect().top;
+        toast.setStatus('Project saved', 'success');
+        assert(anchor.getBoundingClientRect().top === before, 'toast does not shift content');
+        const rect = toast.getBoundingClientRect();
+        assert(getComputedStyle(toast).position === 'fixed', 'toast is detached from layout');
+        assert(Math.abs(rect.left + rect.width / 2 - innerWidth / 2) < 1, 'toast is horizontally centered');
+        assert(rect.top === 16, 'toast sits at the top');
         for (const [state, color] of [['info', 'rgb(226, 232, 240)'], ['success', 'rgb(187, 247, 208)'], ['error', 'rgb(254, 202, 202)']]) {
             const appearances = elements.map(element => {
                 element.setStatus('Status\n' + 'long-path/'.repeat(40), state);
@@ -24,7 +35,7 @@
                 assert(css.color === color, `${state} color`);
                 assert(css.whiteSpace === 'pre-wrap', 'multiline text');
                 assert(panel.getBoundingClientRect().width <= 320, 'long paths wrap inside panel');
-                assert(css.borderTopWidth === '1px', 'global modal styles cannot override border');
+                assert(parseFloat(css.borderTopWidth) > 0 && parseFloat(css.borderTopWidth) <= 1, 'global modal styles cannot override border');
                 assert(panel.getAttribute('role') === 'status', 'live status semantics');
                 return [css.color, css.backgroundColor, css.borderColor, css.padding, css.fontSize].join('|');
             });

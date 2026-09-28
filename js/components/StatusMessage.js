@@ -9,6 +9,20 @@ export class StatusMessage extends HTMLElement {
             <style>
                 :host { display: block; min-width: 0; white-space: normal; }
                 :host([hidden]), :host(:empty) { display: none; }
+                :host([toast]) {
+                    position: fixed;
+                    top: 16px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: max-content;
+                    max-width: min(520px, calc(100vw - 32px));
+                    z-index: 2147483647;
+                    --cap-status-max-height: min(240px, 40vh);
+                }
+                :host([toast]) .panel {
+                    border-radius: 8px;
+                    box-shadow: var(--cat-dialog-shadow, 0 6px 24px #0004);
+                }
                 .panel {
                     position: relative;
                     box-sizing: border-box;
@@ -50,6 +64,7 @@ export class StatusMessage extends HTMLElement {
         this.copyButton = this.shadowRoot.querySelector('cap-button');
         this.closeButton = this.shadowRoot.querySelector('.close');
         this.closeButton.addEventListener('click', () => {
+            clearTimeout(this._dismissTimer);
             this.setAttribute('dismissed', '');
             this.hidden = true;
             this.dispatchEvent(new CustomEvent('dismiss', { bubbles: true, composed: true }));
@@ -76,6 +91,7 @@ export class StatusMessage extends HTMLElement {
 
     disconnectedCallback() {
         clearTimeout(this._copyResetTimer);
+        clearTimeout(this._dismissTimer);
     }
 
     _setCopyState(state) {
@@ -91,11 +107,15 @@ export class StatusMessage extends HTMLElement {
     }
 
     setStatus(text, state = "info") {
+        clearTimeout(this._dismissTimer);
         this.removeAttribute('dismissed');
         this.textContent = String(text ?? "");
         this.setAttribute("state", ["success", "error", "warning"].includes(state) ? state : "info");
         this.hidden = !this.textContent;
         this._setCopyState();
+        if (this.hasAttribute('toast') && this.textContent && !['error', 'warning'].includes(state)) {
+            this._dismissTimer = setTimeout(() => { this.hidden = true; }, 3500);
+        }
     }
 }
 

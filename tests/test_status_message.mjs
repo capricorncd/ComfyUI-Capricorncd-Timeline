@@ -10,6 +10,8 @@ globalThis.HTMLElement = class {
     }
     setAttribute(name, value) { this.attributes.set(name, value); }
     getAttribute(name) { return this.attributes.get(name) ?? null; }
+    hasAttribute(name) { return this.attributes.has(name); }
+    removeAttribute(name) { this.attributes.delete(name); }
 };
 const registry = new Map();
 globalThis.customElements = { get: name => registry.get(name), define: (name, element) => registry.set(name, element) };
@@ -62,7 +64,28 @@ assert.equal(app.composeStatus.getAttribute('state'), 'error');
 appMethod('_setComposeStatus').call(app, '');
 appMethod('_setExportStatus').call(app, '');
 assert(app.composeStatus.hidden && newStatus.hidden);
-assert.equal((appSource.match(/<cap-status-message /g) || []).length, 4);
+assert.match(appSource, /<cap-status-message class="cat-te-launcher-status" toast closable/);
 const css = readFileSync(new URL('../js/cap_timeline_editor.css', import.meta.url), 'utf8');
 assert(!/\.cat-te-(export|compose)-status\.is-(error|ok)/.test(css), 'status visuals belong only to the component');
 console.log('Status component: registration, text safety, state transitions, visibility and both caller adapters passed');
+
+const originalTimeout = globalThis.setTimeout;
+const originalClear = globalThis.clearTimeout;
+const timers = new Map();
+globalThis.setTimeout = (fn, ms) => { const id = {}; timers.set(id, { fn, ms }); return id; };
+globalThis.clearTimeout = id => timers.delete(id);
+try {
+    status.setAttribute('toast', '');
+    status.setStatus('Saved', 'success');
+    assert.equal(timers.get(status._dismissTimer).ms, 3500);
+    const oldTimer = status._dismissTimer;
+    status.setStatus('Saved again', 'success');
+    assert(!timers.has(oldTimer), 'repeated messages reset dismissal');
+    timers.get(status._dismissTimer).fn();
+    assert(status.hidden);
+    status.setStatus('Failed', 'error');
+    assert(!status.hidden && !timers.has(status._dismissTimer), 'errors remain visible');
+    status.setStatus('Saved', 'success');
+    status.disconnectedCallback();
+    assert(!timers.has(status._dismissTimer));
+} finally { globalThis.setTimeout = originalTimeout; globalThis.clearTimeout = originalClear; }

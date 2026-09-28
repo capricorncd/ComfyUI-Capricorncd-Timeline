@@ -2,9 +2,27 @@
 
 Before adding or changing UI, follow the [UI design and acceptance guidelines](ui-guidelines.md) for hierarchy, spacing, prompt display and icon actions. This document describes component APIs and integration.
 
+## Export Directory
+
+`ExportDirectory.js` provides `<cap-export-directory>` for project, composition and Clip video/audio export. The header shows `label` (default: Export directory) and a launcher-only Choose/Change folder action; the directory field shows the full selected path or `default-dir` (default: output). `value` is the chosen directory, not the displayed fallback: empty means ComfyUI output. `disabled` controls export-time availability and `change` reports selection or reset. Cancel preserves selection; picker failures use the shared status component. `restore(projectDirectory)` prefers the imported project's directory, then the last successful export directory; `remember(directory)` stores it after success. Browser mode allows manual input without native picker actions. Project exports default to `output/cap_timeline_projects/`; remote browser project exports still use the browser save picker. Paths remain in the editor's private launcher session/localStorage, never graph nodes or exported JSON. Test with `tests/export_directory.browser.html`, `test_compose_settings.mjs`, and `test_clip_export.mjs`.
+
+```html
+<cap-export-directory default-dir="output/cap_timeline_compose/"></cap-export-directory>
+```
+
+The reflected JS property is `defaultDir`; `directory` resolves `value || defaultDir`. `exportSettings` maps absolute paths to `output_directory` and output-relative paths to `filename_prefix` for composition requests. The old separate prefix controls have been removed. `label` can override the localized default heading.
+
+Outside the launcher, the input is editable. Relative paths (including `output/...`) refer to ComfyUI output; absolute paths refer to the ComfyUI server's filesystem and are limited to local clients. Typing checks directory existence after 350 ms and shows missing-directory or connection errors below the field using the red status component. Call `await validate()` before export; false blocks submission. Unmodified defaults may be created by the export operation. The check never creates directories, and stale responses cannot replace the current input's feedback.
+
 ## Status message
 
+While the editor is visible and idle, associated project directories are checked every five seconds for changes to the active project JSON and its matching storyboard. External changes offer a shared confirmation dialog; accepting first saves current edits as `project.<timestamp>.<id>.json` and matching `storyboard.<timestamp>.<id>.json`, then reloads. Declining suppresses that revision only. Self-saves and automatic `.bak` files do not trigger the prompt. Directory imports with multiple `project*.json` files offer a shared dialog showing filenames and modification times, newest first; each version loads its own matching storyboard. Cancelling preserves the current project. Tests: `test_project_watch.mjs`, `test_launcher_project.mjs`, `test_launcher_project.py`.
+
+Project settings reuse the directory component with `project-directory`, `default-dir=""` and a localized Project directory label. This mode never restores an export preference and hides reset. Without a launcher bridge it allows manual input: `input` invalidates the old association, while committed `change` validates and associates the new directory. Clearing it stops disk saves. A stored workflow directory is re-associated when opening the editor; existing project files require confirmation before linking. Project saving and automatic backups work in both launcher and local browsers; only the native picker depends on the launcher. `project_directory` is saved in project files and workflow project widgets, including their restore mirrors. Session tokens remain private. Local same-origin backend restrictions remain in effect.
+
 Use `js/components/StatusMessage.js` for bordered operation-status messages. Project export and video composition both use this component.
+
+Add `toast` for global feedback that must not shift page content, such as project-save results. Toasts are fixed at the top center, constrained to the viewport, and keep the existing close button and live-region semantics. Success/info messages dismiss after 3.5 seconds; errors/warnings remain closable. Each new message replaces the old timer. Inline field validation stays in normal flow without `toast`.
 
 ```js
 import "./components/StatusMessage.js";
@@ -114,6 +132,8 @@ Global actions (confirm, cancel, export, run) belong in a direct child with `slo
 Drag the bottom-right grip to resize. The top-left stays fixed, and resizing is limited by both 80vw/80vh and available viewport space. Size is retained while the component exists; reopening still recenters it. Set `--cap-dialog-min-width` and `--cap-dialog-min-height` in pixels (defaults 320 × 160); smaller viewports take precedence over these minimums. Close uses the shared [Lucide X](https://lucide.dev/icons/x) SVG at 18px.
 
 The legacy media-preview dialog reuses `cap-dialog-resize-handle` and `bindDialogResize`, with a 640 × 360 minimum and the same 80vw/80vh maximum. Keep resize-grip styling in `Dialog.js`; do not duplicate it in editor CSS.
+
+In media preview, plain Left/Right browse adjacent assets even when a select (such as media type) is focused; prevent the native select action so its option stays unchanged. Up/Down and Enter retain native select behavior. Text inputs, editable text, tabs, modifier shortcuts and metadata subdialogs keep their own keyboard behavior. Test with `node tests/test_media_preview_keyboard.mjs`.
 
 | Dialog | Minimum width × height (px) |
 | --- | --- |
@@ -242,8 +262,25 @@ The media carousel accepts `allowLastFrame` and item `lastFrame` state; its bott
 
 ## Clip Prompt Skills
 
+H3 Auto Prompt Config selects `tail_name` directly and has no node-level enabled switch: Clip `auto_prompt` flags in `data_json` control generation. It outputs only `CAP_H3_AUTO_PROMPT_CONFIG`; connect it to H3 Video Generator, which executes automatic prompting with its own CLIP. There are no CLIP, data_json or tail_clip inputs and no standalone prompt generation node. Normal runs with a valid matching preview skip prompt generation before checking the tail or text generator; video refinement restores the saved preview snapshot. Missing/disabled/incompatible previews retain normal automatic generation. Explicit refinement and keyframe/long-video runs also skip text generation; new preview sampling still generates automatic prompts for ordinary Clips. Tests: `test_h3_shared_prompt.py`, `test_h3_drafts.py`.
+
+Preview-version cards select playback across the card surface, excluding checkbox and action controls. The playing card uses the accent outline. Confirmed deletion recycles its video, latent and manifest on Windows; other platforms fail without permanent deletion. Deleted IDs are excluded when restoring editor history, so Ctrl+Z cannot revive their associations. “Associate existing folder” uses `cap-export-directory` inside `cap-dialog` to read restored versions for the current Clip from the H3 draft root or a single version directory. It validates file containment and requires both video and latent. Test file operations with `test_h3_draft_files.py`; the browser fixture covers card selection and disabled previews.
+
 `PromptSkills.js` provides `<cap-prompt-skills>`. Call `configure(rows, disabled)` with `{id, name, text, enabled}` entries. It emits `skills-change` with copied `detail.rows`; the caller owns Clip binding, undo and project persistence. The component owns custom entry editing, enable switches, deletion, JSON export and atomic JSON/Markdown/TXT import. File contents are displayed as text. Preset selection remains in the existing Skill picker. Tests: `test_prompt_skills.mjs` and `test_h3_shared_prompt.py`.
 
 The timeline preview mode dropdown opens on hover. Its `bindMenu` uses `primaryAction` for direct clicks to switch Clip/generated video; ArrowDown opens the menu for keyboard users. The menu toggles preview-version playback without changing saved Clip modes or output associations. It plays the latest enabled preview per director Clip, capped to Clip duration, and keeps timeline audio tracks while excluding finished-video audio. Tests: `test_draft_playback.mjs`.
+
+Preview sampling management follows selected director Clips while open. Header arrows navigate director tracks in timeline order, select the target Clip, stop previous playback and reset the version selection. Boundary arrows are disabled; Clips without previews show the empty state. Non-director selections do not retarget it. Tests: `test_h3_draft_navigation.mjs`, `h3_drafts.browser.html`.
+
+Keyframe preview versions carry their parent Clip ID and `keyframe_segment` range/trim metadata. The manager sorts them by Clip-relative start time and displays interval, part and `mm:ss.ff`; Generate HD queues the current Clip through keyframe interval confirmation. Normal generation matches preview latents by segment range and fps. Preview playback uses the latest enabled take for each non-overlapping segment and trims continuation frames. Preview batches retain separate continuation chains. Tests: `test_h3_drafts.py`, `test_h3_keyframe_runs.py`, `test_h3_video_generator.py`, `test_draft_playback.mjs`.
+
+
+### Skill picker
+
+`cap-skill-picker` shares the searchable preview gallery between Clip prompt management and the H3 auto prompt configuration node. `show(apiURL, boundSkills)` opens it; `setSkills(rows)` refreshes the catalog; `skill-select` carries `detail.skill`. Apply remains caller-owned. The footer adds/imports/exports local custom Skills, including optional GIF/MP4/WebM previews. Custom files live in the plugin's ignored `user_skills/skills` directory. Export includes custom Skills and supplied Clip bindings; import adds library entries without changing Clip bindings. `close()` stops video playback.
+
+Verify with `tests/skill_picker.browser.html`, `node tests/test_prompt_skills.mjs`, and `test_h3_custom_skills.py`.
+
+Skill picker regression fixture also covers revealing and focusing the New Skill form from a scrolled gallery, and bubbling file-input cancellation. `cap-dialog` handles only its native dialog cancel event; cancelling an embedded file input does not close the dialog.
 
 `cap-select.setOptions([{value, label}], accessibleLabel)` creates and updates its native control internally, preserving a still-valid selection. Dynamic dialogs such as the project-version picker use this API instead of constructing unwrapped selects or duplicating control styles.

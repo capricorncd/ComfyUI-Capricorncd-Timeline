@@ -5,6 +5,10 @@ body {font: 14px system-ui; background: #10191d; color: #e4edeb; --cat-text: #e4
 pre {white-space: pre-wrap;}
 </style>
 <cap-button id="open">选择关键帧区间</cap-button><pre id="result"></pre>
+<script>
+window.addEventListener('error', event => { document.querySelector('#result').textContent = event.message; });
+window.addEventListener('unhandledrejection', event => { document.querySelector('#result').textContent = String(event.reason); });
+</script>
 <script type="module">
 import '../js/components/Dialog.js';
 import { iconHtml } from '../js/cap_icons.js';
@@ -14,7 +18,7 @@ const confirmKeyframeRun = new Function('makeT', 'iconHtml', source.replace(/^im
 const clip = {id: 'clip-1', name: '参考视频 · 100 个关键帧区间', startTime: 0, duration: 1000};
 const target = {start: 0, rate: 1, media: {id: 'video-1'}};
 const editor = {_overlay: document.body, getFps: () => 24, _ensureClipMeta: () => ({agent: 'MiniMaxH3'}),
-    _directorKeyframes: {target: () => target, points: () => Array.from({length: 100}, (_, index) => ({time: index * 10, description: `镜头 ${index + 1}`}))}};
+    _directorKeyframes: {target: () => target, points: () => Array.from({length: 100}, (_, index) => ({time: index * 10, description: `镜头 ${index + 1} · 清晨的江面与城市天际线，镜头缓缓向前移动，远处的建筑逐渐清晰。人物转身望向窗外，柔和的晨光照亮侧脸，保持自然的动作与表情。`}))}};
 document.querySelector('#open').onclick = async () => {
     const result = await confirmKeyframeRun(editor, [clip]);
     document.querySelector('#result').textContent = result ? JSON.stringify(result.keyframe_runs[0].intervals.map(row => row.start_frame / 240 + 1)) : 'Cancelled';

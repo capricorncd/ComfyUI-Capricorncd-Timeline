@@ -62,6 +62,20 @@ class DraftStorageTests(unittest.TestCase):
         self.data['fps'] = 30
         self.assertIsNone(self.scope['latest_draft'](self.data, self.row))
 
+    def test_segments_preserve_parent_timing_and_match_latent_by_range(self):
+        self.row.update(id='clip-1__kf1_2', source_clip_id='clip-1__kf1_2',
+            keyframe_segment=dict(clip_id='clip-1', start_frame=120, end_frame=240, fps=24, interval=1, part=2, parts=2),
+            h3_timing=dict(context_frames=22, context_carry_frames=3, raw_frames=141))
+        manifest = self.scope['save_draft']({'samples': torch.zeros(1, 2, 3)}, self.data, 0, 608, 352, 141, 'segment', 8)
+        version = self.scope['finish_draft'](manifest, 'preview.mp4')
+        self.assertEqual(version['clip_id'], 'clip-1')
+        self.assertEqual(version['keyframe_segment']['start_frame'], 120)
+        self.assertEqual(version['keyframe_segment']['trim_frames'], 19)
+        self.row['h3_drafts'] = [version]
+        self.assertEqual(self.scope['latest_draft'](self.data, self.row)[1]['id'], version['id'])
+        self.row['keyframe_segment'].update(start_frame=240, end_frame=360)
+        self.assertIsNone(self.scope['latest_draft'](self.data, self.row))
+
     def test_bad_ids_and_missing_versions_fail_explicitly(self):
         for version in ('../outside', '/tmp/file', 'C:\\file', '', None):
             with self.subTest(version=version), self.assertRaises(ValueError):

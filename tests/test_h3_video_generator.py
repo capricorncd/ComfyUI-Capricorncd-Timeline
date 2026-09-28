@@ -195,6 +195,18 @@ class GeneratorTests(unittest.TestCase):
             self.assertEqual(Path(target).read_bytes(), b"latent-test-bytes")
             self.assertFalse(original.exists())
 
+    def test_segmented_preview_batches_keep_continuation_order(self):
+        self.enable_drafts()
+        result = self.run_node([dict(id="a", start_ms=0, end_ms=25000, seed=10, clip_role="video_ref")],
+            h3_generation={"action": "draft"}, preview_sampling_batch=2)
+        videos = result["ui"]["clip_videos"]
+        self.assertEqual([v["keyframe_segment"]["start_frame"] for v in videos], [0, 200, 400, 0, 200, 400])
+        self.assertEqual([v["clip_id"] for v in videos], ["a"] * 6)
+        calls = [name for name, _ in self.calls]
+        self.assertEqual(calls.count("MiniMaxH3MotionContextLoadLatent"), 4)
+        self.assertEqual(self.scope["save_draft"].call_count, 6)
+        self.assertFalse(self.composed)
+
     def test_preview_batch_defaults_to_one(self):
         self.enable_drafts()
         self.run_node(h3_generation={"action": "draft"})

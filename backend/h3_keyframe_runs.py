@@ -45,7 +45,7 @@ def expand_keyframe_runs(data):
                 row = copy.deepcopy(clip)
                 cid = f"{parent}__kf{interval_number}_{part + 1}"
                 row.update(id=cid, source_clip_id=cid, start_ms=origin + round(begin * 1000 / fps),
-                           end_ms=origin + round(end * 1000 / fps), h3_drafts=[], save_latent=part + 1 < count,
+                           end_ms=origin + round(end * 1000 / fps), h3_drafts=copy.deepcopy(clip.get("h3_drafts", [])), save_latent=part + 1 < count,
                            h3_motion_context_length=22 if part else 0)
                 row["preview_start_ms"], row["preview_end_ms"] = row["start_ms"], row["end_ms"]
                 row.pop("playback_spans", None)
@@ -60,6 +60,8 @@ def expand_keyframe_runs(data):
                 stem, extension = clip["output_video"].rsplit(".", 1)
                 row["output_video"] = f"{stem}__kf{interval_number}_{part + 1}.{extension}"
                 row["prompt"] = prompt
+                row["auto_prompt"] = False
+                row.pop("h3_generated_prompt", None)
                 row["keyframe_segment"] = dict(clip_id=parent, start_frame=begin, end_frame=end, fps=fps,
                     interval=interval_number, part=part + 1, parts=count, prompt=prompt)
                 offset_start = row["start_ms"] - start_ms

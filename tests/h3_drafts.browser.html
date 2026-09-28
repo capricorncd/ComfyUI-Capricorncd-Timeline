@@ -18,9 +18,13 @@ const rows = [1, 2, 3].map((number) => ({id: String(number).repeat(32), file: nu
     prompt: 'summary: 黄昏的站台，少女停下脚步，回头望向远处。\n\n时间推进：\n0–2s：镜头缓慢推进，头发与衣角随风摆动。\n2–5s：人物回头，保持面部、服装和环境光一致。\n\n风格：暖色逆光，浅景深，稳定的电影镜头。'}));
 const meta = {h3Drafts: rows};
 const clip = {id: 'demo-director-clip', name: '镜头 03 · 站台回望', track: {type: 'image', locked: false}};
+const second = {id: 'second', name: '镜头 04 · 无预览', startTime: 4, track: clip.track};
+clip.startTime = 0;
 const calls = [];
-const editor = {_findClipById: id => id === clip.id ? clip : null, _ensureClipMeta: () => meta,
+const editor = {_overlay: root, _findClipById: id => [clip, second].find(row => row.id === id), _ensureClipMeta: target => target === second ? {h3Drafts: []} : meta,
+    _timeline: {tracks: [{type: "image", clips: [second, clip]}], selectClip(target) {view.followSelection(target);}},
     _outputVideoUrl: () => '', _revealOutput: async output => {calls.push(output);}, _recordUndo() {calls.push('undo');}, _saveToWidgets() {calls.push('save');},
+    _requestH3DraftFiles: async (action, body) => {calls.push({action, body}); return {ok: true, versions: rows};},
     _confirmDraftRemoval: async () => true, _runH3Stage: async (_clip, action) => {calls.push(action);}};
 const view = new H3DraftVersions(editor, root);
 const assert = (condition, message) => {if (!condition) throw Error(message);};
@@ -28,21 +32,41 @@ try {
     view.open(clip);
     assert(view.dialog.open && !view.dialog.hasAttribute('modal'), 'non-modal dialog');
     assert(view.dialog.querySelectorAll('.cat-te-h3-draft-row').length === 3, 'three versions');
-    const folder = view.dialog.querySelector('.cat-te-h3-draft-actions cap-button');
+    const folder = view.dialog.querySelector('.cat-te-h3-draft-row .cat-te-h3-draft-actions cap-button');
     folder.click();
     assert(calls.at(-1).filename === rows[0].file, 'opens the selected version output folder');
     assert(!calls.includes('undo') && !calls.includes('save'), 'opening folder does not edit project');
-    assert(view.dialog.querySelectorAll('.cat-te-h3-draft-actions')[1].firstElementChild.disabled, 'missing file disables folder action');
+    assert(view.dialog.querySelectorAll('.cat-te-h3-draft-row .cat-te-h3-draft-actions')[1].firstElementChild.disabled, 'missing file disables folder action');
     const disabled = view.dialog.querySelectorAll('.cat-te-h3-draft-row')[2];
     const checkbox = view.dialog.querySelectorAll('input[type=checkbox]')[1];
     checkbox.checked = false;
     checkbox.dispatchEvent(new Event('change', {bubbles: true}));
     assert(meta.h3Drafts[1].enabled === false, 'disabled preview');
-    assert(view.dialog.querySelectorAll('[slot=footer] cap-button').length === 1, 'batch preview action only');
+    assert(view.dialog.querySelectorAll('[slot=footer] cap-button').length === 3, 'association, preview and HD generation actions');
+    view.dialog.querySelectorAll('.cat-te-h3-draft-row')[2].click();
+    assert(view.previewId === rows[2].id, 'whole card selects even a disabled version');
+    assert(view.dialog.querySelectorAll('.cat-te-h3-draft-row')[2].classList.contains('is-playing'), 'playing card has a visible outline');
     meta.h3Drafts = rows;
     view.render();
+    const nav = view.dialog.querySelectorAll('[slot=title] cap-button');
+    assert(nav[0].disabled && !nav[1].disabled, 'navigation boundary');
+    nav[1].click();
+    assert(view.clipId === second.id && !view.dialog.querySelector('video'), 'next Clip clears previous video');
+    view.followSelection(clip);
+    assert(view.clipId === clip.id && view.dialog.querySelectorAll('.cat-te-h3-draft-row').length === 3, 'timeline selection follows Clip');
     const saved = JSON.parse(JSON.stringify(meta));
     assert(saved.h3Drafts.length === 3, 'serialized version state');
+    const undoCount = calls.filter(row => row === 'undo').length;
+    view.dialog.querySelector('.cat-te-h3-draft-row .cat-te-h3-draft-actions cap-button[variant=danger]').click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert(calls.some(row => row.action === 'delete' && row.body.id === rows[0].id), 'deletion requests recycling');
+    assert(meta.h3Drafts.length === 2 && editor._deletedH3DraftIds.has(rows[0].id), 'deleted version removed and excluded from history restoration');
+    assert(calls.filter(row => row === 'undo').length === undoCount, 'file deletion does not record undo');
+    view.associate(clip);
+    const association = root.querySelector('cap-dialog:not(.cat-te-h3-drafts)');
+    association.querySelector('[slot=footer] cap-button').click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert(meta.h3Drafts.length === 3 && !editor._deletedH3DraftIds.has(rows[0].id), 'manual association restores version eligibility');
     document.querySelector('#result').textContent = 'PASS · 非模态窗口、版本浏览、禁用隔离、批量预览入口、工程状态序列化';
 } catch (error) {
     document.querySelector('#result').textContent = 'FAIL · ' + error.stack;

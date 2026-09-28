@@ -50,11 +50,15 @@ def save_draft(latent, data, index, width, height, frame_count, prompt, steps):
     save_file(tensors, str(path / "latent.safetensors"))
     row = data["clips"][index]
     manifest = {"schema_version": 1, "id": version_id,
-                "clip_id": str(row.get("source_clip_id") or row["id"]),
+                "clip_id": str((row.get("keyframe_segment") or {}).get("clip_id") or row.get("source_clip_id") or row["id"]),
                 "source_output": row["output_video"],
                 "seed": row["seed"], "width": width, "height": height, "frames": frame_count,
                 "fps": data["fps"], "prompt": prompt, "steps": steps,
                 "data": copy.deepcopy(data), "index": index, "layout": layout}
+    if row.get("keyframe_segment"):
+        timing = row["h3_timing"]
+        manifest["keyframe_segment"] = {**row["keyframe_segment"], "output_fps": data["fps"],
+            "trim_frames": timing["context_frames"] - timing.get("context_carry_frames", 0), "raw_frames": frame_count}
     (path / "version.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
     return manifest
 
@@ -72,18 +76,22 @@ def finish_draft(manifest, filename):
     manifest["file"] = filename
     path = draft_directory(manifest["id"]) / "version.json"
     path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
-    return {key: manifest[key] for key in ("id", "clip_id", "source_output", "seed", "width", "height", "frames", "fps", "prompt", "file")}
+    return {key: manifest[key] for key in ("id", "clip_id", "source_output", "seed", "width", "height", "frames", "fps", "prompt", "file")} | ({"keyframe_segment": manifest["keyframe_segment"]} if manifest.get("keyframe_segment") else {})
 
 
 def restore_draft(data, version_id):
     manifest = read_draft(version_id)
     current = data["clips"]
-    if len(current) != 1 or str(current[0].get("source_clip_id") or current[0]["id"]) != manifest["clip_id"]:
+    if len(current) != 1 or str((current[0].get("keyframe_segment") or {}).get("clip_id") or current[0].get("source_clip_id") or current[0]["id"]) != manifest["clip_id"]:
         raise ValueError("Select a first-pass version belonging to this director Clip.")
     snapshot = copy.deepcopy(manifest["data"])
     row = snapshot["clips"][manifest["index"]]
     if snapshot["fps"] != data["fps"] or row["end_ms"] - row["start_ms"] != current[0]["end_ms"] - current[0]["start_ms"]:
         raise ValueError("Clip duration or project fps changed. Restore them or generate a new first-pass candidate.")
+    saved_segment = row.get("keyframe_segment") or {}
+    current_segment = current[0].get("keyframe_segment") or {}
+    if any(saved_segment.get(key) != current_segment.get(key) for key in ("clip_id", "start_frame", "end_frame", "fps")):
+        raise ValueError("Preview belongs to a different keyframe segment. Generate a matching candidate.")
     row["output_video"] = current[0]["output_video"]
     row["h3_refine_version"] = version_id
     snapshot.update(width=data["width"], height=data["height"], clips=[row])

@@ -200,7 +200,7 @@ class CAP_H3VideoGenerator:
         stage = request.get("action", "normal")
         if stage not in ("normal", "draft", "refine"):
             raise ValueError("Unknown H3 generation action.")
-        segmented = stage == "normal" and expand_keyframe_runs(data)
+        segmented = stage in ("normal", "draft") and expand_keyframe_runs(data)
         if segmented and not concat_full_videos:
             compose_final = False
         previews = {i: latest_draft(data, row) for i, row in enumerate(data["clips"]) if row.get("h3_drafts")} if stage == "normal" else {}
@@ -304,7 +304,7 @@ class CAP_H3VideoGenerator:
             if len(sigmas) < 2 or sigmas[-1] != 0 or any(not math.isfinite(v) or v < 0 for v in sigmas) or any(a <= b for a, b in zip(sigmas, sigmas[1:])):
                 raise ValueError("Refine sigmas must strictly decrease and end at 0.")
             required += ["MinimaxH3LatentUpscaler3D", "LTXVSeparateAVLatent", "LTXVConcatAVLatent", "ManualSigmas"]
-        if stage != "draft" and any(row.get("save_latent") for row in data["clips"]):
+        if (stage != "draft" or segmented) and any(row.get("save_latent") for row in data["clips"]):
             required += ["MiniMaxH3MotionContextSaveLatent", "MiniMaxH3MotionContextLoadLatent"]
         if audio_refine:
             required.append("H3AudioRefineSampler")
@@ -355,8 +355,8 @@ class CAP_H3VideoGenerator:
         source_data = copy.deepcopy(data) if stage == "draft" else None
         if stage == "draft":
             candidates = []
-            for row in data["clips"]:
-                for candidate in range(candidate_count):
+            for candidate in range(candidate_count):
+                for row in data["clips"]:
                     item = copy.deepcopy(row)
                     if candidate:
                         item["seed"] = (int(row["seed"]) + candidate) % (2**53) if int(row.get("seed", -1)) >= 0 else -1
@@ -403,9 +403,9 @@ class CAP_H3VideoGenerator:
                 seed = secrets.randbits(53)
             row["seed"] = seed
             previous = _context_source(row, data["clips"][:index])
-            prior_paths = context_paths.get(previous) if stage == "normal" else None
-            if previous and stage == "normal":
-                for prior in data["clips"][:index]:
+            prior_paths = context_paths.get(previous) if stage == "normal" or (stage == "draft" and segmented) else None
+            if previous and (stage == "normal" or (stage == "draft" and segmented)):
+                for prior in reversed(data["clips"][:index]):
                     if _clip_id(prior) == previous and prior.get("output_video"):
                         row["previous_output_video"] = prior["output_video"]
                         break
@@ -457,7 +457,7 @@ class CAP_H3VideoGenerator:
                     span["frame_count"] *= interpolation_multiplier
         if source_data is not None:
             for row in source_data["clips"]:
-                row["h3_drafts"] = [item["h3_draft"] for item in videos if item["clip_id"] == _clip_id(row)]
+                row["h3_drafts"] = [item["h3_draft"] for item in videos if item["clip_id"] == (row.get("keyframe_segment") or {}).get("clip_id", _clip_id(row))]
             data = source_data
         preview = videos[-1]
         composed_video = paths[0] if compose_final and len(paths) == 1 else ""
@@ -505,7 +505,7 @@ class CAP_H3VideoGenerator:
             motion_deblur = False
             face_refine_config = None
         del prepared, low_context
-        if stage == "draft":
+        if stage == "draft" and not row.get("keyframe_segment"):
             save_latent = False
         if motion_deblur and frame_count < 22:
             raise ValueError("Motion deblur needs at least 22 frames for MAINodes motion analysis. Lengthen the Clip or disable motion_deblur.")

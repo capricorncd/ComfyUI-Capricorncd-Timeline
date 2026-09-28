@@ -70,14 +70,21 @@ export async function confirmKeyframeRun(editor, clips) {
     const checks = [];
     for (const run of runs) {
         const heading = document.createElement('strong');
+        heading.className = 'cat-te-keyframe-run-heading';
         heading.textContent = clips.find(clip => String(clip.id) === run.clip_id).name || run.clip_id;
         body.append(heading);
         run.intervals.forEach(interval => {
             interval.number = checks.length + 1;
             const label = document.createElement('label');
+            label.className = 'cat-te-keyframe-interval';
             const input = document.createElement('input'); input.type = 'checkbox'; input.checked = true;
-            const text = document.createElement('span');
-            text.textContent = `${checks.length + 1}. ${(interval.start_frame / fps).toFixed(2)}–${(interval.end_frame / fps).toFixed(2)} s · ${t('parts', {count: Math.ceil((interval.end_frame - interval.start_frame) / Math.floor(10 * fps))})}`;
+            const text = document.createElement('span'); text.className = 'cat-te-keyframe-interval-content';
+            const header = document.createElement('span'); header.className = 'cat-te-keyframe-interval-header';
+            const number = document.createElement('span'); number.className = 'cat-te-keyframe-interval-number'; number.textContent = String(interval.number).padStart(2, '0');
+            const time = document.createElement('span'); time.textContent = `${(interval.start_frame / fps).toFixed(2)}–${(interval.end_frame / fps).toFixed(2)} s`;
+            const parts = document.createElement('span'); parts.className = 'cat-te-keyframe-interval-parts';
+            parts.textContent = t('parts', {count: Math.ceil((interval.end_frame - interval.start_frame) / Math.floor(10 * fps))});
+            header.append(number, time, parts); text.append(header);
             if (interval.prompt) { const prompt = document.createElement('small'); prompt.textContent = interval.prompt; text.append(prompt); }
             label.append(input, text); body.append(label); checks.push({input, run, interval});
         });

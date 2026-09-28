@@ -7397,13 +7397,22 @@ export class CapTimelineEditorApp {
         // Main-timeline resize no longer writes gen trim (see gen-edit modal).
     }
 
-    _draftPreviewVideo(meta, clip) {
-        const row = (meta.h3Drafts || []).find(row => row.enabled !== false && row.file);
-        if (!row) return null;
-        const seconds = Number(row.frames) / Number(row.fps);
-        return { id: `draft-${row.id}`, file: row.file, enabled: true, muted: true,
-            duration_sec: Math.min(clip.duration, seconds > 0 ? seconds : clip.duration),
-            trim_in_sec: 0, edit_start_sec: 0, playback_rate: 1 };
+    _draftPreviewVideos(meta, clip) {
+        const selected = [];
+        for (const row of meta.h3Drafts || []) {
+            if (row.enabled === false || !row.file) continue;
+            const part = row.keyframe_segment;
+            const start = part ? part.start_frame / part.fps : 0;
+            const end = part ? Math.min(clip.duration, part.end_frame / part.fps) : clip.duration;
+            if (end <= start || selected.some(gen => gen.edit_start_sec < end && gen.edit_start_sec + gen.trim_out_sec - gen.trim_in_sec > start)) continue;
+            const trim = part ? Math.max(0, (part.trim_frames || 0) / (part.output_fps || part.fps)) : 0;
+            const seconds = Number(row.frames) / Number(row.fps);
+            const duration = Math.min(end - start, seconds > trim ? seconds - trim : end - start);
+            selected.push({ id: `draft-${row.id}`, file: row.file, enabled: true, muted: true,
+                duration_sec: seconds, trim_out_sec: trim + duration,
+                trim_in_sec: trim, edit_start_sec: start, playback_rate: 1 });
+        }
+        return selected;
     }
 
     _toggleDraftPreview() {
@@ -17469,6 +17478,15 @@ export class CapTimelineEditorApp {
         return showCapConfirm(draftT("removed"), {title: draftT("remove"), confirmLabel: T("delete_btn"), cancelLabel: T("cancel_btn")});
     }
 
+    async _requestH3DraftFiles(action, body) {
+        const response = await fetch(api.apiURL(`/audio_keyframe_timeline/h3_draft_files/${action}`), {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || response.statusText);
+        return result;
+    }
+
     async _runH3Stage(clip, action) {
         if (!clip || !isDirectorTrackType(clip.track?.type) || clip.track?.locked) return;
         if (!this._hasH3VideoGeneratorDownstream()) { alert(draftT("unavailable")); return; }
@@ -17477,6 +17495,7 @@ export class CapTimelineEditorApp {
     }
 
     _receiveH3Draft(version) {
+        if (this._deletedH3DraftIds?.has(version.id)) return;
         if (this._destroyed || !this._isNodeOnLiveGraph() || !this._teNotifyBelongsHere(version.clip_id, version.source_output)) return;
         const parsed = this._parseProjectWidgetValue();
         const target = parsed.project?.tracks?.flatMap(track => track.clips || []).find(clip => clip.id === version.clip_id);
@@ -17527,9 +17546,10 @@ export class CapTimelineEditorApp {
     }
 
     async _queueClipsDownstream(clips, workflowPreview = null, h3Generation = null) {
-        if (!h3Generation && this._hasH3VideoGeneratorDownstream()) {
-            h3Generation = await confirmKeyframeRun(this, clips);
-            if (h3Generation === null) return false;
+        if ((!h3Generation || (["normal", "draft"].includes(h3Generation.action) && !h3Generation.keyframe_runs)) && this._hasH3VideoGeneratorDownstream()) {
+            const request = await confirmKeyframeRun(this, clips);
+            if (request === null) return false;
+            h3Generation = {...request, ...(h3Generation || {})};
             const excluded = new Set((h3Generation.keyframe_runs || []).filter(run => !run.intervals.length).map(run => run.clip_id));
             clips = clips.filter(clip => !excluded.has(String(clip.id)));
             if (!clips.length) return false;
@@ -18243,8 +18263,7 @@ export class CapTimelineEditorApp {
                 if (m.disabled || m.visible === false) continue;
                 const drafts = this._draftPreviewMode && !onlyClip && isDirectorTrackType(track.type);
                 if (isDirectorTrackType(track.type) && (drafts || onlyClip || this._clipUsesGeneratedPreview(m))) {
-                    const preview = drafts ? this._draftPreviewVideo(m, clip) : null;
-                    const gens = drafts ? (preview ? [preview] : []) : this._clipGeneratedVideos(m).filter((g) => g.enabled !== false);
+                    const gens = drafts ? this._draftPreviewVideos(m, clip) : this._clipGeneratedVideos(m).filter((g) => g.enabled !== false);
                     if (!gens.length) {
                         layers.push({ kind: "package", clip, meta: m, mediaTrack: false });
                         continue;
@@ -18691,6 +18710,7 @@ export class CapTimelineEditorApp {
             this._directorKeyframes?.clearSelection();
             this._selClips = selected ?? tl.getSelectedClips();
             this._syncSelectedClip();
+            this._h3DraftVersions?.followSelection(this._selClip);
             this._updateMediaPreviewInsertBtn();
             // Do not focus the overlay here: focus during clip mousedown aborts
             // the mouse sequence and can leave drag listeners stuck, which then
@@ -21213,6 +21233,11 @@ export class CapTimelineEditorApp {
         this._audioTrack = null;
 
         let project = this._migrateProjectDocument(snapshot.project || {});
+        for (const track of project.tracks || []) for (const clip of track.clips || []) {
+            const removed = (clip.h3_drafts || []).filter(row => this._deletedH3DraftIds?.has(row.id)).map(row => row.id);
+            if (removed.length) clip.h3_draft_removed = [...new Set([...(clip.h3_draft_removed || []), ...removed])];
+            clip.h3_drafts = (clip.h3_drafts || []).filter(row => !this._deletedH3DraftIds?.has(row.id));
+        }
         this._loadStoryboards(snapshot.storyboard);
         this._applyMediaCatalogFromProject(project);
         this.projectNameInput.value = String(project.name || T("untitled_project")).trim() || T("untitled_project");

@@ -1,5 +1,27 @@
 # Release notes / 更新记录
 
+## 0.17.27 — 2026-09-28
+
+### English
+
+- Add project directory saving, automatic backups, external-change detection and project version selection; share directory controls across project, video and audio exports.
+- Move H3 automatic prompting into video generation through H3 Auto Prompt Config, reuse the video node's CLIP, and output the actual sampling prompts.
+- Share the Prompt Skill picker between Clips and H3 configuration, with local custom Skills, import/export and optional previews.
+- Support keyframe interval preview versions, continuation across preview batches, timeline preview playback and navigation between director Clips. Preview deletion moves files to the Windows recycle bin; restored files can be associated again.
+- Use the shared select component for project versions, add status toasts, and fix media-preview arrow navigation and file-picker cancellation.
+- Change the project license to Apache 2.0; retain third-party license notices.
+- Restart ComfyUI and refresh the browser. Replace the previous standalone H3 prompt generator with H3 Auto Prompt Config connected to H3 Video Generator.
+
+### 简体中文
+
+- 新增项目目录保存、自动备份、外部修改检测和工程版本选择；项目、视频及音频导出共用目录组件。
+- H3 自动提示词通过“自动提示词配置”接入视频生成流程，复用视频节点的 CLIP，并输出实际采样提示词。
+- Clip 与 H3 配置共用 Prompt Skill 选择器，支持本地自定义 Skill、导入导出和可选预览。
+- 支持关键帧区间预览版本、批量预览续接、时间轴预览播放及导演 Clip 间切换。删除预览时将文件移入 Windows 回收站，手动恢复后可重新关联。
+- 工程版本选择改用公共下拉组件，新增状态浮层，修复素材预览方向键及文件选择器取消行为。
+- 项目许可证改为 Apache 2.0，保留第三方许可声明。
+- 更新后重启 ComfyUI 并刷新浏览器；将旧的独立 H3 提示词生成节点替换为连接视频生成节点的“H3 自动提示词配置”。
+
 ## 0.17.26 — 2026-09-27
 
 ### English

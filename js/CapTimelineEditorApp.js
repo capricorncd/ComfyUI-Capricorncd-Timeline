@@ -1244,7 +1244,8 @@ export class CapTimelineEditorApp {
         if (this.rawMetaModal && !this.rawMetaModal.hidden) return false;
         if (e.target?.closest?.("[role='tab']")) return false;
         if (this._mediaPreviewState?.browse === false) return false;
-        if (e.target?.closest?.("input, textarea, select")) return false;
+        if (e.target?.closest?.("input, textarea, [contenteditable='true']")) return false;
+        if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.isComposing) return false;
         if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return false;
         this._stepMediaPreview(e.key === "ArrowRight" ? 1 : -1);
         e.preventDefault();
@@ -5630,13 +5631,7 @@ export class CapTimelineEditorApp {
 
         el.addEventListener("keydown", e => {
             const typing = !!e.target?.closest?.("input, textarea, select, [contenteditable='true']");
-            if (this._blockingModal === this.mediaPreviewModal && this._mediaPreviewState?.browse !== false
-                && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !typing) {
-                this._stepMediaPreview(e.key === "ArrowRight" ? 1 : -1);
-                e.preventDefault();
-                e.stopPropagation();
-                return;
-            }
+            if (this._blockingModal === this.mediaPreviewModal && this.handleMediaPreviewKey(e)) return;
             if (this._blockingModal === this.genVideoModal && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !typing) {
                 this._stepGenVideoPreview(e.key === "ArrowRight" ? 1 : -1);
                 e.preventDefault();

@@ -12,15 +12,21 @@ class Element {
         return this.fields.get(key);
     }
     setStatus(text, state) { this.textContent = text; this.state = state; }
+    remember(value) { this.saved = value; }
+    restore(value = '') { this.value = value; }
+    validate() { return Promise.resolve(true); }
+    get exportSettings() { return this.value ? { output_directory: this.value } : { filename_prefix: 'cap_clip_exports/' }; }
     showModal() { this.open = true; }
     close() { this.open = false; }
 }
 const requests = [];
 let fail = false;
+let external = false;
 const api = { async fetchApi(path, options) {
     requests.push([path, JSON.parse(options.body)]);
     return { ok: !fail, json: async () => fail ? { error: 'Failed to encode' }
-        : { filename: 'clip.mp4', subfolder: 'cap_clip_exports', outputs: [{ filename: 'clip.mp4', subfolder: 'cap_clip_exports' }] } };
+        : { filename: 'clip.mp4', subfolder: 'cap_clip_exports', ...(external ? { reveal_token: 'selected-folder' } : {}),
+            outputs: [{ filename: 'clip.mp4', subfolder: 'cap_clip_exports' }] } };
 } };
 const { clipExportProject, ClipExport } = new Function('api', 'T', 'document', source.slice(source.indexOf('export function'))
     .replaceAll('export function', 'function').replaceAll('export class', 'class') + ';return {clipExportProject, ClipExport};')(
@@ -68,6 +74,15 @@ assert.equal(field('cap-status-message').state, 'success');
 assert.equal(ui.dialog.closeDisabled, false);
 await field('[data-folder-open]').onclick();
 assert.equal(requests.at(-1)[0], '/audio_keyframe_timeline/reveal_output');
+external = true;
+field('cap-export-directory').value = 'D:/selected';
+await field('[data-export]').onclick();
+assert.equal(requests.at(-1)[1].output_directory, 'D:/selected');
+assert.equal(field('cap-export-directory').disabled, false);
+assert.equal(field('cap-export-directory').saved, 'D:/selected');
+await field('[data-folder-open]').onclick();
+assert.deepEqual(requests.at(-1), ['/audio_keyframe_timeline/reveal_export', { reveal_token: 'selected-folder' }]);
+external = false;
 ui.open(project, 'director');
 assert.equal(field('[data-video]').checked, true);
 assert.equal(field('[data-audio]').checked, false);

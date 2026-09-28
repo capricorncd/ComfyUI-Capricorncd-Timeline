@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Export directory regression</title>
+<style>
+body { font: 14px sans-serif; background: #fff; color: #222; margin: 24px; }
+section { max-width: 480px; margin-bottom: 24px; --cat-text: #222; --cat-muted: #555; --cat-bg: #fff; --cat-field: #fff; --cat-border: #bbb; }
+.dark { padding: 20px; background: #15191c; --cat-text: #eee; --cat-muted: #aaa; --cat-bg: #15191c; --cat-field: #15191c; --cat-border: #555; }
+.narrow { max-width: 260px; }
+</style>
+<script type="importmap">{"imports":{"../../scripts/app.js":"data:text/javascript,export const app={extensionManager:{setting:{get:()=> 'zh'}}};","../../scripts/api.js":"data:text/javascript,export const api={fetchApi:async(url,options)=>({ok:true,json:async()=>({exists:!JSON.parse(options.body).directory.includes('missing')})})};"}}</script>
+<section><cap-export-directory id="light"></cap-export-directory></section>
+<section class="dark"><cap-export-directory id="dark"></cap-export-directory></section>
+<section class="narrow"><cap-export-directory default-dir="output/cap_timeline_compose/"></cap-export-directory></section>
+<section id="browser"></section>
+<section><cap-export-directory id="project" project-directory default-dir="" label="项目所在目录"></cap-export-directory></section>
+<pre id="result">RUNNING</pre>
+<script type="module">
+let next = 'D:/exports/long project directory/final videos';
+window.__COMFYUI_LAUNCHER__ = { capabilities: { projectDirectory: true }, pickDirectory: async () => next };
+const { lastExportDirectory } = await import('../js/components/ExportDirectory.js');
+    const field = document.querySelector('#light');
+const assert = (value, message) => { if (!value) throw new Error(message); };
+try {
+    const projectField = document.querySelector('#project');
+    assert(projectField.value === '' && projectField.input.value === '', 'unassociated projects do not inherit export directory');
+    assert(projectField.reset.hidden && projectField.input.readOnly, 'project association requires explicit native selection');
+    assert(field.value === lastExportDirectory(), 'restore after page reload');
+    await field.pick();
+    assert(field.value === next, 'selected path');
+    next = null;
+    await field.pick();
+    assert(field.value.includes('final videos'), 'cancel preserves path');
+    window.__COMFYUI_LAUNCHER__.pickDirectory = async () => { throw new Error('Picker unavailable'); };
+    await field.pick();
+    assert(!field.disabled && field.status.textContent.includes('Picker unavailable'), 'failure feedback');
+    field.reset.click();
+    assert(field.value === '', 'reset default');
+    field.setAttribute('default-dir', 'output/cap_timeline_compose/');
+    assert(field.input.value === 'output/cap_timeline_compose/', 'default path is displayed, not submitted');
+    field.defaultDir = 'output/custom/';
+    assert(field.getAttribute('default-dir') === 'output/custom/' && field.input.value === 'output/custom/', 'JS property reflects and updates default directory');
+    field.restore('D:/imported/project');
+    assert(field.value === 'D:/imported/project', 'import directory overrides remembered export');
+    assert(field.choose.textContent === '更改目录', 'selected path changes action label');
+    field.value = 'D:/exports/long project directory/final videos';
+    document.querySelector('#dark').value = field.value;
+    field.disabled = true;
+    assert(field.choose.disabled && field.reset.disabled, 'disable while exporting');
+    field.disabled = false;
+    field.remember();
+    const restored = document.createElement('cap-export-directory');
+    document.body.append(restored);
+    assert(restored.value === field.value, 'new instance restores successful directory');
+    restored.remove();
+    field.value = 'D:/cancelled-selection';
+    field.restore();
+    assert(field.value.includes('final videos'), 'unsaved selection does not replace last export');
+    const bridge = window.__COMFYUI_LAUNCHER__;
+    delete window.__COMFYUI_LAUNCHER__;
+    const browserProject = document.createElement('cap-export-directory');
+    browserProject.setAttribute('project-directory', '');
+    browserProject.setAttribute('default-dir', '');
+    document.querySelector('#browser').append(browserProject);
+    assert(!browserProject.input.readOnly && browserProject.value === '', 'browser project directory is editable and starts empty');
+    let edits = 0, commits = 0;
+    browserProject.addEventListener('input', () => edits++);
+    browserProject.addEventListener('change', () => commits++);
+    browserProject.input.value = 'D:/existing';
+    browserProject.input.dispatchEvent(new Event('input', { bubbles: true }));
+    assert(edits === 1 && commits === 0, 'typing invalidates session without associating each keystroke');
+    browserProject.input.dispatchEvent(new Event('change', { bubbles: true }));
+    assert(commits === 1, 'committing input requests association');
+    browserProject.remove();
+    const browser = document.createElement('cap-export-directory');
+    browser.setAttribute('default-dir', 'output/cap_clip_exports/');
+    document.querySelector('#browser').append(browser);
+    assert(!browser.hidden && browser.value === '' && browser.input.value === 'output/cap_clip_exports/', 'browser displays output without leaking remembered native path');
+    assert(browser.choose.hidden && browser.reset.hidden, 'browser has no native actions');
+    assert(!browser.input.readOnly, 'browser directory can be typed');
+    assert(browser.exportSettings.filename_prefix === 'cap_clip_exports', 'default directory drives request');
+    browser.input.value = 'output/missing';
+    browser.input.dispatchEvent(new Event('input', { bubbles: true }));
+    assert(!await browser.validate() && browser.status.textContent.includes('目录不存在'), 'missing folder blocks export with inline error');
+    browser.input.value = 'output/existing';
+    browser.input.dispatchEvent(new Event('input', { bubbles: true }));
+    assert(await browser.validate() && browser.status.hidden, 'existing directory clears error');
+    assert(browser.exportSettings.filename_prefix === 'existing', 'typed relative directory maps to output');
+    browser.value = 'D:/existing';
+    assert(browser.exportSettings.output_directory === 'D:/existing', 'absolute directory is not a prefix');
+    browser.value = 'output';
+    assert(browser.exportSettings.filename_prefix === '/', 'output root stays root');
+    browser.value = 'output/missing';
+    await browser.validate();
+    window.__COMFYUI_LAUNCHER__ = bridge;
+    document.querySelector('#result').textContent = 'PASS: select, cancel, reset, failure, busy, light/dark, persistent directory';
+} catch (error) { document.querySelector('#result').textContent = 'FAIL: ' + error.message; throw error; }
+</script>
+</html>

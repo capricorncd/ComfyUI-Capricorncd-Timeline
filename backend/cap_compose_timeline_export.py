@@ -957,14 +957,22 @@ def resolve_compose_output_path(
     project_name: str,
     filename: str | None = None,
     extension: str = "mp4",
+    output_directory: str | None = None,
 ) -> tuple[str, str, str]:
-    """Return (output_filename, subfolder_ui, absolute_path) under ComfyUI output."""
+    """Resolve a file in ComfyUI output, or directly in a selected local directory."""
     if extension not in ("mp4", "mp3", "wav"):
         raise ValueError(f"Unsupported export format: {extension}")
     output_dir = os.path.abspath(folder_paths.get_output_directory())
     raw = str(filename_prefix or "").strip().replace("\\", "/") or DEFAULT_COMPOSE_PREFIX
     # Prefix is relative to output (folder path). Trailing slash optional.
     subfolder = raw.strip("/")
+    if output_directory:
+        if not os.path.isabs(output_directory) or output_directory.startswith(("\\\\", "//")):
+            raise ValueError("Export directory must be an absolute local path")
+        output_dir = os.path.realpath(output_directory)
+        if output_dir.startswith(("\\\\", "//")) or not os.path.isdir(output_dir):
+            raise ValueError("Export directory must be an existing local directory")
+        subfolder = ""
 
     leaf = str(filename or "").strip().replace("\\", "/")
     leaf = os.path.basename(leaf)
@@ -975,10 +983,15 @@ def resolve_compose_output_path(
         leaf = os.path.splitext(build_compose_filename(project_name))[0] + f".{extension}"
 
     full_folder = output_dir if not subfolder else os.path.join(output_dir, *subfolder.split("/"))
-    full_folder = _safe_under_output(full_folder)
+    if not output_directory:
+        full_folder = _safe_under_output(full_folder)
     os.makedirs(full_folder, exist_ok=True)
     output_path = os.path.join(full_folder, leaf)
-    output_path = _safe_under_output(output_path)
+    if output_directory:
+        if os.path.commonpath([output_dir, os.path.realpath(output_path)]) != output_dir:
+            raise ValueError("Export file leaves the selected directory")
+    else:
+        output_path = _safe_under_output(output_path)
     subfolder_ui = subfolder.replace("\\", "/") if subfolder else ""
     return leaf, subfolder_ui, output_path
 
@@ -995,6 +1008,7 @@ def compose_to_output(
     export_audio: bool = False,
     audio_format: str = "wav",
     output_fps: float | None = None,
+    output_directory: str | None = None,
 ) -> dict:
     if type(export_video) is not bool or type(export_audio) is not bool:
         raise ValueError("Video and audio selections must be booleans")
@@ -1006,7 +1020,7 @@ def compose_to_output(
     outputs = []
     for extension in (["mp4"] if export_video else []) + ([audio_format] if export_audio else []):
         leaf, subfolder, path = resolve_compose_output_path(
-            filename_prefix or DEFAULT_COMPOSE_PREFIX, project_name, filename, extension,
+            filename_prefix or DEFAULT_COMPOSE_PREFIX, project_name, filename, extension, output_directory,
         )
         outputs.append({"filename": leaf, "subfolder": subfolder, "output_path": path})
     primary = outputs[0]

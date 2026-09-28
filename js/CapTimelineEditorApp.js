@@ -11,6 +11,7 @@ import { openInsertClip } from './editor/InsertClip.js';
 import "./components/TabButton.js";
 import "./components/Slider.js";
 import "./components/ExportRange.js";
+import "./components/ExportDirectory.js";
 import "./components/MediaCarousel.js";
 import { AgentSettings } from "./editor/AgentSettings.js";
 import "./components/StatusMessage.js";
@@ -23,6 +24,7 @@ import { FontCatalog } from "./editor/FontCatalog.js";
 import { previewSeedValue, workflowPreviewSeed } from "./editor/PreviewSeed.js";
 import { TimelineHistory } from "./editor/TimelineHistory.js";
 import { ReferenceProject, referenceT } from "./editor/ReferenceProject.js";
+import { launcherProjectFor, launcherT, chooseProjectVersion, confirmProjectUpdate } from "./editor/LauncherProject.js";
 import { StoryboardPage, normalizeStoryboards, storyboardT } from "./editor/StoryboardPage.js";
 import { parseStoryboardDocument, buildStoryboardDocument } from "./editor/StoryboardDocument.js";
 import { FontPicker } from "./editor/FontPicker.js";
@@ -812,6 +814,7 @@ export class CapTimelineEditorApp {
 
     constructor(node) {
         this.node = node;
+        this._launcherProject = launcherProjectFor(node, path => api.apiURL(path));
         this._destroyed = false;
         this._meta = new Map();
         this._trackInfo = new Map();
@@ -1131,6 +1134,13 @@ export class CapTimelineEditorApp {
      */
     handleShortcutKey(e) {
         if (!this._overlay?.classList.contains("open")) return false;
+        if (this._launcherProject && (this._launcherProject.session || this.projectDirectoryField?.value) && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && this._shortcutModKey(e) === "s") {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation?.();
+            if (!e.repeat) void this._saveLauncherProject(false);
+            return true;
+        }
         if (this._storyboardMode && e.target?.closest?.(".cat-te-storyboard, .cat-te-storyboard-settings")
             && !((e.ctrlKey || e.metaKey) && ["z", "y"].includes(this._shortcutModKey(e)))) {
             e.stopPropagation();
@@ -1323,6 +1333,53 @@ export class CapTimelineEditorApp {
         this._updatePromptPanel();
         this._startAutoSave();
         this._scheduleProgramPreview();
+        if (this._projectDirectory && !this._launcherProject.session) void this._associateProjectDirectory();
+    }
+
+    async _checkProjectDirectoryUpdate() {
+        const session = this._launcherProject?.session;
+        if (!session || this._projectWatchBusy || this._projectDirectoryBusy || document.hidden
+            || !this._overlay?.classList.contains("open") || !this._canCreateProject()) return;
+        const openGen = this._openGen;
+        const current = () => !this._destroyed && this._openGen === openGen && this._launcherProject.session === session;
+        this._projectWatchBusy = true;
+        let reloading = false;
+        let revision;
+        try {
+            const status = await this._launcherProject.request('status', {token: session.token});
+            revision = status.revision;
+            if (!current() || !status.changed || !status.exists || session.seenRevision === status.revision) return;
+            if (!this._canCreateProject()) return;
+            const confirmed = await confirmProjectUpdate(this._overlay);
+            if (!current()) return;
+            if (!confirmed) { session.seenRevision = status.revision; return; }
+            if (!this._canCreateProject()) return;
+            reloading = true;
+            await this._launcherProject.pending;
+            if (!current()) return;
+            const backup = await this._launcherProject.request('snapshot', {
+                token: session.token, project: this._buildProject(), storyboard: this._buildStoryboardDocument(),
+            });
+            if (!current()) return;
+            if (backup?.missing?.length) throw new Error(launcherT('missing'));
+            const opened = await this._launcherProject.request('open', {directory: session.directory, filename: session.filename || 'project.json'});
+            if (!current()) return;
+            opened.project.project_directory = opened.directory;
+            await this._applyImportedProject(opened.project, opened.warnings, opened.storyboard);
+            if (this._destroyed || this._openGen !== openGen) return;
+            this._launcherProject.reset({token: opened.token, directory: opened.directory, filename: opened.filename});
+            this._projectDirectory = opened.directory;
+            if (this.projectDirectoryField) this.projectDirectoryField.value = opened.directory;
+            this._saveToWidgets();
+            this._openedProjectJson = this._editorContentJson();
+        } catch (error) {
+            if (!this._destroyed && this._openGen === openGen && reloading) {
+                session.seenRevision = revision;
+                this._launcherStatus?.setStatus(`${launcherT('reloadFailed')}: ${error.message}`, 'error');
+            }
+        } finally {
+            this._projectWatchBusy = false;
+        }
     }
 
     _getAutosaveIntervalSec() {
@@ -1338,9 +1395,12 @@ export class CapTimelineEditorApp {
             this._autoSaveTimer = setTimeout(tick, this._getAutosaveIntervalSec() * 1000);
         };
         this._autoSaveTimer = setTimeout(tick, this._getAutosaveIntervalSec() * 1000);
+        this._projectWatchTimer = setInterval(() => void this._checkProjectDirectoryUpdate(), 5000);
     }
 
     _stopAutoSave() {
+        clearInterval(this._projectWatchTimer);
+        this._projectWatchTimer = null;
         if (this._autoSaveTimer) {
             clearTimeout(this._autoSaveTimer);
             this._autoSaveTimer = null;
@@ -1349,6 +1409,7 @@ export class CapTimelineEditorApp {
 
     _autoSaveIfDirty() {
         if (!this._timeline || !this._historyReady) return;
+        if (this._launcherProject?.session) void this._saveLauncherProject(true);
         if (!this._hasUnsavedChanges()) return;
         this._saveToWidgets();
         this._openedProjectJson = this._editorContentJson();
@@ -1363,12 +1424,90 @@ export class CapTimelineEditorApp {
         return JSON.stringify({ project: this._buildProject(), storyboard: this._buildStoryboardDocument() });
     }
 
+    async _saveLauncherProject(backup) {
+        if (!this._timeline || !this._timelineReady || !this._historyReady) return;
+        if (!this._launcherProject?.session) {
+            if (backup) return;
+            if (this._launcherProject && this.projectDirectoryField?.value) {
+                await this._associateProjectDirectory();
+                if (!this._launcherProject.session) return;
+            } else {
+                this._openExportDialog();
+                return;
+            }
+        }
+        const session = this._launcherProject.session;
+        try {
+            if (this._storyboardLoadError) throw this._storyboardLoadError;
+            this._saveToWidgets();
+            const workflow = backup ? null : this._exportWorkflowSnapshot();
+            const result = await this._launcherProject.save(this._buildProject(), this._buildStoryboardDocument(), backup, workflow);
+            if (!result || this._launcherProject.session !== session) return;
+            if (this._launcherSaveError) this._launcherStatus?.setStatus("");
+            this._launcherSaveError = false;
+            if (!backup || result.missing?.length) this._launcherStatus?.setStatus(
+                result.missing?.length ? `${launcherT("missing")}: ${result.missing.join(", ")}` : launcherT("saved"),
+                result.missing?.length ? "error" : "success");
+        } catch (error) {
+            if (this._launcherProject.session === session) {
+                this._launcherSaveError = true;
+                this._launcherStatus?.setStatus(`${launcherT(backup ? "backupFailed" : "failed")}: ${error.message}`, "error");
+            }
+        }
+    }
+
+    async _associateProjectDirectory() {
+        if (!this._launcherProject || this._projectDirectoryBusy) return;
+        const field = this.projectDirectoryField;
+        if (!field.value.trim()) {
+            this._launcherProject.reset();
+            this._projectDirectory = '';
+            this._saveToWidgets();
+            return;
+        }
+        if (this._launcherProject.session?.directory === field.value) return;
+        const previous = this._launcherProject.session;
+        const openGen = this._openGen;
+        this._projectDirectoryBusy = true;
+        field.disabled = true;
+        try {
+            if (!await field.validate()) return;
+            const linked = await this._launcherProject.request('associate', { directory: field.value });
+            if (this._destroyed || this._openGen !== openGen || this._launcherProject.session !== previous) return;
+            if (linked.existing && !confirm(launcherT('associateConfirm'))) {
+                field.value = previous?.directory || this._projectDirectory || '';
+                return;
+            }
+            this._launcherProject.reset({ token: linked.token, directory: linked.directory });
+            this._projectDirectory = linked.directory;
+            field.value = linked.directory;
+            this._saveToWidgets();
+        } catch (error) {
+            if (!this._destroyed && this._openGen === openGen && this._launcherProject.session === previous) {
+                field.value = previous?.directory || this._projectDirectory || '';
+                field.setStatus(error.message, 'error');
+            }
+        } finally {
+            field.disabled = false;
+            this._projectDirectoryBusy = false;
+        }
+    }
+
+    async _openLauncherProjectFolder() {
+        try {
+            await this._launcherProject.reveal();
+        } catch (error) {
+            this._launcherStatus?.setStatus(`${launcherT("openFailed")}: ${error.message}`, "error");
+        }
+    }
+
     close() {
         if (!this._overlay) return;
         this._closeInternal(true);
     }
 
     _closeInternal(save) {
+        if (save && this._launcherProject?.session) void this._saveLauncherProject(true);
         this._referenceProject?.dialog.close();
         this._videoTrim?.stop();
         this._h3DraftVersions?.dialog.close();
@@ -1547,6 +1686,9 @@ export class CapTimelineEditorApp {
     }
 
     _openExportDialog() {
+        if (!this._projectExportBusy) {
+            this.exportDialog.querySelector(".cat-te-export-directory").restore(this._launcherProject?.session?.directory);
+        }
         if (!this._projectExportBusy) this._resetProjectExport();
         this.exportDialog.showModal();
     }
@@ -1625,7 +1767,7 @@ export class CapTimelineEditorApp {
         return this._timelineReady && !this._destroyed
             && !this._runAllClipsBusy && !this._runningPromptId && !this._pendingGeneratedJobs.length
             && !this._modelPreviewRunning && !this._aiOptimizeBusy
-            && !this._composeBusy && !this._projectExportBusy && !this._fileDropBusy;
+            && !this._composeBusy && !this._projectExportBusy && !this._fileDropBusy && !this._projectImportBusy;
     }
 
     async _newProject() {
@@ -1658,6 +1800,7 @@ export class CapTimelineEditorApp {
         // Reuse editor teardown so previews, audio, selection and floating dialogs
         // cannot retain references to the previous project.
         this._closeInternal(false);
+        this._launcherProject?.reset();
         this._history.clear();
         this._genVideoStamp = null;
         this._runtimeOnlyClipIds = null;
@@ -2611,6 +2754,7 @@ export class CapTimelineEditorApp {
     async _applyImportedProject(project, warnings = [], storyboard = null) {
         const document = parseStoryboardDocument(storyboard, project.storyboards);
         project = this._validateImportedProject(project);
+        this._launcherProject?.reset();
         this._historyReady = false;
         this._stopAudioPlayback();
         this._timeline?.destroy();
@@ -2721,24 +2865,28 @@ export class CapTimelineEditorApp {
     }
 
     async _runProjectExport({ format, includeWorkflow = true, includeGenerated = true, includeUnused = false }) {
-        if (this._projectExportBusy) return;
+        if (this._projectExportBusy || this._projectImportBusy) return;
         this._projectExportBusy = true;
         this.exportDialog.closeDisabled = true;
-        const controls = this.exportDialog.querySelectorAll("input, cap-button, cap-radio-group");
+        const controls = this.exportDialog.querySelectorAll("input, cap-button, cap-radio-group, cap-export-directory");
         controls.forEach(control => { control.disabled = true; });
         this._resetProjectExport();
         this._setExportStatus(T(format === "zip" ? "export_zip_packing" : "export_directory_saving"));
         try {
-            const directory = this.exportDialog.querySelector(".cat-te-export-directory").value.trim();
-            if (!directory) {
+            const directoryField = this.exportDialog.querySelector(".cat-te-export-directory");
+            if (!await directoryField.validate()) { this._setExportStatus(""); return; }
+            let directory = directoryField.value.trim();
+            if (!directory && !["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname)) {
                 await this._exportProjectInBrowser({ format, includeWorkflow, includeGenerated, includeUnused });
                 return;
             }
+            directory = directoryField.directory;
             const workflow = includeWorkflow ? this._exportWorkflowSnapshot() : null;
             const response = await fetch(api.apiURL("/audio_keyframe_timeline/export_save"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ project: this._buildExportProject(includeUnused), storyboard: this._buildStoryboardDocument(), directory, format, workflow, include_generated: includeGenerated }),
+                body: JSON.stringify({ project: this._buildExportProject(includeUnused), storyboard: this._buildStoryboardDocument(), directory, format, workflow, include_generated: includeGenerated,
+                    ...(this._launcherProject ? { launcher: true } : {}) }),
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || T("export_prepare_failed"));
@@ -2749,6 +2897,11 @@ export class CapTimelineEditorApp {
             });
             this._setExportStatus(message, missing.length ? "error" : "ok");
             this._projectExportSaved(data.reveal_token);
+            this.exportDialog.querySelector(".cat-te-export-directory").remember(directory);
+            if (data.project_token && this._launcherProject && !this._launcherProject.session) {
+                this._launcherProject.reset({ token: data.project_token, directory: data.path });
+                if (this.projectDirectoryField) this.projectDirectoryField.value = data.path;
+            }
         } catch (error) {
             this._setExportStatus(T("export_failed", { msg: error instanceof Error ? `${error.name}: ${error.message}` : String(error) }), "error");
         } finally {
@@ -2849,7 +3002,7 @@ export class CapTimelineEditorApp {
 
     _composeExportSettings() {
         return {
-            filename_prefix: this.composePrefixInput?.value || "cap_timeline_compose/",
+            ...(this.composeDirectory?.exportSettings || { filename_prefix: "cap_timeline_compose/" }),
             filename: this.composeFilenameInput?.value || "",
             output_resolution: this.composeResolutionSelect?.value || "project",
             export_quality: this.composeQualitySelect?.value || "maximum",
@@ -2886,9 +3039,7 @@ export class CapTimelineEditorApp {
 
     _openComposeModal() {
         if (!this.composeModal) return;
-        if (this.composePrefixInput && !String(this.composePrefixInput.value || "").trim()) {
-            this.composePrefixInput.value = "cap_timeline_compose/";
-        }
+        this.composeDirectory?.restore(this._launcherProject?.session?.directory);
         if (this.composeFilenameInput) this.composeFilenameInput.value = this._composeDefaultFilename();
         if (this.composeResolutionSelect) this.composeResolutionSelect.value = "project";
         if (this.composeQualitySelect) this.composeQualitySelect.value = "maximum";
@@ -2966,9 +3117,10 @@ export class CapTimelineEditorApp {
             || (this.composeVideoCheck?.checked === false && !this.composeAudioCheck?.checked)
             || this.composeRange?.totalFrames === 0) return;
         if (this.composeVideoCheck?.checked !== false && this.composeFpsInput && !this.composeFpsInput.reportValidity()) return;
-        let filenamePrefix = String(this.composePrefixInput?.value || "").trim() || "cap_timeline_compose/";
-        filenamePrefix = filenamePrefix.replace(/\\/g, "/");
-        if (this.composePrefixInput) this.composePrefixInput.value = filenamePrefix;
+        if (this._composeValidating) return;
+        this._composeValidating = true;
+        try { if (this.composeDirectory && !await this.composeDirectory.validate()) return; }
+        finally { this._composeValidating = false; }
 
         let filename = String(this.composeFilenameInput?.value || "").trim();
         if (!filename) filename = this._composeDefaultFilename();
@@ -2983,6 +3135,7 @@ export class CapTimelineEditorApp {
         const project = this._buildProject();
         this._composeSubmittedSettings = JSON.parse(JSON.stringify(this._composeExportSettings()));
         this._composeBusy = true;
+        if (this.composeDirectory) this.composeDirectory.disabled = true;
         this.composeModal.closeDisabled = true;
         if (this.composeRunBtn) this.composeRunBtn.disabled = true;
         this._setComposeStatus(T("composing_please_wait"));
@@ -2997,17 +3150,18 @@ export class CapTimelineEditorApp {
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || T("compose_failed_http", { status: response.status }));
+            this.composeDirectory?.remember(this._composeSubmittedSettings.output_directory || "");
 
             const outName = data.filename || filename;
             const sub = String(data.subfolder || "").replace(/^\/+|\/+$/g, "");
             const rel = (data.outputs || [{ filename: outName, subfolder: sub }])
-                .map(item => item.subfolder ? `${item.subfolder}/${item.filename}` : item.filename).join("\n");
-            this._lastComposeOutput = { filename: outName, subfolder: sub };
+                .map(item => item.path || (item.subfolder ? `${item.subfolder}/${item.filename}` : item.filename)).join("\n");
+            this._lastComposeOutput = data.reveal_token ? { reveal_token: data.reveal_token } : { filename: outName, subfolder: sub };
             this._composeDone = true;
             if (this.composeRunBtn) this.composeRunBtn.textContent = T("open_folder_btn");
             const encoding = data.encoding_mode === "copy" ? T("compose_used_copy")
                 : data.fallback_reason ? T("compose_used_fallback") : T("compose_used_encode");
-            this._setComposeStatus(T("saved_to_output", { rel })
+            this._setComposeStatus((this._composeSubmittedSettings.output_directory ? T("export_saved_path", { path: rel }) : T("saved_to_output", { rel }))
                 + (this._composeSubmittedSettings.export_video ? "\n" + encoding : ""), { ok: true });
         } catch (error) {
             if (error?.name === "AbortError") {
@@ -3017,6 +3171,7 @@ export class CapTimelineEditorApp {
             this._setComposeStatus(error instanceof Error ? error.message : String(error), { error: true });
         } finally {
             this._composeBusy = false;
+            if (this.composeDirectory) this.composeDirectory.disabled = false;
             this.composeModal.closeDisabled = false;
             if (this.composeRunBtn) this.composeRunBtn.disabled = false;
             this._onComposeSettingsChange();
@@ -3026,7 +3181,7 @@ export class CapTimelineEditorApp {
     async _revealOutput(output) {
         if (!output) return;
         try {
-            const response = await fetch(api.apiURL("/audio_keyframe_timeline/reveal_output"), {
+            const response = await fetch(api.apiURL(output.reveal_token ? "/audio_keyframe_timeline/reveal_export" : "/audio_keyframe_timeline/reveal_output"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(output),
@@ -3478,14 +3633,36 @@ export class CapTimelineEditorApp {
     }
 
     async _importFromDirectory() {
+        if (this._projectImportBusy || this._projectExportBusy) return;
         if (!this._confirmOverwriteImport()) return;
+        this._projectImportBusy = true;
+        const openGen = this._openGen;
         try {
+            if (window.__COMFYUI_LAUNCHER__?.capabilities?.projectDirectory) {
+                const opened = await this._launcherProject.open();
+                if (!opened || this._destroyed || this._openGen !== openGen) return;
+                await this._applyImportedProject(opened.project, opened.warnings, opened.storyboard);
+                this._launcherProject.reset({ token: opened.token, directory: opened.directory, filename: opened.filename });
+                if (this.projectDirectoryField) this.projectDirectoryField.value = opened.directory;
+                this._launcherStatus?.setStatus("");
+                return;
+            }
             const dir = await this._pickDirectory("read");
-            const projectFile = await this._readRelativeFile(dir, "project.json");
+            const versions = [];
+            for await (const [name, handle] of dir.entries()) {
+                if (handle.kind === 'file' && name.startsWith('project') && name.endsWith('.json')) {
+                    const file = await handle.getFile();
+                    versions.push({filename: name, modified: file.lastModified});
+                }
+            }
+            versions.sort((a, b) => b.modified - a.modified);
+            const filename = await chooseProjectVersion(versions, this._overlay);
+            if (!filename || this._destroyed || this._openGen !== openGen) return;
+            const projectFile = await this._readRelativeFile(dir, filename);
             const project = this._validateImportedProject(JSON.parse(await projectFile.text()));
             let storyboardFile;
             try {
-                storyboardFile = await this._readRelativeFile(dir, "storyboard.json");
+                storyboardFile = await this._readRelativeFile(dir, 'storyboard' + filename.slice('project'.length));
             } catch (error) {
                 if (error?.name !== "NotFoundError") throw error;
             }
@@ -3515,6 +3692,8 @@ export class CapTimelineEditorApp {
         } catch (error) {
             if (error?.name === "AbortError") return;
             alert(T("import_failed", { msg: error instanceof Error ? error.message : String(error) }));
+        } finally {
+            this._projectImportBusy = false;
         }
     }
 
@@ -3522,6 +3701,8 @@ export class CapTimelineEditorApp {
         const file = event.target.files?.[0];
         event.target.value = "";
         if (!file) return;
+        if (this._projectImportBusy || this._projectExportBusy) return;
+        this._projectImportBusy = true;
         try {
             const form = new FormData();
             form.append("file", file, file.name || "project.zip");
@@ -3534,6 +3715,8 @@ export class CapTimelineEditorApp {
             await this._applyImportedProject(data.project, data.warnings || [], data.storyboard);
         } catch (error) {
             alert(T("import_failed", { msg: error instanceof Error ? error.message : String(error) }));
+        } finally {
+            this._projectImportBusy = false;
         }
     }
 
@@ -3610,6 +3793,7 @@ export class CapTimelineEditorApp {
             <cap-button size="regular" class="cat-te-header-close" variant="neutral" title="${T("close_title")}" aria-label="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
             <input class="cat-te-import-zip" type="file" accept=".zip,application/zip" hidden />
           </header>
+          <cap-status-message class="cat-te-launcher-status" toast closable close-label="${T("close_title")}" hidden></cap-status-message>
           <div class="cat-te-main">
             <aside class="cat-te-media">
               <div class="cat-te-media-header">
@@ -3643,6 +3827,7 @@ export class CapTimelineEditorApp {
                     <span>${T("project_name_label")}</span>
                     <input class="cat-te-title" type="text" value="${T("untitled_project")}" aria-label="${T("project_name_label")}" />
                   </label>
+                  <cap-export-directory class="cat-te-project-directory" project-directory default-dir="" label="${launcherT('directory')}"></cap-export-directory>
                   <div class="cat-te-settings-prompts">
                     <div class="cat-te-prompt-wrap cat-te-settings-prompt-wrap" data-setting-prompt="prepend_prompt">
                       <div class="cat-te-prompt-label-row">
@@ -4200,18 +4385,7 @@ export class CapTimelineEditorApp {
                   <cap-export-range class="cat-te-compose-range"></cap-export-range>
                 </div>
                 <div class="cat-te-compose-settings">
-                  <div class="cat-te-compose-field">
-                    <span class="cat-te-ai-field-label">
-                      ${T("filename_prefix_label")}
-                      <span class="cat-te-info-tip" tabindex="0" aria-label="${T("filename_prefix_info_aria")}">
-                        ${iconHtml("info", 12)}
-                        <span class="cat-te-info-tip-pop">
-                          ${T("filename_prefix_info_html")}
-                        </span>
-                      </span>
-                    </span>
-                    <input class="cat-te-compose-prefix" type="text" value="cap_timeline_compose/" />
-                  </div>
+                  <cap-export-directory class="cat-te-compose-directory" default-dir="output/cap_timeline_compose/"></cap-export-directory>
                   <label class="cat-te-compose-field">
                     <span>${T("filename_label")}</span>
                     <input class="cat-te-compose-filename" type="text" />
@@ -4674,14 +4848,7 @@ export class CapTimelineEditorApp {
                 <cap-radio-button indicator size="regular" value="directory">${T("export_files")}</cap-radio-button>
                 <cap-radio-button indicator size="regular" value="zip">ZIP</cap-radio-button>
               </cap-radio-group>
-              <label class="cat-te-compose-field cat-te-export-path">
-                <span>${T("export_directory_label")}
-                  <span class="cat-te-info-tip" tabindex="0" role="note" aria-label="${T("export_directory_help")}">
-                    ${iconHtml("info", 12)}<span class="cat-te-info-tip-pop">${T("export_directory_help")}</span>
-                  </span>
-                </span>
-                <input class="cat-te-export-directory" type="text" placeholder="${T("export_directory_placeholder")}" />
-              </label>
+              <cap-export-directory class="cat-te-export-directory cat-te-export-path" default-dir="output/cap_timeline_projects/"></cap-export-directory>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-workflow" type="checkbox" checked /><span>${T("export_workflow")}</span></label>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-generated" type="checkbox" checked /><span>${T("export_generated")}</span></label>
               <label class="cat-te-modal-check-row"><input class="cat-te-export-unused" type="checkbox" /><span>${T("export_unused")}</span></label>
@@ -4770,6 +4937,13 @@ export class CapTimelineEditorApp {
         document.body.appendChild(el);
         this._overlay = el;
         this.projectNameInput = el.querySelector(".cat-te-title");
+        this.projectDirectoryField = el.querySelector(".cat-te-project-directory");
+        this.projectDirectoryField.value = this._launcherProject?.session?.directory || this._projectDirectory || '';
+        this.projectDirectoryField.addEventListener('input', () => {
+            this._launcherProject.reset();
+            this._projectDirectory = this.projectDirectoryField.value;
+        });
+        this.projectDirectoryField.addEventListener('change', () => void this._associateProjectDirectory());
         this.brandProjectBtn = el.querySelector(".cat-te-brand-project");
         this.sidebarTitle = el.querySelector(".cat-te-sidebar-title");
         this.projectPanel = el.querySelector(".cat-te-project-panel");
@@ -4986,7 +5160,7 @@ export class CapTimelineEditorApp {
         this.composeVideoFields = el.querySelector(".cat-te-compose-video-fields");
         this.composeAudioCheck = el.querySelector(".cat-te-compose-audio-enabled");
         this.composeAudioFormat = el.querySelector(".cat-te-compose-audio-format");
-        this.composePrefixInput = el.querySelector(".cat-te-compose-prefix");
+        this.composeDirectory = el.querySelector(".cat-te-compose-directory");
         this.composeFilenameInput = el.querySelector(".cat-te-compose-filename");
         this.composeResolutionSelect = el.querySelector(".cat-te-compose-resolution");
         this.composeQualitySelect = el.querySelector(".cat-te-compose-quality");
@@ -5144,6 +5318,7 @@ export class CapTimelineEditorApp {
         el.querySelector(".cat-te-export").addEventListener("click", () => this._openExportDialog());
         el.querySelector(".cat-te-compose-open").addEventListener("click", () => void this._composeGeneratedVideosExport());
         this.importZipInput.addEventListener("change", (e) => void this._importProjectZip(e));
+        this._launcherStatus = el.querySelector(".cat-te-launcher-status");
         el.querySelector(".cat-te-header-close").addEventListener("click", () => this.close());
         this.addMaterialInput.addEventListener("change", (e) => this._previewSelectedMaterial(e));
         el.querySelector(".cat-te-add-material-close").addEventListener("click", () => this._closeAddMaterial());
@@ -10025,7 +10200,7 @@ export class CapTimelineEditorApp {
             volume: audio.volume, volume_points: audio.volume_points, muted: audio.muted });
         else row.generated_videos = [{ ...video, enabled: true, edit_start_sec: 0 }];
         project.tracks = [{ type: audio ? "audio" : "director", clips: [row] }];
-        this._clipExport.open(project, clip.id);
+        this._clipExport.open(project, clip.id, this._launcherProject?.session?.directory);
     }
 
     _copyGenEditClips() {
@@ -14574,6 +14749,7 @@ export class CapTimelineEditorApp {
             };
         }
         project = this._migrateProjectDocument(project);
+        this._projectDirectory = typeof project.project_directory === 'string' ? project.project_directory : '';
         this._storyboardLoadError = null;
         this._storyboardLoadStatus?.remove();
         this._storyboardLoadStatus = null;
@@ -16889,7 +17065,7 @@ export class CapTimelineEditorApp {
         );
         if (canExport) media.push({ label: T("clip_export_title"), icon: "save", fn: () => {
             this._timeline.pause();
-            this._clipExport.open(this._buildProject(), clip.id);
+            this._clipExport.open(this._buildProject(), clip.id, this._launcherProject?.session?.directory);
         } });
         if (!isAudio && !isVoiceover && !isSubtitle && !isMedia) media.push({
             label: T("clear_clip_video_links"), icon: "close", danger: true, disabled: !this._clipGeneratedVideos(m).length,
@@ -18405,6 +18581,10 @@ export class CapTimelineEditorApp {
                 },
                 { label: T("shortcuts_title"), icon: "info", fn: () => this.shortcutsDialog.showModal() },
                 { label: T("new_project"), icon: "insert", disabled: !this._canCreateProject(), fn: () => void this._newProject() },
+                ...(this._launcherProject ? [
+                    { label: launcherT("save"), icon: "save", fn: () => void this._saveLauncherProject(false) },
+                    { label: launcherT("folder"), icon: "squareArrowOutUpRight", disabled: !this._launcherProject.session, fn: () => void this._openLauncherProjectFolder() },
+                ] : []),
                 { label: referenceT("title"), icon: "insert", fn: () => {
                     this._referenceProject ??= new ReferenceProject({ host: this._overlay, apiURL: path => api.apiURL(path) });
                     void this._referenceProject.open();
@@ -19476,6 +19656,7 @@ export class CapTimelineEditorApp {
     }
 
     _syncBrandProjectName() {
+        if (this.projectDirectoryField && !this._projectDirectoryBusy) this.projectDirectoryField.value = this._launcherProject?.session?.directory || this._projectDirectory || '';
         const name = String(this.projectNameInput?.value || T("untitled_project")).trim() || T("untitled_project");
         if (this.brandProjectBtn) this.brandProjectBtn.textContent = name;
     }
@@ -20907,6 +21088,7 @@ export class CapTimelineEditorApp {
         });
         applyContinuationSettings(tracks);
         return {
+            ...((this._launcherProject?.session?.directory || this._projectDirectory) ? { project_directory: this._launcherProject?.session?.directory || this._projectDirectory } : {}),
             project_version: this._currentVersion(),
             schema_version: this._currentSchemaVersion(),
             name: String(this.projectNameInput?.value || T("untitled_project")).trim() || T("untitled_project"),

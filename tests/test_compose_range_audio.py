@@ -202,6 +202,19 @@ class ComposeRangeAudioTests(unittest.TestCase):
                 self.assertTrue(Path(row["output_path"]).is_file())
             with self.assertRaises(ValueError):
                 scope["resolve_compose_output_path"]("../escape", "Test", "bad.wav", "wav")
+            selected = self.directory / "selected exports"
+            selected.mkdir()
+            meta = scope["compose_to_output"](self.project, filename_prefix="ignored/", filename="Selected.mp4",
+                export_audio=True, audio_format="wav", export_range=dict(start_frame=0, end_frame=12),
+                output_directory=str(selected))
+            for row in meta["outputs"]:
+                self.assertEqual(row["subfolder"], "")
+                self.assertEqual(Path(row["output_path"]).parent, selected)
+                self.assertTrue(Path(row["output_path"]).is_file())
+            self.assertFalse((self.directory / "ignored").exists())
+            for invalid in ("relative", "//server/share", str(selected / "missing")):
+                with self.assertRaises(ValueError):
+                    scope["resolve_compose_output_path"]("", "Test", "bad.mp4", output_directory=invalid)
 
     def test_invalid_ranges_and_output_selections(self):
         for bounds in ({"start_frame": 4, "end_frame": 4}, {"start_frame": -1, "end_frame": 5},

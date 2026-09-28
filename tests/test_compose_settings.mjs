@@ -22,18 +22,42 @@ function method(name, fetch = null) {
 function fixture() {
     const app = {
         composeModal:{}, _composeDone:true, _composeBusy:false,
-        composePrefixInput:{value:'cap_timeline_compose/'},
         composeFilenameInput:{value:'Custom_20260911_130000.mp4'},
         composeResolutionSelect:{value:'project'}, composeQualitySelect:{value:'maximum'},
         composeRunBtn:{textContent:'open_folder_btn',disabled:false},
         _watermark:{enabled:true,text:{content:'Test'},image:{file:'logo.png'},opacity:50},
         _lastComposeOutput:{filename:'old.mp4'},
         _safeProjectFilename:()=> 'Project',
+        getFps:()=>24,
         _setComposeStatus(text){this.status=text;}, _saveToWidgets(){}, _buildProject:()=>({tracks:[]}),
     };
     for (const name of ['_composeExportSettings','_composeDefaultFilename','_onComposeSettingsChange']) app[name]=method(name);
     app._composeSubmittedSettings=JSON.parse(JSON.stringify(app._composeExportSettings()));
     return app;
+}
+{
+    const app = fixture();
+    app.composeDirectory = { value: 'D:/selected', disabled: false, validate: async () => true,
+        get exportSettings() { return this.value ? { output_directory: this.value } : { filename_prefix: 'cap_timeline_compose/' }; },
+        remember(value) { this.saved = value; } };
+    app._onComposeSettingsChange();
+    assert.equal(app._composeDone, false, 'directory change invalidates old reveal action');
+    let payload;
+    const run = method('_runComposeVideoExport', async (url, options) => {
+        payload = JSON.parse(options.body);
+        return { ok: true, json: async () => ({ filename: 'chosen.mp4', reveal_token: 'external',
+            outputs: [{ filename: 'chosen.mp4', path: 'D:/selected/chosen.mp4' }] }) };
+    });
+    await run.call(app);
+    assert.equal(payload.output_directory, 'D:/selected');
+    assert.deepEqual(app._lastComposeOutput, { reveal_token: 'external' });
+    assert.match(app.status, /export_saved_path/);
+    assert.equal(app.composeDirectory.disabled, false);
+    assert.equal(app.composeDirectory.saved, 'D:/selected');
+    app.composeDirectory.value = '';
+    app._onComposeSettingsChange();
+    assert.equal(app._composeExportSettings().filename_prefix, 'cap_timeline_compose/');
+    assert.equal(app._composeExportSettings().output_directory, undefined);
 }
 {
     const app=fixture();
@@ -46,7 +70,7 @@ function fixture() {
 for (const edit of [
     a=>{a.composeResolutionSelect.value='1080p';},
     a=>{a.composeQualitySelect.value='high';},
-    a=>{a.composePrefixInput.value='another/';},
+    a=>{a.composeDirectory={exportSettings:{filename_prefix:'another/'}};},
     a=>{a._watermark.enabled=false;},
     a=>{a._watermark.text.content='New';},
     a=>{a._watermark.opacity=0;},
@@ -99,6 +123,15 @@ for (const name of ['_onWatermarkImagePicked','_removeWatermarkImageNow']) {
     assert.match(method(name).toString(), /this\._onComposeSettingsChange\(\)/, 'async watermark changes invalidate export');
 }
 console.log('Compose settings: parameter edits, timestamp, custom names, async edits and repeat export passed');
+
+{
+    const app = fixture();
+    app.composeDirectory = { validate: async () => false };
+    let submitted = false;
+    await method('_runComposeVideoExport', async () => { submitted = true; }).call(app);
+    assert.equal(submitted, false, 'invalid directory blocks compose');
+    assert.equal(app._composeValidating, false);
+}
 
 for (const [video, audio, disabled] of [[false, false, true], [true, false, false], [false, true, false], [true, true, false]]) {
     const app = fixture();

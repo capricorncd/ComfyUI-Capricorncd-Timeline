@@ -3,12 +3,14 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
 const T = (key, values = {}) => `${key} ${JSON.stringify(values)}`;
+const testWindow = { innerWidth: 1000, innerHeight: 800, location: { hostname: 'remote.example' } };
+let rememberedDirectory = '';
 function method(name, fetch = null) {
     const start = source.search(new RegExp(`    (async )?${name}\\(`));
     assert(start >= 0, name);
     const end = source.indexOf('\n    }', start) + 6;
-    return new Function('T', 'fetch', 'api', 'window', `return ({${source.slice(start, end)}}).${name}`)(
-        T, fetch, { apiURL: path => path }, { innerWidth: 1000, innerHeight: 800 });
+    return new Function('T', 'fetch', 'api', 'window', 'lastExportDirectory', 'rememberExportDirectory', `return ({${source.slice(start, end)}}).${name}`)(
+        T, fetch, { apiURL: path => path }, testWindow, () => rememberedDirectory, value => { rememberedDirectory = value; });
 }
 function element(extra = {}) {
     const classes = new Set();
@@ -28,6 +30,10 @@ function element(extra = {}) {
 }
 function fixture(fetch) {
     const status = element(), startButton = element(), close = element(), path = element({ value: 'D:/exports/特别篇' });
+    path.restore = function(preferred) { this.value = preferred || rememberedDirectory; };
+    path.validate = async () => true;
+    Object.defineProperty(path, 'directory', { get() { return this.value || 'output/cap_timeline_projects/'; } });
+    path.remember = function(value) { rememberedDirectory = value; };
     status.setStatus = function(text, state) {
         this.textContent = String(text ?? '');
         this.state = state === 'success' || state === 'error' ? state : 'info';
@@ -60,6 +66,29 @@ function fixture(fetch) {
     return { app, status, startButton, path, workflow, generated, formats, controls, dialog };
 }
 const success = { path: 'D:/exports/特别篇/特别篇_20260912_120000.zip', reveal_token: 'saved-token', missing: [] };
+{
+    let picks = 0, payload;
+    testWindow.__COMFYUI_LAUNCHER__ = { capabilities: { projectDirectory: true }, pickDirectory: async () => { picks++; return 'D:/private/export'; } };
+    const f = fixture(async (url, options) => {
+        payload = JSON.parse(options.body);
+        return { ok: true, json: async () => ({ ...success, path: 'D:/private/export/project', project_token: 'linked' }) };
+    });
+    f.app._launcherProject = { session: null, reset(session) { this.session = session; } };
+    testWindow.location.hostname = '127.0.0.1';
+    f.path.value = '';
+    await f.app._runProjectExport({ format: 'directory' });
+    assert.equal(picks, 0, 'default exports use output without prompting');
+    assert.equal(payload.directory, 'output/cap_timeline_projects/');
+    assert.equal(rememberedDirectory, 'output/cap_timeline_projects/');
+    assert.deepEqual(f.app._launcherProject.session, { token: 'linked', directory: 'D:/private/export/project' });
+    assert(!JSON.stringify({ project: payload.project, workflow: payload.workflow, storyboard: payload.storyboard }).includes('D:/private'), 'destination stays outside published documents');
+    f.app._openExportDialog();
+    assert.equal(f.path.value, 'D:/private/export/project', 'bound project directory takes priority');
+    await f.app._runProjectExport({ format: 'directory' });
+    assert.equal(picks, 0, 'next export reuses project directory without a picker');
+    testWindow.location.hostname = 'remote.example';
+    delete testWindow.__COMFYUI_LAUNCHER__;
+}
 for (const format of ['directory', 'zip']) {
     const requests = [];
     const f = fixture(async (url, options) => {

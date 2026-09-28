@@ -20,6 +20,7 @@ import folder_paths
 
 from .cap_reveal_file import reveal_file
 from .cap_reference_project import register_reference_project_routes
+from .cap_launcher_project import register_launcher_project_routes
 from .cap_image_crop import crop_image_file
 from .cap_i18n import resolve_lang, t
 from .cap_video_metadata import read_video_generation
@@ -268,6 +269,7 @@ def _register_routes():
     register_metadata_routes(routes)
     register_local_audio_routes(routes)
     register_reference_project_routes(routes)
+    bind_launcher_project = register_launcher_project_routes(routes)
 
     # Keep immutable recent steps; a video's range requests must read the same bytes.
     # At most 8 previews, each capped at 8 MiB and 3 steps, expiring after 120 seconds.
@@ -605,6 +607,27 @@ def _register_routes():
 
     export_destinations = {}
 
+    @routes.post("/audio_keyframe_timeline/export_directory_check")
+    async def api_export_directory_check(request: web.Request) -> web.Response:
+        origin = request.headers.get("Origin")
+        if request.content_type != "application/json" or (origin and origin != f"{request.scheme}://{request.host}"):
+            return web.json_response({"error": "Same-origin JSON requests only"}, status=403)
+        try:
+            payload = await request.json()
+        except ValueError:
+            return web.json_response({"error": "Invalid JSON"}, status=400)
+        if not isinstance(payload, dict):
+            return web.json_response({"error": "Invalid payload"}, status=400)
+        directory = str(payload.get("directory") or "").strip().replace("\\", "/")
+        if os.path.isabs(directory):
+            if request.remote not in {"127.0.0.1", "::1", "::ffff:127.0.0.1"} or directory.startswith("//"):
+                return web.json_response({"error": "Local directory requests only"}, status=403)
+            path = directory
+        else:
+            relative = directory[len("output/"):] if directory.startswith("output/") else directory
+            path = _safe_join(folder_paths.get_output_directory(), "." if relative in {"", "output"} else relative)
+        return web.json_response({"exists": bool(path and os.path.isdir(path))})
+
     @routes.post("/audio_keyframe_timeline/export_save")
     async def api_export_save(request: web.Request) -> web.Response:
         if request.remote not in {"127.0.0.1", "::1", "::ffff:127.0.0.1"} or request.content_type != "application/json":
@@ -617,6 +640,16 @@ def _register_routes():
             if workflow is not None and not isinstance(workflow, dict):
                 raise ValueError("Invalid workflow")
             directory = str(payload.get("directory") or "").strip()
+            if not directory or not os.path.isabs(directory):
+                relative = directory.replace("\\", "/") or "output/cap_timeline_projects"
+                if relative == "output" or relative == "output/":
+                    relative = "."
+                elif relative.startswith("output/"):
+                    relative = relative[len("output/"):]
+                directory = _safe_join(folder_paths.get_output_directory(), relative)
+                if directory is None:
+                    raise ValueError("Invalid project output directory")
+                os.makedirs(directory, exist_ok=True)
             path, missing = await asyncio.to_thread(
                 save_project_export, payload["project"], directory, payload.get("format", "directory"), workflow,
                 include_generated=payload.get("include_generated", True) is not False,
@@ -626,7 +659,10 @@ def _register_routes():
             export_destinations[token] = os.path.join(path, "project.json") if os.path.isdir(path) else path
             while len(export_destinations) > 32:
                 del export_destinations[next(iter(export_destinations))]
-            return web.json_response({"path": path, "reveal_token": token, "missing": missing})
+            result = {"path": path, "reveal_token": token, "missing": missing}
+            if payload.get("launcher") is True and os.path.isdir(path):
+                result["project_token"] = bind_launcher_project(path)
+            return web.json_response(result)
         except ValueError as exc:
             return web.json_response({"error": str(exc)}, status=400)
         except Exception as exc:
@@ -727,6 +763,11 @@ def _register_routes():
                 filename = build_compose_filename(project.get("name") or t("untitled_project", lang))
             output_resolution = str(payload.get("output_resolution") or "project")
             watermark = payload.get("watermark")
+            output_directory = str(payload.get("output_directory") or "").strip() or None
+            if output_directory:
+                origin = request.headers.get("Origin")
+                if request.remote not in {"127.0.0.1", "::1", "::ffff:127.0.0.1"} or request.content_type != "application/json" or (origin and origin != f"{request.scheme}://{request.host}"):
+                    return web.json_response({"error": "Local same-origin JSON requests only"}, status=403)
             meta = compose_to_output(
                 project,
                 filename_prefix=filename_prefix,
@@ -739,7 +780,14 @@ def _register_routes():
                 export_video=payload.get("export_video", True),
                 export_audio=payload.get("export_audio", False),
                 audio_format=str(payload.get("audio_format") or "wav"),
+                output_directory=output_directory,
             )
+            reveal_token = None
+            if output_directory:
+                reveal_token = uuid.uuid4().hex
+                export_destinations[reveal_token] = meta["output_path"]
+                while len(export_destinations) > 32:
+                    del export_destinations[next(iter(export_destinations))]
             return web.json_response({
                 "ok": True,
                 "filename": meta["filename"],
@@ -752,7 +800,9 @@ def _register_routes():
                 "fps": meta.get("fps"),
                 "encoding_mode": meta.get("encoding_mode"),
                 "fallback_reason": meta.get("fallback_reason"),
-                "outputs": [{"filename": item["filename"], "subfolder": item["subfolder"]}
+                "reveal_token": reveal_token,
+                "outputs": [{"filename": item["filename"], "subfolder": item["subfolder"],
+                             **({"path": item["output_path"]} if output_directory else {})}
                             for item in meta["outputs"]],
             })
         except ValueError as exc:

@@ -3,6 +3,7 @@ import { t as T } from '../i18n/timeline_editor.js';
 import '../components/Dialog.js';
 import '../components/FormControls.js';
 import '../components/StatusMessage.js';
+import '../components/ExportDirectory.js';
 
 export function clipExportProject(project, clipId) {
     const track = project.tracks.find(track => track.clips.some(clip => clip.id === clipId));
@@ -34,7 +35,7 @@ export class ClipExport {
         host.append(this.dialog);
     }
 
-    open(project, clipId) {
+    open(project, clipId, projectDirectory = '') {
         if (this.busy) return;
         const selected = clipExportProject(project, clipId);
         if (!selected) return;
@@ -43,7 +44,7 @@ export class ClipExport {
             <div class="cat-te-modal-body">
                 <p data-summary></p>
                 <label>${T('filename_label')}<cap-input><input data-filename /></cap-input></label>
-                <label>${T('filename_prefix_label')}<cap-input><input data-folder value="cap_clip_exports/" /></cap-input></label>
+                <cap-export-directory default-dir="output/cap_clip_exports/"></cap-export-directory>
                 <label data-fps-option>${T('compose_fps_label')}<cap-input><input data-fps type="number" required min="1" max="120" step="0.001" /></cap-input></label>
                 <label data-video-option><span><input data-video type="checkbox" checked /> ${T('compose_video_section')} (MP4)</span></label>
                 <label><span><input data-audio type="checkbox" /> ${T('compose_audio_section')}</span></label>
@@ -68,6 +69,8 @@ export class ClipExport {
         const close = dialog.querySelector('[data-close]');
         const reveal = dialog.querySelector('[data-folder-open]');
         const status = dialog.querySelector('cap-status-message');
+        const directory = dialog.querySelector('cap-export-directory');
+        directory.restore(projectDirectory);
         video.checked = !selected.audio;
         audio.checked = selected.audio;
         audio.disabled = selected.audio;
@@ -79,15 +82,21 @@ export class ClipExport {
         submit.onclick = async () => {
             if (this.busy || (!video.checked && !audio.checked)) return;
             if (video.checked && !fps.reportValidity()) return;
+            if (this.validating) return;
+            this.validating = true;
+            try { if (!await directory.validate()) return; }
+            finally { this.validating = false; }
             this.busy = true;
+            directory.disabled = true;
             dialog.closeDisabled = close.disabled = submit.disabled = true;
             reveal.hidden = true;
             status.setStatus(T('composing_please_wait'));
+            const outputDirectory = directory.value;
             try {
                 const response = await api.fetchApi('/audio_keyframe_timeline/compose_video', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ project: selected.project, filename: filename.value,
-                        filename_prefix: dialog.querySelector('[data-folder]').value || 'cap_clip_exports/',
+                        ...directory.exportSettings,
                         export_video: video.checked, export_audio: audio.checked, audio_format: format.value,
                         output_resolution: 'project', export_quality: 'maximum', output_fps: video.checked ? Number(fps.value) : null,
                         export_range: { start_frame: 0, end_frame: Math.max(1, Math.round(selected.duration * selected.project.settings.fps)) },
@@ -95,20 +104,21 @@ export class ClipExport {
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error || T('compose_failed_http', { status: response.status }));
-                status.setStatus(T('export_saved_path', { path: result.outputs.map(row => [row.subfolder, row.filename].filter(Boolean).join('/')).join('\n') }), 'success');
+                directory.remember(outputDirectory);
+                status.setStatus(T('export_saved_path', { path: result.outputs.map(row => row.path || [row.subfolder, row.filename].filter(Boolean).join('/')).join('\n') }), 'success');
                 reveal.hidden = false;
                 reveal.onclick = async () => {
                     try {
-                        const response = await api.fetchApi('/audio_keyframe_timeline/reveal_output', {
+                        const response = await api.fetchApi(result.reveal_token ? '/audio_keyframe_timeline/reveal_export' : '/audio_keyframe_timeline/reveal_output', {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ filename: result.filename, subfolder: result.subfolder }),
+                            body: JSON.stringify(result.reveal_token ? { reveal_token: result.reveal_token } : { filename: result.filename, subfolder: result.subfolder }),
                         });
                         const data = await response.json();
                         if (!response.ok) throw new Error(data.error || T('open_folder_prepare_failed'));
                     } catch (error) { status.setStatus(error.message, 'error'); }
                 };
             } catch (error) { status.setStatus(error.message, 'error'); }
-            finally { this.busy = false; dialog.closeDisabled = close.disabled = false; change(); }
+            finally { this.busy = false; directory.disabled = false; dialog.closeDisabled = close.disabled = false; change(); }
         };
         dialog.showModal();
     }

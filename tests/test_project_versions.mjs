@@ -5,6 +5,7 @@ import vm from 'node:vm';
 class Element extends EventTarget {
     constructor(tag) { super(); this.tag = tag; this.children = []; this.style = {setProperty() {}}; }
     append(...children) { this.children.push(...children); if (this.tag === 'select') this.value ??= children[0]?.value; }
+    setOptions(rows) { this.options = rows; this.value = rows[0]?.value; }
     setAttribute() {}
     showModal() { this.open = true; }
     close() { this.open = false; this.dispatchEvent(new Event('close')); }
@@ -23,7 +24,8 @@ let promise = context.chooseProjectVersion(versions);
 let dialog = host.children.at(-1);
 assert.equal(dialog.tag, 'cap-dialog');
 const select = dialog.children[1].children[0];
-assert.equal(select.children.length, 2);
+assert.equal(select.tag, 'cap-select');
+assert.equal(select.options.length, 2);
 select.value = 'project.json';
 dialog.children[2].children[1].onclick();
 assert.equal(await promise, 'project.json');

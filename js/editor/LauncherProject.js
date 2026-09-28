@@ -1,6 +1,7 @@
 import { makeT } from '../cap_i18n.js';
 import '../components/Button.js';
 import '../components/Dialog.js';
+import '../components/FormControls.js';
 
 const versionT = makeT({
     zh: {title: '选择工程版本', load: '加载所选版本', cancel: '取消', updated: '目录中的工程文件已更新，是否加载最新版？当前编辑内容会先另存为带时间戳的工程版本及对应分镜文件。'},
@@ -39,15 +40,11 @@ export function confirmProjectUpdate(host) {
 
 export async function chooseProjectVersion(versions, host = document.body) {
     if (versions.length < 2) return versions[0]?.filename || 'project.json';
-    const select = document.createElement('select');
-    select.setAttribute('aria-label', versionT('title'));
-    select.style.cssText = 'width:100%;min-width:0';
-    for (const row of versions) {
-        const option = document.createElement('option');
-        option.value = row.filename;
-        option.textContent = `${row.filename} · ${new Date(row.modified).toLocaleString()}`;
-        select.append(option);
-    }
+    const select = document.createElement('cap-select');
+    select.setOptions(versions.map(row => ({
+        value: row.filename,
+        label: `${row.filename} · ${new Date(row.modified).toLocaleString()}`,
+    })), versionT('title'));
     return await projectDialog(select, versionT('title'), versionT('load'), host) ? select.value : null;
 }
 

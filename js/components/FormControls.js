@@ -35,7 +35,21 @@ class FormControl extends HTMLElement {
 }
 
 export class Input extends FormControl {}
-export class Select extends FormControl {}
+export class Select extends FormControl {
+    setOptions(options, label) {
+        const select = this.control || document.createElement('select');
+        const value = select.value;
+        select.setAttribute('aria-label', label);
+        select.replaceChildren(...options.map(row => {
+            const option = document.createElement('option');
+            option.value = row.value;
+            option.textContent = row.label;
+            return option;
+        }));
+        if (options.some(row => row.value === value)) select.value = value;
+        if (!select.parentNode) this.append(select);
+    }
+}
 export class Textarea extends FormControl {}
 export { Switch } from './Switch.js';
 for (const [name, component] of [['cap-input', Input], ['cap-select', Select], ['cap-textarea', Textarea]]) {

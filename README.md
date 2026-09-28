@@ -89,7 +89,7 @@ See the [node documentation index](docs/nodes.md) for supporting prompt, image, 
 
 ## License
 
-[MIT](LICENSE)
+[Apache-2.0](LICENSE)
 
 Icons in `js/cap_icons.js` include [Lucide](https://lucide.dev/icons) icons (ISC) and Feather-derived icons (MIT). See [the full third-party license notices](js/LICENSE.lucide).
 

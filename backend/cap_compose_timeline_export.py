@@ -1,5 +1,5 @@
 # Copyright (c) 2026 capricorncd
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: Apache-2.0
 # See ../LICENSE for the full license text.
 
 """Compose Timeline Editor director output, media, subtitles and audio into one MP4."""

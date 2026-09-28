@@ -101,7 +101,7 @@ Ctrl+S 相当于导出到当前关联目录，不新建时间戳子目录。素�
 
 ## 许可证
 
-[MIT](LICENSE)
+[Apache-2.0](LICENSE)
 
 `js/cap_icons.js` 中包含 [Lucide](https://lucide.dev/icons) 图标（ISC）及源自 Feather 的图标（MIT）。完整版权与许可声明见 [第三方图标许可证](js/LICENSE.lucide)。
 

@@ -5,7 +5,7 @@ import { H3DraftVersions, draftT } from "./editor/H3DraftVersions.js";
 import { openInsertClip } from './editor/InsertClip.js';
 /*!
  * Copyright (c) 2026 capricorncd
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: Apache-2.0
  * See ../LICENSE for the full license text.
  */
 

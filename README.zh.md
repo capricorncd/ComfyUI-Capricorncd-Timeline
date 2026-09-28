@@ -103,8 +103,6 @@ Ctrl+S 相当于导出到当前关联目录，不新建时间戳子目录。素�
 
 [Apache-2.0](LICENSE)
 
-`js/cap_icons.js` 中包含 [Lucide](https://lucide.dev/icons) 图标（ISC）及源自 Feather 的图标（MIT）。完整版权与许可声明见 [第三方图标许可证](js/LICENSE.lucide)。
-
 ### H3 音频修复配置
 
 本次按 **ComfyUI 0.37.0** 适配，使用前请更新至 **0.37.0 或更新版本**，并同步安装对应 `requirements.txt` 依赖。同时更新本节点包和 [ComfyUI-H3-AudioRefine](https://github.com/Adudeguyman/ComfyUI-H3-AudioRefine)。AudioRefine 至少需要 **1.0.4**，其中包含编译器兼容修复；更新后重启 ComfyUI 并刷新浏览器。

@@ -91,8 +91,6 @@ See the [node documentation index](docs/nodes.md) for supporting prompt, image, 
 
 [Apache-2.0](LICENSE)
 
-Icons in `js/cap_icons.js` include [Lucide](https://lucide.dev/icons) icons (ISC) and Feather-derived icons (MIT). See [the full third-party license notices](js/LICENSE.lucide).
-
 ### H3 audio repair configuration
 
 This release targets **ComfyUI 0.37.0**. Update ComfyUI to **0.37.0 or newer** and install its matching `requirements.txt` dependencies before use. Also update this node pack and [ComfyUI-H3-AudioRefine](https://github.com/Adudeguyman/ComfyUI-H3-AudioRefine) (at least **1.0.4**, which includes the compiler compatibility fix). Restart ComfyUI and refresh the browser.

@@ -118,7 +118,7 @@ class DialogResizeHandle extends HTMLElement {
 if (!customElements.get("cap-dialog-resize-handle")) customElements.define("cap-dialog-resize-handle", DialogResizeHandle);
 
 export class Dialog extends HTMLElement {
-    static observedAttributes = ["aria-label", "close-label", "close-disabled"];
+    static observedAttributes = ["aria-label", "close-label", "close-disabled", "width", "height", "min-width", "min-height"];
 
     constructor() {
         super();
@@ -207,13 +207,33 @@ export class Dialog extends HTMLElement {
     }
 
     attributeChangedCallback(name) {
-        if (name === "close-disabled") this._closeButton.disabled = this.hasAttribute(name);
+        if (["width", "height", "min-width", "min-height"].includes(name)) {
+            const value = this.getAttribute(name)?.trim();
+            const property = `--cap-dialog-${name}`;
+            if (value) this._dialog.style.setProperty(property, /^\d+(?:\.\d+)?$/.test(value) ? `${value}px` : value);
+            else this._dialog.style.removeProperty(property);
+            if (name === "width" || name === "height") this._dialog.style.removeProperty(name);
+        } else if (name === "close-disabled") this._closeButton.disabled = this.hasAttribute(name);
         else if (name === "close-label") {
             const label = this.getAttribute(name) || "Close";
             this._closeButton.setAttribute("aria-label", label);
             this._closeButton.title = label;
         } else if (this.hasAttribute(name)) this._dialog.setAttribute(name, this.getAttribute(name));
         else this._dialog.removeAttribute(name);
+    }
+
+    get width() { return this.getAttribute("width") || ""; }
+    set width(value) { this._setSize("width", value); }
+    get height() { return this.getAttribute("height") || ""; }
+    set height(value) { this._setSize("height", value); }
+    get minWidth() { return this.getAttribute("min-width") || ""; }
+    set minWidth(value) { this._setSize("min-width", value); }
+    get minHeight() { return this.getAttribute("min-height") || ""; }
+    set minHeight(value) { this._setSize("min-height", value); }
+
+    _setSize(name, value) {
+        if (value == null || value === "") this.removeAttribute(name);
+        else this.setAttribute(name, typeof value === "number" ? `${value}px` : value);
     }
 
     get open() { return this._dialog.open; }

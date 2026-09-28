@@ -61,7 +61,9 @@ stopResize(); assert.equal(handle.capture, null); assert.equal(Object.keys(handl
 
 const app = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
 const speech = readFileSync(new URL('../js/editor/SubtitleSpeech.js', import.meta.url), 'utf8');
-for (const name of ['voice', 'export', 'shortcuts']) assert(app.includes(`<cap-dialog class="cat-te-${name}-dialog"`));
+for (const name of ['export', 'shortcuts']) assert(app.includes(`<cap-dialog class="cat-te-${name}-dialog"`));
+const localAudio = readFileSync(new URL('../js/editor/LocalAudioJobs.js', import.meta.url), 'utf8');
+assert(localAudio.includes("document.createElement('cap-dialog')") && localAudio.includes("'cat-te-local-audio-dialog'"));
 assert(app.includes('<cap-dialog class="cat-te-output-videos-modal"'));
 assert(app.includes('else this.outputVideosModal.show();'), 'video associations stay non-modal');
 assert(app.includes('if (kind === "audio") this.outputVideosModal.showModal();'), 'audio picker retains previous modal behavior');

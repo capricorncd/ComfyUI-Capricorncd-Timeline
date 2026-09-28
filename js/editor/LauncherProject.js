@@ -12,8 +12,9 @@ const versionT = makeT({
 function projectDialog(content, heading, confirmLabel, host) {
     return new Promise(resolve => {
         const dialog = document.createElement('cap-dialog');
-        dialog.style.setProperty('--cap-dialog-min-width', '360px');
-        dialog.style.setProperty('--cap-dialog-min-height', '220px');
+        dialog.minWidth = 360;
+        dialog.minHeight = 220;
+        dialog.height = 240;
         const title = document.createElement('span');
         title.slot = 'title'; title.textContent = heading;
         const body = document.createElement('div');

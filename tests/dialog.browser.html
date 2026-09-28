@@ -18,6 +18,9 @@
     <div slot="footer" class="cat-te-confirm-actions"><cap-button id="export" variant="primary">Export</cap-button></div>
 </cap-dialog>
 <cap-dialog id="nested" close-label="关闭"><span slot="title">Change voice</span><div class="cat-te-modal-body"><input></div></cap-dialog>
+<cap-dialog id="sized" width="460" height="240" min-width="360" min-height="220">
+    <span slot="title">Project version sizing</span><div>Choose a project version.</div>
+</cap-dialog>
 <pre id="result">RUNNING</pre>
 <script type="module">
 import '../js/components/Dialog.js';
@@ -25,6 +28,33 @@ const result = document.querySelector('#result');
 const assert = (ok, message) => { if (!ok) throw new Error(message); };
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 try {
+    const sized = document.querySelector('#sized');
+    const sizedNative = sized.shadowRoot.querySelector('dialog');
+    const near = (actual, expected) => Math.abs(actual - expected) < 2;
+    sized.showModal();
+    await tick();
+    assert(near(sizedNative.getBoundingClientRect().height, Math.min(240, innerHeight * .8)), 'numeric height attribute uses pixels within viewport cap');
+    assert(near(sizedNative.getBoundingClientRect().width, Math.min(460, innerWidth * .8)), 'numeric width attribute uses pixels');
+    sized.height = 280;
+    assert(sized.height === '280px' && sized.getAttribute('height') === '280px', 'numeric property reflects normalized attribute');
+    assert(near(sizedNative.getBoundingClientRect().height, Math.min(280, innerHeight * .8)), 'property updates open dialog');
+    sizedNative.style.width = '500px'; sizedNative.style.height = '500px';
+    sized.height = '70vh';
+    assert(sizedNative.style.height === '' && sizedNative.style.width === '500px', 'height update replaces resized height only');
+    sized.minHeight = 100;
+    assert(near(sizedNative.getBoundingClientRect().height, innerHeight * .7), 'CSS viewport units supported');
+    sized.height = 'fit-content';
+    assert(sizedNative.getBoundingClientRect().height < innerHeight * .7, 'content height remains compact');
+    sized.style.setProperty('--cap-dialog-height', '260px');
+    sized.height = null;
+    assert(!sized.hasAttribute('height') && sized.height === '', 'null removes property override');
+    assert(near(sizedNative.getBoundingClientRect().height, Math.min(260, innerHeight * .8)), 'removal restores existing CSS height');
+    sized.minWidth = 200; sized.width = 2000; sized.height = 2000;
+    assert(sizedNative.getBoundingClientRect().width <= innerWidth * .8 + 1 && sizedNative.getBoundingClientRect().height <= innerHeight * .8 + 1, 'properties cannot exceed viewport caps');
+    sized.minHeight = ''; sized.minWidth = undefined;
+    assert(!sized.hasAttribute('min-height') && !sized.hasAttribute('min-width'), 'empty minimum properties restore defaults');
+    sized.close();
+    await tick();
     const panel = document.querySelector('#panel'), nested = document.querySelector('#nested');
     const under = document.querySelector('#under');
     const dialog = panel.shadowRoot.querySelector('dialog');
@@ -93,7 +123,7 @@ try {
     resized = dialog.getBoundingClientRect();
     assert(Math.abs(resized.width - Math.min(420, innerWidth * .8)) < 1 && Math.abs(resized.height - Math.min(320, innerHeight * .8)) < 1, 'export has its own minimum size');
     assert(resizeCapture === null, 'resize releases pointer capture');
-    for (const [name, width, height] of [['voice',420,280], ['shortcuts',400,240], ['subtitle-batch',460,360], ['speech',560,360], ['output-videos',480,320]]) {
+    for (const [name, width, height] of [['local-audio',360,260], ['shortcuts',400,240], ['subtitle-batch',460,360], ['speech',560,360], ['output-videos',480,320]]) {
         const sample = document.createElement('cap-dialog');
         sample.className = name === 'output-videos' ? 'cat-te-output-videos-modal' : `cat-te-${name}-dialog`;
         sample.innerHTML = '<span slot="title">Size test</span>';

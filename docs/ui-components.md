@@ -125,9 +125,21 @@ dialog.addEventListener("close", stopAudition);
 
 `open` is read-only; do not toggle `hidden` or the reflected `open`/`modal` attributes. `cancel` is the cancelable close request from Close or Escape; `close` reports completed closure. Close an open dialog before changing its modal mode. Each fresh open centers it. Pointer drag is limited to the title bar, excludes interactive controls, clamps to the viewport and releases capture/listeners on cancellation or removal.
 
-Configure width using `--cap-dialog-width` (default 460px). The component caps dimensions at 80vw/80vh and scrolls content without losing the header. `--cap-dialog-shadow` and `--cap-dialog-backdrop` are shared theme tokens; do not override native dialog styles from business CSS. The generated-video association panel uses `show()` and keeps the timeline selectable, allowing selection changes to retarget its contents. The generated-audio picker retains its previous blocking behavior with `showModal()`.
+Prefer `width`, `height`, `minWidth` and `minHeight` properties for caller-owned dimensions:
 
-Global actions (confirm, cancel, export, run) belong in a direct child with `slot="footer"`. The component pins the header and footer while the body scrolls, including after resizing. Omit the footer slot for dialogs without global actions; an empty footer is hidden automatically. Keep contextual form actions beside their fields. Legacy modals use the same separate body/footer structure. Set `--cap-dialog-height` when a dialog should fill a fixed height (Compose uses 80vh); otherwise height follows its contents.
+```js
+dialog.width = 460;
+dialog.height = 240;            // Numbers mean px.
+dialog.minWidth = 360;
+dialog.minHeight = 220;
+// Or: dialog.height = "fit-content" / "70vh".
+```
+
+HTML supports `width`, `height`, `min-width` and `min-height` attributes (for example `<cap-dialog height="240" min-height="220">`). Numbers and unitless numeric attributes mean pixels; width/height also accept CSS sizes. Keep minimum sizes in pixels for the resize handle. Getters return the declared attribute string, or an empty string when unset, rather than measured dimensions. Assign null/undefined/empty string or remove the attribute to restore CSS defaults. Properties/attributes override the existing CSS sizing variables without replacing theme styles. Setting width/height after manual resizing clears that axis's drag size, so the new requested size takes effect immediately; changing one axis preserves the other.
+
+Existing CSS callers can still configure `--cap-dialog-width` (default 460px). The component caps dimensions at 80vw/80vh and scrolls content without losing the header. `--cap-dialog-shadow` and `--cap-dialog-backdrop` are shared theme tokens; do not override native dialog styles from business CSS. The generated-video association panel uses `show()` and keeps the timeline selectable, allowing selection changes to retarget its contents. The generated-audio picker retains its previous blocking behavior with `showModal()`.
+
+Global actions (confirm, cancel, export, run) belong in a direct child with `slot="footer"`. The component pins the header and footer while the body scrolls, including after resizing. Omit the footer slot for dialogs without global actions; an empty footer is hidden automatically. Keep contextual form actions beside their fields. Legacy modals use the same separate body/footer structure. Set `--cap-dialog-height` for a fixed height (Compose uses 80vh; project version selection and project-update confirmation use 240px), or `fit-content` for a compact content-sized dialog. The default `auto` height can stretch a fixed-position modal between its inset edges; do not rely on it for compact forms.
 
 Drag the bottom-right grip to resize. The top-left stays fixed, and resizing is limited by both 80vw/80vh and available viewport space. Size is retained while the component exists; reopening still recenters it. Set `--cap-dialog-min-width` and `--cap-dialog-min-height` in pixels (defaults 320 × 160); smaller viewports take precedence over these minimums. Close uses the shared [Lucide X](https://lucide.dev/icons/x) SVG at 18px.
 
@@ -139,7 +151,7 @@ In media preview, plain Left/Right browse adjacent assets even when a select (su
 | --- | --- |
 | Project export | 420 × 320 |
 | Compose export | 640 × 420 |
-| Voice conversion | 420 × 280 |
+| Local audio | 360 × 260 |
 | Shortcuts | 400 × 240 |
 | Batch subtitles | 460 × 360 |
 | Subtitle speech / character binding | 560 × 360 |

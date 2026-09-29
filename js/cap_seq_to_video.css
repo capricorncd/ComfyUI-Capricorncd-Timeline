@@ -129,3 +129,18 @@
     flex-shrink: 0;
     color: #e74c3c;
 }
+
+.stv-open-folder {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    z-index: 2;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.stv-generator:hover > .stv-open-folder,
+.stv-generator:focus-within > .stv-open-folder {
+    opacity: 1;
+    pointer-events: auto;
+}

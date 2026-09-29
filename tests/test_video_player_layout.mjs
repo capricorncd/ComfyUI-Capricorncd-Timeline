@@ -9,6 +9,7 @@ const app = { canvas: {}, graph: { setDirtyCanvas() {} }, registerExtension(e) {
 function element() {
     return {
         offsetHeight: 200, style: {}, children: [], classList: { add() {} },
+        setAttribute(name, value) { this[name] = value; },
         appendChild(child) { this.children.push(child); },
         paused: true, listeners: {},
         remove() {}, removeAttribute() {}, load() {}, pause() { this.paused = true; },
@@ -80,6 +81,9 @@ for (const type of ['CAP_SeqToVideo', 'CAP_ComposeClipVideos', 'CAP_H3VideoGener
     assertFits(); // Placeholder.
     node.configure({ size: [620, 100], properties: { stv_video: { filename: 'saved.mp4', type: 'output' } } });
     assert.ok(node._stvVideo, 'saved videos are restored');
+    if (type === 'CAP_H3VideoGenerator') {
+        assert.equal(node._stvOpenFolder.hidden, false, 'restored output videos expose the folder action without a generation event');
+    }
     assert.equal(node._stvVideo.controls, type === 'CAP_ComposeClipVideos');
     for (const [width, height] of [[620, 338], [400, 214], [400, 676], [850, 467]]) {
         app.canvas.resizing_node = node;
@@ -155,11 +159,35 @@ for (const type of ['CAP_SeqToVideo', 'CAP_ComposeClipVideos', 'CAP_H3VideoGener
         send('clip2.mp4', 'next-run_0');
         assert.notEqual(node._stvVideo, second, 'same filename in a new run reloads fresh data');
         send('final.mp4', 'next-run_final');
+        const folder = node._stvOpenFolder;
+        assert.equal(folder.hidden, false);
+        const requests = [];
+        context.fetch = async (url, options) => {
+            requests.push({url, body: JSON.parse(options.body)});
+            return {ok: true, json: async () => ({ok: true})};
+        };
+        context.testNode = node;
+        await vm.runInContext('revealVideoFolder(testNode)', context);
+        assert.deepEqual(requests[0], {url: '/audio_keyframe_timeline/reveal_output', body: {filename: 'final.mp4', subfolder: ''}});
+        assert.equal(folder.disabled, false);
+        node._stvLastVideoInfo = {filename: 'another.mp4', subfolder: 'h3/nested', type: 'output'};
+        await vm.runInContext('revealVideoFolder(testNode)', context);
+        assert.deepEqual(requests[1].body, {filename: 'another.mp4', subfolder: 'h3/nested'});
+        folder.disabled = true;
+        await vm.runInContext('revealVideoFolder(testNode)', context);
+        assert.equal(requests.length, 2, 'ignore repeated clicks while opening');
+        folder.disabled = false;
+        context.fetch = async () => ({ok: false, json: async () => ({error: 'Missing file'})});
+        await vm.runInContext('revealVideoFolder(testNode)', context);
+        assert.equal(header.state, 'error');
+        assert.match(header.textContent, /Missing file/);
+        assert.equal(folder.disabled, false, 'allow retry after failure');
         assert.ok(node._stvVideo.src.includes('final.mp4'));
         const start = id => listeners.get('cat_h3_preview_started')({detail: {workflow_id: 'test-workflow', node_id: '1:2', preview_id: id}});
         const frame = id => listeners.get('kj_preview_override')({detail: {node_id: id, image: 'frame'}});
         const previousVideo = node._stvVideo;
         start('1:2::h3:run_0');
+        assert.equal(folder.hidden, true, 'sampling must not reveal the previous file');
         const sampling = node._stvSampling;
         assert.equal(previousVideo.paused, true);
         assert.equal(node._stvVideo, null);
@@ -173,6 +201,7 @@ for (const type of ['CAP_SeqToVideo', 'CAP_ComposeClipVideos', 'CAP_H3VideoGener
         frame('1:2::h3:run_1');
         assert.equal(nextSampling.updates.length, 1);
         send('finished.mp4', 'run_1');
+        assert.equal(folder.hidden, false, 'saved video restores folder action');
         assert.equal(node._stvProgress, header, 'sampling/video switches keep the progress header');
         assert.equal(nextSampling.disposed, true);
         assert.equal(node._stvSampling, null);

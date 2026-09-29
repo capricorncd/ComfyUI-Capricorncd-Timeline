@@ -2,6 +2,8 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        open_folder: "Open folder",
+        open_folder_failed: "Could not open folder:",
         h3_warning_missing_context: "Warning: clip {clip} has no available context or generated video from {previous}. Generating independently without motion continuity.",
         h3_error_title: "Generation stopped",
         h3_error_selflift_context: "SelfLift cannot be used with Motion Context. Set enabled to false on H3 SelfLift Config to keep motion continuity, or disable Motion Context on the clips being generated.",
@@ -24,6 +26,8 @@ export const DICT = {
         ffmpeg_not_found: "ffmpeg not found; please install it and restart ComfyUI",
     },
     zh: {
+        open_folder: "打开文件夹",
+        open_folder_failed: "无法打开文件夹：",
         h3_warning_missing_context: "警告：片段 {clip} 未找到前段 {previous} 的 Context 或生成视频，本次已改为独立生成，不使用动作续接。",
         h3_error_title: "生成已停止",
         h3_error_selflift_context: "SelfLift 暂不支持与 Motion Context（动作续接）同时使用。\n要保留动作续接：将 H3 SelfLift Config 的 enabled 设为 false。\n要使用 SelfLift：关闭本次生成片段的 Motion Context。修改后重新运行。",
@@ -46,6 +50,8 @@ export const DICT = {
         ffmpeg_not_found: "未检测到 ffmpeg，请安装后重启 ComfyUI",
     },
     ja: {
+        open_folder: "フォルダーを開く",
+        open_folder_failed: "フォルダーを開けません：",
         h3_warning_missing_context: "警告：クリップ {clip} の前段 {previous} に利用可能な Context・生成動画がないため、動作の継続なしで独立生成します。",
         h3_error_title: "生成を停止しました",
         h3_error_selflift_context: "SelfLift と Motion Context は併用できません。動作の連続性を保つには H3 SelfLift Config の enabled を false にするか、生成対象クリップの Motion Context を無効にして再実行してください。",

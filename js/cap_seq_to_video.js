@@ -5,6 +5,7 @@ import { loadExtensionCss } from "./cap_ui.js";
 import { t } from "./i18n/seq_to_video.js";
 import { createPreviewPlayer } from "./cap_model_preview.js";
 import "./components/StatusMessage.js";
+import "./components/Button.js";
 
 const PLAYER_NODES   = new Set(["CAP_SeqToVideo", "CAP_ComposeClipVideos", "CAP_H3VideoGenerator"]);
 const PLAYER_H       = 200;  // placeholder / initial height in px
@@ -70,6 +71,7 @@ function showVideo(node, info) {
     if (!info || !node?._stvRoot) return;
     clearSamplingPreview(node);
     node._stvLastVideoInfo = info;
+    if (node._stvOpenFolder) node._stvOpenFolder.hidden = info.type !== "output" || !info.filename;
     const url = videoUrl(info);
     if (url === node._stvCurrent) return;
     node._stvCurrent = url;
@@ -145,6 +147,7 @@ function startSamplingPreview(node, data) {
     node._stvVideo?.load();
     node._stvVideo?.remove();
     node._stvVideo = null;
+    if (node._stvOpenFolder) node._stvOpenFolder.hidden = true;
     node._stvCurrent = null;
     node._stvHolder?.remove();
     node._stvHolder = null;
@@ -340,6 +343,20 @@ function _buildPlayer(node) {
         progress.title = t("h3_progress_tip");
         root.appendChild(progress);
         node._stvProgress = progress;
+        const openFolder = document.createElement("cap-button");
+        openFolder.className = "stv-open-folder";
+        openFolder.setAttribute("size", "small");
+        openFolder.setAttribute("variant", "primary");
+        openFolder.textContent = t("open_folder");
+        openFolder.hidden = true;
+        openFolder.addEventListener("pointerdown", event => event.stopPropagation());
+        openFolder.addEventListener("click", event => {
+            event.preventDefault();
+            event.stopPropagation();
+            void revealVideoFolder(node);
+        });
+        root.appendChild(openFolder);
+        node._stvOpenFolder = openFolder;
     }
 
     const holder = document.createElement("div");
@@ -420,6 +437,10 @@ function _showError(node, message) {
 }
 
 function _loadVideo(node, url) {
+    if (node._stvOpenFolder) {
+        const info = node._stvLastVideoInfo;
+        node._stvOpenFolder.hidden = info?.type !== "output" || !info.filename;
+    }
     const root = node._stvRoot;
     if (!root) return;
 
@@ -464,9 +485,32 @@ function _loadVideo(node, url) {
     node._stvVideo = video;
 }
 
+async function revealVideoFolder(node) {
+    const button = node._stvOpenFolder;
+    const info = node._stvLastVideoInfo;
+    if (!button || button.hidden || button.disabled || info?.type !== "output" || !info.filename) return;
+    button.disabled = true;
+    try {
+        const response = await fetch(api.apiURL("/audio_keyframe_timeline/reveal_output"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: info.filename, subfolder: info.subfolder ?? "" }),
+        });
+        const data = await response.json();
+        if (!response.ok || data.error) throw new Error(data.error || response.statusText);
+    } catch (error) {
+        if (node._stvOpenFolder === button && node._stvLastVideoInfo === info && !button.hidden) {
+            node._stvProgress?.setStatus(`${t("open_folder_failed")} ${error.message}`, "error");
+        }
+    } finally {
+        button.disabled = false;
+    }
+}
+
 function _destroyPlayer(node) {
     clearSamplingPreview(node);
     node._stvProgress = null;
+    node._stvOpenFolder = null;
     node._stvResizeObs?.disconnect();
     node._stvResizeObs = null;
     node._stvVideo?.pause();

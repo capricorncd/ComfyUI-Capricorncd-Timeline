@@ -649,3 +649,9 @@
   .tl-dur-display { display: none; }
   .tl-zoom-slider { width: 60px; }
 }
+
+.tl-clip.export-disabled { opacity: .4; }
+.tl-clip.export-disabled.selected { opacity: .7; }
+
+.tl-clip.insufficient-frames { border:2px solid var(--cat-danger, #ff8080); }
+.tl-clip.insufficient-frames.selected::after { border-color:var(--cat-danger, #ff8080); }

@@ -395,7 +395,14 @@ export class Timeline extends EventEmitter {
         const rect = this.scrollEl.getBoundingClientRect();
         const pivotX = e.clientX - rect.left;
         const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-        this.setZoom(this._zoom * factor, pivotX);
+        const pending = this._wheelZoom;
+        this._wheelZoom = { zoom: clamp((pending?.zoom ?? this._zoom) * factor, this.minZoom, this.maxZoom), pivotX };
+        if (!this._wheelZoomFrame) this._wheelZoomFrame = requestAnimationFrame(() => {
+          const next = this._wheelZoom;
+          this._wheelZoomFrame = null;
+          this._wheelZoom = null;
+          this.setZoom(next.zoom, next.pivotX);
+        });
       }
     }, { passive: false });
 
@@ -1099,6 +1106,9 @@ export class Timeline extends EventEmitter {
    * @param {boolean} fromSlider   true when called by the slider (skip slider update)
    */
   setZoom(zoom, pivotX = null, fromSlider = false) {
+    if (this._wheelZoomFrame) cancelAnimationFrame(this._wheelZoomFrame);
+    this._wheelZoomFrame = null;
+    this._wheelZoom = null;
     const oldZoom = this._zoom;
     const newZoom = clamp(zoom, this.minZoom, this.maxZoom);
     if (Math.abs(oldZoom - newZoom) < 1e-6) return;
@@ -1145,6 +1155,9 @@ export class Timeline extends EventEmitter {
   // ─── destroy ──────────────────────────────────────────────────────────────
 
   destroy() {
+    if (this._wheelZoomFrame) cancelAnimationFrame(this._wheelZoomFrame);
+    this._wheelZoomFrame = null;
+    this._wheelZoom = null;
     window.removeEventListener('cap-theme-change', this._onThemeChange);
     this._endSeekScrub?.();
     this.pause();

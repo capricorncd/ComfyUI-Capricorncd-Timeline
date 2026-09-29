@@ -566,12 +566,25 @@ export class Clip extends EventEmitter {
   _applyPosition() {
     const pps = this.track.timeline.pixelsPerSecond;
     const color = this.color || this.track.color;
-    this.el.style.cssText = `left:${this.startTime * pps}px;width:${this.duration * pps}px;--clip-color:${color}`;
-    if (this._durEl) this._durEl.textContent = this.track.timeline.formatTime(this.duration);
+    this.el.style.left = `${this.startTime * pps}px`;
+    this.el.style.width = `${this.duration * pps}px`;
+    if (this.el.style.getPropertyValue('--clip-color') !== color) this.el.style.setProperty('--clip-color', color);
+    if (this._durEl) {
+      const text = this.track.timeline.formatTime(this.duration);
+      if (this._durEl.textContent !== text) this._durEl.textContent = text;
+    }
     this._clampFades();
     // Trim/move changes the audible window — keep bars in sync with source.
     if (this.track.type === 'audio' || this.hasAudio) this._syncWaveformView();
     this.audioEnvelope?.render();
+  }
+
+  setInsufficient(value) {
+    this.el.classList.toggle('insufficient-frames', value);
+  }
+
+  setEnabled(enabled) {
+    this.el.classList.toggle('export-disabled', !enabled);
   }
 
   setSelected(sel) {

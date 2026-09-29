@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><script type="module">
+import '../js/training_dataset/Editor.js';
+const config=await (await fetch('/fixture-config')).json();const e=document.createElement('cap-training-dataset-editor');await e.open(config,()=>{});
+e.source.duration=7200;e.source.segments=Array.from({length:1000},(_,i)=>({id:String(i),start:i*7,end:i*7+7,offset:i*7,caption:'',selected:false}));
+e.renderTimeline();e.updateTrackState();await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
+const tl=e.timeline;tl.setZoom(.1);tl.scrollEl.scrollLeft=1000;
+let renders=0;const original=tl.setZoom.bind(tl);tl.setZoom=(...args)=>{renders++;return original(...args);};
+const rect=tl.scrollEl.getBoundingClientRect(), pivot=250, time=(tl.scrollEl.scrollLeft+pivot-tl.startInset)/tl.pixelsPerSecond;
+const t=performance.now();for(let i=0;i<20;i++)tl.scrollEl.dispatchEvent(new WheelEvent('wheel',{ctrlKey:true,deltaY:-100,clientX:rect.left+pivot,cancelable:true}));
+const dispatch=performance.now()-t;
+await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
+const settled=performance.now()-t;
+if(Math.abs((tl.scrollEl.scrollLeft+pivot-tl.startInset)/tl.pixelsPerSecond-time)>.1)throw Error('zoom pivot drift');
+if(Math.abs(tl.getZoom()-.1*1.12**20)>1e-8)throw Error('wheel input lost');
+const clip=tl.tracks[0].clips.find(c=>c.el.isConnected);if(Math.abs(clip.el.getBoundingClientRect().width-clip.duration*tl.pixelsPerSecond)>1)throw Error('clip width mismatch');
+const output=document.createElement('output');output.textContent=JSON.stringify({dispatch,settled,renders,zoom:tl.getZoom(),mounted:e.mountedClips.size});e.querySelector('header').append(output);
+</script>

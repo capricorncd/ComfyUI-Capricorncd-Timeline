@@ -1,5 +1,23 @@
 # Release notes / 更新记录
 
+## 0.17.28 — 2026-09-30
+
+### English
+
+- Preserve predecessor video context when restoring H3 drafts and clean up dynamic VRAM state between sampling passes.
+- Add the training dataset timeline editor with scene detection, cropping and export controls in the header.
+- Prevent cross-track drops from overlapping existing clips, including hidden or disabled assets.
+- Disable watermarks by default and keep delete confirmations above the compose dialog; retain explicitly saved watermark settings.
+- Restart ComfyUI and refresh the browser after updating.
+
+### 简体中文
+
+- 修复恢复 H3 草稿时丢失上一段视频路径的问题，并在采样阶段之间清理动态显存状态。
+- 新增训练素材时间轴编辑器，支持场景检测、裁剪及顶部导出操作。
+- 修复跨轨道拖动覆盖已有素材的问题，隐藏或禁用的素材仍占据时间范围。
+- 水印默认关闭，保留明确保存的水印设置；修复删除确认弹窗被合成窗口遮挡的问题。
+- 更新后重启 ComfyUI 并刷新浏览器。
+
 ## 0.17.27 — 2026-09-28
 
 ### English

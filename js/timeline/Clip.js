@@ -360,6 +360,7 @@ export class Clip extends EventEmitter {
     }).filter(Boolean);
     let swap = null;
     let liveTrack = this.track;
+    let validDrop = true;
     let lastEvent = e;
     let raf = 0;
     // Click (no real drag) must not run overlap constraint — oversized
@@ -404,6 +405,7 @@ export class Clip extends EventEmitter {
       const snapped = tl._snapMoveToClipEdges(this, desiredStart);
       desiredStart = snapped.start;
       const valid = liveTrack._constrainClip(this, desiredStart, { homeStart: startTime });
+      validDrop = valid !== null;
       if (valid !== null) this.startTime = valid;
       const guide = tl._alignedClipEdge(this);
       if (guide != null) tl._showSnapGuide(guide);
@@ -446,6 +448,11 @@ export class Clip extends EventEmitter {
         return;
       }
 
+      if (liveTrack !== origTrack && !validDrop) {
+        this.startTime = startTime;
+        origTrack.el.appendChild(this.el);
+        liveTrack = origTrack;
+      }
       if (liveTrack !== origTrack) {
         origTrack.clips = origTrack.clips.filter(c => c.id !== this.id);
         liveTrack.clips.push(this);

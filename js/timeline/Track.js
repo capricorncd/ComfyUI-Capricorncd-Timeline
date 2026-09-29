@@ -124,6 +124,11 @@ export class Track extends EventEmitter {
     const fps = Math.max(1, this.timeline.fps || 24);
     const EPS = 0.5 / fps;
 
+    if (clip.track !== this) {
+      return others.some(c => desiredStart < c.endTime - EPS && desiredStart + dur > c.startTime + EPS)
+        ? null : desiredStart;
+    }
+
     // Stay put when the request is effectively "keep current".
     if (Math.abs(desiredStart - homeStart) <= EPS) {
       return homeStart;

@@ -4804,7 +4804,7 @@ export class CapTimelineEditorApp {
               </footer>
             </div>
           </div>
-          <cap-dialog class="cat-te-media-delete-modal" width="420px" min-width="280px" min-height="160px" close-label="${T("close_title")}">
+          <cap-dialog class="cat-te-media-delete-modal" width="420px" height="fit-content" min-width="280px" min-height="160px" close-label="${T("close_title")}">
               <span slot="title" id="cat-te-media-delete-title">${T("delete_asset_title")}</span>
               <div class="cat-te-modal-body">
                 <div class="cat-te-media-delete-message"></div>

@@ -148,6 +148,26 @@ class ExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status['state'],'complete',status)
         self.assertTrue(all(0<=p<7.01 for p in status['result']['points']))
 
+    async def test_selected_detection_ranges(self):
+        from unittest.mock import patch
+        calls=[]
+        def detect(path,start,duration,cancel=None):
+            calls.append((start,duration))
+            return [start+0.5]
+        with patch.object(module,'detect_video_scenes',detect):
+            response=await self.client.post('/cap/training_dataset/detect',json={'token':self.source['token'],'ranges':[{'start':1,'end':2},{'start':4,'end':6}]})
+            self.assertEqual(response.status,200)
+            token=(await response.json())['job']
+            for _ in range(100):
+                status=await (await self.client.get('/cap/training_dataset/jobs/'+token)).json()
+                if status['state']!='running':break
+                await asyncio.sleep(.01)
+            self.assertEqual(status['result']['points'],[1.5,4.5])
+            self.assertEqual(calls,[(1,1),(4,2)])
+        for ranges in [[],[None],[{'start':-1,'end':3}],[{'start':2,'end':99}]]:
+            response=await self.client.post('/cap/training_dataset/detect',json={'token':self.source['token'],'ranges':ranges})
+            self.assertEqual(response.status,400)
+
     async def test_caption_receives_only_exported_window(self):
         agent=types.ModuleType('training_test_backend.cap_clip_prompt_vl')
         seen=[]

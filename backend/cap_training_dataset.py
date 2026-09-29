@@ -294,12 +294,21 @@ def register_training_dataset_routes(routes, input_directory, output_directory):
         try:
             data = await request.json()
             src = source(data['token'])
+            ranges = data.get('ranges', [{'start': 0, 'end': src['duration']}])
+            if not isinstance(ranges, list) or not 1 <= len(ranges) <= 2000:
+                raise ValueError('Select valid detection ranges.')
+            intervals = [(float(row['start']), float(row['end'])) for row in ranges]
+            if any(not math.isfinite(start) or not math.isfinite(end) or not 0 <= start < end <= src['duration'] for start, end in intervals):
+                raise ValueError('Invalid scene detection range.')
             def work(job):
-                points = detect_video_scenes(src['path'], 0, src['duration'])
-                job['done'] = 1
+                points = []
+                job['total'] = len(intervals)
+                for start, end in intervals:
+                    points.extend(detect_video_scenes(src['path'], start, end-start, cancel=job['cancel']))
+                    job['done'] += 1
                 return {'points': points}
             return await start_job(work)
-        except (KeyError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError) as exc:
             return web.json_response({'error': str(exc)}, status=400)
 
     @routes.post(prefix + '/export')

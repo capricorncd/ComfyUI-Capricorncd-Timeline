@@ -96,6 +96,8 @@ Serve the repository locally and open `tests/media_carousel.browser.html` for la
 
 ## Dialog
 
+The editor's shared delete confirmation uses modal `cap-dialog`, including deletion from the compose window, so it stays above its parent dialog. Watermarks default to disabled; explicitly saved enabled settings are retained.
+
 Use `js/components/Dialog.js` for new dialogs. `<cap-dialog>` owns an isolated native dialog, draggable header, shared button for Close, border, downward shadow, backdrop and scroll container. Export, voice conversion, subtitle speech/binding, batch subtitles, shortcuts and generated-media association use it. Legacy editor modals reuse its `bindDialogDrag()` helper and the same shadow/backdrop tokens while retaining their existing content and keyboard handling.
 
 ```html

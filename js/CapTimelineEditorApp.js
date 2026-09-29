@@ -3198,7 +3198,7 @@ export class CapTimelineEditorApp {
 
     _defaultWatermark() {
         return {
-            enabled: true,
+            enabled: false,
             mode: "none",
             text: { content: "", fontFamily: "", fontPath: "", fontSize: 32, letterSpacing: 0, color: "#ffffff" },
             image: { file: "", disabled: false },
@@ -3220,7 +3220,7 @@ export class CapTimelineEditorApp {
             return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : def;
         };
         const out = {
-            enabled: r.enabled !== false,
+            enabled: r.enabled === true,
             text: {
                 content: String(text.content ?? d.text.content),
                 fontFamily: String(text.fontFamily ?? d.text.fontFamily),
@@ -4424,7 +4424,7 @@ export class CapTimelineEditorApp {
 
                   <div class="cat-te-wm-section">
                     <label class="cat-te-wm-heading cat-te-compose-check">
-                      <input class="cat-te-wm-enabled" type="checkbox" checked />
+                      <input class="cat-te-wm-enabled" type="checkbox" />
                       <span>${T("watermark_heading")}</span>
                     </label>
                     <div class="cat-te-wm-tabs">
@@ -4804,21 +4804,16 @@ export class CapTimelineEditorApp {
               </footer>
             </div>
           </div>
-          <div class="cat-te-modal-backdrop cat-te-media-delete-modal" hidden>
-            <div class="cat-te-modal cat-te-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cat-te-media-delete-title">
-              <div class="cat-te-modal-header">
-                <span id="cat-te-media-delete-title">${T("delete_asset_title")}</span>
-                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-media-delete-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
-              </div>
+          <cap-dialog class="cat-te-media-delete-modal" width="420px" min-width="280px" min-height="160px" close-label="${T("close_title")}">
+              <span slot="title" id="cat-te-media-delete-title">${T("delete_asset_title")}</span>
               <div class="cat-te-modal-body">
                 <div class="cat-te-media-delete-message"></div>
               </div>
-              <footer class="cat-te-modal-footer cat-te-confirm-actions">
+              <footer slot="footer" class="cat-te-confirm-actions">
                 <cap-button class="cat-te-media-delete-cancel" autofocus>${T("cancel_btn")}</cap-button>
                 <cap-button variant="danger" class="cat-te-media-delete-confirm">${T("delete_btn")}</cap-button>
               </footer>
-            </div>
-          </div>
+          </cap-dialog>
           <div class="cat-te-modal-backdrop cat-te-track-convert-modal" hidden>
             <div class="cat-te-modal cat-te-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cat-te-track-convert-title">
               <div class="cat-te-modal-header">
@@ -5474,11 +5469,10 @@ export class CapTimelineEditorApp {
         this.trackDeleteModal?.addEventListener("click", (e) => {
             if (e.target === this.trackDeleteModal) this._closeTrackDeleteModal();
         });
-        el.querySelector(".cat-te-media-delete-close")?.addEventListener("click", () => this._closeMediaDeleteModal());
         el.querySelector(".cat-te-media-delete-cancel")?.addEventListener("click", () => this._closeMediaDeleteModal());
         el.querySelector(".cat-te-media-delete-confirm")?.addEventListener("click", () => void this._confirmDeleteAction());
-        this.mediaDeleteModal?.addEventListener("click", (e) => {
-            if (e.target === this.mediaDeleteModal) this._closeMediaDeleteModal();
+        this.mediaDeleteModal?.addEventListener("close", () => {
+            this._pendingDeleteAction = null;
         });
         el.querySelector(".cat-te-track-convert-close")?.addEventListener("click", () => this._closeTrackConvertModal());
         el.querySelector(".cat-te-track-convert-ok")?.addEventListener("click", () => this._closeTrackConvertModal());
@@ -5806,8 +5800,9 @@ export class CapTimelineEditorApp {
                 return;
             }
             if (e.key === "Escape") {
-                if (this.mediaDeleteModal && !this.mediaDeleteModal.hidden) {
+                if (this.mediaDeleteModal?.open) {
                     this._closeMediaDeleteModal();
+                    e.preventDefault();
                     e.stopPropagation();
                     return;
                 }
@@ -16353,7 +16348,7 @@ export class CapTimelineEditorApp {
             || (this.trackRenameModal && !this.trackRenameModal.hidden)
             || (this.trackColorModal && !this.trackColorModal.hidden)
             || (this.trackDeleteModal && !this.trackDeleteModal.hidden)
-            || (this.mediaDeleteModal && !this.mediaDeleteModal.hidden)
+            || this.mediaDeleteModal?.open
             || (this.trackConvertModal && !this.trackConvertModal.hidden)
             || (this.settingsModal && !this.settingsModal.hidden)
             || this.shortcutsDialog?.open
@@ -16883,12 +16878,12 @@ export class CapTimelineEditorApp {
         this._pendingDeleteAction = action;
         if (this.mediaDeleteTitle) this.mediaDeleteTitle.textContent = title;
         this.mediaDeleteMessage.textContent = message;
-        this.mediaDeleteModal.hidden = false;
+        this.mediaDeleteModal.showModal();
     }
 
     _closeMediaDeleteModal() {
         this._pendingDeleteAction = null;
-        if (this.mediaDeleteModal) this.mediaDeleteModal.hidden = true;
+        this.mediaDeleteModal?.close();
     }
 
     async _confirmDeleteAction() {

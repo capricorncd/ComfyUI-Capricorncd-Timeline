@@ -1061,6 +1061,37 @@ class DigitalHumanAudioTests(unittest.TestCase):
 
 
 class NodeAdapterTests(unittest.TestCase):
+    def test_each_internal_sampling_pass_ends_dynamic_vram_state(self):
+        events = []
+        output = object()
+
+        class Native:
+            @classmethod
+            def execute(cls):
+                events.append("sample")
+                return SimpleNamespace(args=(output,))
+
+        memory = SimpleNamespace(aimdo_enabled=True)
+        scope = load_definitions("cap_h3_video_generator.py", {
+            "nodes": SimpleNamespace(NODE_CLASS_MAPPINGS={
+                "SamplerCustomAdvanced": Native, "SelfLiftH3Sampler": Native, "BasicGuider": Native}),
+            "io": SimpleNamespace(ComfyNode=Native),
+            "comfy": SimpleNamespace(
+                memory_management=memory,
+                model_prefetch=SimpleNamespace(cleanup_prefetch_queues=lambda: events.append("prefetch")),
+                model_management=SimpleNamespace(reset_cast_buffers=lambda: events.append("casts"))),
+            "comfy_aimdo": SimpleNamespace(model_vbar=SimpleNamespace(
+                vbars_reset_watermark_limits=lambda: events.append("watermarks"))),
+        })
+        for name in ("SamplerCustomAdvanced", "SelfLiftH3Sampler", "SamplerCustomAdvanced"):
+            self.assertEqual(scope["_call"](name, {}), (output,))
+        self.assertEqual(events, ["sample", "prefetch", "casts", "watermarks"] * 3)
+        events.clear()
+        scope["_call"]("BasicGuider", {})
+        memory.aimdo_enabled = False
+        scope["_call"]("SamplerCustomAdvanced", {})
+        self.assertEqual(events, ["sample", "sample"])
+
     def test_normalizes_native_and_legacy_results_without_recording_tensors(self):
         class Native:
             @classmethod

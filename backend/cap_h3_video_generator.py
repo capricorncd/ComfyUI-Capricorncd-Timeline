@@ -11,6 +11,9 @@ import torch
 import folder_paths
 import nodes
 import comfy.model_management
+import comfy.memory_management
+import comfy.model_prefetch
+import comfy_aimdo.model_vbar
 from comfy.patcher_extension import WrappersMP
 from comfy_api.latest import io
 
@@ -57,6 +60,12 @@ def _call(name, records, **inputs):
     else:
         result = getattr(cls(), cls.FUNCTION)(**inputs)
         values = result["result"] if isinstance(result, dict) else result
+    if name in ("SamplerCustomAdvanced", "SelfLiftH3Sampler") and comfy.memory_management.aimdo_enabled:
+        # Internal samplers bypass execution.py's per-node dynamic VRAM cleanup.
+        # End each successful pass before resizing latents or starting the next clip.
+        comfy.model_prefetch.cleanup_prefetch_queues()
+        comfy.model_management.reset_cast_buffers()
+        comfy_aimdo.model_vbar.vbars_reset_watermark_limits()
     # Only scalar execution parameters belong in the saved provenance, never tensors.
     records[f"h3_internal_{len(records)}"] = {
         "class_type": name,

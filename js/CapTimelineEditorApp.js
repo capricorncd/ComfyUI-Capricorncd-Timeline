@@ -1496,7 +1496,12 @@ export class CapTimelineEditorApp {
 
     async _openLauncherProjectFolder() {
         try {
-            await this._launcherProject.reveal();
+            const directory = this.projectDirectoryField?.value || this._launcherProject.session?.directory;
+            if (!directory) return;
+            const session = this._launcherProject.session?.directory === directory
+                ? this._launcherProject.session
+                : await this._launcherProject.request('associate', { directory });
+            await this._launcherProject.request('reveal', { token: session.token });
         } catch (error) {
             this._launcherStatus?.setStatus(`${launcherT("openFailed")}: ${error.message}`, "error");
         }
@@ -4933,6 +4938,7 @@ export class CapTimelineEditorApp {
             this._projectDirectory = this.projectDirectoryField.value;
         });
         this.projectDirectoryField.addEventListener('change', () => void this._associateProjectDirectory());
+        this.projectDirectoryField.addEventListener('directory-open', () => void this._openLauncherProjectFolder());
         this.brandProjectBtn = el.querySelector(".cat-te-brand-project");
         this.sidebarTitle = el.querySelector(".cat-te-sidebar-title");
         this.projectPanel = el.querySelector(".cat-te-project-panel");

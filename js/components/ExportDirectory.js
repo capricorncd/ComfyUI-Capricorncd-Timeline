@@ -12,6 +12,7 @@ const T = makeT({
 });
 
 const STORAGE_KEY = 'capricorncd.timeline.last-export-directory';
+const openT = makeT({ zh: {open: '打开目录'}, en: {open: 'Open folder'}, ja: {open: 'フォルダーを開く'} });
 
 export function lastExportDirectory(kind = 'video') {
     try { return localStorage.getItem(`${STORAGE_KEY}.${kind}`) || ''; }
@@ -38,11 +39,14 @@ export class ExportDirectory extends HTMLElement {
             cap-status-message { margin-top: 8px; }
         </style><div class="field"><div class="heading"><label for="directory">${T('label')}</label>
             <div class="actions"><cap-button data-choose size="small">${T('choose')}</cap-button>
+            <cap-button data-open size="small" hidden>${openT('open')}</cap-button>
             <cap-button data-reset shape="square" title="${T('reset')}" aria-label="${T('reset')}">${iconHtml('refresh', 14)}</cap-button>
         </div></div><cap-input><input id="directory" readonly aria-label="${T('label')}" /></cap-input>
         </div><cap-status-message hidden></cap-status-message>`;
         this.input = this.shadowRoot.querySelector('input');
         this.choose = this.shadowRoot.querySelector('[data-choose]');
+        this.openButton = this.shadowRoot.querySelector('[data-open]');
+        this.openButton.addEventListener('click', () => this.dispatchEvent(new CustomEvent('directory-open', {bubbles: true})));
         this.reset = this.shadowRoot.querySelector('[data-reset]');
         this.status = this.shadowRoot.querySelector('cap-status-message');
         this.input.addEventListener('input', () => {
@@ -121,6 +125,7 @@ export class ExportDirectory extends HTMLElement {
         this.input.readOnly = this.nativePicker;
         this.choose.textContent = T(this.value ? 'change' : 'choose');
         this.choose.hidden = !this.nativePicker;
+        this.openButton.hidden = !this.hasAttribute('project-directory') || !this.value;
         this.reset.hidden = this.hasAttribute('project-directory') || !this.nativePicker || !this.value;
     }
     get disabled() { return this._disabled || false; }
@@ -129,6 +134,7 @@ export class ExportDirectory extends HTMLElement {
         this._disabled = Boolean(value);
         this.input.disabled = this._disabled || this._picking;
         this.choose.disabled = this.reset.disabled = this._disabled || this._picking;
+        this.openButton.disabled = this._disabled || this._picking;
     }
 
     async pick() {

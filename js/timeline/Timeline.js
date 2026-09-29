@@ -421,7 +421,6 @@ export class Timeline extends EventEmitter {
     // ComfyUI's handling. Consumed at window-capture time (see below) so
     // this runs before ComfyUI's listeners regardless of where/when they
     // were attached.
-    const consume = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.(); };
     this._onKey = (e) => {
       if (this._keyboardSuspended) return;
       if (e.target.closest?.('cap-dialog')) return;
@@ -429,6 +428,11 @@ export class Timeline extends EventEmitter {
       if (isEditingField(e)) return;
       this.emit('key', e);
       if (e.defaultPrevented) return;
+      this.handleKey(e);
+    };
+    // Explicit routing lets a dialog own focus and consume the DOM event first.
+    this.handleKey = (e) => {
+      const consume = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.(); };
       switch (e.code) {
         case 'Space':
           consume(e); this.togglePlay(); break;

@@ -1119,8 +1119,7 @@ export class CapTimelineEditorApp {
             sub.togglePlay?.();
             return true;
         }
-        // Forward to the sub-timeline handler when present.
-        try { sub._onKey?.(e); } catch { /* ignore */ }
+        sub.handleKey(e);
         return true;
     }
 

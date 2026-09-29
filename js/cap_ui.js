@@ -1,5 +1,12 @@
 import "./components/Button.js";
-import { iconHtml } from "./cap_icons.js";
+import "./components/Dialog.js";
+import { makeT } from "./cap_i18n.js";
+
+const dialogT = makeT({
+    zh: {confirm: "确认", notice: "提示", ok: "确定", cancel: "取消"},
+    en: {confirm: "Confirm", notice: "Notice", ok: "OK", cancel: "Cancel"},
+    ja: {confirm: "確認", notice: "お知らせ", ok: "OK", cancel: "キャンセル"},
+});
 
 /** Shared UI helpers: stylesheet loading, buttons. */
 
@@ -62,82 +69,35 @@ export function mkUiIconBtn(icon, { variant = "", title = "", onClick, needTarge
     return b;
 }
 
-export function showCapConfirm(message, { title = "Confirm", confirmLabel = "OK", cancelLabel = "Cancel", alternateLabel = null } = {}) {
-    ensureCapUiCss();
-    return new Promise((resolve) => {
-        const overlay = document.createElement("div");
-        overlay.className = "cap-ui-overlay cap-ui-confirm-overlay";
-        overlay.innerHTML = `
-          <div class="cap-ui-confirm-dialog" role="alertdialog" aria-modal="true">
-            <div class="cap-ui-confirm-header">
-              <strong></strong>
-              <cap-button shape="square" variant="neutral" class="cap-ui-confirm-close" aria-label="${cancelLabel}">${iconHtml("close", 16)}</cap-button>
-            </div>
-            <div class="cap-ui-confirm-message"></div>
-            <div class="cap-ui-confirm-actions">
-              <cap-button class="cap-ui-confirm-cancel"></cap-button>
-              <cap-button variant="danger" class="cap-ui-confirm-ok"></cap-button>
-            </div>
-          </div>`;
-        const dialog = overlay.querySelector(".cap-ui-confirm-dialog");
-        const header = overlay.querySelector(".cap-ui-confirm-header");
-        const cancel = overlay.querySelector(".cap-ui-confirm-cancel");
-        const ok = overlay.querySelector(".cap-ui-confirm-ok");
-        header.querySelector("strong").textContent = title;
-        overlay.querySelector(".cap-ui-confirm-message").textContent = message;
-        cancel.textContent = cancelLabel;
-        ok.textContent = confirmLabel;
-
-        let settled = false;
-        const finish = (value) => {
-            if (settled) return;
-            settled = true;
-            window.removeEventListener("keydown", onKeyDown, true);
-            overlay.remove();
-            resolve(value);
-        };
-        const onKeyDown = (event) => {
-            if (event.key !== "Escape") return;
-            event.preventDefault();
-            event.stopPropagation();
-            finish(false);
-        };
-        overlay.addEventListener("click", (event) => {
-            if (event.target === overlay) finish(false);
-        });
-        overlay.querySelector(".cap-ui-confirm-close").addEventListener("click", () => finish(false));
-        cancel.addEventListener("click", () => finish(false));
-        ok.addEventListener("click", () => finish(true));
-        if (alternateLabel) {
-            const alternate = document.createElement("cap-button");
-            alternate.className = "cap-ui-confirm-alternate";
-            alternate.textContent = alternateLabel;
-            alternate.addEventListener("click", () => finish("alternate"));
-            ok.before(alternate);
-        }
-        header.addEventListener("pointerdown", (event) => {
-            if (event.button !== 0 || event.target.closest("button, cap-button")) return;
-            const rect = dialog.getBoundingClientRect();
-            const dx = event.clientX - rect.left;
-            const dy = event.clientY - rect.top;
-            dialog.style.position = "fixed";
-            dialog.style.left = `${rect.left}px`;
-            dialog.style.top = `${rect.top}px`;
-            const move = (moveEvent) => {
-                const left = Math.max(0, Math.min(window.innerWidth - dialog.offsetWidth, moveEvent.clientX - dx));
-                const top = Math.max(0, Math.min(window.innerHeight - dialog.offsetHeight, moveEvent.clientY - dy));
-                dialog.style.left = `${left}px`;
-                dialog.style.top = `${top}px`;
-            };
-            const up = () => {
-                window.removeEventListener("pointermove", move, true);
-                window.removeEventListener("pointerup", up, true);
-            };
-            window.addEventListener("pointermove", move, true);
-            window.addEventListener("pointerup", up, true);
-        });
-        document.body.appendChild(overlay);
-        window.addEventListener("keydown", onKeyDown, true);
-        cancel.focus();
+export function showCapConfirm(message, { title = dialogT("confirm"), confirmLabel = dialogT("ok"), cancelLabel = dialogT("cancel"), alternateLabel = null } = {}) {
+    return new Promise(resolve => {
+        const dialog = document.createElement("cap-dialog");
+        dialog.width = 420;
+        dialog.height = "fit-content";
+        dialog.minWidth = 280;
+        dialog.minHeight = 160;
+        dialog.setAttribute("close-label", dialogT("cancel"));
+        const heading = document.createElement("span");
+        heading.slot = "title";
+        heading.textContent = title;
+        const body = document.createElement("div");
+        body.style.cssText = "padding:18px 20px;white-space:pre-wrap;overflow-wrap:anywhere";
+        body.textContent = String(message ?? "");
+        const footer = document.createElement("div");
+        footer.slot = "footer";
+        footer.setAttribute("data-dialog-actions", "");
+        let result = false;
+        const finish = value => { result = value; dialog.close(); };
+        if (cancelLabel !== null) footer.append(mkUiBtn(cancelLabel, {onClick: () => finish(false)}));
+        if (alternateLabel) footer.append(mkUiBtn(alternateLabel, {onClick: () => finish("alternate")}));
+        footer.append(mkUiBtn(confirmLabel, {variant: "primary", onClick: () => finish(true)}));
+        dialog.append(heading, body, footer);
+        dialog.addEventListener("close", () => { dialog.remove(); resolve(result); }, {once: true});
+        document.body.append(dialog);
+        dialog.showModal();
     });
+}
+
+export function showCapAlert(message) {
+    return showCapConfirm(message, {title: dialogT("notice"), cancelLabel: null});
 }

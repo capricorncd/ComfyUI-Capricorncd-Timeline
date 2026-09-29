@@ -63,7 +63,7 @@ const editorSource = readFileSync(new URL('../js/CapTimelineEditorApp.js', impor
 function editorMethod(name, confirm = () => true) {
     const start = editorSource.search(new RegExp(`    (async )?${name}\\(`));
     const end = editorSource.indexOf('\n    }', start) + 6;
-    return new Function('launcherT', 'T', 'alert', 'confirm', 'window', `return ({${editorSource.slice(start, end)}}).${name}`)(key => key, key => key, () => {}, confirm, { __COMFYUI_LAUNCHER__: { capabilities: { projectDirectory: true } } });
+    return new Function('launcherT', 'T', 'showCapAlert', 'showCapConfirm', 'window', `return ({${editorSource.slice(start, end)}}).${name}`)(key => key, key => key, () => {}, confirm, { __COMFYUI_LAUNCHER__: { capabilities: { projectDirectory: true } } });
 }
 {
     const widget = { name: 'project_json', value: '' };

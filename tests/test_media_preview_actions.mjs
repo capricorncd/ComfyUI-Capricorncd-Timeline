@@ -7,7 +7,7 @@ let confirmed = true;
 const method = name => {
     const start = source.search(new RegExp('    (?:async )?' + name + '\\('));
     assert(start >= 0, name);
-    return new Function('isDirectorTrackType', 'isMediaTrackType', 'T', 'confirm', 'alert',
+    return new Function('isDirectorTrackType', 'isMediaTrackType', 'T', 'showCapConfirm', 'showCapAlert',
         'return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '}).' + name)(
         type => type === 'image', type => type === 'video', (key, args) => ({ key, ...args }),
         () => confirmed, message => { throw new Error(JSON.stringify(message)); });

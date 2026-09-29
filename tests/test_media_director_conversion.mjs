@@ -12,7 +12,7 @@ const globals = {
         return {file: `trim-${cuts.length}.mp4`, trim: {source_id: item.id, start, duration, rate}};
     },
     mediaKindFromFilename: (file, kind) => kind || 'video', mediaUid: () => 'new-id',
-    videoTrimSource, T: key => key, alert() {}, isMediaTrackType: type => type === 'video', isDirectorTrackType: type => type === 'image',
+    videoTrimSource, T: key => key, showCapAlert() {}, isMediaTrackType: type => type === 'video', isDirectorTrackType: type => type === 'image',
     ICONS: {film: '', clapperboard: ''}, defaultImageMeta: () => ({}),
 };
 function method(name) {

@@ -25,7 +25,7 @@ import { FontCatalog } from "./editor/FontCatalog.js";
 import { previewSeedValue, workflowPreviewSeed } from "./editor/PreviewSeed.js";
 import { TimelineHistory } from "./editor/TimelineHistory.js";
 import { ReferenceProject, referenceT } from "./editor/ReferenceProject.js";
-import { launcherProjectFor, launcherT, chooseProjectVersion, confirmProjectUpdate } from "./editor/LauncherProject.js";
+import { launcherProjectFor, launcherT, chooseProjectVersion, confirmProjectUpdate, confirmProjectImport } from "./editor/LauncherProject.js";
 import { StoryboardPage, normalizeStoryboards, storyboardT } from "./editor/StoryboardPage.js";
 import { parseStoryboardDocument, buildStoryboardDocument } from "./editor/StoryboardDocument.js";
 import { FontPicker } from "./editor/FontPicker.js";
@@ -50,7 +50,7 @@ import { parseTimecode, formatTimecode, frameIndexFromSecs, encodeClipTimingMs, 
 import "./components/Tag.js";
 import { stripPromptComments } from "./prompt_text.js";
 import { undoRichPrompt, attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror } from "./components/RichPrompt.js";
-import { loadExtensionCss, showCapConfirm } from "./cap_ui.js";
+import { loadExtensionCss, showCapConfirm, showCapAlert } from "./cap_ui.js";
 import { iconHtml } from "./cap_icons.js";
 import { bindCanvasWheelPassthrough } from "./cap_canvas_wheel.js";
 import { bindDialogDrag, bindDialogResize, resetDialogPosition } from "./components/Dialog.js";
@@ -1475,7 +1475,7 @@ export class CapTimelineEditorApp {
             if (!await field.validate()) return;
             const linked = await this._launcherProject.request('associate', { directory: field.value });
             if (this._destroyed || this._openGen !== openGen || this._launcherProject.session !== previous) return;
-            if (linked.existing && !confirm(launcherT('associateConfirm'))) {
+            if (linked.existing && !await showCapConfirm(launcherT('associateConfirm'))) {
                 field.value = previous?.directory || this._projectDirectory || '';
                 return;
             }
@@ -1640,7 +1640,7 @@ export class CapTimelineEditorApp {
             localStorage.setItem(STORAGE_MODEL_PREVIEW_WORKFLOW_NAME, file.name);
             this._updateModelPreviewConfigName();
         } catch (error) {
-            alert(T("model_preview_import_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("model_preview_import_failed", { msg: error instanceof Error ? error.message : String(error) }));
         } finally {
             if (input) input.value = "";
         }
@@ -1675,7 +1675,9 @@ export class CapTimelineEditorApp {
     }
 
     _confirmOverwriteImport() {
-        return !(this._hasUnsavedChanges() && !confirm(T("confirm_overwrite_import")));
+        return this._hasUnsavedChanges()
+            ? confirmProjectImport(this._overlay, T("confirm_overwrite_import"), T("import_btn_label"))
+            : true;
     }
 
     _showImportMenu(e) {
@@ -2286,7 +2288,7 @@ export class CapTimelineEditorApp {
         const ids = new Set((this._timeline?.getSelectedClips() || []).map(clip => String(clip.id)));
         const clips = this._listActiveVisualClips().filter(clip => ids.has(String(clip.id)));
         if (!clips.length) {
-            alert(T("no_selected_clips_to_run"));
+            showCapAlert(T("no_selected_clips_to_run"));
             return;
         }
         await this._runAllActiveClipsDownstream({ clips, h3Generation });
@@ -2312,7 +2314,7 @@ export class CapTimelineEditorApp {
         if (choice === false || this._destroyed || !this._timeline) return "cancel";
         const current = relatedH3ClipIds(this._buildProject(), clip.id);
         if (JSON.stringify(current) !== JSON.stringify(ids)) {
-            alert(T("h3_layout_changed"));
+            showCapAlert(T("h3_layout_changed"));
             return "cancel";
         }
         if (choice === true) {
@@ -2323,7 +2325,7 @@ export class CapTimelineEditorApp {
 
     async _runSelectedTrackSide(side, anchor = this.getSelectedClip()) {
         if (!anchor || !this._allImageTracks().includes(anchor.track)) {
-            alert(T("select_visual_clip_for_side_run"));
+            showCapAlert(T("select_visual_clip_for_side_run"));
             return;
         }
         const clips = this._listActiveVisualClips({
@@ -2332,7 +2334,7 @@ export class CapTimelineEditorApp {
             side,
         });
         if (!clips.length) {
-            alert(T("no_active_clips_to_run"));
+            showCapAlert(T("no_active_clips_to_run"));
             return;
         }
         await this._runAllActiveClipsDownstream({ clips });
@@ -2341,14 +2343,14 @@ export class CapTimelineEditorApp {
     async _runWorkflow() {
         if (!await this._validateClipRunDurations()) return;
         if (typeof app?.queuePrompt !== "function") {
-            alert(T("queue_prompt_not_found"));
+            showCapAlert(T("queue_prompt_not_found"));
             return;
         }
         try {
             this._saveToWidgets();
             await app.queuePrompt(0);
         } catch (error) {
-            alert(T("run_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("run_failed", { msg: error instanceof Error ? error.message : String(error) }));
         }
     }
 
@@ -2379,18 +2381,18 @@ export class CapTimelineEditorApp {
             ? requestedClips
             : this._listActiveVisualClips({ withoutGenerated });
         if (h3Generation) {
-            if (!this._hasH3VideoGeneratorDownstream()) { alert(draftT("unavailable")); return; }
+            if (!this._hasH3VideoGeneratorDownstream()) { showCapAlert(draftT("unavailable")); return; }
             clips = clips.filter(clip => isDirectorTrackType(clip.track?.type));
         }
         if (!clips.length) {
-            alert(withoutGenerated
+            showCapAlert(withoutGenerated
                 ? T("no_clips_without_generated_to_run")
                 : T("no_active_clips_to_run"));
             return;
         }
         if (!await this._validateClipRunDurations(clips)) return;
         if (typeof app?.queuePrompt !== "function") {
-            alert(T("queue_prompt_not_found"));
+            showCapAlert(T("queue_prompt_not_found"));
             return;
         }
         if (this._runAllClipsBusy) return;
@@ -2475,10 +2477,10 @@ export class CapTimelineEditorApp {
                 if (consumed < chunk) break;
             }
             if (queued < jobs.length) {
-                alert(T("run_all_partial", { queued, total: jobs.length }));
+                showCapAlert(T("run_all_partial", { queued, total: jobs.length }));
             }
         } catch (error) {
-            alert(T("run_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("run_failed", { msg: error instanceof Error ? error.message : String(error) }));
         } finally {
             CapTimelineEditorApp._clipRunJobs = [];
             CapTimelineEditorApp._clipRunEditor = null;
@@ -2498,7 +2500,7 @@ export class CapTimelineEditorApp {
         const project = this._buildProject();
         const plan = planClipRunLayout(project, clips?.map(clip => clip.id));
         if (plan.error) {
-            alert(T(plan.error, { clip: plan.clip }));
+            showCapAlert(T(plan.error, { clip: plan.clip }));
             return false;
         }
         if (!plan.changes.length) return true;
@@ -2513,7 +2515,7 @@ export class CapTimelineEditorApp {
         }
         if (!confirmed || this._destroyed || !this._timeline) return false;
         if (JSON.stringify(this._buildProject()) !== JSON.stringify(project)) {
-            alert(T("h3_layout_changed"));
+            showCapAlert(T("h3_layout_changed"));
             return false;
         }
         this._recordUndo();
@@ -2767,7 +2769,7 @@ export class CapTimelineEditorApp {
         this._updateHistoryButtons();
         requestAnimationFrame(() => this._timeline?._refresh());
         if (warnings?.length) {
-            alert(T("import_complete_with_warnings", { n: warnings.length, list: warnings.slice(0, 8).join("\n") + (warnings.length > 8 ? "\n…" : "") }));
+            showCapAlert(T("import_complete_with_warnings", { n: warnings.length, list: warnings.slice(0, 8).join("\n") + (warnings.length > 8 ? "\n…" : "") }));
         }
     }
 
@@ -3190,7 +3192,7 @@ export class CapTimelineEditorApp {
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || T("open_folder_prepare_failed"));
         } catch (error) {
-            alert(T("open_folder_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("open_folder_failed", { msg: error instanceof Error ? error.message : String(error) }));
         }
     }
 
@@ -3296,7 +3298,7 @@ export class CapTimelineEditorApp {
             this._scheduleComposePreview();
             this._onComposeSettingsChange();
         } catch (error) {
-            alert(T("upload_watermark_image_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("upload_watermark_image_failed", { msg: error instanceof Error ? error.message : String(error) }));
         }
     }
 
@@ -3627,15 +3629,15 @@ export class CapTimelineEditorApp {
         ctx.drawImage(off, 0, 0);
     }
 
-    _chooseZipImport() {
-        if (!this._confirmOverwriteImport()) return;
+    async _chooseZipImport() {
+        if (!await this._confirmOverwriteImport()) return;
         this.importZipInput.value = "";
         this.importZipInput.click();
     }
 
     async _importFromDirectory() {
         if (this._projectImportBusy || this._projectExportBusy) return;
-        if (!this._confirmOverwriteImport()) return;
+        if (!await this._confirmOverwriteImport()) return;
         this._projectImportBusy = true;
         const openGen = this._openGen;
         try {
@@ -3687,12 +3689,12 @@ export class CapTimelineEditorApp {
                 0,
             );
             if (!clipCount) {
-                alert(T("import_no_clips"));
+                showCapAlert(T("import_no_clips"));
             }
             await this._applyImportedProject(remapped, warnings, storyboard);
         } catch (error) {
             if (error?.name === "AbortError") return;
-            alert(T("import_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("import_failed", { msg: error instanceof Error ? error.message : String(error) }));
         } finally {
             this._projectImportBusy = false;
         }
@@ -3715,7 +3717,7 @@ export class CapTimelineEditorApp {
             if (!response.ok) throw new Error(data.error || T("import_zip_failed"));
             await this._applyImportedProject(data.project, data.warnings || [], data.storyboard);
         } catch (error) {
-            alert(T("import_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("import_failed", { msg: error instanceof Error ? error.message : String(error) }));
         } finally {
             this._projectImportBusy = false;
         }
@@ -9102,7 +9104,7 @@ export class CapTimelineEditorApp {
                     { label: T("insert_to_timeline_label"), icon: "pictureInPicture", fn: async () => {
                         more.disabled = true;
                         try { await this._insertGeneratedVideoAtPlayhead(row.file); }
-                        catch (error) { alert(T("import_asset_failed", { msg: error instanceof Error ? error.message : String(error) })); }
+                        catch (error) { showCapAlert(T("import_asset_failed", { msg: error instanceof Error ? error.message : String(error) })); }
                         finally { more.disabled = false; }
                     } },
                     { label: T("open_output_directory"), icon: "squareArrowOutUpRight", fn: () => void this._revealOutput({ filename: row.file }) },
@@ -9507,7 +9509,7 @@ export class CapTimelineEditorApp {
         const m = this._ensureClipMeta(clip);
         const rows = this._clipGeneratedVideos(m);
         if (!rows.length && !m.genEditAudios?.length) {
-            alert(T("gen_edit_no_videos"));
+            showCapAlert(T("gen_edit_no_videos"));
             return;
         }
         this._closeGenVideoModal();
@@ -10402,7 +10404,7 @@ export class CapTimelineEditorApp {
             this._scheduleGenEditPreview();
             if (st.timeline?._playing) void this._startGenEditAudioPlayback();
         } catch (error) {
-            alert(T("separate_audio_failed", {
+            showCapAlert(T("separate_audio_failed", {
                 msg: error instanceof Error ? error.message : String(error),
             }));
         }
@@ -10537,7 +10539,7 @@ export class CapTimelineEditorApp {
         if (isDirectorTrackType(clip.track?.type)) {
             const source = this._clipDenoiseSources(clip, true)[0];
             if (!source) {
-                alert(T("separate_audio_failed", { msg: T("gen_edit_no_videos") }));
+                showCapAlert(T("separate_audio_failed", { msg: T("gen_edit_no_videos") }));
                 return;
             }
             const timeline = this._timeline;
@@ -10552,7 +10554,7 @@ export class CapTimelineEditorApp {
                 if (!valid()) return;
                 this._setDirectorClipMuted(clip, true);
             } catch (error) {
-                alert(T("separate_audio_failed", { msg: error instanceof Error ? error.message : String(error) }));
+                showCapAlert(T("separate_audio_failed", { msg: error instanceof Error ? error.message : String(error) }));
             }
             return;
         }
@@ -10590,7 +10592,7 @@ export class CapTimelineEditorApp {
             atSec = Math.max(0, Number(clip.startTime) || 0);
         }
         if (!file) {
-            alert(T("separate_audio_failed", { msg: T("gen_edit_no_videos") }));
+            showCapAlert(T("separate_audio_failed", { msg: T("gen_edit_no_videos") }));
             return;
         }
 
@@ -10612,7 +10614,7 @@ export class CapTimelineEditorApp {
             this._saveToWidgets();
             this._scheduleProgramPreview();
         } catch (error) {
-            alert(T("separate_audio_failed", {
+            showCapAlert(T("separate_audio_failed", {
                 msg: error instanceof Error ? error.message : String(error),
             }));
         }
@@ -10694,7 +10696,7 @@ export class CapTimelineEditorApp {
         if (duration < 0.05 || selected.track.clips.some(other => other !== selected
             && other.startTime < selected.startTime + duration - 1e-6 && other.endTime > selected.startTime + 1e-6)) {
             this._syncGenEditInspector();
-            alert(T("clip_speed_overlap"));
+            showCapAlert(T("clip_speed_overlap"));
             return;
         }
         selected.playbackRate = row.playback_rate = rate;
@@ -11485,7 +11487,7 @@ export class CapTimelineEditorApp {
         const m = this._ensureClipMeta(clip);
         const rows = this._clipGeneratedAudios(m);
         if (!rows.length) {
-            alert(T("voiceover_edit_no_audio"));
+            showCapAlert(T("voiceover_edit_no_audio"));
             return;
         }
         this._closeVoiceoverEditModal(false);
@@ -11912,7 +11914,7 @@ export class CapTimelineEditorApp {
                     this._renderOutputVideosPicker();
                 }
             } catch (error) {
-                alert(T("upload_asset_failed", { filename: file.name }) + "\n" + error.message);
+                showCapAlert(T("upload_asset_failed", { filename: file.name }) + "\n" + error.message);
             } finally {
                 btn.disabled = false;
                 btn.textContent = T("select_video_file_btn");
@@ -12134,9 +12136,9 @@ export class CapTimelineEditorApp {
             }
             this._renderOutputVideosPicker();
             if (linked > 0) {
-                alert(T(isAudio ? "auto_associate_audios_done" : "auto_associate_videos_done", { count: linked }));
+                showCapAlert(T(isAudio ? "auto_associate_audios_done" : "auto_associate_videos_done", { count: linked }));
             } else {
-                alert(T(isAudio ? "auto_associate_audios_none" : "auto_associate_videos_none"));
+                showCapAlert(T(isAudio ? "auto_associate_audios_none" : "auto_associate_videos_none"));
             }
         } finally {
             if (btn) {
@@ -13489,7 +13491,7 @@ export class CapTimelineEditorApp {
                 this._toggleMediaBatchSelect(kind, file, item);
                 return;
             }
-            if (status.location === "missing") alert(T("asset_missing_relink_hint"));
+            if (status.location === "missing") showCapAlert(T("asset_missing_relink_hint"));
             else this._openMediaPreview(file, kind);
         });
         item.addEventListener("contextmenu", (e) => {
@@ -13979,7 +13981,7 @@ export class CapTimelineEditorApp {
         if (!this._timeline) return;
         const track = this._pickInsertImageTrack(atSec);
         if (!track) {
-            alert(T("no_insertable_track"));
+            showCapAlert(T("no_insertable_track"));
             return;
         }
         const dur = Math.min(2, this._timeline.duration / 4) || 0.1;
@@ -15854,7 +15856,7 @@ export class CapTimelineEditorApp {
         const { file, kind } = item;
         const status = this._mediaStatus.get(`${kind}:${file}`);
         if (status?.location === "missing") {
-            alert(T("asset_missing_cannot_insert"));
+            showCapAlert(T("asset_missing_cannot_insert"));
             return;
         }
         if (kind === "audio") void this._addAudioAtPlayhead(file);
@@ -15978,7 +15980,7 @@ export class CapTimelineEditorApp {
         const current = items[index];
         const status = this._mediaStatus.get(`${current.kind}:${current.file}`);
         if (status?.location === "missing") {
-            alert(T("asset_missing_cannot_preview"));
+            showCapAlert(T("asset_missing_cannot_preview"));
             return;
         }
         this._mediaPreviewState = {
@@ -16368,13 +16370,13 @@ export class CapTimelineEditorApp {
 
         const { items, unsupported } = this._materialItemsFromFiles(fileList || []);
         if (!items.length) {
-            alert(unsupported.length
+            showCapAlert(unsupported.length
                 ? T("unsupported_asset_format_list", { list: unsupported.slice(0, 8).join("\n") })
                 : T("no_importable_files_detected"));
             return;
         }
         if (unsupported.length) {
-            alert(T("ignored_unsupported_files", { n: unsupported.length, list: unsupported.slice(0, 8).join("\n") }));
+            showCapAlert(T("ignored_unsupported_files", { n: unsupported.length, list: unsupported.slice(0, 8).join("\n") }));
         }
 
         let targetClip = null;
@@ -16411,7 +16413,7 @@ export class CapTimelineEditorApp {
             }, 1600);
         } catch (error) {
             this._showFileDropStatus("");
-            alert(T("import_asset_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("import_asset_failed", { msg: error instanceof Error ? error.message : String(error) }));
         } finally {
             this._fileDropBusy = false;
         }
@@ -16456,7 +16458,7 @@ export class CapTimelineEditorApp {
         if (!fileList.length) return;
 
         if (relink && fileList.length > 1) {
-            alert(T("replace_material_single_file_only"));
+            showCapAlert(T("replace_material_single_file_only"));
             return;
         }
 
@@ -16468,16 +16470,16 @@ export class CapTimelineEditorApp {
                 }
                 const expect = relink.kind === "image" ? T("media_kind_image")
                     : relink.kind === "video" ? T("media_kind_video") : T("media_kind_audio");
-                alert(T("select_same_type_file", { expect }));
+                showCapAlert(T("select_same_type_file", { expect }));
                 return;
             }
         }
         if (!items.length) {
-            alert(unsupported.length ? T("unsupported_asset_format_list", { list: unsupported.slice(0, 8).join("\n") }) : T("unsupported_asset_format_generic"));
+            showCapAlert(unsupported.length ? T("unsupported_asset_format_list", { list: unsupported.slice(0, 8).join("\n") }) : T("unsupported_asset_format_generic"));
             return;
         }
         if (unsupported.length) {
-            alert(T("ignored_unsupported_files", { n: unsupported.length, list: unsupported.slice(0, 8).join("\n") }));
+            showCapAlert(T("ignored_unsupported_files", { n: unsupported.length, list: unsupported.slice(0, 8).join("\n") }));
         }
 
         this._pendingMaterial = { items, relink };
@@ -16554,7 +16556,7 @@ export class CapTimelineEditorApp {
         if (relink) {
             const oldName = String(relink.file || "").split(/[\\/]/).pop() || relink.file;
             const newName = items[0].file?.name || T("new_asset_fallback_name");
-            if (!confirm(T("confirm_replace_asset", { newName, oldName }))) {
+            if (!await showCapConfirm(T("confirm_replace_asset", { newName, oldName }))) {
                 return;
             }
         }
@@ -16575,7 +16577,7 @@ export class CapTimelineEditorApp {
             }
         } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);
-            alert(relink ? T("replace_asset_failed", { msg }) : T("add_asset_failed", { msg }));
+            showCapAlert(relink ? T("replace_asset_failed", { msg }) : T("add_asset_failed", { msg }));
         } finally {
             if (confirmBtn) confirmBtn.disabled = false;
         }
@@ -16912,7 +16914,7 @@ export class CapTimelineEditorApp {
         this._refreshTimelineDuration();
         this._scheduleProgramPreview();
         if (failed.length) {
-            alert(entries.length === 1
+            showCapAlert(entries.length === 1
                 ? T("asset_removed_disk_delete_failed", { msg: failed[0].message })
                 : T("removed_with_n_disk_delete_failures", { n: failed.length }));
         }
@@ -17102,7 +17104,7 @@ export class CapTimelineEditorApp {
             }
             return prepared;
         } catch (error) {
-            alert(error.message);
+            showCapAlert(error.message);
             return null;
         } finally {
             this._preparingDirectorVideos = false;
@@ -17484,7 +17486,7 @@ export class CapTimelineEditorApp {
 
     async _runH3Stage(clip, action) {
         if (!clip || !isDirectorTrackType(clip.track?.type) || clip.track?.locked) return;
-        if (!this._hasH3VideoGeneratorDownstream()) { alert(draftT("unavailable")); return; }
+        if (!this._hasH3VideoGeneratorDownstream()) { showCapAlert(draftT("unavailable")); return; }
         if (!await this._validateClipRunDurations([clip])) return;
         await this._queueClipsDownstream([clip], null, {action});
     }
@@ -17520,7 +17522,7 @@ export class CapTimelineEditorApp {
         if (!clip || !this.node) return;
         const m = this._meta.get(clip.id) ?? defaultImageMeta();
         if (clip.track?.type === "audio" || m.clipType === "audio") {
-            alert(T("audio_clip_not_in_data_json"));
+            showCapAlert(T("audio_clip_not_in_data_json"));
             return;
         }
         if (isSubtitleTrackType(clip.track?.type) || isSubtitleClipMeta(m, clip.track)) {
@@ -17533,7 +17535,7 @@ export class CapTimelineEditorApp {
         if (!await this._validateClipRunDurations(clips)) return;
         if (workflowPreview) workflowPreview.clipIds = clips.map(current => String(current.id));
         if (typeof app?.queuePrompt !== "function") {
-            alert(T("queue_prompt_not_found"));
+            showCapAlert(T("queue_prompt_not_found"));
             return;
         }
 
@@ -17599,7 +17601,7 @@ export class CapTimelineEditorApp {
             );
             for (const current of clips) this._clearRunPreview(current.id);
             this._syncClipRunDecorations();
-            alert(T("run_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("run_failed", { msg: error instanceof Error ? error.message : String(error) }));
         } finally {
             if (CapTimelineEditorApp._clipRunEditor === this
                 && CapTimelineEditorApp._clipRunJobs.length === 0) {
@@ -17643,7 +17645,7 @@ export class CapTimelineEditorApp {
                 });
             }
         } catch (error) {
-            alert(T("abort_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("abort_failed", { msg: error instanceof Error ? error.message : String(error) }));
         }
 
         this._pendingGeneratedJobs = this._pendingGeneratedJobs.filter(
@@ -19111,7 +19113,7 @@ export class CapTimelineEditorApp {
         if (duration < 0.05 || clip.track.clips.some(other => other !== clip
             && other.startTime < clip.startTime + duration - 1e-6 && other.endTime > clip.startTime + 1e-6)) {
             this.clipSpeedInput.value = String(old);
-            alert(T("clip_speed_overlap"));
+            showCapAlert(T("clip_speed_overlap"));
             return;
         }
         this._recordUndo();
@@ -20607,9 +20609,9 @@ export class CapTimelineEditorApp {
             if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
             this._h3Skills = Array.isArray(data.skills) ? data.skills : [];
             if (this.skillPickerModal?.open) this.skillPickerModal.setSkills(this._h3Skills);
-            alert(T("synced_n_skills", { n: this._h3Skills.length }));
+            showCapAlert(T("synced_n_skills", { n: this._h3Skills.length }));
         } catch (error) {
-            alert(T("sync_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("sync_failed", { msg: error instanceof Error ? error.message : String(error) }));
         } finally {
             this._setSkillSyncBusy(false);
         }
@@ -20641,7 +20643,7 @@ export class CapTimelineEditorApp {
             this._syncAiPromptTargetControls();
             this._closeSkillPicker();
         } catch (error) {
-            alert(T("apply_skill_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("apply_skill_failed", { msg: error instanceof Error ? error.message : String(error) }));
         }
     }
 

@@ -1,3 +1,4 @@
+import { showCapAlert } from "../cap_ui.js";
 import "../components/Button.js";
 import "../components/StatusMessage.js";
 import { api } from "../../../scripts/api.js";
@@ -249,7 +250,7 @@ export class AgentSettings {
             this.cancel();
             await this.load();
         } catch (error) {
-            alert(T("save_agent_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("save_agent_failed", { msg: error instanceof Error ? error.message : String(error) }));
         }
     }
 
@@ -267,7 +268,7 @@ export class AgentSettings {
             if (this._editingAgentId === agentId) this.cancel();
             await this.load();
         } catch (error) {
-            alert(T("delete_agent_failed", { msg: error instanceof Error ? error.message : String(error) }));
+            showCapAlert(T("delete_agent_failed", { msg: error instanceof Error ? error.message : String(error) }));
         }
     }
 

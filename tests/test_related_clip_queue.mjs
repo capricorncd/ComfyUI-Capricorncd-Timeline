@@ -22,7 +22,7 @@ const app = {
 };
 const CapTimelineEditorApp = { _clipRunJobs: [] };
 const errors = [];
-const deps = { confirmKeyframeRun: async () => ({}), stripPromptComments, app, api, CapTimelineEditorApp, T: key => key, draftT: key => key, isDirectorTrackType: type => type === "director", alert: msg => errors.push(msg),
+const deps = { confirmKeyframeRun: async () => ({}), stripPromptComments, app, api, CapTimelineEditorApp, T: key => key, draftT: key => key, isDirectorTrackType: type => type === "director", showCapAlert: msg => errors.push(msg),
     defaultImageMeta: () => ({}), isSubtitleTrackType: () => false, isSubtitleClipMeta: () => false };
 function method(name) {
     const start = source.search(new RegExp(`    (?:static |async )?${name}\\(`));

@@ -37,7 +37,7 @@ function method(name, deps = {}) {
 }
 let accept = false, dialogs = 0, queued = 0, undo = 0;
 const runtime = makeProject().tracks[0].clips.map(c => ({ id: c.id, startTime: c.start_ms / 1000, duration: 5 }));
-const deps = { planClipRunLayout, clipLayoutList, T: key => key, alert: msg => { throw new Error(msg); },
+const deps = { planClipRunLayout, clipLayoutList, T: key => key, showCapAlert: msg => { throw new Error(msg); },
     showCapConfirm: async () => { dialogs++; return accept; }, app: { queuePrompt: () => { queued++; } } };
 const editor = {
     _timeline: { tracks: [{ clips: runtime }], _refresh() {} },

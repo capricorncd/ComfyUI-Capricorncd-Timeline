@@ -6,7 +6,7 @@ const alerts = [];
 function method(name, api = {}) {
     const begin = source.search(new RegExp('    (async )?' + name + '\\('));
     const end = begin + source.slice(begin).search(/\n    }\r?\n/) + 6;
-    return new Function('isSubtitleClipMeta', 'isVoiceoverClipMeta', 'isDirectorTrackType', 'T', 'alert', 'api',
+    return new Function('isSubtitleClipMeta', 'isVoiceoverClipMeta', 'isDirectorTrackType', 'T', 'showCapAlert', 'api',
         'return ({' + source.slice(begin, end) + '}).' + name)(
         () => false, () => false, type => type === 'image', key => key, message => alerts.push(message), api);
 }

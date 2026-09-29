@@ -39,6 +39,12 @@ export function confirmProjectUpdate(host) {
     return projectDialog(message, launcherT('reload'), launcherT('reload'), host);
 }
 
+export function confirmProjectImport(host, messageText, label) {
+    const message = document.createElement('p');
+    message.textContent = messageText;
+    return projectDialog(message, label, label, host);
+}
+
 export async function chooseProjectVersion(versions, host = document.body) {
     if (versions.length < 2) return versions[0]?.filename || 'project.json';
     const select = document.createElement('cap-select');

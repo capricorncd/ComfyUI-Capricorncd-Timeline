@@ -20,7 +20,7 @@ async function scenario(action, { fail = false, cancel = false } = {}) {
         _isOutputPickerClip: clip => !!clip, _addGeneratedVideosToClip: (clip, files) => linked.push([clip, files]),
         _renderOutputVideosPicker() {},
     };
-    const select = new Function('document', 'fetch', 'api', 'T', 'alert', `return ({${body}})._selectOutputVideoFile`)(
+    const select = new Function('document', 'fetch', 'api', 'T', 'showCapAlert', `return ({${body}})._selectOutputVideoFile`)(
         { createElement: () => input }, () => request, { apiURL: path => path }, key => key, text => alerts.push(text));
     select.call(app);
     const pending = onChange();

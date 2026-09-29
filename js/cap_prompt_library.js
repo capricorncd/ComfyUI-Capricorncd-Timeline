@@ -4,7 +4,7 @@ import "./components/TabButton.js";
 import { app } from "../../scripts/app.js";
 import { resolvePromptTextarea, updateRichPromptMirror, replaceRichPromptRange } from "./components/RichPrompt.js";
 import { iconHtml } from "./cap_icons.js";
-import { ensureCapUiCss, mkUiBtn, mkUiIconBtn, showCapConfirm } from "./cap_ui.js";
+import { ensureCapUiCss, mkUiBtn, mkUiIconBtn, showCapConfirm, showCapAlert } from "./cap_ui.js";
 import {
     hoistNodeOverlay,
     positionOverlayFixedToHeader,
@@ -392,7 +392,7 @@ function pickJsonFile() {
                 const text = await file.text();
                 resolve(JSON.parse(text));
             } catch {
-                alert(t("json_parse_failed"));
+                showCapAlert(t("json_parse_failed"));
                 resolve(null);
             }
         });
@@ -455,7 +455,7 @@ function resolveActiveTarget() {
 function requireTarget() {
     const target = resolveActiveTarget();
     if (!target.textarea) {
-        alert(getNoTargetMsg());
+        showCapAlert(getNoTargetMsg());
         return null;
     }
     return target;
@@ -897,7 +897,7 @@ function renderToolbar(toolbar, body, kind) {
                 if (!target) return;
                 const text = target.textarea.value ?? "";
                 if (!String(text).trim()) {
-                    alert(t("current_prompt_empty_alert"));
+                    showCapAlert(t("current_prompt_empty_alert"));
                     return;
                 }
                 const name = prompt(t("preset_name_prompt"), previewText(text, 40));
@@ -920,7 +920,7 @@ function renderToolbar(toolbar, body, kind) {
                 if (!target) return;
                 const text = target.textarea.value ?? "";
                 if (!String(text).trim()) {
-                    alert(t("current_prompt_empty_alert"));
+                    showCapAlert(t("current_prompt_empty_alert"));
                     return;
                 }
                 addPromptHistory(text);
@@ -945,12 +945,12 @@ function renderToolbar(toolbar, body, kind) {
             if (!data) return;
             const items = Array.isArray(data) ? data : data.items;
             if (!Array.isArray(items)) {
-                alert(t("invalid_json_format_alert"));
+                showCapAlert(t("invalid_json_format_alert"));
                 return;
             }
-            const merge = confirm(t("confirm_import"));
+            const merge = await showCapConfirm(t("confirm_import"));
             if (!merge) return;
-            const replace = confirm(t("confirm_import_replace"));
+            const replace = await showCapConfirm(t("confirm_import_replace"));
             if (kind === "history") {
                 let list = replace ? [] : getPromptHistory();
                 for (const item of items) {
@@ -1219,7 +1219,7 @@ function savePromptHistoryFromNode(node) {
     const ta = resolvePromptTextarea(widget);
     const text = ta?.value ?? widget?.value ?? "";
     if (!normalizeText(text).trim()) {
-        alert(t("current_prompt_empty_alert"));
+        showCapAlert(t("current_prompt_empty_alert"));
         return false;
     }
     addPromptHistory(text);

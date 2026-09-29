@@ -1,3 +1,4 @@
+import { showCapAlert } from "../cap_ui.js";
 import '../components/Dialog.js';
 import '../components/FormControls.js';
 import '../components/StatusMessage.js';
@@ -228,7 +229,7 @@ export class H3DraftVersions {
                         m.h3Drafts = m.h3Drafts.filter(item => item.id !== row.id);
                     }, clip.id, false);
                 } catch (error) {
-                    alert(draftT('delete_failed', {message: error.message}));
+                    showCapAlert(draftT('delete_failed', {message: error.message}));
                 } finally {
                     this.render();
                 }
@@ -287,7 +288,7 @@ export class H3DraftVersions {
             button.addEventListener('click', async () => {
                 button.disabled = true;
                 try { await this.editor._runH3Stage(clip, action); }
-                catch (error) { alert(draftT("failed", {message: error.message})); }
+                catch (error) { showCapAlert(draftT("failed", {message: error.message})); }
                 finally { if (button.isConnected) button.disabled = false; }
             });
             footer.append(button);

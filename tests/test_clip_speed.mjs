@@ -14,7 +14,7 @@ function method(name, deps = {}, text = source, indent = '    ') {
     return new Function(...Object.keys(args), `return ({${text.slice(start,end)}}).${name}`)(...Object.values(args));
 }
 let undo=0, saved=0, warned=0;
-globalThis.alert=()=>warned++;
+globalThis.showCapAlert=()=>warned++;
 const track={type:'audio',locked:false,clips:[]};
 const clip={id:'a',track,startTime:2,duration:6,sourceOffset:1,playbackRate:1,
     get endTime(){return this.startTime+this.duration;},_applyPosition(){},_audioBuffer:{}};

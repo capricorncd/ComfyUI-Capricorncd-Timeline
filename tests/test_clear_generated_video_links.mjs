@@ -91,7 +91,7 @@ for (const change of [app => app._loadSeq++, app => app._destroyed = true]) {
     await app._clearAllGeneratedVideoLinks();
     assert.equal(app._meta.get('0').generatedVideos.length, 0, 're-read links after confirmation');
 }
-assert.match(source, /label: T\("clear_generated_video_links"\), icon: "close",\s+disabled: !this\._clipsWithGeneratedVideoLinks\(\)\.length/);
+assert.match(source, /label: T\("clear_generated_video_links"\), icon: "close", danger: true,\s+disabled: !this\._clipsWithGeneratedVideoLinks\(\)\.length/);
 assert.match(source, /fn: \(\) => void this\._clearAllGeneratedVideoLinks\(\)/);
 function singleFixture() {
     const app = fixture();

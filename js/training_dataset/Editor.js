@@ -47,13 +47,13 @@ export class TrainingDatasetEditor extends HTMLElement {
         this.className = 'cat-te-overlay open cap-training-editor';
         this.setAttribute('role','region');
         this.setAttribute('aria-label',T('title'));
-        this.innerHTML = `<header><h1>${T('title')}</h1><cap-button data-action="add">${T('add')}</cap-button><cap-select><select data-source aria-label="${T('add')}"></select></cap-select><cap-button data-action="relink">${T('relink')}</cap-button><cap-button data-action="import-json">${T('importJson')}</cap-button><cap-button data-action="export-json">${T('exportJson')}</cap-button><input data-json-file type="file" accept=".json,application/json" hidden><cap-button data-action="close">${T('close')}</cap-button></header>
+        this.innerHTML = `<header><h1>${T('title')}</h1><cap-button data-action="add">${T('add')}</cap-button><cap-select><select data-source aria-label="${T('add')}"></select></cap-select><cap-button data-action="relink">${T('relink')}</cap-button><cap-button data-action="import-json">${T('importJson')}</cap-button><cap-button data-action="export-json">${T('exportJson')}</cap-button><input data-json-file type="file" accept=".json,application/json" hidden><div class="ct-header-actions"><cap-button data-action="cancel" disabled hidden>${T('cancel')}</cap-button><cap-button data-action="export" variant="primary">${T('export')}</cap-button><cap-button data-action="close">${T('close')}</cap-button></div></header>
           <div class="ct-import"><cap-input><input data-path placeholder="${T('path')}" aria-label="${T('path')}"></cap-input><cap-button data-action="load">${T('load')}</cap-button><input data-file type="file" accept="video/*,.mkv" multiple hidden></div>
           <main><section class="ct-preview"><cap-video-crop aria-label="${T('cropHint')}"><video muted playsinline preload="metadata"></video></cap-video-crop></section><cap-panel-divider aria-label="${T('resizeColumns')}"></cap-panel-divider>
           <aside><h2 data-title>${T('empty')}</h2><label><cap-switch><input data-selected type="checkbox"></cap-switch> ${T('enableExport')}</label><p data-range class="ct-hint"></p><label>${T('start')}<cap-input><input data-offset type="number" min="0" step="0.0416666667"></cap-input></label><input data-slider type="range" step="1" aria-label="${T('start')}"><cap-button data-action="remove" variant="danger">${T('remove')}</cap-button>
           <label>${T('caption')}<cap-textarea><textarea data-caption rows="6"></textarea></cap-textarea></label><label>${T('agent')}<cap-select><select data-agent></select></cap-select></label><p class="ct-hint">${T('agentHint')}</p><cap-button data-action="auto">${T('auto')}</cap-button><cap-button data-action="batch">${T('batch')}</cap-button>
-          <h2>${T('settings')}</h2><label>${T('resolution')}<cap-select data-resolution-control><select data-resolution required></select></cap-select></label><p class="ct-hint">${T('resolutionHint')}</p><label>${T('frames')}<cap-input><input data-setting="frames" type="number" min="124" max="345" step="17"></cap-input></label><label>${T('fit')}<cap-select><select data-setting="fit"><option value="crop">${T('crop')}</option><option value="pad">${T('pad')}</option></select></cap-select></label><cap-disclosure><span slot="title">${T('appearance')}</span><cap-theme-picker></cap-theme-picker></cap-disclosure></aside></main>
-          <div data-timeline class="ct-timeline"></div><footer><span data-summary></span><cap-status-message closable close-label="${T('close')}"></cap-status-message><cap-button data-action="cancel" disabled>${T('cancel')}</cap-button><cap-button data-action="export" variant="primary">${T('export')}</cap-button><p class="ct-hint">${T('outputHint')}</p></footer>`;
+          <h2>${T('settings')}</h2><label>${T('resolution')}<cap-select data-resolution-control><select data-resolution required></select></cap-select></label><p class="ct-hint">${T('resolutionHint')}</p><label>${T('frames')}<cap-input><input data-setting="frames" type="number" min="124" max="345" step="17"></cap-input></label><label>${T('fit')}<cap-select><select data-setting="fit"><option value="crop">${T('crop')}</option><option value="pad">${T('pad')}</option></select></cap-select></label><p data-summary class="ct-hint"></p><cap-status-message closable close-label="${T('close')}"></cap-status-message><cap-disclosure><span slot="title">${T('appearance')}</span><cap-theme-picker></cap-theme-picker></cap-disclosure></aside></main>
+          <div data-timeline class="ct-timeline"></div>`;
         document.body.append(this);
         const divider=this.querySelector('cap-panel-divider');divider.resize(this.sidebarWidth,false);
         this.sidebarWidth=divider.value;this.style.setProperty('--ct-sidebar-width',`${this.sidebarWidth}px`);
@@ -217,6 +217,7 @@ export class TrainingDatasetEditor extends HTMLElement {
     async perform(callback) {
         if (this.busy) return;
         this.busy=true;
+        this.querySelector('[data-action="cancel"]').hidden=false;
         this.querySelector('aside').inert=true;
         this.querySelector('.ct-import').inert=true;
         for (const b of this.querySelectorAll('[data-action]')) b.disabled=!['cancel','play','prev','next'].includes(b.dataset.action);
@@ -225,6 +226,7 @@ export class TrainingDatasetEditor extends HTMLElement {
         this.updateTrackState();
         try { return await callback(); }
         finally {
+            this.querySelector('[data-action="cancel"]').hidden=true;
             this.busy=false; this.querySelector('aside').inert=false; this.querySelector('.ct-import').inert=false;
             for (const b of this.querySelectorAll('[data-action]')) b.disabled=b.dataset.action==='cancel';
             this.querySelector('[data-source]').disabled=false;

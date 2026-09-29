@@ -1,0 +1,8 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>Training dataset browser check</title>
+<script type="module">
+import '../js/training_dataset/Editor.js';
+const fixture=await (await fetch('/fixture-config')).json();
+const editor=document.createElement('cap-training-dataset-editor');
+await editor.open(fixture, state=>{window.savedTrainingDataset=structuredClone(state);});
+window.trainingEditor=editor;
+</script></html>

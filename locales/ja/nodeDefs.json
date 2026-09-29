@@ -1,4 +1,5 @@
 {
+  "CAP_TrainingDataset": {"display_name": "学習素材タイムライン"},
   "CAP_H3FaceRefineConfig": {
     "display_name": "H3 顔修復設定",
     "inputs": {

@@ -19,6 +19,7 @@ from aiohttp import web
 import folder_paths
 
 from .cap_reveal_file import reveal_file
+from .cap_training_dataset import CAP_TrainingDataset, register_training_dataset_routes
 from .cap_reference_project import register_reference_project_routes
 from .cap_launcher_project import register_launcher_project_routes
 from .cap_h3_draft_files import register_h3_draft_file_routes
@@ -144,6 +145,7 @@ from .timecode import (
 
 
 NODE_CLASS_MAPPINGS = {
+    "CAP_TrainingDataset": CAP_TrainingDataset,
     **_CLM_CLASS,
     "CAP_RichPromptInput": CAP_RichPromptInput,
     **_CDP_CLASS,
@@ -175,6 +177,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "CAP_TrainingDataset": "Training Dataset Timeline",
     **_CLM_NAMES,
     "CAP_RichPromptInput": "Rich Prompt Input",
     **_CDP_NAMES,
@@ -268,6 +271,7 @@ def _register_routes():
     _soft_patch_h3_motion_context_load_latent()
 
     register_metadata_routes(routes)
+    register_training_dataset_routes(routes, folder_paths.get_input_directory(), folder_paths.get_output_directory())
     register_local_audio_routes(routes)
     register_reference_project_routes(routes)
     bind_launcher_project = register_launcher_project_routes(routes)

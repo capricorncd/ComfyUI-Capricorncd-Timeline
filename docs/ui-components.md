@@ -159,6 +159,12 @@ In media preview, plain Left/Right browse adjacent assets even when a select (su
 
 Run `node tests/test_dialog.mjs` plus the existing native-dialog/export/speech tests. `tests/dialog.browser.html` verifies real layout, drag, shared shadow isolation, nested dialogs, busy-close veto, scroll bounds and background hit testing in non-modal mode. `tests/dialog_footer.browser.html` checks fixed footers against the actual editor dialog templates, including long content, short windows and dialogs without global actions.
 
+## Training dataset workspace
+
+`js/training_dataset/Editor.js` defines `<cap-training-dataset-editor>`. Its `open(saved, onSave, apiURL)` method opens the fullscreen dataset workspace; `onSave` receives workflow-safe source paths, scene boundaries, captions, selection and export settings. Removal stops playback, releases the reused Timeline component and requests cancellation of an active job. It reuses `cap-button`, native form wrappers, `cap-status-message`, `cap-theme-picker` and the existing locked video timeline. Business pages do not access component Shadow DOM. Timeline's existing `addTrackTypes: []` now also hides its add-track entry.
+
+Use `tests/training_dataset.browser.html` with the isolated fixture server; usage and limits are documented in `docs/training-dataset.md`.
+
 ## Export range
 
 `js/components/ExportRange.js` provides `<cap-export-range>`. Call `configure(totalFrames, fps, labels)` and `update(currentFrame, playing)`; `exportRange` returns frame boundaries with an exclusive end, or `null` for the full timeline. The component emits `toggleplay`, `seek` and `rangechange`; seek/range events contain `detail.frame`. Playback and export remain owned by the editor. `tests/export_range.browser.html` checks frame stepping, range limits, playback stopping, independent output selection and preview layout.
@@ -187,6 +193,8 @@ The component owns the menu surface, three-column layout and `cap-button` action
 Run `node tests/test_context_menu.mjs` and `node tests/test_context_menu_dismiss.mjs`.
 
 ## Appearance and form controls
+
+`Disclosure.js` provides `<cap-disclosure>` for collapsible settings. Put the heading in `slot="title"` and controls in the default slot. The `open` attribute/property controls expansion. It reuses `cap-button`, the shared chevron and theme. Enter/Space toggle expansion, the native button exposes `aria-expanded`, and collapsed controls leave the tab order. The training dataset workspace uses it for Appearance, separate from export settings.
 
 `ThemePicker.js` adds `<cap-theme-picker>` inline under Settings → General, without a second dialog. Light/dark mode defaults to the system preference and responds to system changes. Jade, ocean, violet and amber accents and the mode are stored locally. Theme tokens are scoped to the editor, including its dialogs and timeline; the ComfyUI canvas is unaffected. `cap-theme-change` triggers canvas ruler repainting.
 
@@ -296,3 +304,8 @@ Verify with `tests/skill_picker.browser.html`, `node tests/test_prompt_skills.mj
 Skill picker regression fixture also covers revealing and focusing the New Skill form from a scrolled gallery, and bubbling file-input cancellation. `cap-dialog` handles only its native dialog cancel event; cancelling an embedded file input does not close the dialog.
 
 `cap-select.setOptions([{value, label}], accessibleLabel)` creates and updates its native control internally, preserving a still-valid selection. Dynamic dialogs such as the project-version picker use this API instead of constructing unwrapped selects or duplicating control styles.
+
+
+`VideoCrop.js` provides `<cap-video-crop>` with a slotted video. `configure(settings, crop, editable)` sets output dimensions, fit mode and per-clip `{zoom, x, y}` (zoom 1–4, normalized x/y 0–1). Drag or arrows reposition the image; `crop-change` returns the updated crop. The fixed output frame and dimmed overflow use the same even-pixel crop geometry as the ffmpeg export. Business code owns persistence and zoom controls; padding mode disables cropping.
+
+VideoCrop includes a bottom resize separator with pointer capture and Up/Down/Home keys. `resize-label` localizes its name; `setHeight(px)` restores size and `preview-resize` supplies `detail.height` for persistence. Training source errors clear on successful selection. Explicit Relink replaces a source path while retaining cuts, captions and crop data after dimensions/duration validation.

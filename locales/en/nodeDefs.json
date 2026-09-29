@@ -1,4 +1,5 @@
 {
+  "CAP_TrainingDataset": {"display_name": "Training Dataset Timeline"},
   "CAP_H3FaceRefineConfig": {
     "display_name": "H3 Face Refine Config",
     "inputs": {

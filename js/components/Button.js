@@ -1,6 +1,6 @@
 /** Shared native-button presentation and interaction. */
 export class Button extends HTMLElement {
-    static observedAttributes = ["disabled", "role", "aria-haspopup", "aria-label", "aria-pressed", "aria-selected", "aria-checked", "aria-controls", "tabindex", "title"];
+    static observedAttributes = ["disabled", "role", "aria-haspopup", "aria-label", "aria-expanded", "aria-pressed", "aria-selected", "aria-checked", "aria-controls", "tabindex", "title"];
 
     constructor() {
         super();

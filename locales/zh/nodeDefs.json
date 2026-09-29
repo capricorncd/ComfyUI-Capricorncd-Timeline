@@ -1,4 +1,5 @@
 {
+  "CAP_TrainingDataset": {"display_name": "训练素材时间轴"},
   "CAP_H3AudioRefineConfig": {
     "display_name": "H3 音频修复配置",
     "description": "配置视频生成器的音频修复。默认关闭视频缓存，但保留音频修复；不连接或关闭启用开关时跳过修复。",

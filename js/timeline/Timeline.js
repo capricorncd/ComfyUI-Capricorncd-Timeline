@@ -318,7 +318,7 @@ export class Timeline extends EventEmitter {
     addBtn.textContent = i18nT('add_track');
     addBtn.title = i18nT('add_track_title');
     addBtn.addEventListener('click', () => this._showAddTrackMenu(addBtn));
-    this.toolbarEl.appendChild(addBtn);
+    if (this.addTrackTypes?.length !== 0) this.toolbarEl.appendChild(addBtn);
 
     c.appendChild(this.toolbarEl);
 

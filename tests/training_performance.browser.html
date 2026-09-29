@@ -1,0 +1,27 @@
+<!doctype html><meta charset="utf-8"><script type="module">
+import '../js/training_dataset/Editor.js';
+const config=await (await fetch('/fixture-config')).json();
+const e=document.createElement('cap-training-dataset-editor');let saves=0;
+await e.open(config,state=>{structuredClone(state);saves++;});
+e.source.duration=7200;e.source.segments=Array.from({length:1000},(_,i)=>({id:String(i),start:i*7,end:i*7+7,offset:i*7,caption:'',selected:false}));
+const t=performance.now();e.renderTimeline();e.updateTrackState();e.inspect();
+await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
+const render=performance.now()-t, a=performance.now(),n=saves;
+for(let i=0;i<100;i++)e.choose(e.source.segments[i]);
+const choose=performance.now()-a, selectionSaves=saves-n;
+if(selectionSaves!==0)throw Error('selection saved whole project');
+let updates=0;const oldTime=e.timeline.setCurrentTime.bind(e.timeline);
+e.timeline.setCurrentTime=(...args)=>{updates++;return oldTime(...args);};
+await new Promise(resolve=>setTimeout(resolve,300));
+const idleUpdates=updates;
+if(idleUpdates>2)throw Error('idle timeline repainted');
+const previewButtons=e.querySelectorAll('.ct-preview-icon').length;
+if(previewButtons>=100)throw Error('offscreen preview buttons created');
+e.timeline.scrollEl.scrollLeft=350000;
+await new Promise(resolve=>setTimeout(resolve,100));
+if(!e.querySelector('.ct-preview-icon'))throw Error('scrolled preview missing');
+e.current.caption='saved after close';e.scheduleSave();e.remove();
+if(saves===n)throw Error('pending edit lost on close');
+const o=document.createElement('output');document.body.append(o);
+o.textContent=JSON.stringify({render,choose,selectionSaves,idleUpdates,previewButtons,clips:e.timelineClips.length});
+</script>

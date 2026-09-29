@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><script type="module">
+import '../js/training_dataset/Editor.js';import {selectedClips,normalizeSelection} from '../js/training_dataset/model.js';
+const fixture=await (await fetch('/fixture-config')).json();const e=document.createElement('cap-training-dataset-editor');await e.open(fixture,()=>{});
+const check=(v,m)=>{if(!v)throw Error(m);};const s=e.source.segments[1];e.choose(s);await e.action('toggle');
+check(s.selected,'short not enabled');check(!e.querySelector('[data-selected]').disabled,'switch disabled');check(e.clipBySegment.get(s.id).el.classList.contains('insufficient-frames'),'no border');check(selectedClips(e.sources,124).length===0,'short counted');
+normalizeSelection(e.sources,124);check(s.selected,'normalization cleared flag');await e.action('toggle');check(!s.selected,'cannot disable');await e.action('toggle');
+e.choose(e.source.segments[0]);await e.action('toggle');let payload;e.job=async(path,data)=>{payload=data;return {count:data.clips.length,directory:'fixture'};};await e.action('export');check(payload.clips.length===1 && payload.clips[0].id!==s.id,'short exported');e.choose(s);
+const o=document.createElement('output');o.textContent='PASS: short enable/disable, preserved flag, red border, excluded count and export';e.querySelector('header').append(o);
+</script>

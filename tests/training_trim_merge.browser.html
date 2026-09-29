@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8"><script type="module">
+import '../js/training_dataset/Editor.js';
+const config=await (await fetch('/fixture-config')).json();const e=document.createElement('cap-training-dataset-editor');await e.open(config,()=>{});
+const check=(v,m)=>{if(!v)throw Error(m);};const original=JSON.stringify(e.source.segments);
+e.choose(e.source.segments[0]);e.timeline.setCurrentTime(2,{userSeek:false});await e.action('trim-left');check(e.source.segments[0].start===2,'Q trim failed');check(!e.source.segments[0].selected,'short trim enabled');await e.action('undo');
+e.choose(e.source.segments[0]);e.timeline.setCurrentTime(4,{userSeek:false});await e.action('trim-right');check(e.source.segments[0].end===4,'W trim failed');await e.action('undo');
+e.choose(e.source.segments[0]);e.choose(e.source.segments[1],true);await e.action('merge');check(e.source.segments.length===2 && e.source.segments[0].end===9,'merge failed');await e.action('undo');check(JSON.stringify(e.source.segments)===original,'merge undo failed');
+e.choose(e.source.segments[0]);e.choose(e.source.segments[2],true);await e.action('merge');check(e.source.segments.length===3,'nonadjacent merge allowed');
+e.choose(e.source.segments[0]);
+const output=document.createElement('output');output.textContent='PASS: Q/W trim, merge, nonadjacent rejection, undo';e.querySelector('header').append(output);
+</script>

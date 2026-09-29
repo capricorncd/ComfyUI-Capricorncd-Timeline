@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8"><script type="module">
+import '../js/training_dataset/Editor.js';
+const fixture=await (await fetch('/fixture-config')).json();let saved;
+let e=document.createElement('cap-training-dataset-editor');await e.open(fixture,s=>saved=structuredClone(s));
+const ready=async()=>{if(!e.video.readyState)await new Promise(r=>e.video.addEventListener('loadedmetadata',r,{once:true}));};await ready();
+e.choose(e.source.segments[0]);e.choose(e.source.segments[2],true);e.timeline.setZoom(2);e.timeline.scrollEl.scrollLeft=600;e.timeline.setCurrentTime(10);e.video.pause();await e.action('close');
+const check=(v,m)=>{if(!v)throw Error(m);};check(saved.sources[0].editorView.time===10,'time not saved');
+e=document.createElement('cap-training-dataset-editor');await e.open(saved,s=>saved=structuredClone(s));await ready();await new Promise(r=>setTimeout(r,100));
+check(e.timeline.getZoom()===2,'zoom not restored');check(e.timeline.scrollEl.scrollLeft===600,'scroll not restored');check(Math.abs(e.video.currentTime-10)<.05,'video time not restored');check(Math.abs(e.timeline.currentTime-10)<.05,'playhead not restored');check(e.trackSelection.size===2 && e.current.id==='three','selection not restored');check(e.video.paused,'unexpected autoplay');
+const o=document.createElement('output');o.textContent='PASS: reopen restores zoom, scroll, playhead, video time and multiple selection';e.querySelector('header').append(o);
+</script>

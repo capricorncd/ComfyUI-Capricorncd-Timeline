@@ -3,23 +3,25 @@
 .cap-training-editor h1 { font-size:1.1em; margin:0 auto 0 0; }
 .cap-training-editor h2 { font-size:1em; margin:8px 0; overflow-wrap:anywhere; }
 .cap-training-editor .ct-import cap-input { flex:1; min-width:200px; }
-.cap-training-editor main { display:grid; grid-template-columns:minmax(0,1fr) 350px; flex:1; min-height:0; }
-.cap-training-editor .ct-preview { padding:16px 28px; overflow:auto; min-width:0; }
+.cap-training-editor main { display:grid; grid-template-columns:minmax(0,1fr) 6px minmax(260px,var(--ct-sidebar-width,350px)); flex:1; min-height:0; }
+.cap-training-editor .ct-preview { padding:0; overflow:hidden; min-width:0; min-height:0; }
 .cap-training-editor aside { padding:16px 24px; overflow:auto; display:flex; flex-direction:column; gap:12px; border-left:1px solid var(--cat-border-soft); }
 .cap-training-editor label { display:block; line-height:1.6; }
 .cap-training-editor .ct-hint { color:var(--cat-muted); font-size:.85em; line-height:1.6; margin:0; }
-.cap-training-editor .ct-tools { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:12px 0; }
-.cap-training-editor .ct-dimensions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
-.cap-training-editor .ct-scenes { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; margin:12px 0; }
-.cap-training-editor .ct-scene { display:flex; align-items:center; gap:8px; min-width:0; }
-.cap-training-editor .ct-scene cap-button { flex:1; min-width:0; }
 .cap-training-editor .ct-timeline { height:190px; flex:none; min-height:0; border-top:1px solid var(--cat-border-soft); }
 .cap-training-editor footer { border-top:1px solid var(--cat-border-soft); border-bottom:0; flex:none; }
 .cap-training-editor footer cap-status-message { flex:1; min-width:160px; --cap-status-max-height:90px; }
 .cap-training-editor footer p { flex-basis:100%; }
 @media(max-width:850px) {
+ .cap-training-editor cap-panel-divider { display:none; }
  .cap-training-editor main { grid-template-columns:1fr; overflow:auto; }
- .cap-training-editor .ct-preview,.cap-training-editor aside { overflow:visible; padding:16px 18px; }
+ .cap-training-editor .ct-preview { height:35vh; }
+ .cap-training-editor aside { overflow:visible; padding:16px 18px; }
  .cap-training-editor header,.cap-training-editor footer,.cap-training-editor .ct-import { padding:10px 18px; }
  .cap-training-editor .ct-timeline { height:145px; }
 }
+
+.cap-training-editor .ct-preview-icon { position:absolute; top:3px; right:3px; z-index:4; }
+.cap-training-editor .ct-detect { margin-left:auto; flex:none; }
+
+.cap-training-editor .ct-crop-all { display:flex; align-items:center; gap:8px; white-space:nowrap; margin-left:12px; }

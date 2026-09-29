@@ -19,8 +19,8 @@ export function scenesFromPoints(points, duration, previous = []) {
 export function normalizeSelection(sources, frames) {
     for (const source of sources) for (const segment of source.segments) {
         const bounds = windowBounds(segment, frames);
-        segment.selected = !!segment.selected && bounds.eligible;
-        segment.offset = Math.max(bounds.min, Math.min(bounds.max, Math.round(segment.offset * FPS))) / FPS;
+        segment.selected = !!segment.selected;
+        segment.offset = Math.max(bounds.min, Math.min(Math.max(bounds.min,bounds.max), Math.round(segment.offset * FPS))) / FPS;
     }
 }
 export function selectedClips(sources, frames) {

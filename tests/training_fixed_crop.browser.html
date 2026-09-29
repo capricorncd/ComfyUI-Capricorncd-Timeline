@@ -1,0 +1,36 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>Fixed video and cancellation checks</title>
+<script type="module">
+import '../js/training_dataset/Editor.js';
+const fixture=await (await fetch('/fixture-config')).json();
+const editor=document.createElement('cap-training-dataset-editor');let saved;
+await editor.open(fixture,state=>saved=structuredClone(state));
+const check=(v,m)=>{if(!v)throw Error(m);};
+editor.choose(editor.source.segments[0]);
+if(!editor.video.videoWidth)await new Promise(resolve=>editor.video.addEventListener('loadedmetadata',resolve,{once:true}));
+const crop=editor.cropPreview, before=editor.video.style.cssText;
+crop.change({zoom:2,x:.3,y:.2});
+check(editor.video.style.cssText===before,'video moved with crop');
+check(Math.abs(crop.geometry.cw/crop.geometry.ch-2)<.00001,'crop ratio wrong');
+check(editor.current.crop.zoom===2,'crop not persisted');
+check(!editor.querySelector('.ct-tools') && editor.querySelector('.ct-preview').children.length===1,'middle controls retained');
+check(editor.timeline.toolbarEl.contains(editor.querySelector('.ct-detect')),'detection button not in toolbar');
+editor.querySelector('cap-panel-divider').resize(400);
+await new Promise(resolve=>setTimeout(resolve,200));
+check(saved.sidebarWidth===400,'column width not saved');
+const original=JSON.stringify(editor.source.segments);
+const detection=editor.action('detect').catch(error=>error);
+await editor.action('cancel');await detection;
+check(JSON.stringify(editor.source.segments)===original,'cancel replaced markers');
+check(!editor.busy && editor.querySelector('.ct-detect').dataset.action==='detect','cancel left editor busy');
+const untouched=JSON.stringify(editor.source.segments.slice(1));
+const originalJob=editor.job;let requested;
+editor.job=async(path,payload)=>{requested=payload;return {points:[2,4,8,12]};};
+await editor.action('detect');editor.job=originalJob;
+check(JSON.stringify(requested.ranges)===JSON.stringify([{start:0,end:6}]),'wrong selected request');
+check(editor.source.segments.length===5,'selected clip not split');
+check(JSON.stringify(editor.source.segments.slice(3))===untouched,'unselected clips changed');
+check(editor.source.segments.slice(0,3).every(s=>s.crop.zoom===2),'crop not inherited');
+await editor.action('undo');
+check(JSON.stringify(editor.source.segments)===original,'undo did not restore clips');
+const result=document.createElement('output');result.textContent='PASS: fixed video, locked crop ratio, empty middle, toolbar action, column width, cancelled detection, selected clip split, untouched neighbors, undo';editor.querySelector('header').append(result);
+</script></html>

@@ -14,6 +14,7 @@ scenes[0].selected=true;
 normalizeSelection(sources,124);
 assert.equal(selectedClips(sources,124).length,1);
 assert.equal(selectedClips(sources,124)[0].token,'video');
+assert.equal(scenes[0].selected,true,'short enabled flag survives normalization');
 normalizeSelection(sources,345);
 assert.equal(selectedClips(sources,345).length,0);
 const state={settings:{width:512,height:256},sources:[{path:'video.mp4',segments:[{start:0,end:6,caption:'肤色与色调',selected:true,crop:{zoom:1.5,x:.3,y:0}}]}]};

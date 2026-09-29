@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><script type="module">
+import '../js/training_dataset/Editor.js';
+import {exportProject,importProject} from '../js/training_dataset/project.js';
+const fixture=await (await fetch('/fixture-config')).json();let saved;
+const e=document.createElement('cap-training-dataset-editor');await e.open(fixture,s=>saved=structuredClone(s));
+const check=(v,m)=>{if(!v)throw Error(m);};
+e.choose(e.source.segments[0]);e.current.crop={zoom:2,x:.2,y:.3};e.inspect();
+const all=e.querySelector('[data-crop-all]');all.click();
+check(e.settings.cropAll && e.settings.sharedCrop.zoom===2,'switch failed');
+e.cropPreview.change({zoom:3,x:.4,y:.5});
+check(e.source.segments.every(s=>e.effectiveCrop(s).zoom===3),'not shared');
+e.trackSelection.clear();e.current=null;e.inspect();check(e.cropPreview.editable,'shared crop readonly without selected clip');
+const second={...e.source,segments:[{...e.source.segments[0],id:'other',selected:true}]};e.sources.push(second);
+check(e.effectiveCrop(second.segments[0]).zoom===3,'second source missed');
+e.save();const imported=importProject(JSON.stringify(exportProject(e.settings,e.sources)));check(imported.settings.cropAll && imported.settings.sharedCrop.zoom===3,'JSON lost shared crop');
+e.choose(e.source.segments[0]);e.querySelector('[data-timeline]').dispatchEvent(new KeyboardEvent('keydown',{code:'KeyB',key:'b',ctrlKey:true,bubbles:true}));
+check(e.current.selected,'Ctrl+B did not enable');check(e.querySelector('[data-selected]').checked,'switch not checked');check(!e.clipBySegment.get(e.current.id).el.classList.contains('export-disabled'),'clip remained disabled');
+let payload;const job=e.job;e.job=async(path,data)=>{payload=data;return {count:data.clips.length,directory:'fixture'};};await e.action('export');e.job=job;
+check(payload.clips.length===2 && payload.clips.every(s=>s.crop.zoom===3),'export crop mismatch');
+await e.action('toggle');check(!e.current.selected,'toggle did not disable');
+e.choose(e.source.segments[1]);await e.action('toggle');check(!e.current.selected,'short clip enabled');
+all.click();check(!e.settings.cropAll && e.effectiveCrop(e.source.segments[0]).zoom===2,'individual crop lost');
+e.sources.pop();e.choose(e.source.segments[0]);
+const o=document.createElement('output');o.textContent='PASS: shared crop across clips and sources, no-selection editing, JSON, export, Ctrl+B and short-clip guard';e.querySelector('header').append(o);
+</script>

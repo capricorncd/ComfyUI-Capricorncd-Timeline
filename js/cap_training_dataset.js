@@ -25,6 +25,15 @@ app.registerExtension({
             const widget=this.addDOMWidget('training_dataset','button',button,{getMinHeight:()=>36,getHeight:()=>36});
             widget.serialize=false;widget.computeLayoutSize=()=>({minHeight:36,maxHeight:36});
             this.size=[300,90];
+            const serialize=this.onSerialize;
+            this.onSerialize=function(info){
+                if(editor?.isConnected)editor.save();
+                serialize?.apply(this,arguments);
+                if(this.properties?.training_dataset){
+                    info.properties ||= {};
+                    info.properties.training_dataset=copyDatasetData(this.properties.training_dataset);
+                }
+            };
             const removed=this.onRemoved;
             this.onRemoved=function(){editor?.remove();removed?.apply(this,arguments);};
         };

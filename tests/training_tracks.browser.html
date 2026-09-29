@@ -1,0 +1,36 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>Track editing checks</title>
+<script type="module">
+import '../js/training_dataset/Editor.js';
+const fixture=await (await fetch('/fixture-config')).json();
+const editor=document.createElement('cap-training-dataset-editor');
+await editor.open(fixture,()=>{});
+const check=(v,m)=>{if(!v)throw Error(m);};
+const first=editor.source.segments[0], short=editor.source.segments[1];
+editor.choose(first);
+check(editor.video.paused,'selection must not play');
+check(editor.querySelector('[data-range]').textContent.includes('时长: 6.000s'),'duration missing');
+window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyB',ctrlKey:true,bubbles:true,cancelable:true}));
+check(first.selected,'Ctrl+B enables export');
+window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyB',ctrlKey:true,bubbles:true,cancelable:true}));
+check(!first.selected,'Ctrl+B disables export');
+editor.choose(short);await editor.action('toggle');check(!short.selected,'short clip enabled');
+editor.choose(first);
+window.dispatchEvent(new KeyboardEvent('keydown',{code:'Delete',bubbles:true,cancelable:true}));
+check(editor.source.segments.length===2 && editor.source.segments[0].start===6,'delete shifts time');
+await editor.action('undo');check(editor.source.segments.length===3,'undo failed');
+editor.choose(editor.source.segments[0]);editor.choose(editor.source.segments[2],true);
+await editor.action('toggle');check(editor.source.segments.filter(s=>s.selected).length===2,'multi toggle failed');
+check(!editor.querySelector('[data-scenes]') && !editor.querySelector('[data-loop]'),'old list or loop retained');
+await new Promise(resolve=>setTimeout(resolve,100));
+const preview=editor.querySelector('.ct-preview-icon');
+preview.dispatchEvent(new PointerEvent('pointerenter'));
+check(editor.hoverSegment===editor.source.segments[0],'hover did not target clip');
+preview.dispatchEvent(new PointerEvent('pointerleave'));
+check(!editor.hoverSegment && editor.video.paused,'hover exit did not stop');
+editor.choose(editor.source.segments[1]);await editor.action('remove');
+await editor.action('close-gaps');
+check(editor.source.segments[1].start===9 && editor.source.segments[1].timelineStart===6,'source time was changed');
+check(editor.toSourceTime(7)===10 && editor.toTrackTime(10)===7,'seek mapping incorrect');
+await editor.action('undo');check(editor.source.segments[1].timelineStart==null,'gap removal undo failed');
+const result=document.createElement('output');result.textContent='PASS: Ctrl+B, delete, undo, multi-select, short clips, times, hover and no old list';editor.querySelector('header').append(result);
+</script></html>

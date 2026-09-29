@@ -50,6 +50,25 @@ class DraftStorageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'fps changed'):
             self.scope['restore_draft'](self.data, manifest['id'])
 
+    def test_restore_continuation_keeps_predecessor_video_from_snapshot(self):
+        self.row.update(h3_timing=dict(context_frames=22, previous_source_clip_id='previous'))
+        previous = dict(id='runtime-1', source_clip_id='previous', output_video='draft/previous.mp4')
+        unrelated = dict(id='other', output_video='other.mp4')
+        saved = {**self.data, 'clips': [previous, unrelated, self.row]}
+        manifest = self.scope['save_draft']({'samples': torch.zeros(1, 2, 3)}, saved, 2, 608, 352, 158, 'continuation', 8)
+        restored, _ = self.scope['restore_draft'](self.data, manifest['id'])
+        self.assertEqual(len(restored['clips']), 1)
+        self.assertEqual(restored['clips'][0]['previous_output_video'], 'draft/previous.mp4')
+        self.assertEqual(restored['clips'][0]['h3_timing'], self.row['h3_timing'])
+        self.assertNotIn('previous_output_video', self.row)
+
+    def test_restore_single_clip_keeps_explicit_context_video(self):
+        self.row.update(h3_timing=dict(context_frames=22, previous_source_clip_id='previous'),
+                        previous_output_video='draft/previous.mp4')
+        manifest = self.scope['save_draft']({'samples': torch.zeros(1, 2, 3)}, self.data, 0, 608, 352, 158, 'continuation', 8)
+        restored, _ = self.scope['restore_draft'](self.data, manifest['id'])
+        self.assertEqual(restored['clips'][0]['previous_output_video'], 'draft/previous.mp4')
+
     def test_latest_preview_skips_disabled_missing_and_incompatible_versions(self):
         latent = {"samples": torch.zeros(1, 2, 3)}
         older = self.scope['save_draft'](latent, self.data, 0, 608, 352, 124, 'older', 8)

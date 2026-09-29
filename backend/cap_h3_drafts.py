@@ -94,6 +94,13 @@ def restore_draft(data, version_id):
         raise ValueError("Preview belongs to a different keyframe segment. Generate a matching candidate.")
     row["output_video"] = current[0]["output_video"]
     row["h3_refine_version"] = version_id
+    timing = row.get("h3_timing") or {}
+    if timing.get("context_frames"):
+        previous_id = timing.get("previous_source_clip_id")
+        previous = next((item for item in reversed(snapshot["clips"][:manifest["index"]])
+                         if not previous_id or str(item.get("source_clip_id") or item["id"]) == str(previous_id)), None)
+        if previous and previous.get("output_video"):
+            row["previous_output_video"] = previous["output_video"]
     snapshot.update(width=data["width"], height=data["height"], clips=[row])
     return snapshot, manifest
 

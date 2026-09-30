@@ -156,7 +156,7 @@ class GeneratorTests(unittest.TestCase):
         result = self.run_node(rows=[dict(id='a', start_ms=0, end_ms=5000, prompt='manual text'),
                                     dict(id='b', start_ms=5000, end_ms=10000, prompt='draft text', h3_generated_prompt='generated text')])
         output = result['result'][3]
-        self.assertEqual(output, f"Clip a · {result['result'][0][0]}\nmanual text\n\nClip b · {result['result'][0][1]}\ngenerated text")
+        self.assertEqual(output, f"// Clip a · {result['result'][0][0]}\nmanual text\n\n// Clip b · {result['result'][0][1]}\ngenerated text")
         self.assertNotIn('draft text', output)
 
     def enable_drafts(self):

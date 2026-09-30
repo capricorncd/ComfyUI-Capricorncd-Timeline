@@ -1,6 +1,8 @@
 import { app } from "../../scripts/app.js";
 import { ComfyWidgets } from "../../scripts/widgets.js";
 
+import { bindRichPromptWidget, detachRichPromptHandler } from "./components/RichPrompt.js";
+
 const NODE_CLASS = "CAP_ShowAnything";
 
 function textWidgetsStart(node) {
@@ -12,6 +14,29 @@ function textWidgetsStart(node) {
     }
     node.widgets.length = pos;
     return pos;
+}
+
+function syncTextStyle(node) {
+    const fmt = node.widgets?.find(w => w.name === "format_json");
+    const texts = (node.widgets || []).filter(w => w.name === "text");
+    if (fmt) {
+        fmt.disabled = !texts.length || !texts.every(widget => {
+            try {
+                JSON.parse(widget.value);
+                return true;
+            } catch (error) {
+                if (error instanceof SyntaxError) return false;
+                throw error;
+            }
+        });
+        if (fmt.disabled) fmt.value = false;
+        if (typeof node.widgets_values?.[0] === "boolean") node.widgets_values[0] = !!fmt.value;
+    }
+    const formatJson = !!fmt?.value;
+    for (const widget of texts) {
+        if (formatJson) detachRichPromptHandler(widget.inputEl);
+        else bindRichPromptWidget(widget);
+    }
 }
 
 function populate(node, texts) {
@@ -28,9 +53,16 @@ function populate(node, texts) {
         widget.inputEl.spellcheck = false;
         widget.inputEl.style.opacity = "0.85";
         widget.value = row == null ? "" : String(row);
+        const onRemove = widget.onRemove;
+        widget.onRemove = function () {
+            detachRichPromptHandler(this.inputEl);
+            return onRemove?.apply(this, arguments);
+        };
     }
 
+    syncTextStyle(node);
     requestAnimationFrame(() => {
+        syncTextStyle(node);
         const sz = node.computeSize();
         if (sz[0] < node.size[0]) sz[0] = node.size[0];
         if (sz[1] < node.size[1]) sz[1] = node.size[1];
@@ -58,6 +90,29 @@ app.registerExtension({
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== NODE_CLASS) return;
 
+        const onNodeCreated = nodeType.prototype.onNodeCreated;
+        nodeType.prototype.onNodeCreated = function () {
+            onNodeCreated?.apply(this, arguments);
+            const fmt = this.widgets?.find(w => w.name === "format_json");
+            if (fmt) {
+                const callback = fmt.callback;
+                const node = this;
+                fmt.callback = function () {
+                    callback?.apply(this, arguments);
+                    syncTextStyle(node);
+                };
+            }
+            syncTextStyle(this);
+        };
+
+        const onRemoved = nodeType.prototype.onRemoved;
+        nodeType.prototype.onRemoved = function () {
+            for (const widget of this.widgets || []) {
+                if (widget.name === "text") detachRichPromptHandler(widget.inputEl);
+            }
+            return onRemoved?.apply(this, arguments);
+        };
+
         const onExecuted = nodeType.prototype.onExecuted;
         nodeType.prototype.onExecuted = function (message) {
             onExecuted?.apply(this, arguments);
@@ -65,7 +120,7 @@ app.registerExtension({
             const texts = Array.isArray(message.text) ? message.text : [message.text];
             populate(this, texts);
             const fmt = this.widgets?.find((w) => w.name === "format_json");
-            this.widgets_values = [fmt ? !!fmt.value : true, ...texts.map((t) => String(t ?? ""))];
+            this.widgets_values = [fmt ? !!fmt.value : false, ...texts.map((t) => String(t ?? ""))];
         };
 
         const onConfigure = nodeType.prototype.onConfigure;

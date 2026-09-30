@@ -443,7 +443,7 @@ class CAP_H3VideoGenerator:
                     if span.get("source_clip_id") == cid:
                         span["output_video"] = filename
             paths.append(filename)
-            generated_prompts.append(f"Clip {cid} · {filename}\n{composed_prompt}")
+            generated_prompts.append(f"// Clip {cid} · {filename}\n{composed_prompt}")
             info = {**saved["ui"]["video"][0], "preview_key": f"{run_token}_{index}", "clip_id": cid}
             if row.get("keyframe_segment"):
                 multiplier = interpolation["multiplier"] if interpolation else 1

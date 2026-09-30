@@ -59,7 +59,7 @@ class CAP_ShowAnything(io.ComfyNode):
                 io.AnyType.Input("anything", optional=True, tooltip="Any type of input; may be left unconnected"),
                 io.Boolean.Input(
                     "format_json",
-                    default=True,
+                    default=False,
                     label_on="Format JSON",
                     label_off="Raw text",
                     tooltip="When on, try to parse string / object values as JSON and indent them",
@@ -72,7 +72,7 @@ class CAP_ShowAnything(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, format_json=True, **kwargs) -> io.NodeOutput:
+    def execute(cls, format_json=False, **kwargs) -> io.NodeOutput:
         unique_id = cls.hidden.unique_id
         extra_pnginfo = cls.hidden.extra_pnginfo
         format_json = bool(_unwrap(format_json))

@@ -6,7 +6,7 @@ const INPUT_ORDER = [
     "second_sampling", "first_pass_megapixels", "preview_sampling_batch", "upscaler_model", "refine_sigmas",
     "motion_deblur",
     "sampling_preview", "preview_tiny_vae",
-    "generate_audio", "normalize_audio",
+    "generate_audio", "chain_all_clips",
     "compose_final", "concat_full_videos",
 ];
 const WIDGET_ORDER = INPUT_ORDER.slice(10);
@@ -43,9 +43,10 @@ app.registerExtension({
         const configure = nodeType.prototype.configure;
         nodeType.prototype.configure = function (info) {
             // LiteGraph saves widget values positionally; restore by the saved names.
-            const inputWidgets = info.inputs?.filter(input => WIDGET_ORDER.includes(input.widget?.name) || ["strict_keyframes", "audio_refine", "audio_refine_steps"].includes(input.widget?.name))
+            const inputWidgets = info.inputs?.filter(input => WIDGET_ORDER.includes(input.widget?.name) || ["strict_keyframes", "audio_refine", "audio_refine_steps", "normalize_audio"].includes(input.widget?.name))
                 .map(input => input.widget.name) ?? [];
-            const legacyOrder = schemaOrder.filter(name => !["preview_sampling_batch", "concat_full_videos"].includes(name));
+            const legacyOrder = schemaOrder.filter(name => !["preview_sampling_batch", "concat_full_videos"].includes(name))
+                .map(name => name === "chain_all_clips" ? "normalize_audio" : name);
             if (!info.properties?.cap_h3_widget_order && info.widgets_values?.length >= legacyOrder.length + 1) {
                 legacyOrder.splice(legacyOrder.indexOf("normalize_audio"), 0, "audio_refine", "audio_refine_steps");
                 if (typeof info.widgets_values[2] === "boolean") {
@@ -58,7 +59,7 @@ app.registerExtension({
                 const values = new Map(savedOrder.map((name, i) => [name, info.widgets_values[i]]));
                 info = {...info, widgets_values: this.widgets.filter(widget => WIDGET_ORDER.includes(widget.name))
                     .map(widget => values.has(widget.name) ? values.get(widget.name)
-                        : widget.name === "motion_deblur" ? false
+                        : ["motion_deblur", "chain_all_clips"].includes(widget.name) ? false
                             : widget.name === "preview_sampling_batch" ? 1 : widget.value)};
             }
             configure?.call(this, info);

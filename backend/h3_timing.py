@@ -44,29 +44,40 @@ def choose_h3_context(previous, requested=22):
     return min(candidates, key=lambda value: (abs(value - requested), value))
 
 
-def plan_h3_clips(clips, fps):
+def plan_h3_clips(clips, fps, *, chain_all=False):
+    if chain_all:
+        for index, clip in enumerate(clips):
+            clip.setdefault("source_clip_id", str(clip.get("id", "")))
+            clip.setdefault("preview_start_ms", clip["start_ms"])
+            clip.setdefault("preview_end_ms", clip["end_ms"])
+            clip["reference_previous"] = index > 0
+            clip["h3_motion_context_length"] = (int(clip.get("h3_motion_context_length") or 22) if index else 0)
+            clip["save_latent"] = index < len(clips) - 1 or bool(clip.get("save_latent"))
+            clip.pop("h3_timing", None)
+            clip.pop("playback_spans", None)
+            clip.pop("previous_output_video", None)
     # Resolve dependencies before planning any clip, including single-clip runs.
     previous_by_track = {}
     for clip in clips:
-        previous = previous_by_track.get(clip.get("z_index", 0))
+        previous = previous_by_track.get(0 if chain_all else clip.get("z_index", 0))
         if "reference_previous" in clip:
             clip["h3_motion_context_length"] = (int(clip.get("h3_motion_context_length", 0)) or 22) if clip["reference_previous"] else 0
             if (clip["reference_previous"] and previous
                     and clip.get("agent", "MiniMaxH3") == previous.get("agent", "MiniMaxH3") == "MiniMaxH3"
-                    and abs(previous["preview_end_ms"] - clip["preview_start_ms"]) <= 1):
+                    and (chain_all or abs(previous["preview_end_ms"] - clip["preview_start_ms"]) <= 1)):
                 previous["save_latent"] = True
-        previous_by_track[clip.get("z_index", 0)] = clip
+        previous_by_track[0 if chain_all else clip.get("z_index", 0)] = clip
     previous_by_track = {}
     plans = []
     for clip in clips:
-        track = clip.get("z_index", 0)
+        track = 0 if chain_all else clip.get("z_index", 0)
         previous = previous_by_track.get(track)
         start = clip["preview_start_ms"]
         end = clip["preview_end_ms"]
         is_h3 = clip.get("agent", "MiniMaxH3") == "MiniMaxH3"
         linked = bool(is_h3 and clip.get("reference_previous", True) and previous and previous.get("h3_timing")
-                      and previous.get("save_latent") and previous.get("z_index", 0) == track
-                      and abs(previous["preview_end_ms"] - start) <= 1)
+                      and previous.get("save_latent")
+                      and (chain_all or (previous.get("z_index", 0) == track and abs(previous["preview_end_ms"] - start) <= 1)))
         requested = int(clip.get("h3_motion_context_length", 0)) or (22 if linked else 0)
         if is_h3 and (requested or clip.get("save_latent")):
             preferred = max(5, (requested - 5) // 17 * 17 + 5)

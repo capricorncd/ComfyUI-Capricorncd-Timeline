@@ -10,10 +10,10 @@ vm.runInNewContext(readFileSync(new URL('../js/cap_h3_video_generator.js', impor
 const oldWidgets = ['steps', 'strict_keyframes', 'second_sampling', 'first_pass_megapixels',
     'upscaler_model', 'refine_sigmas', 'audio_refine', 'audio_refine_steps', 'normalize_audio',
     'attention', 'compose_final', 'sampling_preview', 'preview_tiny_vae', 'generate_audio'];
-const currentWidgets = [...oldWidgets.filter(name => !['strict_keyframes', 'audio_refine', 'audio_refine_steps'].includes(name)), 'motion_deblur', 'preview_sampling_batch'];
+const currentWidgets = [...oldWidgets.filter(name => !['strict_keyframes', 'audio_refine', 'audio_refine_steps'].includes(name)).map(name => name === 'normalize_audio' ? 'chain_all_clips' : name), 'motion_deblur', 'preview_sampling_batch'];
 const expected = ['steps', 'attention', 'second_sampling', 'first_pass_megapixels', 'preview_sampling_batch',
     'upscaler_model', 'refine_sigmas', 'motion_deblur', 'sampling_preview', 'preview_tiny_vae', 'generate_audio',
-    'normalize_audio', 'compose_final'];
+    'chain_all_clips', 'compose_final'];
 const oldInputs = ['model', 'clip', 'vae', 'audio_vae', 'data_json', 'base_model']
     .map((name, i) => ({name, link: i + 1}));
 const savedInputs = [...oldInputs, ...oldWidgets.map(name => ({name, widget: {name}, link: null}))];
@@ -42,6 +42,8 @@ const values = Object.fromEntries(oldWidgets.map(name => [name, `saved:${name}`]
 values.second_sampling = true;
 values.strict_keyframes = false;
 values.motion_deblur = false;
+values.chain_all_clips = false;
+values.normalize_audio = true;
 values.preview_sampling_batch = 1;
 values.face_refine = false;
 for (const inputs of [savedInputs, oldInputs, [...oldInputs, {name: 'steps', widget: {name: 'steps'}}]]) {
@@ -87,3 +89,9 @@ node.inputs.push({name: 'interpolation_config', link: null});
 node.onNodeCreated();
 assert.equal(node.inputs.findIndex(i => i.name === 'interpolation_config'), 6);
 assert.ok(!node.widgets.some(w => w.name.startsWith('rife_')));
+
+node.configure({properties: {cap_h3_widget_order: expected.map(n => n === 'chain_all_clips' ? 'normalize_audio' : n)},
+    widgets_values: expected.map(n => n === 'chain_all_clips' ? true : values[n])});
+assert.equal(node.widgets.find(w => w.name === 'chain_all_clips').value, false, 'old normalization true must not enable chaining');
+node.configure({properties: {cap_h3_widget_order: expected}, widgets_values: expected.map(n => n === 'chain_all_clips' ? true : values[n])});
+assert.equal(node.widgets.find(w => w.name === 'chain_all_clips').value, true, 'new chaining choice survives reload');

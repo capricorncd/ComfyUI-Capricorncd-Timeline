@@ -104,7 +104,6 @@ The existing **Cap MiniMaxH3** conditioning node also exposes the same optional 
 - Second pass: `Comfyui_Minimax_h3_latent_Upscaler`, with its model in `models/latent_upscale_models` (current chunking-enabled interface).
 - Save Latent / Motion Context: `ComfyUI-H3-Motion-Context`.
 - Audio repair: `ComfyUI-H3-AudioRefine`, frozen-video int4 cache + audio-only pass (default 3 steps, denoise 0.5). This may increase RAM/VRAM usage; disable for lower-memory generation.
-- -14 LUFS normalization: `ComfyUI-WanVideoWrapper` / `NormalizeAudioLoudness`.
 - Sampling preview is built in and enabled by default (`sampling_preview`); requires KJNodes, without modifying it. It uses the incoming LoRA-patched sampling model; no external preview override or frame-count wire is needed. Each Clip uses its actual prepared frame count, including H3 context/padding, for both video passes. The bottom player switches from sampling animation to the saved video. Late preview frames cannot replace a completed video or a newer Clip. Audio-only repair does not run the internal video preview.
 - `preview_tiny_vae`: choose an installed `taeh3.safetensors` in `models/vae_approx` for H3 RGB previews. `none` uses approximate latent colors. Sampling previews are approximate; the completed video uses the full video VAE. Turn off `sampling_preview` to run without KJNodes.
 
@@ -125,3 +124,11 @@ Select a director Clip and open Preview sampling management, or choose Batch pre
 Run reuses the latest enabled compatible preview for each Clip and refines its saved latent; Clips without a valid preview generate normally. Changing duration or project fps requires new candidates. Keyframe previews retain their interval metadata, and the manager follows the selected director Clip.
 
 Deleting a version moves its video, latent and manifest to the Windows recycle bin and cannot be undone with Ctrl+Z. Restore all files manually, then use Associate existing folder. Other platforms reject recycling without permanently deleting files. Project packages do not bundle these latents; retain output/capricorncd-timeline/h3_drafts/ separately when moving machines.
+
+## Chain all clips
+
+`chain_all_clips` defaults to false. When enabled, all clips in this execution are chained in execution order, overriding per-Clip continuation switches across tracks and gaps. The first clip starts independently; preceding clips save latents for their successors. Project switches and timeline positions remain unchanged. Selected keyframe intervals are also chained in execution order.
+
+When disabled, Clip settings apply. Normal generation with chaining does not reuse old previews; explicit refinement retains its saved preview context. First/last-frame and SelfLift Motion Context restrictions still apply.
+
+This continues both picture and sound, without guaranteeing identical BGM. It is not audio-only continuation; use an independent audio track for unchanged music across cuts. Loudness normalization has been removed; generated volume is preserved. Old normalization settings never enable chaining.

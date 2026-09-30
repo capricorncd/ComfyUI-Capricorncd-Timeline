@@ -100,6 +100,47 @@ class GeneratorTests(unittest.TestCase):
         kw.setdefault("base_model", "base")
         return self.node.generate("base", "clip", "vae", "audio_vae", json.dumps(data), **kw)
 
+    def test_chain_all_overrides_disabled_clips_across_tracks_and_gaps(self):
+        rows = [{"id": "a", "start_ms": 0, "end_ms": 5000, "reference_previous": False},
+                {"id": "b", "start_ms": 9000, "end_ms": 14000, "z_index": 2, "reference_previous": False},
+                {"id": "c", "start_ms": 20000, "end_ms": 25000, "reference_previous": False}]
+        result = self.run_node(rows, chain_all_clips=True)
+        planned = json.loads(result["result"][1])["clips"]
+        self.assertEqual([r["reference_previous"] for r in planned], [False, True, True])
+        self.assertEqual([r["save_latent"] for r in planned], [True, True, False])
+        self.assertEqual([r["h3_timing"]["previous_source_clip_id"] for r in planned], [None, "a", "b"])
+        self.assertEqual([r["start_ms"] for r in planned], [0, 9000, 20000])
+        self.assertIsNone(self.prepared[0][3]["context_latent"])
+        self.assertIsNotNone(self.prepared[1][3]["context_latent"])
+        self.assertIsNotNone(self.prepared[2][3]["context_latent"])
+        self.assertEqual([v["clip_id"] for v in result["ui"]["clip_videos"]], ["a", "b", "c"])
+        self.assertFalse(any(n == "NormalizeAudioLoudness" for n, _ in self.calls))
+        self.assertFalse(rows[1]["reference_previous"], "only mutate execution data")
+
+    def test_chain_all_regenerates_cached_previews_and_matches_two_pass_context(self):
+        self.scope["latest_draft"] = Mock(side_effect=AssertionError("must resample the chain"))
+        self.run_node([dict(id="a", start_ms=0, end_ms=5000, h3_drafts=[{"id": "old"}]),
+                       dict(id="b", start_ms=5000, end_ms=10000)],
+                      chain_all_clips=True, second_sampling=True, upscaler_model="up.safetensors")
+        self.scope["latest_draft"].assert_not_called()
+        loads = [kw["latent_path"] for name, kw in self.calls if name == "MiniMaxH3MotionContextLoadLatent"]
+        self.assertEqual(len(loads), 2)
+        self.assertEqual(os.path.basename(loads[0]), os.path.splitext(os.path.basename(self.saved[0][0]))[0] + "_low.safetensors")
+        self.assertEqual(os.path.basename(loads[1]), os.path.splitext(os.path.basename(self.saved[0][0]))[0] + "_high.safetensors")
+
+    def test_chain_all_draft_batches_start_independently(self):
+        self.enable_drafts()
+        self.run_node([dict(id="a", start_ms=0, end_ms=5000), dict(id="b", start_ms=5000, end_ms=10000)],
+                      chain_all_clips=True, h3_generation={"action": "draft"}, preview_sampling_batch=2)
+        self.assertEqual([p[3]["context_latent"] is not None for p in self.prepared], [False, True, False, True])
+        self.assertEqual(sum(n == "MiniMaxH3MotionContextSaveLatent" for n, _ in self.calls), 2)
+
+    def test_chain_all_off_preserves_clip_switches(self):
+        self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "reference_previous": False},
+                       {"id": "b", "start_ms": 5000, "end_ms": 10000, "reference_previous": False}])
+        self.assertTrue(all(p[3]["context_latent"] is None for p in self.prepared))
+        self.assertFalse(any(n == "MiniMaxH3MotionContextSaveLatent" for n, _ in self.calls))
+
     def test_auto_prompt_runs_inside_generator_before_prepare(self):
         config = {"skill": "camera"}
         def generate(clip, data, settings):
@@ -559,12 +600,12 @@ class GeneratorTests(unittest.TestCase):
 
     def test_motion_deblur_preserves_audio_timing_and_runs_after_decode(self):
         self.enable_motion_deblur()
-        self.run_node(motion_deblur=True, audio_refine=True, normalize_audio=True)
+        self.run_node(motion_deblur=True, audio_refine=True)
         repair = self.node._deblur_clip.call_args.args
         self.assertEqual(repair[0], "base")
         self.assertEqual(repair[3:5], ("VAEDecode_output", "VAEDecodeAudio_output"))
         self.assertEqual(self.saved[0][1]["images"], "recovered-images")
-        self.assertEqual(self.saved[0][1]["audio"], "NormalizeAudioLoudness_output")
+        self.assertEqual(self.saved[0][1]["audio"], "VAEDecodeAudio_output")
         phases = [d["phase"] for n, d, _ in self.events if n == "cat_h3_progress"]
         self.assertEqual(phases, ["prepare", "sample", "audio", "decode", "deblur", "save", "done"])
         self.assertTrue(json.loads(self.saved[0][1]["metadata"])["motion_deblur"])
@@ -667,7 +708,7 @@ class GeneratorTests(unittest.TestCase):
 
     def test_two_pass_reuses_noise_and_full_schedule_denoised_output(self):
         self.run_node(second_sampling=True, steps="8", upscaler_model="up.safetensors",
-                      audio_refine=True, normalize_audio=True)
+                      audio_refine=True)
         samples = [kw for n, kw in self.calls if n == "SamplerCustomAdvanced"]
         self.assertEqual(len(samples), 2)
         self.assertEqual(samples[0]["noise"], samples[1]["noise"])
@@ -703,7 +744,7 @@ class GeneratorTests(unittest.TestCase):
         rows = [{"id": "a", "start_ms": 0, "end_ms": 5000, "save_latent": True},
                 {"id": "b", "start_ms": 5000, "end_ms": 10000,
                  "h3_timing": {"context_frames": 22, "previous_source_clip_id": "a"}}]
-        result = self.run_node(rows, generate_audio=False, audio_refine=True, normalize_audio=True,
+        result = self.run_node(rows, generate_audio=False, audio_refine=True,
                                second_sampling=True, upscaler_model="up")
         skipped = {"H3FrozenVideoCache", "H3AudioRefineSampler", "VAEDecodeAudio", "NormalizeAudioLoudness"}
         self.assertTrue(skipped.isdisjoint(name for name, _ in self.calls))
@@ -714,7 +755,7 @@ class GeneratorTests(unittest.TestCase):
             metadata = json.loads(kw["metadata"])
             self.assertFalse(metadata["generate_audio"])
             self.assertFalse(metadata["audio_refine"])
-            self.assertFalse(metadata["normalize_audio"])
+            self.assertNotIn("normalize_audio", metadata)
         self.assertEqual(sum(n == "SamplerCustomAdvanced" for n, _ in self.calls), 4)
         self.assertEqual(sum(n == "MiniMaxH3MotionContextLoadLatent" for n, _ in self.calls), 2)
         self.assertEqual(sum(n == "LTXVConcatAVLatent" for n, _ in self.calls), 2)

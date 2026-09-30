@@ -809,8 +809,9 @@
       "audio_refine_steps": {
         "name": "音频修复步数"
       },
-      "normalize_audio": {
-        "name": "响度归一化（-14 LUFS）"
+      "chain_all_clips": {
+        "name": "连续衔接所有片段",
+        "tooltip": "按本次执行顺序衔接画面和声音，覆盖各 Clip 的衔接开关。不能保证 BGM 完全一致；已有预览将重新生成，显式高清精修沿用已保存的上下文。"
       },
       "attention": {
         "name": "注意力后端"

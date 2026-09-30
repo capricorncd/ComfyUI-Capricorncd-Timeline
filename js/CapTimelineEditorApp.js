@@ -474,6 +474,7 @@ function defaultImageMeta(trackIndex = 0) {
         promptSkills: [],
         h3MotionContextLength: 0,
         referencePrevious: false,
+        saveLatent: false,
         h3Drafts: [],
         h3DraftRemoved: [],
         seed: -1,
@@ -3980,6 +3981,10 @@ export class CapTimelineEditorApp {
                   <input class="cat-te-auto-prompt" type="checkbox" disabled />
                   <span>${T("auto_prompt_label")}</span>
                 </label>
+                <label class="cat-te-clip-setting-check" title="${T("save_latent_title")}">
+                  <input class="cat-te-save-latent" type="checkbox" disabled />
+                  <span>${T("save_latent_label")}</span>
+                </label>
                 <label class="cat-te-clip-setting-check" title="${T("reference_previous_title")}">
                   <input class="cat-te-reference-previous" type="checkbox" disabled />
                   <span>${T("reference_previous_label")}</span>
@@ -5012,6 +5017,7 @@ export class CapTimelineEditorApp {
         this.promptIncludeChips = el.querySelectorAll(".cat-te-prompt-include-chip");
         this.useAudioTrackAudioCb = el.querySelector(".cat-te-use-audio-track");
         this.referencePreviousCb = el.querySelector(".cat-te-reference-previous");
+        this.saveLatentCb = el.querySelector(".cat-te-save-latent");
         this.autoPromptCb = el.querySelector(".cat-te-auto-prompt");
         this.clipSeedInput = el.querySelector(".cat-te-clip-seed");
         this.clipSeedRandomBtn = el.querySelector(".cat-te-clip-seed-random");
@@ -5541,6 +5547,7 @@ export class CapTimelineEditorApp {
         if (this.referencePreviousCb && !this.referencePreviousCb._catTeBound) {
             this.referencePreviousCb._catTeBound = true;
             this.referencePreviousCb?.addEventListener("change", () => this._onReferencePreviousChange());
+            this.saveLatentCb?.addEventListener("change", () => this._onSaveLatentChange());
             this.autoPromptCb?.addEventListener("change", () => this._onAutoPromptChange());
             this.clipSeedInput?.addEventListener("change", () => this._onClipSeedChange());
             this.clipSeedRandomBtn?.addEventListener("click", () => this._randomizeClipSeed());
@@ -15211,6 +15218,7 @@ export class CapTimelineEditorApp {
                 promptSkills: copyPromptSkills(c.prompt_skills),
                 h3MotionContextLength: Math.max(0, Math.round(Number(c.h3_motion_context_length) || 0)),
                 referencePrevious: c.reference_previous ?? (Number(c.h3_motion_context_length) > 0),
+                saveLatent: !!(c.save_latent_manual ?? c.save_latent),
                 h3Drafts: Array.isArray(c.h3_drafts) ? c.h3_drafts : [],
                 h3DraftRemoved: Array.isArray(c.h3_draft_removed) ? c.h3_draft_removed : [],
                 seed: this._normalizeClipSeed(c.seed),
@@ -15315,6 +15323,7 @@ export class CapTimelineEditorApp {
                 ),
                 h3MotionContextLength: Math.max(0, Math.round(Number(c.h3_motion_context_length) || 0)),
                 referencePrevious: c.reference_previous ?? (Number(c.h3_motion_context_length) > 0),
+                saveLatent: !!(c.save_latent_manual ?? c.save_latent),
                 h3Drafts: Array.isArray(c.h3_drafts) ? c.h3_drafts : [],
                 h3DraftRemoved: Array.isArray(c.h3_draft_removed) ? c.h3_draft_removed : [],
                 seed: this._normalizeClipSeed(c.seed),
@@ -15379,6 +15388,7 @@ export class CapTimelineEditorApp {
             ),
             h3MotionContextLength: Math.max(0, Math.round(Number(c.h3_motion_context_length) || 0)),
             referencePrevious: c.reference_previous ?? (Number(c.h3_motion_context_length) > 0),
+            saveLatent: !!(c.save_latent_manual ?? c.save_latent),
             h3Drafts: Array.isArray(c.h3_drafts) ? c.h3_drafts : [],
             h3DraftRemoved: Array.isArray(c.h3_draft_removed) ? c.h3_draft_removed : [],
             seed: this._normalizeClipSeed(c.seed),
@@ -19178,6 +19188,7 @@ export class CapTimelineEditorApp {
         const agent = el.querySelector(".cat-te-clip-agent");
         if (!referencePrevious) return;
         this.referencePreviousCb = referencePrevious;
+        this.saveLatentCb = el.querySelector(".cat-te-save-latent");
         this.autoPromptCb = el.querySelector(".cat-te-auto-prompt");
         this.clipSeedInput = seed;
         this.clipSeedRandomBtn = seedRandom;
@@ -19190,6 +19201,7 @@ export class CapTimelineEditorApp {
         if (!referencePrevious._catTeBound) {
             referencePrevious._catTeBound = true;
             referencePrevious?.addEventListener("change", () => this._onReferencePreviousChange());
+            this.saveLatentCb?.addEventListener("change", () => this._onSaveLatentChange());
             this.autoPromptCb?.addEventListener("change", () => this._onAutoPromptChange());
             seed?.addEventListener("change", () => this._onClipSeedChange());
             seedRandom?.addEventListener("click", () => this._randomizeClipSeed());
@@ -19210,6 +19222,10 @@ export class CapTimelineEditorApp {
         if (this.autoPromptCb) {
             this.autoPromptCb.disabled = disabled;
             this.autoPromptCb.checked = enabled && !!m?.autoPrompt;
+        }
+        if (this.saveLatentCb) {
+            this.saveLatentCb.disabled = disabled;
+            this.saveLatentCb.checked = enabled && !!m?.saveLatent;
         }
         if (this.referencePreviousCb) {
             this.referencePreviousCb.disabled = disabled;
@@ -20723,6 +20739,13 @@ export class CapTimelineEditorApp {
         this._saveToWidgets();
     }
 
+    _onSaveLatentChange() {
+        if (!this._selClip || this.saveLatentCb?.disabled) return;
+        this._recordUndo();
+        this._ensureClipMeta(this._selClip).saveLatent = !!this.saveLatentCb.checked;
+        this._saveToWidgets();
+    }
+
     _onReferencePreviousChange() {
         if (!this._selClip || this.referencePreviousCb?.disabled) return;
         this._recordUndo();
@@ -20923,7 +20946,8 @@ export class CapTimelineEditorApp {
                     row.prompt_skills = copyPromptSkills(m.promptSkills);
                     row.reference_previous = !!m.referencePrevious;
                     row.h3_motion_context_length = m.referencePrevious ? (this._clampH3MotionContextLength(m.h3MotionContextLength) || 22) : 0;
-                    row.save_latent = false;
+                    row.save_latent_manual = !!m.saveLatent;
+                    row.save_latent = row.save_latent_manual;
                     row.h3_drafts = m.h3Drafts || [];
                     row.h3_draft_removed = m.h3DraftRemoved || [];
                     row.seed = this._normalizeClipSeed(m.seed);

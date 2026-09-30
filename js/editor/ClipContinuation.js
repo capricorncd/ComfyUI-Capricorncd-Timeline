@@ -1,4 +1,4 @@
-// Saving context is a dependency of the following clip, not a separate UI option.
+// Continuation requires saving the previous latent in addition to manual saves.
 export function applyContinuationSettings(tracks) {
     for (const track of tracks) {
         if (track.type !== 'director' || track.enabled === false || track.visible === false) continue;

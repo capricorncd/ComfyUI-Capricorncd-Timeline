@@ -20,3 +20,36 @@ change.call(app); assert.equal(meta.h3MotionContextLength,22); assert.equal(meta
 app.referencePreviousCb.checked=false; change.call(app); assert.equal(meta.h3MotionContextLength,0); assert.equal(meta.referencePrevious,false);
 app.referencePreviousCb.disabled=true; change.call(app); assert.equal(saves,2); assert.equal(undo,2);
 console.log('PASS: continuation dependencies, migration, toggle, undo/save and disabled controls');
+
+const saveStart = source.indexOf('    _onSaveLatentChange() {');
+const saveChange = new Function(`return ({${source.slice(saveStart, source.indexOf('\n    }', saveStart) + 6)}})._onSaveLatentChange`)();
+app.saveLatentCb = {checked: true, disabled: false};
+saveChange.call(app);
+assert.equal(meta.saveLatent, true);
+assert.equal(meta.referencePrevious, false);
+assert.equal(meta.h3MotionContextLength, 0);
+app.saveLatentCb.checked = false;
+saveChange.call(app);
+assert.equal(meta.saveLatent, false);
+app.saveLatentCb.disabled = true;
+saveChange.call(app);
+assert.equal(saves, 4);
+assert.equal(undo, 4);
+// Serialize the explicit choice separately from the effective dependency flag.
+const serializeSave = new Function('m', `const row = {}; ${source.match(/row\.save_latent_manual = [^;]+;\s+row\.save_latent = [^;]+;/)[0]} return row;`);
+const restoreSave = new Function('c', `return ${source.match(/saveLatent: ([^,]+),/g).find(s => s.includes('save_latent_manual')).slice('saveLatent: '.length, -1)};`);
+clips = rows();
+Object.assign(clips[0], serializeSave({saveLatent: false}));
+Object.assign(clips[2], serializeSave({saveLatent: true}));
+applyContinuationSettings([{type: 'director', clips}]);
+const reopened = JSON.parse(JSON.stringify(clips));
+assert.equal(reopened[0].save_latent, true);
+assert.equal(restoreSave(reopened[0]), false);
+assert.equal(restoreSave(reopened[2]), true);
+assert.equal(restoreSave({save_latent: true}), true);
+reopened[1].reference_previous = false;
+Object.assign(reopened[0], serializeSave({saveLatent: restoreSave(reopened[0])}));
+applyContinuationSettings([{type: 'director', clips: reopened}]);
+assert.equal(reopened[0].save_latent, false);
+assert.equal(reopened[2].save_latent, true);
+console.log('PASS: manual latent toggle, context isolation and save/reload with automatic dependencies');

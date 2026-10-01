@@ -482,6 +482,7 @@ class CAP_H3VideoGenerator:
                 json.dumps(compose_data, ensure_ascii=False),
                 filename_prefix=f"capricorncd-timeline/compose/{run_token}",
                 trim_extends=not concat_full_videos, use_original_audio=generate_audio, save_sidecar=False,
+                keep_final_tail=True,
                 prompt=records, extra_pnginfo=extra_pnginfo,
             )
             composed_video = composed["result"][0]

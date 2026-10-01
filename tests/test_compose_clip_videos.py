@@ -1,10 +1,14 @@
 import ast
 import json
+import logging
+import os
+import shutil
+import tempfile
 from pathlib import Path
 import sys
 import unittest
 import importlib.util
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 
 # Load the trim planner without importing ComfyUI's model/runtime dependencies.
@@ -18,6 +22,44 @@ spec.loader.exec_module(timing)
 scope = {"json": json, "sys": sys, "subprocess": Mock(), "_ffmpeg_path": str,
          "timing_from_filename": timing.timing_from_filename, "trim_h3_video": timing.trim_h3_video}
 exec(compile(ast.Module(body=[method], type_ignores=[]), str(source), "exec"), scope)
+
+
+class CompositionTailTests(unittest.TestCase):
+    def test_final_tail_preserves_alignment_and_previous_segments(self):
+        method = next(n for n in node.body if isinstance(n, ast.FunctionDef) and n.name == "execute")
+        for spans in (False, True):
+            for keep_tail in (False, True):
+                with self.subTest(spans=spans, keep_tail=keep_tail), tempfile.TemporaryDirectory() as directory:
+                    clips = []
+                    for index in range(2):
+                        filename = f"{index}.mp4"
+                        (Path(directory) / filename).touch()
+                        clip = dict(output_video=filename, source_clip_id=str(index))
+                        if spans:
+                            clip["playback_spans"] = [dict(source_clip_id=str(index), start_frame=22, frame_count=120),
+                                                      dict(source_clip_id=str(index), start_frame=142, frame_count=0)]
+                        clips.append(clip)
+                    # A disabled trailing clip must not prevent preserving the final active clip.
+                    clips.append(dict(enabled=False))
+                    local = dict(scope, os=os, shutil=shutil, tempfile=tempfile, log=logging.getLogger(__name__),
+                                 folder_paths=Mock(get_output_directory=lambda: directory),
+                                 CAP_DataJsonClipParser=Mock(), _safe_under=lambda base, path: path,
+                                 _VIDEO_EXTS=(".mp4",), _probe_has_audio=lambda path: True,
+                                 _run_ffmpeg=Mock(), read_video_generation=Mock(return_value=None),
+                                 embed_video_generation=Mock())
+                    local["subprocess"].run.return_value = Mock(returncode=0, stdout=json.dumps({
+                        "streams": [{"nb_frames": "175", "r_frame_rate": "24/1"}]}))
+                    exec(compile(ast.Module(body=[method], type_ignores=[]), str(source), "exec"), local)
+                    composer = Mock()
+                    composer._parse_data.return_value = dict(fps=24, clips=clips)
+                    composer._build_output_path.return_value = ("final.mp4", "", os.path.join(directory, "final.mp4"))
+                    composer._trim_plan.return_value = (22 / 24, 5)
+                    with patch.object(shutil, "which", return_value="ffmpeg"):
+                        local["execute"](composer, "{}", save_sidecar=False, keep_final_tail=keep_tail)
+                    calls = composer._normalize_segment.call_args_list
+                    self.assertEqual(len(calls), 2)
+                    self.assertEqual(calls[0].args[2:], (22 / 24, 5, True))
+                    self.assertEqual(calls[1].args[2:], (22 / 24, None if keep_tail else 5, True))
 
 
 class TrimTests(unittest.TestCase):

@@ -870,6 +870,7 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(len(self.composed), 1, "compose once for the entire data_json, not once per Clip")
         data, options = self.composed[0]
         self.assertTrue(options["trim_extends"])
+        self.assertTrue(options["keep_final_tail"])
         self.assertTrue(options["use_original_audio"])
         self.assertEqual([r["output_video"] for r in data["clips"]], result["result"][0])
 

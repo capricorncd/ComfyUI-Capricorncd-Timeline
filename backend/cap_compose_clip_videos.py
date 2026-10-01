@@ -469,6 +469,7 @@ class CAP_ComposeClipVideos:
         extra_pnginfo=None,
         audio=None,
         use_original_audio: bool = True,
+        keep_final_tail: bool = False,
     ):
         if not shutil.which("ffmpeg"):
             raise RuntimeError(_t("ffmpeg_not_found", get_last_known_lang()))
@@ -520,11 +521,11 @@ class CAP_ComposeClipVideos:
                 if not audio_tmp:
                     raise ValueError("Compose Clip Videos: audio input is empty or invalid.")
             for order, (clip, index, src) in enumerate(sources):
+                keep_tail = keep_final_tail and order == len(sources) - 1
                 if trim_extends and clip.get("playback_spans"):
-                    for part, span in enumerate(clip["playback_spans"]):
+                    spans = [span for span in clip["playback_spans"] if int(span["frame_count"]) > 0]
+                    for part, span in enumerate(spans):
                         count = int(span["frame_count"])
-                        if count <= 0:
-                            continue
                         source = next((path for row, _, path in sources if row.get("source_clip_id") == span["source_clip_id"]), None)
                         if not source:
                             raise ValueError("Compose Clip Videos: context replacement requires the next clip video.")
@@ -541,11 +542,14 @@ class CAP_ComposeClipVideos:
                         if abs(num / den - fps) > 0.01:
                             raise ValueError("Context replacement source fps differs from the project.")
                         dst = os.path.join(tmp_dir, f"seg_{order:04d}_{part}.mp4")
-                        self._normalize_segment(source, dst, int(span["start_frame"]) / fps, count / fps, keep_audio)
+                        duration = None if keep_tail and part == len(spans) - 1 else count / fps
+                        self._normalize_segment(source, dst, int(span["start_frame"]) / fps, duration, keep_audio)
                         segment_paths.append(dst)
                     continue
                 previous_clip = sources[order - 1][0] if order else None
                 ss, dur = self._trim_plan(clip, src, bool(trim_extends), fps, previous_clip)
+                if keep_tail:
+                    dur = None
                 dst = os.path.join(tmp_dir, f"seg_{order:04d}.mp4")
                 self._normalize_segment(src, dst, ss, dur, keep_audio)
                 segment_paths.append(dst)

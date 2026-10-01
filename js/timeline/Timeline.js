@@ -462,6 +462,11 @@ export class Timeline extends EventEmitter {
         case 'ArrowLeft':
           consume(e);
           this._stepSeekByFrames(e.shiftKey ? -this.fps : -1); break;
+        case 'ArrowUp':
+        case 'ArrowDown':
+          if (e.ctrlKey || e.metaKey || e.altKey) break;
+          if (this.getSelectedClips().some(c => c.audioEnvelope?.nudgeSelected(e.code === 'ArrowUp' ? 0.01 : -0.01))) consume(e);
+          break;
         case 'ArrowRight':
           consume(e);
           this._stepSeekByFrames(e.shiftKey ? this.fps : 1); break;

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 registerHooks({
   resolve(specifier, context, next) {
@@ -65,6 +66,53 @@ envelope.points=[{source_ms:2000,gain:0},{source_ms:7000,gain:5}];
 envelope.render();
 assert.equal(envelope.svg.children[0].points,'0,100 0,100 200,50 1000,0 1000,0');
 console.log('Audio envelope migration, serialization and interaction tests passed');
+
+clip.track.locked = false;
+envelope.selected = envelope.points[0];
+envelope.selected.gain = 1;
+const sourceMs = envelope.selected.source_ms;
+let beforeEvents = events.length;
+assert.equal(envelope.nudgeSelected(0.01), true);
+assert.equal(envelope.selected.gain, 1.01, 'Fine adjustment bypasses unity snap');
+assert.deepEqual(events.slice(beforeEvents), ['clip:volumestart', 'clip:volumeend']);
+envelope.nudgeSelected(-0.01);
+assert.equal(envelope.selected.gain, 1);
+assert.equal(envelope.selected.source_ms, sourceMs);
+for (const gain of [0, 5]) {
+  envelope.selected.gain = gain;
+  beforeEvents = events.length;
+  envelope.nudgeSelected(gain === 0 ? -0.01 : 0.01);
+  assert.equal(envelope.selected.gain, gain);
+  assert.equal(events.length, beforeEvents, 'Bounds do not add undo entries');
+}
+clip.track.locked = true;
+envelope.nudgeSelected(-0.01);
+assert.equal(envelope.selected.gain, 5);
+envelope.selected = null;
+assert.equal(envelope.nudgeSelected(0.01), false);
+console.log('Audio point nudging: 1% steps, no snap, unchanged time, undo events and bounds passed');
+
+const timelineSource = readFileSync(new URL('../js/timeline/Timeline.js', import.meta.url), 'utf8');
+const keyStart = timelineSource.indexOf('    this.handleKey = (e) => {');
+const keyEnd = timelineSource.indexOf('\n    };', keyStart) + '\n    };'.length;
+const keyTimeline = {getSelectedClips:()=>[{audioEnvelope:envelope}]};
+new Function(timelineSource.slice(keyStart, keyEnd)).call(keyTimeline);
+clip.track.locked = false;
+envelope.selected = envelope.points[0];
+envelope.selected.gain = 1;
+const keyEvent = (code, extra={}) => ({code,preventDefault(){this.consumed=true;},stopPropagation(){},...extra});
+for (const [code, gain] of [['ArrowUp',1.01],['ArrowDown',1]]) {
+  const key = keyEvent(code);
+  keyTimeline.handleKey(key);
+  assert.equal(envelope.selected.gain, gain);
+  assert(key.consumed, 'Handled volume arrows must not scroll the panel');
+}
+keyTimeline.handleKey(keyEvent('ArrowUp',{ctrlKey:true}));
+assert.equal(envelope.selected.gain, 1);
+envelope.selected = null;
+const unselectedKey = keyEvent('ArrowUp');
+keyTimeline.handleKey(unselectedKey);
+assert(!unselectedKey.consumed, 'No point selected leaves arrow keys untouched');
 
 const { Clip } = await import('../js/timeline/Clip.js');
 const wave = { _waveform: [0.2, 1], sourceOffset: 2, duration: 2, playbackRate: 1,

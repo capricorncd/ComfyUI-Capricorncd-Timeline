@@ -96,6 +96,17 @@ export class AudioEnvelope {
   }
   begin() { this.clip.track.timeline.emit('clip:volumestart', {clip:this.clip}); }
   finish() { this.render(); this.clip.track.timeline.emit('clip:volumeend', {clip:this.clip}); }
+  nudgeSelected(delta) {
+    if (!this.selected || !this.points.includes(this.selected)) return false;
+    if (this.clip.track.locked) return true;
+    const gain = clamp(Math.round((this.selected.gain + delta) * 1000) / 1000, 0, 5);
+    if (gain !== this.selected.gain) {
+      this.begin();
+      this.selected.gain = gain;
+      this.finish();
+    }
+    return true;
+  }
   deleteSelected() {
     if (!this.selected) return false;
     if (!this.clip.track.locked) {

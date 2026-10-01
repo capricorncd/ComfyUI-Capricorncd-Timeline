@@ -1,5 +1,25 @@
 # Release notes / 更新记录
 
+## 0.17.29 — 2026-10-02
+
+### English
+
+- Add resizable asset replacement previews with an image comparison divider, initially showing the new image; preserve configured asset names and types.
+- Adjust selected audio envelope points with Up/Down in 0.01 increments; respect locked tracks.
+- Replace native alerts and confirmations with shared dialogs, fix confirmation height, and add Open Folder beside the project directory picker.
+- Restore manual latent saving, add H3 chaining across all clips, and remove audio loudness normalization from H3 generation.
+- Support prompt comments, default Show Anything JSON formatting to off, and disable formatting for non-JSON text.
+- Fix video edit dialog timeline shortcuts. Restart ComfyUI and refresh the browser after updating.
+
+### 简体中文
+
+- 素材替换预览支持调整窗口尺寸和竖线图片对比，默认完整显示新图；替换时保留素材设置的名称和类型。
+- 选中音量包络控制点后，使用上下方向键按 0.01 调整音量；锁定轨道时不修改。
+- 原生提示与确认弹窗改用公共组件，修复确认弹窗高度，并在工程目录选择旁新增“打开目录”。
+- 恢复手动保存 latent，新增 H3 连续衔接所有片段，移除 H3 生成的音频响度归一化设置。
+- 支持提示词注释，Show Anything 默认关闭 JSON 格式化，非 JSON 文本禁用格式化。
+- 修复视频编辑弹窗的时间轴快捷键。更新后重启 ComfyUI 并刷新浏览器。
+
 ## 0.17.28 — 2026-09-30
 
 ### English

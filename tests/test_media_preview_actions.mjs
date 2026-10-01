@@ -141,6 +141,23 @@ for (const source of ['library', 'clip']) {
     assert.equal(app.shown, 0);
 }
 
+// Replacing the file preserves the asset's configured identity, including on disk metadata.
+for (const kind of ['image', 'video', 'audio']) {
+    const { app } = fixture();
+    const row = { id: 'asset', kind, file: 'old.png', name: 'Custom asset', media_type: 'character' };
+    app._findMedia = (k, file) => k === kind && file === row.file ? row : null;
+    app._timeline.tracks = [];
+    app._swapMediaListEntry = () => {};
+    app._getMediaMeta = method('_getMediaMeta');
+    app._writeMediaMeta = (k, file, meta) => { app.savedMeta = meta; };
+    method('_replaceMediaReference').call(app, 'old.png', 'replacement.png', kind, false);
+    assert.equal(row.file, 'replacement.png');
+    assert.equal(row.name, 'Custom asset');
+    assert.equal(row.media_type, 'character');
+    assert.equal(app.savedMeta.name, 'Custom asset');
+    assert.equal(app.savedMeta.mediaType, 'character');
+}
+
 assert(!css.includes('.cat-te-media-preview-solo .cat-te-media-preview-footer'));
 assert.match(source, /<cap-button class="cat-te-media-preview-replace"/);
 assert.match(source, /<cap-button class="cat-te-media-preview-insert-clip"/);

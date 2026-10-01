@@ -16645,7 +16645,6 @@ export class CapTimelineEditorApp {
         const dup = oldFile !== newFile ? this._findMedia(kind, newFile) : null;
         if (row) {
             row.file = newFile;
-            row.name = newFile.split(/[\\/]/).pop() || row.name;
             row.location = "input";
             row.generation_prompt = String(metadata.generation_prompt || "");
             row.setting_description = String(metadata.setting_description || "");

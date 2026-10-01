@@ -315,3 +315,7 @@ Skill picker regression fixture also covers revealing and focusing the New Skill
 `PanelDivider.js` provides `<cap-panel-divider>` for horizontal pane widths. `resize(px, notify=true)` clamps width and emits `panel-resize` with `detail.width`. Pointer capture and Left/Right keys adjust the right pane. `aria-label` localizes its name. Training source errors clear on successful selection; explicit Relink preserves validated source edits.
 
 Timeline Ctrl/Meta+wheel accumulates zoom until the next animation frame and retains the pointer pivot. Explicit setZoom and destroy cancel pending wheel work. Clip position updates avoid replacing unchanged duration text and color styles. TrainingDatasetEditor mounts clip elements only around its visible viewport; all Clip model objects remain in the track for geometry and data operations.
+
+## Image comparison
+
+`ImageCompare.js` provides `<cap-image-compare>`. Call `setImages(beforeUrl, afterUrl, beforeLabel, afterLabel)` to compare two contained images. The divider starts at the left edge, showing the new image; pointer dragging and range keyboard controls reveal the original on the left. Replacement previews use a resizable `cap-dialog` sized `80vw` by `80vh`. Closing releases pending object URLs.

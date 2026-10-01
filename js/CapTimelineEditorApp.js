@@ -1,3 +1,4 @@
+import "./components/ImageCompare.js";
 import "./components/SkillPicker.js";
 import { renameAssetMentions } from './prompt_asset_rename.js';
 import { copyPromptSkills, enabledPromptSkills } from './components/PromptSkills.js';
@@ -4541,23 +4542,14 @@ export class CapTimelineEditorApp {
               <cap-button variant="primary" class="cat-te-compose-run">${T("compose_start_btn")}</cap-button>
             </div>
           </cap-dialog>
-          <div class="cat-te-modal-backdrop cat-te-add-material-modal" hidden>
-            <div class="cat-te-modal cat-te-add-material-dialog">
-              <div class="cat-te-modal-header">
-                <span class="cat-te-add-material-title">${T("add_material_title")}</span>
-                <cap-button variant="neutral" shape="square" class="cat-te-modal-close cat-te-add-material-close" title="${T("close_title")}">${iconHtml("close", 16)}</cap-button>
-              </div>
-              <div class="cat-te-add-material-body">
-                <div class="cat-te-add-material-preview"></div>
-                <div class="cat-te-add-material-options">
-                  <label><input class="cat-te-insert-after-add" type="checkbox" /> ${T("insert_to_timeline_label")}</label>
-                </div>
-              </div>
-              <footer class="cat-te-modal-footer cat-te-add-material-actions">
-                <cap-button variant="primary" class="cat-te-add-material-confirm">${T("confirm_btn")}</cap-button>
-              </footer>
-            </div>
-          </div>
+          <cap-dialog class="cat-te-add-material-modal" width="80vw" height="80vh" min-width="360" min-height="300" close-label="${T("close_title")}">
+            <span slot="title" class="cat-te-add-material-title">${T("add_material_title")}</span>
+            <div class="cat-te-add-material-preview"></div>
+            <footer slot="footer" class="cat-te-add-material-actions">
+              <label><input class="cat-te-insert-after-add" type="checkbox" /> ${T("insert_to_timeline_label")}</label>
+              <cap-button variant="primary" class="cat-te-add-material-confirm">${T("confirm_btn")}</cap-button>
+            </footer>
+          </cap-dialog>
           <div class="cat-te-modal-backdrop cat-te-ai-optimize-modal" hidden>
             <div class="cat-te-ai-optimize-shell">
               <cap-button shape="circle" size="large" class="cat-te-ai-optimize-nav prev" title="${T("ai_optimize_prev_clip_title")}" aria-label="${T("ai_optimize_prev_clip_title")}" disabled>${iconHtml("chevronLeft", 20)}</cap-button>
@@ -5319,7 +5311,7 @@ export class CapTimelineEditorApp {
         this._launcherStatus = el.querySelector(".cat-te-launcher-status");
         el.querySelector(".cat-te-header-close").addEventListener("click", () => this.close());
         this.addMaterialInput.addEventListener("change", (e) => this._previewSelectedMaterial(e));
-        el.querySelector(".cat-te-add-material-close").addEventListener("click", () => this._closeAddMaterial());
+        this.addMaterialModal.addEventListener("close", () => this._closeAddMaterial());
         el.querySelector(".cat-te-add-material-confirm").addEventListener("click", () => void this._confirmAddMaterial());
 
         this.mediaInfoPanel = el.querySelector(".cat-te-media-info-panel");
@@ -16357,7 +16349,7 @@ export class CapTimelineEditorApp {
 
     _modalsBlockFileDrop() {
         return Boolean(
-            (this.addMaterialModal && !this.addMaterialModal.hidden)
+            this.addMaterialModal?.open
             || (this.mediaPreviewModal && !this.mediaPreviewModal.hidden)
             || (this.genVideoModal && !this.genVideoModal.hidden)
             || (this.genEditModal && !this.genEditModal.hidden)
@@ -16446,6 +16438,14 @@ export class CapTimelineEditorApp {
 
     _renderAddMaterialPreview(items) {
         this.addMaterialPreview.replaceChildren();
+        const relink = this._pendingMaterial?.relink;
+        if (relink?.kind === "image" && items.length === 1) {
+            const comparison = document.createElement("cap-image-compare");
+            comparison.setImages(this._imgUrl(relink.file), items[0].objectUrl,
+                this._getMediaMeta("image", relink.file).name || relink.file, items[0].file.name);
+            this.addMaterialPreview.appendChild(comparison);
+            return;
+        }
         const list = document.createElement("div");
         list.className = "cat-te-add-material-list";
         for (const item of items) {
@@ -16502,7 +16502,7 @@ export class CapTimelineEditorApp {
         this.insertAfterAddCb.checked = false;
         this.insertAfterAddCb.closest("label").hidden = !!relink;
         this._setAddMaterialMode(!!relink, items.length);
-        this.addMaterialModal.hidden = false;
+        this.addMaterialModal.showModal();
     }
 
     _closeAddMaterial() {
@@ -16517,7 +16517,7 @@ export class CapTimelineEditorApp {
         this._setAddMaterialMode(false);
         this.addMaterialInput.accept = "image/*,video/*,audio/*";
         this.addMaterialInput.multiple = true;
-        this.addMaterialModal.hidden = true;
+        this.addMaterialModal.close();
     }
 
     async _uploadMaterialItem(item) {

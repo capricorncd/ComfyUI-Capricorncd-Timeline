@@ -104,15 +104,15 @@ const css = readFileSync(new URL('../js/cap_timeline_editor.css', import.meta.ur
         _renderAddMaterialPreview(items) { this.previewed = items; },
         insertAfterAddCb: { checked: true, closest: () => ({}) },
         _setAddMaterialMode(replace) { assert.equal(replace, true); },
-        addMaterialModal: { hidden: true }, addMaterialConfirmBtn: {},
-        _closeAddMaterial() { this.addMaterialModal.hidden = true; },
+        addMaterialModal: { open: false, showModal() { this.open = true; } }, addMaterialConfirmBtn: {},
+        _closeAddMaterial() { this.addMaterialModal.open = false; },
         async _uploadMaterialItem(item) { this.uploads++; return { file: item.file.name, kind: item.kind }; },
         _replaceMediaReference(...args) { this.replaced = args; },
         _saveToWidgets() {}, _renderMediaGrid() {}, uploads: 0,
     };
     const event = { target: { files: [{ name: 'new.png' }], value: 'new.png' } };
     method('_previewSelectedMaterial').call(app, event);
-    assert.equal(app.addMaterialModal.hidden, false);
+    assert.equal(app.addMaterialModal.open, true);
     assert.equal(app.previewed[0].file.name, 'new.png');
     assert.equal(app.uploads, 0);
     confirmed = false;
@@ -123,7 +123,7 @@ const css = readFileSync(new URL('../js/cap_timeline_editor.css', import.meta.ur
     await method('_confirmAddMaterial').call(app);
     assert.equal(app.uploads, 1);
     assert.deepEqual(app.replaced.slice(0, 4), ['old.png', 'new.png', 'image', true]);
-    assert.equal(app.addMaterialModal.hidden, true);
+    assert.equal(app.addMaterialModal.open, false);
 }
 
 // A completed replacement refreshes both library and Clip-source preview entries.

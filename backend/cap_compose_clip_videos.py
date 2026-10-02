@@ -216,6 +216,63 @@ def _safe_under(base: str, candidate: str) -> str:
     return cand_real
 
 
+def _digital_human_groups(clips):
+    groups = []
+    current = []
+    for index, clip in enumerate(clips):
+        start = clip.get("preview_start_ms", clip.get("start_ms", 0))
+        previous = clips[current[-1]] if current else None
+        if current and (clip.get("clip_role") != "digital_human" or
+                        abs(start - previous.get("preview_end_ms", previous["end_ms"])) > 1):
+            if len(current) > 1:
+                groups.append(current)
+            current = []
+        if clip.get("clip_role") == "digital_human":
+            current.append(index)
+    if len(current) > 1:
+        groups.append(current)
+    return groups
+
+
+def _continuous_audio_clip(data, clips, duration_ms):
+    start = clips[0].get("preview_start_ms", clips[0]["start_ms"])
+    rows = []
+    for clip in clips:
+        visible_start = clip.get("preview_start_ms", clip["start_ms"])
+        visible_end = clip.get("preview_end_ms", clip["end_ms"])
+        audio_rows = clip.get("audios")
+        if audio_rows is None and data.get("audio_path"):
+            offset = int(data.get("trim_start_ms", 0))
+            audio_rows = [{"file": data["audio_path"], "source_start_ms": offset + clip["start_ms"],
+                           "source_end_ms": offset + clip["end_ms"]}]
+        for original in audio_rows or []:
+            row = dict(original)
+            rate = float(row.get("playback_rate", 1))
+            position = clip["start_ms"] + row.get("clip_offset_ms", 0)
+            end = position + (row["source_end_ms"] - row["source_start_ms"]) / rate
+            left, right = max(position, visible_start), min(end, visible_end)
+            if right <= left:
+                continue
+            row["source_start_ms"] += round((left - position) * rate)
+            row["source_end_ms"] = row["source_start_ms"] + round((right - left) * rate)
+            row["clip_offset_ms"] = round(left - start)
+            match = next((old for old in reversed(rows) if
+                all(old.get(key) == row.get(key) for key in ("source_clip_id", "id", "file", "location", "playback_rate", "volume_points", "volume"))
+                and abs(old["source_end_ms"] - row["source_start_ms"]) <= 1
+                and abs(old["clip_offset_ms"] + (old["source_end_ms"] - old["source_start_ms"]) / rate - row["clip_offset_ms"]) <= 1), None)
+            if match is not None:
+                match["source_end_ms"] = row["source_end_ms"]
+            else:
+                rows.append(row)
+    planned_end = clips[-1].get("preview_end_ms", clips[-1]["end_ms"]) - start
+    for row in rows:
+        rate = float(row.get("playback_rate", 1))
+        end = row["clip_offset_ms"] + (row["source_end_ms"] - row["source_start_ms"]) / rate
+        if duration_ms > planned_end and abs(end - planned_end) <= 1:
+            row["source_end_ms"] += round((duration_ms - planned_end) * rate)
+    return {"start_ms": start, "end_ms": start + duration_ms, "audios": rows}
+
+
 class CAP_ComposeClipVideos:
     """Compose the clip output_video files listed in runtime data_json."""
 
@@ -395,7 +452,12 @@ class CAP_ComposeClipVideos:
             if keep <= 0:
                 raise ValueError("Compose Clip Videos: trim removes the entire clip.")
             return offset / fps + head / 1000, keep / fps
-        return None, None
+        visible_start = float(clip.get("preview_start_ms", start))
+        visible_end = float(clip.get("preview_end_ms", end))
+        keep = round(visible_end * fps / 1000) - round(visible_start * fps / 1000)
+        if keep <= 0:
+            raise ValueError("Compose Clip Videos: trim removes the entire clip.")
+        return max(0, round((visible_start - start) * fps / 1000)) / fps, keep / fps
 
     def _normalize_segment(
         self,
@@ -441,6 +503,37 @@ class CAP_ComposeClipVideos:
             "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
             "-shortest", "-movflags", "+faststart", _ffmpeg_path(output_path),
         ])
+
+    def _compose_digital_human_group(self, data, clips, paths, tmp_dir, parser):
+        concat_path = os.path.join(tmp_dir, "digital_concat.txt")
+        video_path = os.path.join(tmp_dir, "digital_video.mp4")
+        output_path = os.path.join(tmp_dir, "digital_audio.mp4")
+        with open(concat_path, "w", encoding="utf-8", newline="\n") as wf:
+            for path in paths:
+                escaped = _ffmpeg_path(path).replace("'", r"'\''")
+                wf.write(f"file '{escaped}'\n")
+        _run_ffmpeg(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", _ffmpeg_path(concat_path),
+                     "-map", "0:v:0", "-c:v", "copy", "-an", _ffmpeg_path(video_path)])
+        duration = _probe_duration_sec(video_path)
+        if not duration or duration <= 0:
+            raise ValueError("Compose Clip Videos: cannot read digital-human video duration.")
+        audio_clip = _continuous_audio_clip(data, clips, round(duration * 1000))
+        materials = parser._materials_by_id(data)
+        for row in audio_clip["audios"]:
+            path = parser._audio_row_path(row, materials)
+            if not path or not os.path.isfile(path):
+                raise ValueError(f"Compose Clip Videos: source audio not found: {path or row.get('id', '')}")
+        if not audio_clip["audios"]:
+            raise ValueError("Compose Clip Videos: consecutive digital-human clips require timeline source audio.")
+        audio_tmp = _write_audio_tmp(parser._clip_audio_from_audios(audio_clip, 0, materials=materials))
+        if not audio_tmp:
+            raise ValueError("Compose Clip Videos: timeline source audio is empty or invalid.")
+        try:
+            self._merge_audio(video_path, audio_tmp, output_path, False)
+        finally:
+            if os.path.exists(audio_tmp):
+                os.unlink(audio_tmp)
+        return output_path
 
     def _build_output_path(self, filename_prefix: str) -> tuple[str, str, str]:
         output_dir = os.path.abspath(folder_paths.get_output_directory())
@@ -507,13 +600,16 @@ class CAP_ComposeClipVideos:
         if not sources:
             raise ValueError(_t("no_clips_to_compose", get_last_known_lang()))
 
-        keep_audio = bool(use_original_audio) and any(_probe_has_audio(path) for _, _, path in sources)
+        groups = _digital_human_groups([clip for clip, _, _ in sources]) if use_original_audio and trim_extends else []
+        grouped_indices = {index for group in groups for index in group}
+        keep_audio = bool(use_original_audio) and (bool(groups) or any(_probe_has_audio(path) for _, _, path in sources))
 
         output_filename, subfolder, output_path = self._build_output_path(filename_prefix)
         tmp_dir = tempfile.mkdtemp(prefix="cap_compose_clips_")
         concat_list = None
         audio_tmp = None
         segment_paths: list[str] = []
+        clip_segments = []
 
         try:
             if audio is not None:
@@ -521,6 +617,9 @@ class CAP_ComposeClipVideos:
                 if not audio_tmp:
                     raise ValueError("Compose Clip Videos: audio input is empty or invalid.")
             for order, (clip, index, src) in enumerate(sources):
+                segments = []
+                clip_segments.append(segments)
+                segment_audio = keep_audio and order not in grouped_indices
                 keep_tail = keep_final_tail and order == len(sources) - 1
                 if trim_extends and clip.get("playback_spans"):
                     spans = [span for span in clip["playback_spans"] if int(span["frame_count"]) > 0]
@@ -543,16 +642,33 @@ class CAP_ComposeClipVideos:
                             raise ValueError("Context replacement source fps differs from the project.")
                         dst = os.path.join(tmp_dir, f"seg_{order:04d}_{part}.mp4")
                         duration = None if keep_tail and part == len(spans) - 1 else count / fps
-                        self._normalize_segment(source, dst, int(span["start_frame"]) / fps, duration, keep_audio)
-                        segment_paths.append(dst)
+                        self._normalize_segment(source, dst, int(span["start_frame"]) / fps, duration, segment_audio)
+                        segments.append(dst)
                     continue
                 previous_clip = sources[order - 1][0] if order else None
                 ss, dur = self._trim_plan(clip, src, bool(trim_extends), fps, previous_clip)
                 if keep_tail:
                     dur = None
+                elif trim_extends:
+                    start = float(clip.get("preview_start_ms", clip.get("start_ms", 0)))
+                    end = float(clip.get("preview_end_ms", clip["end_ms"]))
+                    limit = (round(end * fps / 1000) - round(start * fps / 1000)) / fps
+                    if limit <= 0:
+                        raise ValueError("Compose Clip Videos: clip duration must be positive.")
+                    dur = min(dur, limit) if dur is not None else limit
                 dst = os.path.join(tmp_dir, f"seg_{order:04d}.mp4")
-                self._normalize_segment(src, dst, ss, dur, keep_audio)
-                segment_paths.append(dst)
+                self._normalize_segment(src, dst, ss, dur, segment_audio)
+                segments.append(dst)
+
+            for group in groups:
+                group_dir = os.path.join(tmp_dir, f"digital_{group[0]:04d}")
+                os.makedirs(group_dir)
+                grouped_path = self._compose_digital_human_group(data, [sources[index][0] for index in group],
+                    [path for index in group for path in clip_segments[index]], group_dir, parser)
+                clip_segments[group[0]] = [grouped_path]
+                for index in group[1:]:
+                    clip_segments[index] = []
+            segment_paths = [path for segments in clip_segments for path in segments]
 
             fd, concat_list = tempfile.mkstemp(suffix=".txt", prefix="cap_compose_concat_")
             os.close(fd)

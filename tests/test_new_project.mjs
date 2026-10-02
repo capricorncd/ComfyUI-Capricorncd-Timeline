@@ -24,6 +24,7 @@ function fixture() {
         _canCreateProject: method('_canCreateProject'), _newProject: method('_newProject'),
         _isNodeOnLiveGraph: () => true, _currentVersion: () => 'test', _currentSchemaVersion: () => 4,
         _w: key => widgets[key],
+        _savePromptHistory(data) { this.promptHistory = data; },
         _buildStoryboardDocument() { return { schema_version: 1, shots: this._storyboards }; },
         _closeInternal(save) { assert.equal(save, false); this.calls.push('close'); },
         _writeProjectJson(json) { this.project = JSON.parse(json); this.calls.push('write'); },

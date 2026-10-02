@@ -57,7 +57,7 @@ function fixture(fetch) {
     const app = { exportDialog: dialog, _projectExportBusy: false, _exportRevealToken: null,
         _safeProjectFilename: () => '特别篇',
         _buildStoryboardDocument: () => ({ schema_version: 1, shots: [] }),
-        _buildProject: () => ({ name: '特别篇', tracks: [] }), _exportWorkflowSnapshot: () => ({ nodes: [] }) };
+        _promptHistoryDocument: () => ({schema_version:1,items:[]}), _buildProject: () => ({ name: '特别篇', tracks: [] }), _exportWorkflowSnapshot: () => ({ nodes: [] }) };
     for (const name of ['_buildExportProject', '_setExportStatus', '_resetProjectExport', '_projectExportSaved', '_projectZipFilename', '_runProjectExport', '_exportProjectInBrowser', '_openExportDirectory', '_openExportDialog']) {
         app[name] = method(name, fetch);
     }
@@ -97,7 +97,7 @@ for (const format of ['directory', 'zip']) {
     });
     await f.app._runProjectExport({ format, includeGenerated: false, includeWorkflow: false });
     assert.equal(requests[0].url, '/audio_keyframe_timeline/export_save');
-    assert.deepEqual(requests[0].body, { project: { name: '特别篇', tracks: [] }, storyboard: { schema_version: 1, shots: [] }, directory: f.path.value, format, workflow: null, include_generated: false });
+    assert.deepEqual(requests[0].body, { project: { name: '特别篇', tracks: [], prompt_history: {schema_version:1,items:[]} }, storyboard: { schema_version: 1, shots: [] }, directory: f.path.value, format, workflow: null, include_generated: false });
     assert.equal(f.app._exportRevealToken, 'saved-token');
     assert.match(f.startButton.textContent, /open_folder_btn/);
     assert.match(f.status.textContent, /export_saved_path.*特别篇/);
@@ -219,7 +219,7 @@ assert(source.includes('this.wmTabs = this.composeModal.querySelectorAll'), 'exp
     };
     await f.app._runProjectExport({ format: 'directory' });
     assert.deepEqual(requests, ['/audio_keyframe_timeline/export_prepare', 'asset/场景.png']);
-    assert.deepEqual(writes.map(w => w.path), ['media/images/场景.png', 'workflow.json', 'project.json', 'storyboard.json']);
+    assert.deepEqual(writes.map(w => w.path), ['media/images/场景.png', 'workflow.json', 'project.json', 'storyboard.json', 'prompt_history.json']);
     assert.equal(writes[0].content, 'image bytes');
     assert.deepEqual(JSON.parse(writes[2].content), project);
     assert.deepEqual(JSON.parse(writes[3].content), { schema_version: 1, shots: [] });
@@ -280,13 +280,13 @@ console.log('Project export: optional directory routing, browser saves/cancellat
         { id: 'character', voice_audio_id: 'voice' }, { id: 'voice' },
         { id: 'unused' }, { id: 'disabled' }, { id: 'speaker', voice_audio_id: 'voice' },
     ], tracks: [{ clips: [{ media_ids: ['character', 'disabled'], media_enabled: [true, false] }, { character_media_id: 'speaker' }] }] };
-    const build = method('_buildExportProject').bind({ _buildProject: () => project });
+    const build = method('_buildExportProject').bind({ _promptHistoryDocument: () => ({schema_version:1,items:[]}), _buildProject: () => project });
     assert.deepEqual(build().media.map(row => row.id), ['character', 'voice', 'disabled', 'speaker']);
     assert.equal(project.media.length, 5);
     assert.equal(build(true), project);
-    assert.deepEqual(method('_buildExportProject').call({ _buildProject: () => ({ media: project.media, tracks: [] }) }).media, []);
+    assert.deepEqual(method('_buildExportProject').call({ _promptHistoryDocument: () => ({schema_version:1,items:[]}), _buildProject: () => ({ media: project.media, tracks: [] }) }).media, []);
     assert.deepEqual(method('_buildExportProject').call({
-        _buildProject: () => ({ media: project.media, tracks: [] }),
+        _promptHistoryDocument: () => ({schema_version:1,items:[]}), _buildProject: () => ({ media: project.media, tracks: [] }),
         _storyboards: [{ image_id: 'unused' }],
     }).media.map(row => row.id), ['unused']);
 }

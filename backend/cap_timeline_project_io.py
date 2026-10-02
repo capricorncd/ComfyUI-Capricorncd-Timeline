@@ -829,6 +829,7 @@ def build_export_entries(project: dict, *, include_generated: bool = True) -> tu
 
     exported = _remap_project_files(project, mapping, generated_mapping)
     exported.pop("storyboards", None)
+    exported.pop("prompt_history", None)
     return exported, entries, missing
 
 
@@ -846,6 +847,7 @@ def build_export_zip_bytes(project: dict, workflow: dict | None = None, *, inclu
         if workflow is not None:
             zf.writestr("workflow.json", json.dumps(workflow, ensure_ascii=False, indent=2))
         zf.writestr(PACKAGE_STORYBOARD_NAME, json.dumps(storyboard, ensure_ascii=False, indent=2))
+        zf.writestr("prompt_history.json", json.dumps(project.get("prompt_history", {"schema_version": 1, "items": []}), ensure_ascii=False, indent=2))
         for entry in entries:
             zf.write(entry["src_path"], arcname=entry["arcname"])
     return buf.getvalue(), f"{name}.zip", missing
@@ -888,6 +890,7 @@ def save_project_export(project: dict, directory: str, package_format: str, work
         with archive:
             archive.writestr(PACKAGE_PROJECT_NAME, json.dumps(exported, ensure_ascii=False, indent=2))
             archive.writestr(PACKAGE_STORYBOARD_NAME, json.dumps(storyboard, ensure_ascii=False, indent=2))
+            archive.writestr("prompt_history.json", json.dumps(project.get("prompt_history", {"schema_version": 1, "items": []}), ensure_ascii=False, indent=2))
             if workflow is not None:
                 archive.writestr("workflow.json", json.dumps(workflow, ensure_ascii=False, indent=2))
             for entry in entries:
@@ -904,6 +907,8 @@ def save_project_export(project: dict, directory: str, package_format: str, work
             json.dump(exported, stream, ensure_ascii=False, indent=2)
         with open(os.path.join(path, PACKAGE_STORYBOARD_NAME), "w", encoding="utf-8") as stream:
             json.dump(storyboard, stream, ensure_ascii=False, indent=2)
+        with open(os.path.join(path, "prompt_history.json"), "w", encoding="utf-8") as stream:
+            json.dump(project.get("prompt_history", {"schema_version": 1, "items": []}), stream, ensure_ascii=False, indent=2)
     return path, missing
 
 
@@ -967,6 +972,10 @@ def import_project_from_zip_bytes(data: bytes) -> tuple[dict, list[str]]:
         if not isinstance(project, dict):
             raise ValueError(_t("invalid_project_json_format", get_last_known_lang()))
 
+        history_name = project_name[:-len(PACKAGE_PROJECT_NAME)] + "prompt_history.json"
+        project["prompt_history"] = {"schema_version": 1, "items": []}
+        if history_name in names:
+            project["prompt_history"] = json.loads(zf.read(history_name).decode("utf-8"))
         mapping: dict[tuple[str, str], str] = {}
         generated_mapping: dict[str, str] = {}
         gen_prefix = f"{PACKAGE_MEDIA_ROOT}/{PACKAGE_GENERATED_SUBDIR}/"

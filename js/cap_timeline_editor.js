@@ -59,7 +59,7 @@ function configuredNamedValues(info) {
     const named = { ...(info?.properties?.cat_named || {}) };
     const inputs = Array.isArray(info?.inputs) ? info.inputs : [];
     const values = Array.isArray(info?.widgets_values) ? info.widgets_values : [];
-    for (const key of ["project_json", "storyboard_json", ...LEGACY_PROMPT_FIELDS]) {
+    for (const key of ["project_json", "storyboard_json", "prompt_history_json", ...LEGACY_PROMPT_FIELDS]) {
         if (named[key] != null) continue;
         const index = inputs.findIndex((row) => row?.name === key && row?.widget);
         if (index >= 0 && values[index] != null) named[key] = values[index];
@@ -69,6 +69,7 @@ function configuredNamedValues(info) {
     if (named.storyboard_json == null && !inputs.some(row => row?.name === "storyboard_json")) {
         named.storyboard_json = "";
     }
+    if (named.prompt_history_json == null && !inputs.some(row => row?.name === "prompt_history_json")) named.prompt_history_json = "";
     return named;
 }
 
@@ -417,6 +418,10 @@ function removeObsoleteWidgets(node) {
 function markNoSerialize(node, named = null) {
     preserveLegacyPromptFields(node, named);
     removeObsoleteWidgets(node);
+    if (!node.widgets?.some(w => w.name === "prompt_history_json")) {
+        const { widget } = ComfyWidgets.STRING(node, "prompt_history_json", ["STRING", { default: "", multiline: true }], app);
+        widget.value = named?.prompt_history_json ?? node.properties?.cat_named?.prompt_history_json ?? "";
+    }
     if (!node.widgets?.some(w => w.name === "storyboard_json")) {
         const { widget } = ComfyWidgets.STRING(node, "storyboard_json", ["STRING", { default: "", multiline: true }], app);
         widget.value = named?.storyboard_json ?? node.properties?.cat_named?.storyboard_json ?? "";
@@ -429,7 +434,7 @@ function markNoSerialize(node, named = null) {
         if (w.name === "audioUI" || w.name === "audio") {
             w.serialize = false;
         }
-        if (["audioUI", "audio", "project_json", "storyboard_json", "project_version", "schema_version"].includes(w.name)) {
+        if (["audioUI", "audio", "project_json", "storyboard_json", "prompt_history_json", "project_version", "schema_version"].includes(w.name)) {
             if (w.name === "project_version" || w.name === "schema_version") w.serialize = false;
             // Hide the DOM widget wrapper too, so it cannot intercept canvas gestures.
             w.hidden = true;

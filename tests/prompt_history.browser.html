@@ -1,0 +1,34 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Prompt history dialog regression</title>
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app={ui:{settings:{getSettingValue:()=> 'en'}}};"}}</script>
+<textarea id="prompt">Test prompt</textarea>
+<cap-prompt-history-actions></cap-prompt-history-actions>
+<pre id="result">Running</pre>
+<script type="module">
+import '../js/components/PromptHistoryActions.js';
+const actions = document.querySelector('cap-prompt-history-actions');
+let data = {schema_version:1,items:[]};
+actions.bind(document.querySelector('textarea'), () => data, value => { data=value; });
+actions.style.setProperty('--cap-dialog-height','80vh');
+try {
+    for (const populated of [false, true]) {
+        if (populated) actions.save(actions.shadowRoot.querySelectorAll('cap-button')[1]);
+        actions.shadowRoot.querySelector('cap-button').click();
+        await new Promise(resolve => setTimeout(resolve, 60));
+        const modal = actions.shadowRoot.querySelector('cap-dialog');
+        const rect = modal.shadowRoot.querySelector('dialog').getBoundingClientRect();
+        if (!modal.open || rect.width <= 0 || rect.height <= 0) throw new Error('History dialog is not visible');
+        if (!populated && rect.height > 350) throw new Error('Empty history dialog is too tall');
+        modal.shadowRoot.querySelector('dialog').click();
+        await new Promise(resolve => setTimeout(resolve, 60));
+        if (Math.abs(modal.shadowRoot.querySelector('dialog').getBoundingClientRect().height - rect.height) > 1) throw new Error('Dialog height changes after click');
+        if (populated && !modal.textContent.includes('Test prompt')) throw new Error('Saved prompt missing');
+        modal.close();
+        await new Promise(resolve => setTimeout(resolve, 60));
+    }
+    document.querySelector('#result').textContent='PASS: empty and populated history dialogs are visible';
+} catch(error) {
+    document.querySelector('#result').textContent='FAIL: '+error.message;
+}
+</script>

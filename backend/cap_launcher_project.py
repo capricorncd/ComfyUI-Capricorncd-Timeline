@@ -100,6 +100,11 @@ def open_project_directory(directory, filename="project.json"):
     if not isinstance(project, dict) or not isinstance(project.get("tracks"), list):
         raise ValueError("Invalid project.json")
     project = migrate_project(project)
+    history_path = project_path(directory, "prompt_history.json")
+    project["prompt_history"] = {"schema_version": 1, "items": []}
+    if os.path.isfile(history_path):
+        with open(history_path, encoding="utf-8-sig") as stream:
+            project["prompt_history"] = json.load(stream)
     storyboard_path = project_path(directory, storyboard_filename(filename))
     if os.path.isfile(storyboard_path):
         with open(storyboard_path, encoding="utf-8-sig") as stream:

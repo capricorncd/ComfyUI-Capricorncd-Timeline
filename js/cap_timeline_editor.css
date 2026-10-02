@@ -2518,31 +2518,12 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-prompt-copy-host {
     position: relative;
     width: 100%;
-    display: block;
+    display: flex;
+    flex-direction: column;
     box-sizing: border-box;
 }
-.cat-te-prompt-copy-btn {
-    position: absolute;
-    right: 4px;
-    top: -12px;
-    z-index: 6;
-    opacity: 0;
-    pointer-events: none;
-}
-.cat-te-prompt-copy-btn svg {
-    width: 12px;
-    height: 12px;
-    display: block;
-}
-.cat-te-prompt-copy-host:hover > .cat-te-prompt-copy-btn,
-.cat-te-prompt-copy-host:focus-within > .cat-te-prompt-copy-btn,
-.cat-te-prompt-copy-btn:focus-within {
-    opacity: 1;
-    pointer-events: auto;
-}
-.cat-te-prompt-copy-btn.is-copied {
-    opacity: 1;
-    pointer-events: auto;
+.cat-te-prompt-copy-host > cap-prompt-history-actions {
+    flex-shrink: 0;
 }
 
 .cat-te-prompt-input,

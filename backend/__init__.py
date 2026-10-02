@@ -707,6 +707,7 @@ def _register_routes():
             return web.json_response({
                 "project": exported,
                 "storyboard": parse_storyboard_document(payload.get("storyboard"), project.get("storyboards")),
+                "prompt_history": project.get("prompt_history", {"schema_version": 1, "items": []}),
                 "files": [
                     {
                         "kind": e["kind"],

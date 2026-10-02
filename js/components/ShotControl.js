@@ -1,5 +1,6 @@
 import "./Button.js";
 import "./PromptMentions.js";
+import "./PromptHistoryActions.js";
 import { formatTimecode } from "../timecode.js";
 
 export function shotPrompt(points) {
@@ -42,6 +43,11 @@ export class ShotControl extends HTMLElement {
             this.mentions.addEventListener('asset-mention', event => this.dispatchEvent(new CustomEvent('asset-mention', {detail: event.detail})));
         }
         this.mentions.bind(this.description, getAssets);
+    }
+    bindPromptHistory(read, write) {
+        const actions = document.createElement('cap-prompt-history-actions');
+        actions.bind(this.description, read, write);
+        this.shadowRoot.querySelector('label').after(actions);
     }
     configure(point, time, fps, locked, labels) {
         this.mentions?.close();

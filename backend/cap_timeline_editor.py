@@ -294,6 +294,7 @@ class CAP_TimelineEditor:
                 "trim_offset": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1}),
                 "schema_version": ("INT", {"default": SCHEMA_VERSION}),
                 "storyboard_json": ("STRING", {"default": "", "multiline": True, "tooltip": "Versioned storyboard document, stored with the workflow."}),
+                "prompt_history_json": ("STRING", {"default": "", "multiline": True}),
             },
         }
 

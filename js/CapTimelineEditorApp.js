@@ -12,6 +12,7 @@ import { openInsertClip } from './editor/InsertClip.js';
 
 import "./components/TabButton.js";
 import "./components/ProjectVideoList.js";
+import "./components/PromptHistoryActions.js";
 import { videoPromptUpdates } from './editor/VideoPromptRestore.js';
 import "./components/Slider.js";
 import "./components/ExportRange.js";
@@ -1824,6 +1825,7 @@ export class CapTimelineEditorApp {
             if (widget) widget.value = value;
         }
         this._storyboards = [];
+        this._savePromptHistory({schema_version:1,items:[]});
         const storyboardWidget = this._w("storyboard_json");
         if (storyboardWidget) storyboardWidget.value = JSON.stringify(this._buildStoryboardDocument());
         this._writeProjectJson(JSON.stringify(project));
@@ -2764,6 +2766,8 @@ export class CapTimelineEditorApp {
     }
 
     async _applyImportedProject(project, warnings = [], storyboard = null) {
+        this._savePromptHistory(project.prompt_history || {schema_version:1,items:[]});
+        delete project.prompt_history;
         const document = parseStoryboardDocument(storyboard, project.storyboards);
         project = this._validateImportedProject(project);
         this._launcherProject?.reset();
@@ -2864,6 +2868,7 @@ export class CapTimelineEditorApp {
 
     _buildExportProject(includeUnused = false) {
         const project = this._buildProject();
+        project.prompt_history = this._promptHistoryDocument();
         if (includeUnused || !project.media) return project;
         const used = new Set((project.tracks || []).flatMap(track =>
             (track.clips || []).flatMap(clip => [...(clip.media_ids || []), ...(clip.prompt_media_ids || []), clip.character_media_id].filter(Boolean))).map(String));
@@ -2990,6 +2995,8 @@ export class CapTimelineEditorApp {
                 new Blob([JSON.stringify(data.project, null, 2)], { type: "application/json" }));
             await this._writeExportFile(directory, "storyboard.json",
                 new Blob([JSON.stringify(data.storyboard, null, 2)], { type: "application/json" }));
+            await this._writeExportFile(directory, "prompt_history.json",
+                new Blob([JSON.stringify(data.prompt_history, null, 2)], { type: "application/json" }));
             message = T("export_saved_path", { path: directory.name });
         }
         if (missing.length) message += "\n" + T("export_missing_assets", {
@@ -3672,6 +3679,12 @@ export class CapTimelineEditorApp {
             if (!filename || this._destroyed || this._openGen !== openGen) return;
             const projectFile = await this._readRelativeFile(dir, filename);
             const project = this._validateImportedProject(JSON.parse(await projectFile.text()));
+            try {
+                const historyFile = await this._readRelativeFile(dir, 'prompt_history.json');
+                project.prompt_history = JSON.parse(await historyFile.text());
+            } catch (error) {
+                if (error?.name !== 'NotFoundError') throw error;
+            }
             let storyboardFile;
             try {
                 storyboardFile = await this._readRelativeFile(dir, 'storyboard' + filename.slice('project'.length));
@@ -11321,58 +11334,27 @@ export class CapTimelineEditorApp {
                 host.classList.add("cat-te-prompt-copy-host");
             }
 
-            const btn = document.createElement("cap-button");
-            btn.className = "cat-te-prompt-copy-btn";
-            btn.setAttribute("shape", "square");
-            btn.setAttribute("size", "small");
-            btn.title = T("copy_prompt_title");
-            btn.setAttribute("aria-label", T("copy_prompt_title"));
-            btn.innerHTML = iconHtml("copy", 12);
-            btn.addEventListener("mousedown", (e) => e.preventDefault());
-            btn.addEventListener("click", async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const text = ta.value ?? "";
-                let ok = false;
-                try {
-                    if (navigator.clipboard?.writeText) {
-                        await navigator.clipboard.writeText(text);
-                        ok = true;
-                    }
-                } catch {
-                    ok = false;
-                }
-                if (!ok) {
-                    const prev = ta.selectionStart;
-                    const prevEnd = ta.selectionEnd;
-                    ta.focus();
-                    ta.select();
-                    try {
-                        ok = document.execCommand("copy");
-                    } catch {
-                        ok = false;
-                    }
-                    try {
-                        ta.setSelectionRange(prev, prevEnd);
-                    } catch {
-                        /* ignore */
-                    }
-                }
-                if (!ok) return;
-                btn.classList.add("is-copied");
-                btn.setAttribute("variant", "success");
-                btn.title = T("copy_prompt_done_title");
-                btn.innerHTML = iconHtml("check", 12);
-                clearTimeout(btn._copyResetTimer);
-                btn._copyResetTimer = setTimeout(() => {
-                    btn.classList.remove("is-copied");
-                    btn.removeAttribute("variant");
-                    btn.title = T("copy_prompt_title");
-                    btn.innerHTML = iconHtml("copy", 12);
-                }, 1200);
-            });
-            host.appendChild(btn);
+            const actions = document.createElement('cap-prompt-history-actions');
+            actions.bind(ta, () => this._promptHistoryDocument(), data => this._savePromptHistory(data));
+            host.append(actions);
         }
+    }
+
+    _promptHistoryDocument() {
+        const value = this._w('prompt_history_json')?.value;
+        const data = value ? JSON.parse(value) : {schema_version:1,items:[]};
+        if (!Array.isArray(data.items)) throw new Error('Invalid prompt history');
+        return data;
+    }
+
+    _savePromptHistory(data) {
+        const widget = this._w('prompt_history_json');
+        if (!widget) return;
+        widget.value = JSON.stringify(data);
+        this.node.properties ??= {};
+        this.node.properties.cat_named ??= {};
+        this.node.properties.cat_named.prompt_history_json = widget.value;
+        this.node.graph?.setDirtyCanvas(true, true);
     }
 
     _onVoiceoverPromptInput() {

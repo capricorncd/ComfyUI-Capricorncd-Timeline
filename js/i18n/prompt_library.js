@@ -2,6 +2,7 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        history_imported: "Imported {n} prompts; duplicates skipped",
         cat_all: "All",
         cat_gu_feng_female: "Ancient-Style Female",
         cat_gu_feng_male: "Ancient-Style Male",
@@ -55,6 +56,7 @@ export const DICT = {
         save_current_prompt_to_history_title: "Save current prompt to history",
     },
     zh: {
+        history_imported: "已导入 {n} 条提示词，重复内容已跳过",
         cat_all: "全部",
         cat_gu_feng_female: "古风女",
         cat_gu_feng_male: "古风男",
@@ -108,6 +110,7 @@ export const DICT = {
         save_current_prompt_to_history_title: "保存当前提示词到历史记录",
     },
     ja: {
+        history_imported: "{n} 件のプロンプトを読み込みました（重複はスキップ）",
         cat_all: "すべて",
         cat_gu_feng_female: "古風女性",
         cat_gu_feng_male: "古風男性",

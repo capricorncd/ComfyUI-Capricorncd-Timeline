@@ -8,7 +8,7 @@ const api = {fetchApi: async (url, options) => { requests.push(JSON.parse(option
 const videoTrimSource = (app, item) => ({item: app._findMediaById('original'), start: 8, rate: 2});
 const {DirectorKeyframes, shotWindow} = new Function('T', 'api', 'shotPrompt', 'videoTrimSource', code + ';return {DirectorKeyframes, shotWindow};')((key, values) => key + JSON.stringify(values || {}), api, shotPrompt, videoTrimSource);
 const element = () => ({events: {}, addEventListener(name, handler) {this.events[name] = handler;}, after() {},
-    setMentionSource() {}, configure(...args) {this.args = args;}, setStatus(...args) {this.status = args;}});
+    setMentionSource() {}, bindPromptHistory() {}, configure(...args) {this.args = args;}, setStatus(...args) {this.status = args;}});
 globalThis.document = {createElement: element};
 const panel = element();
 const media = {id: 'trim', kind: 'video', file: 'trim.mp4'};

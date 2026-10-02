@@ -1,5 +1,9 @@
 # Shared UI components
 
+## Prompt history actions
+
+`PromptHistoryActions.js` provides `<cap-prompt-history-actions>` below prompt inputs, aligned right. `bind(textarea, read, write)` supplies the workflow-owned history document (`schema_version: 1`, `items` with `id`, `text`, `created_at`). History, Save and Copy reuse shared icon buttons. Restoring dispatches input/change through the existing editor path. Timeline prompts and keyframe prompts share the node's hidden `prompt_history_json` widget. Project exports include a separate `prompt_history.json`; missing history on import means an empty history, including older packages.
+
 ## Project video list
 
 `ProjectVideoList.js` provides `<cap-project-video-list>`. `setVideos(rows, urlFor, menuFor)` renders output file records with muted hover playback, native playback controls and a shared dropdown menu. `stop()` pauses previews when switching tabs or closing the editor; disconnect also pauses them. The editor owns menu actions and persists `composed_videos` in the project. Removing an entry keeps its disk file. H3 final-composition notifications carry source Clip IDs and workflow identity to associate results with the project, including single-file results.

@@ -1039,11 +1039,17 @@ body.cat-te-row-resize * {
     text-transform: uppercase;
 }
 
-.cat-te-sidebar-title {
+.cat-te-sidebar-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
     text-transform: none;
-    letter-spacing: 0.04em;
-    font-size: calc(var(--cat-font-size, 1rem) * 0.857143);
-    color: var(--cat-text);
+}
+
+.cat-te-sidebar > cap-project-video-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .cat-te-media-grid {

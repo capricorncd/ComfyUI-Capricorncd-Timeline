@@ -1,5 +1,9 @@
 # Shared UI components
 
+## Project video list
+
+`ProjectVideoList.js` provides `<cap-project-video-list>`. `setVideos(rows, urlFor, menuFor)` renders output file records with muted hover playback, native playback controls and a shared dropdown menu. `stop()` pauses previews when switching tabs or closing the editor; disconnect also pauses them. The editor owns menu actions and persists `composed_videos` in the project. Removing an entry keeps its disk file. H3 final-composition notifications carry source Clip IDs and workflow identity to associate results with the project, including single-file results.
+
 Before adding or changing UI, follow the [UI design and acceptance guidelines](ui-guidelines.md) for hierarchy, spacing, prompt display and icon actions. This document describes component APIs and integration.
 
 ## Export Directory

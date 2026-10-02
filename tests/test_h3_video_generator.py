@@ -903,6 +903,8 @@ class GeneratorTests(unittest.TestCase):
         ready = [e for e in self.events if e[0] == "cat_h3_video_ready"]
         self.assertEqual([e[2] for e in ready], [1, 2, 2])
         self.assertEqual([e[1]["video"].get("clip_id") for e in ready], ["a", "b", None])
+        self.assertTrue(ready[-1][1]["video"]["composition"])
+        self.assertEqual(ready[-1][1]["video"]["source_clip_ids"], ["a", "b"])
         self.assertTrue(all(e[1]["node_id"] == "12:34" for e in ready))
         self.assertEqual(result["result"][2], "compose/final.mp4")
         self.assertEqual(result["ui"]["video"], [ready[-1][1]["video"]])
@@ -943,8 +945,9 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(len(self.saved), 1)
         self.assertEqual(result["result"][2], result["result"][0][0])
         ready = [event for event in self.events if event[0] == "cat_h3_video_ready"]
-        self.assertEqual(len(ready), 1)
-        self.assertEqual(result["ui"]["video"], [ready[0][1]["video"]])
+        self.assertEqual(len(ready), 2)
+        self.assertTrue(ready[-1][1]["video"]["composition"])
+        self.assertEqual(result["ui"]["video"], [ready[-1][1]["video"]])
         self.assertFalse(any(name == "cat_h3_progress" and data["phase"] == "compose" for name, data, _ in self.events))
         self.assertEqual(result["ui"]["h3_progress"][0]["percent"], 100)
 

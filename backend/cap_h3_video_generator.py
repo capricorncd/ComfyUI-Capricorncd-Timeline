@@ -516,6 +516,9 @@ class CAP_H3VideoGenerator:
             )
             composed_video = composed["result"][0]
             preview = {**composed["ui"]["video"][0], "preview_key": f"{run_token}_final"}
+        if composed_video:
+            preview = {**preview, "composition": True,
+                       "source_clip_ids": [_clip_id(row) for row in composition_clips]}
             notify_timeline("cat_h3_video_ready", node_id=display_id, workflow_id=workflow_id, video=preview)
         return {"ui": {"video": [preview], "clip_videos": videos, "h3_progress": [progress("done")]},
                 "result": (paths, json.dumps(data, ensure_ascii=False), composed_video, "\n\n".join(generated_prompts))}

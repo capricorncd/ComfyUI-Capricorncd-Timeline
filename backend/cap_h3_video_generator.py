@@ -78,6 +78,30 @@ def _clip_id(row):
     return str(row.get("source_clip_id") or row.get("id") or "")
 
 
+def _composition_clips(data):
+    generated = {_clip_id(row): row for row in data["clips"]}
+    catalog = data.get("composition_clips") or []
+    if not catalog:
+        return data["clips"], []
+    included = set(generated)
+    edges = [(_clip_id(row), (row.get("h3_timing") or {}).get("previous_source_clip_id"))
+             for row in catalog if row.get("reference_previous")]
+    while True:
+        expanded = included | {cid for pair in edges if pair[1] and included.intersection(pair) for cid in pair}
+        if expanded == included:
+            break
+        included = expanded
+    rows = [copy.deepcopy(generated.get(_clip_id(row), row)) for row in catalog if _clip_id(row) in included]
+    rows.extend(copy.deepcopy(row) for cid, row in generated.items() if not any(_clip_id(item) == cid for item in rows))
+    missing = [_clip_id(row) for row in rows if _clip_id(row) not in generated and
+               (not row.get("output_video") or not os.path.isfile(os.path.join(folder_paths.get_output_directory(), row["output_video"])))]
+    outputs = {_clip_id(row): row.get("output_video", "") for row in rows}
+    for row in rows:
+        for span in row.get("playback_spans", []):
+            span["output_video"] = outputs.get(span["source_clip_id"], span.get("output_video", ""))
+    return rows, missing
+
+
 def _rename_context_latent(path, video, suffix=""):
     target = os.path.join(os.path.dirname(path), os.path.splitext(os.path.basename(video))[0] + suffix + ".safetensors")
     os.replace(path, target)
@@ -393,7 +417,7 @@ class CAP_H3VideoGenerator:
             phases.append("interpolate")
         phases.append("save")
         clip_total = len(data["clips"])
-        total_units = clip_total * len(phases) + int(compose_final and clip_total > 1)
+        total_units = clip_total * len(phases) + int(compose_final and (clip_total > 1 or bool(data.get("composition_clips"))))
 
         def progress(phase):
             if phase == "done":
@@ -461,7 +485,7 @@ class CAP_H3VideoGenerator:
         if interpolation:
             interpolation_multiplier = interpolation["multiplier"]
             data["fps"] = fps * interpolation_multiplier
-            for row in data["clips"]:
+            for row in data["clips"] + data.get("composition_clips", []):
                 if row.get("h3_timing"):
                     row["h3_timing"] = _interpolated_timing(row["h3_timing"], interpolation_multiplier)
                 for span in row.get("playback_spans", []):
@@ -472,12 +496,17 @@ class CAP_H3VideoGenerator:
                 row["h3_drafts"] = [item["h3_draft"] for item in videos if item["clip_id"] == (row.get("keyframe_segment") or {}).get("clip_id", _clip_id(row))]
             data = source_data
         preview = videos[-1]
+        composition_clips, missing = _composition_clips(data) if compose_final else (data["clips"], [])
+        if missing:
+            warnings.append(dict(code="missing_composition_video", clip_ids=missing))
         composed_video = paths[0] if compose_final and len(paths) == 1 else ""
-        if compose_final and len(paths) > 1:
+        if missing:
+            composed_video = ""
+        if compose_final and len(composition_clips) > 1 and not missing:
             comfy.model_management.throw_exception_if_processing_interrupted()
             progress("compose")
             # This list is the explicit run scope, including individually requested disabled clips.
-            compose_data = {**data, "clips": [{**row, "enabled": True} for row in data["clips"]]}
+            compose_data = {**data, "clips": [{**row, "enabled": True} for row in composition_clips]}
             composed = CAP_ComposeClipVideos().execute(
                 json.dumps(compose_data, ensure_ascii=False),
                 filename_prefix=f"capricorncd-timeline/compose/{run_token}",

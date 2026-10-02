@@ -60,12 +60,16 @@ def plan_h3_clips(clips, fps, *, chain_all=False):
     previous_by_track = {}
     for clip in clips:
         previous = previous_by_track.get(0 if chain_all else clip.get("z_index", 0))
-        if "reference_previous" in clip:
-            clip["h3_motion_context_length"] = (int(clip.get("h3_motion_context_length", 0)) or 22) if clip["reference_previous"] else 0
-            if (clip["reference_previous"] and previous
-                    and clip.get("agent", "MiniMaxH3") == previous.get("agent", "MiniMaxH3") == "MiniMaxH3"
-                    and (chain_all or abs(previous["preview_end_ms"] - clip["preview_start_ms"]) <= 1)):
-                previous["save_latent"] = True
+        clip["h3_motion_context_length"] = (int(clip.get("h3_motion_context_length", 0)) or 22) if clip.get("reference_previous") else 0
+        if not clip.get("reference_previous"):
+            clip.pop("h3_timing", None)
+            clip.pop("playback_spans", None)
+            clip.pop("previous_output_video", None)
+            clip.pop("previous_reference_video", None)
+        if (clip.get("reference_previous") and previous
+                and clip.get("agent", "MiniMaxH3") == previous.get("agent", "MiniMaxH3") == "MiniMaxH3"
+                and (chain_all or abs(previous["preview_end_ms"] - clip["preview_start_ms"]) <= 1)):
+            previous["save_latent"] = True
         previous_by_track[0 if chain_all else clip.get("z_index", 0)] = clip
     previous_by_track = {}
     plans = []
@@ -75,7 +79,7 @@ def plan_h3_clips(clips, fps, *, chain_all=False):
         start = clip["preview_start_ms"]
         end = clip["preview_end_ms"]
         is_h3 = clip.get("agent", "MiniMaxH3") == "MiniMaxH3"
-        linked = bool(is_h3 and clip.get("reference_previous", True) and previous and previous.get("h3_timing")
+        linked = bool(is_h3 and clip.get("reference_previous", False) and previous and previous.get("h3_timing")
                       and previous.get("save_latent")
                       and (chain_all or (previous.get("z_index", 0) == track and abs(previous["preview_end_ms"] - start) <= 1)))
         requested = int(clip.get("h3_motion_context_length", 0)) or (22 if linked else 0)

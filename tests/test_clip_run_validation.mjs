@@ -4,7 +4,7 @@ import { planClipRunLayout, clipLayoutList, relatedH3ClipIds } from '../js/edito
 
 const makeProject = () => ({ settings: { fps: 24 }, tracks: [{ type: 'director', clips:
     [0, 1, 2].map(i => ({ id: String(i), start_ms: i * 5000, duration_ms: 5000,
-        prompt: 'shot', agent: 'MiniMaxH3', save_latent: i < 2, h3_motion_context_length: 22 })) }] });
+        prompt: 'shot', agent: 'MiniMaxH3', reference_previous: i > 0, save_latent: i < 2, h3_motion_context_length: 22 })) }] });
 const project = makeProject();
 const before = JSON.stringify(project);
 for (const id of ['0', '1', '2']) assert.deepEqual(relatedH3ClipIds(project, id), ['0', '1', '2']);
@@ -15,7 +15,7 @@ assert.deepEqual(relatedH3ClipIds(broken, '1'), []);
 const gap = makeProject(); gap.tracks[0].clips[1].start_ms += 100;
 assert.deepEqual(relatedH3ClipIds(gap, '0'), ['0']);
 const unsaved = makeProject(); unsaved.tracks[0].clips[0].save_latent = false;
-assert.deepEqual(relatedH3ClipIds(unsaved, '1'), ['1', '2']);
+assert.deepEqual(relatedH3ClipIds(unsaved, '1'), ['0', '1', '2']);
 for (const fps of [24, 25, 30, 60]) {
     const p = makeProject(); p.settings.fps = fps;
     p.tracks[0].clips[0].duration_ms = 4583;
@@ -87,3 +87,9 @@ assert.equal(relatedEditor._relatedClipConfirmOpen, false);
 relatedEditor._relatedClipConfirmOpen = true;
 assert.equal(await confirmRelated.call(relatedEditor, { id: '1' }), 'cancel');
 console.log('H3 run layout: boundaries, fixed duration, idempotence, scope, cancellation and confirmation passed');
+
+const independent = makeProject();
+independent.tracks[0].clips.forEach(c => delete c.reference_previous);
+assert.deepEqual(relatedH3ClipIds(independent, '1'), ['1']);
+independent.tracks[0].clips.forEach(c => c.reference_previous = false);
+assert.deepEqual(relatedH3ClipIds(independent, '1'), ['1']);

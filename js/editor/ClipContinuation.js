@@ -15,18 +15,7 @@ export function applyContinuationSettings(tracks) {
 }
 
 export function migrateContinuationSettings(tracks) {
-    return tracks.map(track => {
-        const ordered = [...(track.clips || [])].sort((a, b) => a.start_ms - b.start_ms);
-        const clips = ordered.map((clip, i) => {
-            if (typeof clip.reference_previous === 'boolean') return clip;
-            const previous = ordered[i - 1];
-            const linked = previous?.save_latent && previous.enabled !== false && previous.visible !== false
-                && (previous.agent || 'MiniMaxH3') === 'MiniMaxH3'
-                && Math.abs(previous.start_ms + (previous.duration_ms ?? (previous.end_ms - previous.start_ms)) - clip.start_ms) <= 1;
-            return { ...clip, reference_previous: (clip.agent || 'MiniMaxH3') === 'MiniMaxH3'
-                && (Number(clip.h3_motion_context_length) > 0 || !!linked) };
-        });
-        const byId = new Map(clips.map(c => [c.id, c]));
-        return { ...track, clips: (track.clips || []).map(c => byId.get(c.id)) };
-    });
+    return tracks.map(track => ({ ...track, clips: (track.clips || []).map(clip => ({
+        ...clip, reference_previous: clip.reference_previous === true,
+    })) }));
 }

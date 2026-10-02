@@ -9,7 +9,7 @@ clips=rows(); clips[1].enabled=false; applyContinuationSettings([{type:'director
 clips=rows(); clips[0].agent='other'; applyContinuationSettings([{type:'director',clips}]); assert.equal(clips[0].save_latent,false);
 clips=rows(); applyContinuationSettings([{type:'director',enabled:false,clips}]); assert.equal(clips[0].save_latent,false);
 const old=[{type:'director',clips:[{id:'a',start_ms:0,duration_ms:5000,save_latent:true},{id:'b',start_ms:5000,duration_ms:5000,h3_motion_context_length:0}]}];
-const migrated=migrateContinuationSettings(old); assert.equal(migrated[0].clips[1].reference_previous,true); assert.equal(old[0].clips[1].reference_previous,undefined);
+const migrated=migrateContinuationSettings(old); assert.equal(migrated[0].clips[1].reference_previous,false); assert.equal(old[0].clips[1].reference_previous,undefined);
 old[0].clips[1].reference_previous=false; assert.equal(migrateContinuationSettings(old)[0].clips[1].reference_previous,false);
 const source=readFileSync(new URL('../js/CapTimelineEditorApp.js',import.meta.url),'utf8');
 const start=source.indexOf('    _onReferencePreviousChange() {');

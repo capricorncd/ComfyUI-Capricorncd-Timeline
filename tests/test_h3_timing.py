@@ -10,7 +10,7 @@ spec.loader.exec_module(h3)
 def clips():
     return [dict(source_clip_id=f"clip_{i}", start_ms=i * 5000, end_ms=(i + 1) * 5000,
                  preview_start_ms=i * 5000, preview_end_ms=(i + 1) * 5000, z_index=0,
-                 agent="MiniMaxH3", save_latent=i < 2, h3_motion_context_length=39,
+                 agent="MiniMaxH3", reference_previous=True, save_latent=i < 2, h3_motion_context_length=39,
                  output_video=f"CapTimelineEditor/test/20260910-120000_clip_{i}.mp4") for i in range(3)]
 
 
@@ -42,6 +42,23 @@ class H3TimingTests(unittest.TestCase):
                 self.assertEqual(h3.trim_h3_video(snapshot, snapshot["raw_frames"], 24)[1], length / 24)
             self.assertEqual(cursor, sum(lengths))
             self.assertEqual(rows[-1]["h3_timing"]["play_end_frame"], sum(lengths))
+
+    def test_save_latent_does_not_enable_following_context(self):
+        for enabled in (None, False):
+            rows = clips()[:2]
+            for row in rows:
+                row.pop("reference_previous")
+                if enabled is not None:
+                    row["reference_previous"] = enabled
+            rows[1].update(h3_timing={"context_frames": 22, "previous_source_clip_id": "clip_0"},
+                           previous_output_video="missing.mp4", previous_reference_video="missing-ref.mp4")
+            h3.plan_h3_clips(rows, 24)
+            self.assertTrue(rows[0]["save_latent"])
+            self.assertEqual(rows[1]["h3_motion_context_length"], 0)
+            self.assertEqual(rows[1]["h3_timing"]["context_frames"], 0)
+            self.assertIsNone(rows[1]["h3_timing"]["previous_source_clip_id"])
+            self.assertNotIn("previous_output_video", rows[1])
+            self.assertNotIn("previous_reference_video", rows[1])
 
     def test_context_chooses_grid_value_inside_visible_interval(self):
         short = dict(raw_frames=22, context_frames=0, head_frames=17, tail_frames=0)
@@ -157,7 +174,7 @@ class H3TimingTests(unittest.TestCase):
         self.assertEqual(h3.H3_SUFFIX.sub("", row["output_video"]), "CapTimelineEditor/test/20260910-120000_clip_1.mp4")
 
     def test_no_cross_track_gap_or_unsaved_context(self):
-        for change in (dict(save_latent=False), dict(z_index=1), dict(preview_end_ms=4990)):
+        for change in (dict(z_index=1), dict(preview_end_ms=4990)):
             rows = clips()
             rows[0].update(change)
             h3.plan_h3_clips(rows, 24)

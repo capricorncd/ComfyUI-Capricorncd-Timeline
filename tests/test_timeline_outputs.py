@@ -31,7 +31,7 @@ class TimelineOutputsTests(unittest.TestCase):
         first = dict(id='a', prompt='First', save_latent=True, generated_videos=[
             dict(file='b_previous_run.mp4', enabled=True, h3_context_from='b-video'),
             dict(file='disabled.mp4', enabled=False), dict(file='existing.mp4'), dict(file='older.mp4')])
-        second = dict(last_frame_media_id='tail-image', id='b', prompt='Second', h3_motion_context_length=22, h3_drafts=[{'id': 'preview', 'enabled': True}],
+        second = dict(last_frame_media_id='tail-image', id='b', prompt='Second', reference_previous=True, h3_motion_context_length=22, h3_drafts=[{'id': 'preview', 'enabled': True}],
                       head_extend_sec=2, tail_extend_sec=3, generate_preview_video=True)
         instance = SimpleNamespace(
             _project=lambda value: json.loads(value),
@@ -40,6 +40,9 @@ class TimelineOutputsTests(unittest.TestCase):
             _prepare_frame_seq_dir=lambda: 'frame-dir')
         project = dict(settings=dict(runtime_only_clip_ids=['b']), tracks=[])
         result = namespace['execute'](instance, 24, 864, 480, 'test', json.dumps(project))
+        catalog = json.loads(result[3])['composition_clips']
+        self.assertEqual([row['source_clip_id'] for row in catalog], ['a', 'b'])
+        self.assertEqual(catalog[0]['output_video'], 'existing.mp4')
         rows = json.loads(result[3])['clips']
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['source_clip_id'], 'b')
@@ -52,6 +55,11 @@ class TimelineOutputsTests(unittest.TestCase):
         self.assertEqual(rows[0]['h3_timing']['play_frames'], 120)
         for removed in ('head_extend_sec', 'tail_extend_sec', 'generate_preview_video'):
             self.assertNotIn(removed, rows[0])
+        second['reference_previous'] = False
+        independent = json.loads(namespace['execute'](instance, 24, 864, 480, 'test', json.dumps(project))[3])['clips'][0]
+        self.assertNotIn('previous_output_video', independent)
+        self.assertNotIn('h3_timing', independent)
+        self.assertEqual(independent['h3_motion_context_length'], 0)
         first['save_latent'] = False
         first['reference_previous'] = False
         second['reference_previous'] = True

@@ -96,9 +96,37 @@ class GeneratorTests(unittest.TestCase):
         rows = [{"output_video": f"project/{row['id']}.mp4", **row} for row in rows]
         data = {"width": 1376, "height": 768, "fps": 24, "clips": rows}
         data["h3_generation"] = kw.pop("h3_generation", {})
+        data["composition_clips"] = kw.pop("composition_clips", [])
         kw.setdefault("sampling_preview", False)
         kw.setdefault("base_model", "base")
         return self.node.generate("base", "clip", "vae", "audio_vae", json.dumps(data), **kw)
+
+    def test_single_run_composes_existing_continuation_chain(self):
+        catalog = [dict(id=cid, source_clip_id=cid, start_ms=i * 5000, end_ms=(i + 1) * 5000,
+                        reference_previous=i > 0, output_video=__file__,
+                        h3_timing={"previous_source_clip_id": "abc"[i - 1] if i else None})
+                   for i, cid in enumerate("abc")]
+        catalog.append(dict(id="unrelated", start_ms=20000, end_ms=25000, output_video="missing.mp4"))
+        self.scope["folder_paths"].get_output_directory = lambda: "."
+        result = self.run_node([dict(id="b", start_ms=5000, end_ms=10000)], composition_clips=catalog)
+        self.assertEqual(len(self.prepared), 1)
+        rows = self.composed[0][0]["clips"]
+        self.assertEqual([self.scope["_clip_id"](row) for row in rows], list("abc"))
+        self.assertEqual(rows[0]["output_video"], __file__)
+        self.assertEqual(rows[1]["output_video"], result["result"][0][0])
+        self.assertEqual(rows[2]["output_video"], __file__)
+        self.assertEqual(result["result"][2], "compose/final.mp4")
+
+    def test_missing_chain_video_does_not_export_partial_final(self):
+        self.scope["folder_paths"].get_output_directory = lambda: "."
+        catalog = [dict(id="a", output_video="missing.mp4"),
+                   dict(id="b", reference_previous=True, h3_timing={"previous_source_clip_id": "a"})]
+        result = self.run_node([dict(id="b", start_ms=5000, end_ms=10000)], composition_clips=catalog)
+        self.assertEqual(len(self.prepared), 1)
+        self.assertFalse(self.composed)
+        self.assertEqual(result["result"][2], "")
+        self.assertEqual(result["ui"]["h3_progress"][0]["warnings"][-1],
+                         dict(code="missing_composition_video", clip_ids=["a"]))
 
     def test_chain_all_overrides_disabled_clips_across_tracks_and_gaps(self):
         rows = [{"id": "a", "start_ms": 0, "end_ms": 5000, "reference_previous": False},
@@ -134,6 +162,18 @@ class GeneratorTests(unittest.TestCase):
                       chain_all_clips=True, h3_generation={"action": "draft"}, preview_sampling_batch=2)
         self.assertEqual([p[3]["context_latent"] is not None for p in self.prepared], [False, True, False, True])
         self.assertEqual(sum(n == "MiniMaxH3MotionContextSaveLatent" for n, _ in self.calls), 2)
+
+    def test_saved_latent_does_not_make_next_clip_load_context(self):
+        rows = [dict(id="a", start_ms=0, end_ms=5000, save_latent=True),
+                dict(id="b", start_ms=5000, end_ms=10000, reference_previous=False)]
+        for row in rows:
+            row.update(source_clip_id=row["id"], preview_start_ms=row["start_ms"], preview_end_ms=row["end_ms"])
+        self.scope["plan_h3_clips"](rows, 24)
+        self.run_node(rows)
+        self.assertTrue(any(name == "MiniMaxH3MotionContextSaveLatent" for name, _ in self.calls))
+        self.assertFalse(any(name == "MiniMaxH3MotionContextLoadLatent" for name, _ in self.calls))
+        self.assertTrue(all(p[3]["context_latent"] is None for p in self.prepared))
+        self.assertNotIn("previous_output_video", self.prepared[1][2])
 
     def test_chain_all_off_preserves_clip_switches(self):
         self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "reference_previous": False},
@@ -796,7 +836,7 @@ class GeneratorTests(unittest.TestCase):
         self.assertNotIn(saves[2] + ".safetensors", loads)
 
     def test_missing_chain_generates_independently_with_persistent_warning(self):
-        self.run_node([{"id": "b", "start_ms": 5000, "end_ms": 10000,
+        self.run_node([{"id": "b", "reference_previous": True, "start_ms": 5000, "end_ms": 10000,
                         "h3_timing": {"context_frames": 22, "previous_source_clip_id": "a"}}])
         row = self.prepared[0][2]
         self.assertEqual(row["h3_timing"]["context_frames"], 0)
@@ -811,9 +851,9 @@ class GeneratorTests(unittest.TestCase):
                             for data in updates))
 
     def test_missing_context_replans_following_chain(self):
-        self.run_node([{"id": "b", "start_ms": 5000, "end_ms": 10000, "save_latent": True,
+        self.run_node([{"id": "b", "reference_previous": True, "start_ms": 5000, "end_ms": 10000, "save_latent": True,
                         "h3_timing": {"context_frames": 22, "previous_source_clip_id": "a"}},
-                       {"id": "c", "start_ms": 10000, "end_ms": 15000, "h3_motion_context_length": 22,
+                       {"id": "c", "reference_previous": True, "start_ms": 10000, "end_ms": 15000, "h3_motion_context_length": 22,
                         "h3_timing": {"context_frames": 22, "previous_source_clip_id": "b"}}])
         self.assertEqual(self.prepared[0][2]["h3_timing"]["context_frames"], 0)
         self.assertEqual(self.prepared[1][2]["h3_timing"]["previous_source_clip_id"], "b")

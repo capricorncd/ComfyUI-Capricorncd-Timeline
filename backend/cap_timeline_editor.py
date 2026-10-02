@@ -847,6 +847,8 @@ class CAP_TimelineEditor:
                 row["previous_output_video"] = generated_outputs[previous]
             if previous and reference_outputs.get(previous):
                 row["previous_reference_video"] = reference_outputs[previous]
+        composition_clips = [{**row, "output_video": generated_outputs.get(row["source_clip_id"], "")}
+                             for row in runtime_clips] if only_ids is not None else []
         if only_ids is not None:
             runtime_clips = [clip for clip in runtime_clips if clip["source_clip_id"] in only_ids]
         total_frame_count = max(1, sum(
@@ -880,6 +882,7 @@ class CAP_TimelineEditor:
             "run_timestamp": run_timestamp,
             "materials": materials,
             "clips": runtime_clips,
+            "composition_clips": composition_clips,
         }, ensure_ascii=False)
 
         return (

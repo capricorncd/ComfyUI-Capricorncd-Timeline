@@ -96,7 +96,9 @@ function showGeneratorProgress(node, data) {
         phase: t(`h3_phase_${data.phase}`),
     });
     const warnings = (data.warnings ?? []).map(warning => warning.code === "missing_context"
-        ? t("h3_warning_missing_context", {clip: warning.clip_id, previous: warning.previous_clip_id}) : "").filter(Boolean);
+        ? t("h3_warning_missing_context", {clip: warning.clip_id, previous: warning.previous_clip_id})
+        : warning.code === "missing_composition_video"
+            ? t("h3_warning_missing_composition_video", {clips: warning.clip_ids.join(", ")}) : "").filter(Boolean);
     node._stvProgress.setStatus(warnings.length ? `${progress}\n${warnings.join("\n")}` : progress,
         warnings.length ? "warning" : data.phase === "done" ? "success" : "info");
 }

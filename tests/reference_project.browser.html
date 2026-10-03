@@ -1,0 +1,34 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Reference project merge menu</title>
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app={extensionManager:{setting:{get:()=> 'zh'}}};"}}</script>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>body { background:#10191d;color:#e2e8f0;font-family:Arial; } #result { position:fixed;top:0;left:0; }</style>
+<div id="host"></div><pre id="result">Running</pre>
+<script type="module">
+import { ReferenceProject } from '../js/editor/ReferenceProject.js';
+import '../js/components/ContextMenu.js';
+let selection;
+window.fetch = async () => ({ok:true,json:async()=>({token:'test',available:[],project:{name:'参考工程',media:[],tracks:[{type:'director',clips:[{id:'one',start_ms:0,duration_ms:3000,prompt:'参考镜头'}]}]}})});
+try {
+    const reference = new ReferenceProject({host:document.querySelector('#host'),apiURL:path=>path,
+        merge:async(token, position)=>{selection=position;},
+        openMenu:(items,rect)=>{
+            const menu=document.createElement('cap-context-menu');
+            menu.setItems(items);
+            menu.style.left=rect.left+'px';menu.style.top=(rect.top-100)+'px';
+            menu.addEventListener('menu-select',event=>{menu.remove();event.detail.fn();});
+            document.body.append(menu);return menu;
+        }});
+    await reference.open();
+    await new Promise(resolve=>setTimeout(resolve,100));
+    reference.mergeButton.dispatchEvent(new PointerEvent('pointerenter',{pointerType:'mouse'}));
+    const menu=document.querySelector('cap-context-menu');
+    if (!menu || !menu.shadowRoot.textContent.includes('插入到开头') || !menu.shadowRoot.textContent.includes('追加到末尾')) throw new Error('Missing hover menu');
+    menu.shadowRoot.querySelector('cap-button').click();
+    await new Promise(resolve=>setTimeout(resolve,30));
+    if (selection!=='start' || reference.mergeButton.disabled) throw new Error('Merge action failed');
+    reference.mergeButton.dispatchEvent(new PointerEvent('pointerenter',{pointerType:'mouse'}));
+    document.querySelector('#result').textContent='PASS';
+} catch(error) {document.querySelector('#result').textContent=error.stack;}
+</script>

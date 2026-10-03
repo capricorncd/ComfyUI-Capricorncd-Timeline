@@ -1,6 +1,7 @@
 import '../components/Dialog.js';
 import '../components/TabButton.js';
 import '../components/StatusMessage.js';
+import '../components/DropdownButton.js';
 import { makeT } from '../cap_i18n.js';
 import { iconHtml } from '../cap_icons.js';
 
@@ -10,6 +11,11 @@ export const referenceT = makeT({
     ja: { title: '参照プロジェクトを読み込む', other: '別のプロジェクトを読み込む', settings: '全体設定', empty: 'クリップなし', copy: 'コピー', copied: 'コピーしました', missing: '素材が見つかりません', loading: '別のプロジェクトの project.json を選択してください…', unnamed: '無題', prompt: 'クリッププロンプト', text: '字幕', style_prompt: 'スタイルプロンプト', speech_prompt: '音声プロンプト', width: '幅', height: '高さ', fps: 'FPS', prepend_prompt: '前置プロンプト', append_prompt: '後置プロンプト', global_prompt: '全体プロンプト', negative_prompt: 'ネガティブプロンプト', start_ms: '開始（ms）', duration_ms: '長さ（ms）', details: 'クリップの全情報' },
 });
 const T = referenceT;
+const mergeT = makeT({
+    zh: { merge: '合并到当前工程', start: '插入到开头', end: '追加到末尾', busy: '正在合并工程…', done: '已合并到当前工程，可撤销' },
+    en: { merge: 'Merge into current project', start: 'Insert at beginning', end: 'Append at end', busy: 'Merging project…', done: 'Merged into current project. Undo is available.' },
+    ja: { merge: '現在のプロジェクトに結合', start: '先頭に挿入', end: '末尾に追加', busy: 'プロジェクトを結合中…', done: '結合しました。元に戻せます。' },
+});
 const element = (tag, text) => {
     const node = document.createElement(tag);
     if (text !== undefined) node.textContent = text;
@@ -24,8 +30,9 @@ export function referenceTracks(project) {
 }
 
 export class ReferenceProject {
-    constructor({ host, apiURL }) {
+    constructor({ host, apiURL, merge, openMenu }) {
         this.apiURL = apiURL;
+        this.merge = merge;
         this.dialog = element('cap-dialog');
         this.dialog.className = 'cat-te-reference-project';
         this.title = element('div');
@@ -47,6 +54,15 @@ export class ReferenceProject {
         this.loadButton = element('cap-button', T('other'));
         this.loadButton.addEventListener('click', () => void this.load());
         footer.append(this.loadButton);
+        this.mergeButton = element('cap-dropdown-button', mergeT('merge'));
+        this.mergeButton.disabled = true;
+        this.mergeButton.bindMenu(() => {
+            const rect = this.mergeButton.getBoundingClientRect();
+            return openMenu(['start', 'end'].map(position => ({ label: mergeT(position),
+                fn: () => void this.mergeIntoCurrent(position) })), rect);
+        });
+        footer.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+        footer.append(this.mergeButton);
         this.dialog.append(this.title, this.tabs, this.status, this.body, footer);
         host.append(this.dialog);
         this.dialog.addEventListener('close', () => this.stopMedia());
@@ -58,9 +74,10 @@ export class ReferenceProject {
     }
 
     async load() {
-        if (this.loading) return;
+        if (this.loading || this.merging) return;
         this.loading = true;
         this.loadButton.disabled = true;
+        this.mergeButton.disabled = true;
         this.status.setStatus(T('loading'));
         try {
             const response = await fetch(this.apiURL('/audio_keyframe_timeline/reference_project'), {
@@ -99,6 +116,25 @@ export class ReferenceProject {
         } finally {
             this.loading = false;
             this.loadButton.disabled = false;
+            this.mergeButton.disabled = !this.data || !this.merge;
+        }
+    }
+
+    async mergeIntoCurrent(position) {
+        if (!this.data || this.loading || this.merging) return;
+        this.merging = true;
+        this.mergeButton.disabled = this.loadButton.disabled = true;
+        this.dialog.closeDisabled = true;
+        this.status.setStatus(mergeT('busy'));
+        try {
+            await this.merge(this.data.token, position);
+            this.status.setStatus(mergeT('done'), 'success');
+        } catch (error) {
+            this.status.setStatus(error.message, 'error');
+        } finally {
+            this.merging = false;
+            this.mergeButton.disabled = this.loadButton.disabled = false;
+            this.dialog.closeDisabled = false;
         }
     }
 

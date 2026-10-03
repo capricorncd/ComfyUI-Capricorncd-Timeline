@@ -1,5 +1,7 @@
 # Shared UI components
 
+Reference project preview offers a shared hover dropdown, “Merge into current project”, with “Insert at beginning” and “Append at end”. Merging preserves reference tracks, assigns new Clip/track/group IDs, remaps material references and supports undo. Insert shifts all existing Clips by the reference timeline length; append starts at the current timeline end. Materials are compared by file content before copying, so matching files reuse the current catalog entry. Missing files stop the merge with an inline error. Current project settings and prompt history are retained.
+
 ## Prompt history actions
 
 `PromptHistoryActions.js` provides `<cap-prompt-history-actions>` below prompt inputs, aligned right. `bind(textarea, read, write)` supplies the workflow-owned history document (`schema_version: 1`, `items` with `id`, `text`, `created_at`). History, Save and Copy reuse shared icon buttons. Restoring dispatches input/change through the existing editor path. Timeline prompts and keyframe prompts share the node's hidden `prompt_history_json` widget. Project exports include a separate `prompt_history.json`; missing history on import means an empty history, including older packages.

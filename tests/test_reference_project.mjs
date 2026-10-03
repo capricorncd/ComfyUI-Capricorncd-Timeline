@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 class Element {
-    constructor(tag) { this.tag = tag; this.children = []; this.attributes = {}; this.events = {}; this.isConnected = true; this.textContent = ''; }
+    constructor(tag) { this.tag = tag; this.children = []; this.attributes = {}; this.events = {}; this.style = {}; this.isConnected = true; this.textContent = ''; }
     append(...children) { this.children.push(...children); }
     replaceChildren(...children) { this.children = children; }
     setAttribute(key, value) { this.attributes[key] = value; }
@@ -14,6 +14,7 @@ class Element {
     show() { this.open = true; }
     remove() { this.isConnected = false; }
     focus() {}
+    bindMenu(callback) { this.openMenu = callback; }
 }
 const project = { name: '<img onerror=alert(1)>', settings: { width: 1344, height: 768, prepend_prompt: '全局提示词' }, media: [
     { id: 'image', kind: 'image', file: 'media/a.png' }, { id: 'video', kind: 'video', file: 'media/b.mp4' },
@@ -62,3 +63,13 @@ assert.equal(reference.status.textContent, 'Invalid project.json');
 assert.equal(reference.loadButton.disabled, false);
 assert.equal(JSON.stringify(project.tracks[0].clips), '[]', 'reference loading does not mutate project');
 console.log('Reference project UI behavior passed');
+let merged;
+reference.merge = async (token, position) => { merged = [token, position]; };
+await reference.mergeIntoCurrent('start');
+assert.deepEqual(merged, ['test', 'start']);
+assert.equal(reference.status.textContent, '已合并到当前工程，可撤销');
+assert.equal(reference.dialog.closeDisabled, false);
+reference.merge = async () => { throw new Error('Missing media'); };
+await reference.mergeIntoCurrent('end');
+assert.equal(reference.status.textContent, 'Missing media');
+assert.equal(reference.mergeButton.disabled, false);

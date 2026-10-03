@@ -11,6 +11,7 @@ import { openInsertClip } from './editor/InsertClip.js';
  */
 
 import "./components/TabButton.js";
+import { mergeReferenceProject } from './editor/MergeReferenceProject.js';
 import "./components/ProjectVideoList.js";
 import "./components/PromptHistoryActions.js";
 import { videoPromptUpdates } from './editor/VideoPromptRestore.js';
@@ -18733,7 +18734,10 @@ export class CapTimelineEditorApp {
                     { label: launcherT("folder"), icon: "squareArrowOutUpRight", disabled: !this._launcherProject.session, fn: () => void this._openLauncherProjectFolder() },
                 ] : []),
                 { label: referenceT("title"), icon: "insert", fn: () => {
-                    this._referenceProject ??= new ReferenceProject({ host: this._overlay, apiURL: path => api.apiURL(path) });
+                    this._referenceProject ??= new ReferenceProject({ host: this._overlay, apiURL: path => api.apiURL(path),
+                        merge: (token, position) => this._mergeReferenceProject(token, position),
+                        openMenu: (items, rect) => this._buildCtxMenu(items, rect.left, rect.bottom + 4, { ignoreNextClick: false }),
+                    });
                     void this._referenceProject.open();
                 } },
                 { label: "GitHub", icon: "squareArrowOutUpRight", fn: () => window.open("https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline", "_blank", "noopener,noreferrer") },
@@ -21389,6 +21393,30 @@ export class CapTimelineEditorApp {
             return;
         }
         this._history.commit(moved);
+    }
+
+    async _mergeReferenceProject(token, position) {
+        const openGen = this._openGen;
+        const response = await api.fetchApi('/audio_keyframe_timeline/reference_project_merge', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, media: this._serializeMediaCatalog() }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || response.statusText);
+        if (this._destroyed || !this._timelineReady || this._openGen !== openGen) throw new Error('Timeline is closed');
+        const snapshot = this._captureSnapshot();
+        const available = new Set([...(snapshot.project.media || []), ...(data.project.media || [])].map(row => row.id));
+        if (Object.values(data.media_ids).some(id => !available.has(id))) throw new Error('Media changed during merge. Please retry.');
+        const project = mergeReferenceProject(snapshot.project, data.project, data.media_ids, position);
+        this._recordUndo();
+        try {
+            await this._restoreSnapshot({ ...snapshot, project });
+            this._saveToWidgets();
+        } catch (error) {
+            await this._restoreSnapshot(snapshot);
+            this._saveToWidgets();
+            throw error;
+        }
     }
 
     async _restoreSnapshot(snapshot) {

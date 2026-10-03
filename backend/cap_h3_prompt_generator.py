@@ -116,14 +116,9 @@ def generate_h3_prompts(clip, data, config):
     stage = request.get("action", "normal")
     if stage == "refine":
         return
-    keyframe_clips = {str(run["clip_id"]) for run in request.get("keyframe_runs", [])}
     selected = []
     for row in data["clips"]:
         if not row.get("auto_prompt"):
-            continue
-        start = row.get("preview_start_ms", row["start_ms"])
-        end = row.get("preview_end_ms", row["end_ms"])
-        if str(row.get("source_clip_id") or row["id"]) in keyframe_clips or (row.get("clip_role") == "video_ref" and end - start > 10000):
             continue
         if stage == "normal" and row.get("h3_drafts") and latest_draft(data, row) is not None:
             continue

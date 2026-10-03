@@ -152,14 +152,14 @@ class SharedPromptTests(unittest.TestCase):
         self.assertEqual([row['clip_id'] for row in json.loads(report)], ['off'])
         self.assertEqual(json.loads(output)['clips'][0], self.data['clips'][0])
 
-    def test_keyframe_and_long_video_prompts_skip_auto_generation(self):
+    def test_keyframe_prompts_use_interval_instructions(self):
         self.data['h3_generation'] = {'keyframe_runs': [{'clip_id': 'on'}]}
-        original = json.dumps(self.data)
-        self.assertEqual(self.run_prompt(self.clip, data_json=original), (original, ''))
-        self.data.pop('h3_generation')
-        self.data['clips'][0].update(clip_role='video_ref', end_ms=25000)
-        original = json.dumps(self.data)
-        self.assertEqual(self.run_prompt(self.clip, data_json=original), (original, ''))
+        self.data['clips'][0].update(id='on__kf3_1', clip_role='video_ref', prompt='third interval',
+                                   start_ms=15000, end_ms=20000)
+        output, report = self.run_prompt(self.clip, json.dumps(self.data), tail_name='installed_tail.safetensors')
+        self.assertIn('generated third interval', json.loads(output)['clips'][0]['h3_generated_prompt'])
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual([row['clip_id'] for row in json.loads(report)], ['on__kf3_1'])
 
     def test_all_flags_false_skip_generation(self):
         self.data["clips"][0]["auto_prompt"] = False

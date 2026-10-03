@@ -57,7 +57,7 @@ class KeyframeRunTests(unittest.TestCase):
         self.assertEqual([row['keyframe_segment']['prompt'] for row in data['clips']], expected)
         self.assertEqual(original['prompt'], 'base')
 
-    def test_segment_prompts_override_auto_prompt_and_keep_global_selections(self):
+    def test_segment_prompts_preserve_auto_prompt_and_global_selections(self):
         data = self.data()
         data['clips'][0].update(auto_prompt=True, h3_generated_prompt='stale automatic text',
                                 prompt_includes=['clip'], use_prepend_prompt=True, use_append_prompt=False)
@@ -78,7 +78,7 @@ class KeyframeRunTests(unittest.TestCase):
                                  _ref_list=lambda value: [],
                                  _timeline_prompt_includes=lambda row: scope['_timeline_prompt_includes'](None, row))
         for row, expected in zip(data['clips'], ['keyframe text', 'base']):
-            self.assertFalse(row['auto_prompt'])
+            self.assertTrue(row['auto_prompt'])
             self.assertNotIn('h3_generated_prompt', row)
             compose = lambda: scope['_compose_prompt'](parser, row, '', prepend_prompt='selected global', append_prompt='unselected global')
             self.assertEqual(compose(), 'selected global\n\n' + expected)

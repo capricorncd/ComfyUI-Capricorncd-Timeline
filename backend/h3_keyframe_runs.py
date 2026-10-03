@@ -60,7 +60,6 @@ def expand_keyframe_runs(data):
                 stem, extension = clip["output_video"].rsplit(".", 1)
                 row["output_video"] = f"{stem}__kf{interval_number}_{part + 1}.{extension}"
                 row["prompt"] = prompt
-                row["auto_prompt"] = False
                 row.pop("h3_generated_prompt", None)
                 row["keyframe_segment"] = dict(clip_id=parent, start_frame=begin, end_frame=end, fps=fps,
                     interval=interval_number, part=part + 1, parts=count, prompt=prompt)

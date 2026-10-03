@@ -81,10 +81,15 @@ def expand_keyframe_runs(data):
                 reference = request.get("reference")
                 for ref in row.get("images", []):
                     material = materials.get(str(ref.get("id")))
-                    if material and material.get("reference_timeline"):
+                    if material and (material.get("reference_timeline") or material.get("kind") == "video") and (
+                            not reference or str(ref.get("id")) != str(reference["id"])):
                         sliced = copy.deepcopy(material)
                         sliced["id"] = f"{material['id']}__{cid}"
-                        sliced["video_trim"].update(start=begin / fps, duration=frames / fps)
+                        trim = material.get("video_trim") or {}
+                        rate = float(trim.get("rate", 1))
+                        sliced["video_trim"] = dict(trim, file=trim.get("file") or material["file"],
+                            start=float(trim.get("start", 0)) + begin / fps * rate,
+                            duration=frames / fps * rate, rate=rate)
                         data["materials"].append(sliced)
                         ref["id"] = sliced["id"]
                 if reference:

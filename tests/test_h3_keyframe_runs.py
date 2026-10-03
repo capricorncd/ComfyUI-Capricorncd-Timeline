@@ -100,6 +100,24 @@ class KeyframeRunTests(unittest.TestCase):
         data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24, intervals=[])])
         with self.assertRaises(ValueError): module.expand_keyframe_runs(data)
 
+    def test_local_keyframes_slice_direct_video_references(self):
+        for trim in [None, dict(file='original.mp4', start=7, rate=2)]:
+            with self.subTest(trim=trim):
+                data = self.data()
+                data['materials'][0] = dict(id='ref', kind='video', file='direct.mp4')
+                if trim:
+                    data['materials'][0]['video_trim'] = trim
+                data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24,
+                    intervals=[dict(start_frame=364, end_frame=485, prompt='')])])
+                original = copy.deepcopy(data['materials'][0])
+                module.expand_keyframe_runs(data)
+                row = data['clips'][0]
+                material = next(item for item in data['materials'] if item['id'] == row['images'][0]['id'])
+                rate = 2 if trim else 1
+                self.assertAlmostEqual(material['video_trim']['start'], (7 if trim else 0) + 364 / 24 * rate)
+                self.assertAlmostEqual(material['video_trim']['duration'], 121 / 24 * rate)
+                self.assertEqual(data['materials'][0], original)
+
     def test_non_video_keyframes_slice_composed_reference(self):
         data = self.data()
         data['clips'][0].update(clip_role='multi_ref', end_ms=6000)

@@ -2521,9 +2521,23 @@ body.cat-te-media-dnd-over-tl {
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
+    padding-bottom: 32px;
+    border: 1px solid var(--cat-border);
+    border-radius: 4px;
+    background: var(--cat-bg);
+    overflow: hidden;
 }
-.cat-te-prompt-copy-host > cap-prompt-history-actions {
-    flex-shrink: 0;
+.cat-te-prompt-copy-host > textarea {
+    border: 0;
+    border-radius: 0;
+}
+.cat-te-prompt-copy-host > textarea:focus-visible,
+.cat-te-overlay .cat-te-prompt-copy-host > textarea:focus-visible {
+    outline: none;
+}
+.cat-te-prompt-copy-host:has(> textarea:focus-visible) {
+    outline: 2px solid var(--cat-accent);
+    outline-offset: -2px;
 }
 
 .cat-te-prompt-input,

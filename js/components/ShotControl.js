@@ -24,12 +24,16 @@ export class ShotControl extends HTMLElement {
                 header, .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
                 .time { margin-left: auto; color: var(--cat-muted); font-variant-numeric: tabular-nums; }
                 label { display: grid; gap: 6px; }
-                textarea { box-sizing: border-box; width: 100%; min-height: 110px; resize: vertical; font: inherit; line-height: 1.6;
-                    background: var(--cat-input); color: var(--cat-text); border: 1px solid var(--cat-border); border-radius: 6px; padding: 8px; }
+                .prompt-field { position: relative; padding-bottom: 32px; border: 1px solid var(--cat-border);
+                    border-radius: 6px; background: var(--cat-input); overflow: hidden; }
+                textarea { display: block; box-sizing: border-box; width: 100%; min-height: 78px; resize: vertical; font: inherit; line-height: 1.6;
+                    background: var(--cat-input); color: var(--cat-text); border: 0; padding: 8px; }
+                textarea:focus-visible { outline: none; }
+                .prompt-field:has(textarea:focus-visible) { outline: 2px solid var(--cat-accent); outline-offset: -2px; }
                 .hint { color: var(--cat-muted); font-size: 0.85em; margin: 0; }
             </style>
             <header><strong></strong><span class="time"></span></header>
-            <label><span></span><textarea></textarea></label>
+            <label><span></span><div class="prompt-field"><textarea></textarea></div></label>
             <p class="hint"></p><div class="actions"><cap-button variant="danger" data-delete></cap-button><cap-button data-insert></cap-button></div>`;
         this.description = this.shadowRoot.querySelector('textarea');
         this.description.addEventListener('input', () => this.dispatchEvent(new CustomEvent('prompt-change', {detail: this.description.value})));
@@ -47,7 +51,7 @@ export class ShotControl extends HTMLElement {
     bindPromptHistory(read, write) {
         const actions = document.createElement('cap-prompt-history-actions');
         actions.bind(this.description, read, write);
-        this.shadowRoot.querySelector('label').after(actions);
+        this.shadowRoot.querySelector('.prompt-field').append(actions);
     }
     configure(point, time, fps, locked, labels) {
         this.mentions?.close();

@@ -9,7 +9,7 @@ export class PromptHistoryActions extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({mode:'open'}).innerHTML = `<style>
-            :host { display:flex; justify-content:flex-end; gap:4px; padding:4px 0; }
+            :host { position:absolute; bottom:4px; right:4px; z-index:3; display:flex; justify-content:flex-end; gap:4px; }
         </style>`;
         for (const [action, icon, label] of [['history','history','tab_history'],['save','save','save_current_prompt_to_history_title'],['copy','copy','copy_prompt_title']]) {
             const button = document.createElement('cap-button');
@@ -99,7 +99,10 @@ export class PromptHistoryActions extends HTMLElement {
                 };
                 const remove=document.createElement('cap-button');remove.setAttribute('variant','danger');remove.textContent=t('delete_title');
                 remove.onclick=()=>{const data=this.read();this.write({...data,items:data.items.filter(item=>item.id!==row.id)});render();};
-                card.append(time,text,apply,remove);list.append(card);
+                const buttons=document.createElement('div');
+                buttons.style.cssText='display:flex;flex-wrap:wrap;gap:8px';
+                buttons.append(apply,remove);
+                card.append(time,text,buttons);list.append(card);
             }
         };
         const footer = document.createElement('div');

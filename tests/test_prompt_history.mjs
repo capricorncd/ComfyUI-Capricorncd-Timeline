@@ -26,11 +26,11 @@ actions.append=()=>{throw new Error('Dialog must be mounted in the rendered shad
 actions.history();
 const dialog=actions.shadowRoot.children[0], card=dialog.children[1].children[0];
 actions.textarea.value='edited';
-card.children[2].onclick();
+card.children[2].children[0].onclick();
 assert.equal(actions.textarea.value,'saved prompt');
 assert.deepEqual(events,['focus','input','change']);
 assert(dialog.closed);
-card.children[3].onclick();
+card.children[2].children[1].onclick();
 assert.equal(data.items.length,0);
 const imported = {schema_version:1,items:[{id:'foreign',text:'other project',created_at:'2026-10-02T00:00:00Z'}, {id:'foreign',text:'other project'}]};
 assert.equal(actions.importDocument(imported),1);

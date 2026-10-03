@@ -2,15 +2,32 @@
 <meta charset="utf-8">
 <title>Prompt history dialog regression</title>
 <script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app={ui:{settings:{getSettingValue:()=> 'en'}}};"}}</script>
-<textarea id="prompt">Test prompt</textarea>
-<cap-prompt-history-actions></cap-prompt-history-actions>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>
+body { margin:24px; max-width:640px; font:14px sans-serif; color:var(--cat-text); background:var(--cat-surface);
+    --cat-bg:#172327; --cat-input:#172327; --cat-surface:#101719; --cat-text:#e4edeb; --cat-border:#344950; --cat-muted:#9bafad; --cat-accent:#64d8c5; }
+.cat-te-prompt-copy-host { height:160px; }
+</style>
+<div class="cat-te-prompt-copy-host"><textarea class="cat-te-prompt-input" id="prompt">Test prompt</textarea>
+<cap-prompt-history-actions></cap-prompt-history-actions></div>
+<cap-shot-control></cap-shot-control>
 <pre id="result">Running</pre>
 <script type="module">
 import '../js/components/PromptHistoryActions.js';
+import '../js/components/ShotControl.js';
+import {attachRichPromptHandler} from '../js/components/RichPrompt.js';
+if (new URLSearchParams(location.search).has('light')) {
+    document.body.style.cssText='max-width:300px;font-size:18px;--cat-raised:#f2f4f5;--cat-border-soft:#b7c8ca;--cat-bg:#fff;--cat-input:#fff;--cat-surface:#f2f4f5;--cat-text:#172327;--cat-border:#b7c8ca;--cat-muted:#536668;--cat-font-size:18px';
+}
 const actions = document.querySelector('cap-prompt-history-actions');
 let data = {schema_version:1,items:[]};
 actions.bind(document.querySelector('textarea'), () => data, value => { data=value; });
 actions.style.setProperty('--cap-dialog-height','80vh');
+attachRichPromptHandler(document.querySelector('#prompt'), {mode:'widget'});
+const shot=document.querySelector('cap-shot-control');
+shot.bindPromptHistory(() => data, value => {data=value;});
+shot.configure({description:'关键帧提示词：人物缓缓回头，镜头沿走廊向前移动。'}, 2, 24, false,
+    {title:'关键帧',description:'提示词',hint:'图标在框内，提示词与操作区独立。',delete:'删除',insert:'插入'});
 try {
     for (const populated of [false, true]) {
         if (populated) actions.save(actions.shadowRoot.querySelectorAll('cap-button')[1]);

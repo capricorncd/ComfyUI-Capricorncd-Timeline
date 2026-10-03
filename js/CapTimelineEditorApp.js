@@ -12627,12 +12627,22 @@ export class CapTimelineEditorApp {
         const isAudio = this._outputPickerKind === "audio";
         const clip = this._findClipById(this._outputVideosClipId);
         this._syncOutputVideosPickerTitle(clip);
-        const have = new Set(
+        const current = new Set(
             (isAudio
                 ? this._clipGeneratedAudios(clip ? this._ensureClipMeta(clip) : null)
                 : this._clipGeneratedVideos(clip ? this._ensureClipMeta(clip) : null))
                 .map((row) => normalizeOutputVideoPath(row.file) || row.file),
         );
+        const have = new Set(current);
+        if (!isAudio) {
+            for (const track of this._timeline?.tracks || []) {
+                for (const other of track.clips) {
+                    for (const row of this._clipGeneratedVideos(this._meta.get(other.id))) {
+                        have.add(normalizeOutputVideoPath(row.file) || row.file);
+                    }
+                }
+            }
+        }
         const q = String(this.outputVideosFilter?.value || "").trim().toLowerCase();
         const range = OUTPUT_VIDEOS_TIME_RANGES.find((r) => r.id === this._outputVideosTimeRange) || OUTPUT_VIDEOS_TIME_RANGES[0];
         const custom = range.id === "custom";
@@ -12699,6 +12709,7 @@ export class CapTimelineEditorApp {
             if (isAudio) item.classList.add("is-audio");
             const added = have.has(key);
             if (added) item.classList.add("is-added");
+            if (!isAudio && current.has(key)) item.classList.add("is-current-clip");
             const thumbWrap = document.createElement("span");
             thumbWrap.className = "cat-te-output-video-thumb-wrap";
             if (isAudio) {
@@ -12754,6 +12765,7 @@ export class CapTimelineEditorApp {
                         : this._addGeneratedVideosToClip(target, [file]);
                     if (!ok) return;
                     item.classList.add("is-added");
+                    if (!isAudio) item.classList.add("is-current-clip");
                     name.disabled = true;
                     tag.textContent = T("added_tag");
                 };

@@ -46,9 +46,9 @@ export class DirectorKeyframes {
             : items.find(row => row.kind === 'video' && row.enabled !== false);
         if (!item) return local();
         const media = this.app._findMediaById(item.id);
-        if (!media) return null;
+        if (!media) return local();
         let source;
-        try { source = videoTrimSource(this.app, item); } catch { return null; }
+        try { source = videoTrimSource(this.app, item); } catch { return local(); }
         const window = shotWindow(clip, source);
         return {clip, media, source, ...window};
     }
@@ -122,6 +122,9 @@ export class DirectorKeyframes {
             point = {time, description: ''};
             if (target.media.video_shots.source_id !== target.source.item.id) {
                 target.media.video_shots = {source_id: target.source.item.id, points: []};
+            }
+            if (frame > 0 && !target.media.video_shots.points.length) {
+                target.media.video_shots.points.push({time: target.start, description: ''});
             }
             target.media.video_shots.points.push(point);
             target.media.video_shots.points.sort((a, b) => a.time - b.time);

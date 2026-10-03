@@ -49,3 +49,37 @@ assert.deepEqual(right.audios[0], {id: 'a', edit_start_sec: 0, source_offset: 6,
 assert.equal(timeline.videos[0].trim_in_sec, 2);
 assert.equal(slice(timeline, 5, 1).videos.length, 0);
 console.log('Reference splitting preserves source ranges, playback speed and independent copies; relinking refreshes asset files');
+
+const splitStart = source.indexOf('    _splitClip(clip) {');
+const splitClip = new Function('isDirectorTrackType', 'referenceTimeline', 'sliceReferenceTimeline',
+    'return ({' + source.slice(splitStart, source.indexOf('\n    }', splitStart) + 6) + '})._splitClip;')(
+        type => type === 'image', referenceTimeline, slice);
+function splitDirector(saved, time) {
+    const track = {id:'director', type:'image', locked:false};
+    const parent = {id:'parent', startTime:10, endTime:16, duration:6, track};
+    const metadata = new Map([['parent', saved]]), clips = [];
+    let undo = 0;
+    const owner = {_meta:metadata, getFps:()=>24, _recordUndo:()=>undo++, _cloneClipMeta:structuredClone,
+        _ensureClipMeta:c=>metadata.get(c.id), _clipItems:m=>m.items || [], _findMediaById:app._findMediaById,
+        _decorateClip(){}, _updatePromptPanel(){}, _scheduleProgramPreview(){},
+        _timeline:{currentTime:time, addClip(id,row){const c={...row,id:String(clips.length),track};clips.push(c);return c;},
+            removeClip(){}, selectClip(){}},
+        _directorKeyframes:{target:()=>({local:false,start:2,rate:2}),points:()=>[{time:5,description:'shot'}]}};
+    splitClip.call(owner,parent);
+    assert.equal(undo,1);
+    return clips.map(c=>({clip:c,meta:metadata.get(c.id)}));
+}
+const legacy = {items:media};
+const halves = splitDirector(legacy,13);
+assert.equal(halves[0].meta.referenceTimeline.videos[0].trim_out_sec,3);
+assert.equal(halves[1].meta.referenceTimeline.videos[0].trim_in_sec,3);
+assert.equal(halves[1].meta.referenceTimeline.audios[0].source_offset,3);
+assert.equal(halves[1].meta.referenceTimeline.audios[0].duration,3);
+assert.equal(halves[0].meta.video_shots.points[0].time,1.5);
+assert.equal(halves[1].meta.video_shots.points.length,0);
+assert.equal(legacy.referenceTimeline,undefined,'Split does not mutate original metadata');
+const edited = splitDirector({referenceTimeline:timeline},13);
+assert.deepEqual(edited[1].meta.referenceTimeline,right);
+edited[0].meta.referenceTimeline.audios[0].volume=0;
+assert.equal(edited[1].meta.referenceTimeline.audios[0].volume,undefined);
+console.log('Director split initializes legacy references, splits both media types at child time and preserves local keyframes');

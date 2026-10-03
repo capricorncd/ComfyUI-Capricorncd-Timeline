@@ -33,21 +33,35 @@ export function keyframeIntervals(duration, fps, points = []) {
     return frames.map((start, i) => ({start_frame: start, end_frame: frames[i + 1] ?? end, prompt: starts.get(start)}));
 }
 
+function clipKeyframeRun(editor, clip) {
+    const meta = editor._ensureClipMeta(clip);
+    if ((meta.agent || 'MiniMaxH3') !== 'MiniMaxH3') return null;
+    const target = editor._directorKeyframes.target(clip);
+    if (!target) return null;
+    const saved = editor._directorKeyframes.points(target);
+    if (target.local && !saved.length) return null;
+    const fps = editor.getFps();
+    const points = saved.map(point => ({
+        time: (point.time - target.start) / target.rate, description: point.description,
+    }));
+    return {clip_id: String(clip.id), clip_start_ms: Math.round(clip.startTime * 1000), fps,
+        ...(!target.local ? {reference: {id: target.media.id, start: target.start, rate: target.rate}} : {}),
+        intervals: keyframeIntervals(clip.duration, fps, points)};
+}
+
+export function selectedKeyframeRun(editor) {
+    const target = editor._directorKeyframes?.selectedTarget();
+    if (!target || target.clip.track.locked) return null;
+    const run = clipKeyframeRun(editor, target.clip);
+    if (!run) return null;
+    const frame = Math.round((editor._directorKeyframes.selection.point.time - target.start) / target.rate * run.fps);
+    const interval = run.intervals.find(row => row.start_frame === frame);
+    return interval ? {action: 'normal', keyframe_runs: [{...run, intervals: [interval]}]} : null;
+}
+
 export async function confirmKeyframeRun(editor, clips) {
     const fps = editor.getFps();
-    const runs = clips.flatMap(clip => {
-        const meta = editor._ensureClipMeta(clip);
-        if ((meta.agent || 'MiniMaxH3') !== 'MiniMaxH3') return [];
-        const target = editor._directorKeyframes.target(clip);
-        if (!target) return [];
-        if (target.local && !editor._directorKeyframes.points(target).length) return [];
-        const points = editor._directorKeyframes.points(target).map(point => ({
-            time: (point.time - target.start) / target.rate, description: point.description,
-        }));
-        return [{clip_id: String(clip.id), clip_start_ms: Math.round(clip.startTime * 1000), fps,
-            ...(!target.local ? {reference: {id: target.media.id, start: target.start, rate: target.rate}} : {}),
-            intervals: keyframeIntervals(clip.duration, fps, points)}];
-    });
+    const runs = clips.map(clip => clipKeyframeRun(editor, clip)).filter(Boolean);
     if (!runs.length) return {};
     const dialog = document.createElement('cap-dialog');
     dialog.className = 'cat-te-keyframe-run';

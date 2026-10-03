@@ -333,3 +333,7 @@ Timeline Ctrl/Meta+wheel accumulates zoom until the next animation frame and ret
 Non-audio Clips support local keyframes and a “Clear all keyframes” context action. Local points persist in `clip.keyframes`; source-backed video keyframes retain their media metadata. Clip and main-track mute affect timeline playback and export, while the video badge previews the generated child timeline with its own mute and volume settings.
 
 Director reference editing uses the shared child timeline, stored separately in `clip.reference_timeline`. It accepts multiple catalog video/audio assets. “Send each track to the model” defaults off: model input is one composed video, or one mixed audio when no video exists. When enabled, each reference track is composed separately. Project packaging remaps nested asset files through their catalog IDs.
+
+The Run menu offers “Selected keyframe” for an unlocked H3 Clip with a selected marker. It queues only that marker’s interval through the existing keyframe-run path, ending at the next marker or Clip end, without the interval selection dialog.
+
+Converting a media video Clip or track to director stores the existing file ID, source offset, duration and playback rate in its reference sub-timeline. Conversion creates no trimmed file or catalog asset; the original media metadata remains unchanged.

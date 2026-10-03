@@ -36,7 +36,7 @@ import { StoryboardPage, normalizeStoryboards, storyboardT } from "./editor/Stor
 import { parseStoryboardDocument, buildStoryboardDocument } from "./editor/StoryboardDocument.js";
 import { FontPicker } from "./editor/FontPicker.js";
 import { stripH3Timing, h3TimingFromFilename, applyH3VideoTrim, restoreH3ClipTiming, replaceH3ContextTail } from "./editor/H3Timing.js";
-import { confirmKeyframeRun, addKeyframeVideo } from "./editor/KeyframeRun.js";
+import { confirmKeyframeRun, selectedKeyframeRun, addKeyframeVideo } from "./editor/KeyframeRun.js";
 import { applyContinuationSettings, migrateContinuationSettings } from "./editor/ClipContinuation.js";
 import { planClipRunLayout, clipLayoutList, relatedH3ClipIds } from "./editor/ClipRunValidation.js";
 import { app } from "../../scripts/app.js";
@@ -44,7 +44,6 @@ import { api } from "../../scripts/api.js";
 import { BgmSettings } from "./editor/BgmSettings.js";
 import { LocalAudioJobs } from "./editor/LocalAudioJobs.js";
 import { ClipExport } from "./editor/ClipExport.js";
-import { VideoTrim, cutVideo, videoTrimSource } from "./editor/VideoTrim.js";
 import { DirectorKeyframes } from "./editor/DirectorKeyframes.js";
 import { SubtitleSpeech } from "./editor/SubtitleSpeech.js";
 import { ImageCrop } from "./editor/ImageCrop.js";
@@ -1194,6 +1193,13 @@ export class CapTimelineEditorApp {
         }
         if (e.shiftKey) return false;
 
+        if (key === "p") {
+            if (isEditingField(e) || this._blockingModal || this._timeline?._keyboardSuspended
+                || !this._directorKeyframes?.target(this._selClip)) return false;
+            this._directorKeyframes.key(e);
+            return e.defaultPrevented;
+        }
+
         if (key === "c") {
             // Let native copy win when the user highlighted text in an input.
             if (inField && this._fieldHasTextSelection(e.target?.closest?.("input, textarea, select, [contenteditable='true']") || e.target)) {
@@ -1766,6 +1772,9 @@ export class CapTimelineEditorApp {
         return this._buildCtxMenu([
             { label: T("run_all_clips_menu"), icon: "play", fn: () => void this._runAllActiveClipsDownstream() },
             { label: T("run_selected_clips_menu"), icon: "play", fn: () => void this._runSelectedClipsDownstream() },
+            { label: T("run_selected_keyframe_menu"), icon: "clapperboard",
+                disabled: !this._hasH3VideoGeneratorDownstream() || !selectedKeyframeRun(this),
+                fn: () => void this._runSelectedKeyframeDownstream() },
             {
                 label: T("run_clips_without_generated_menu"), icon: "videoOff",
                 fn: () => void this._runAllActiveClipsDownstream({ withoutGenerated: true }),
@@ -2187,10 +2196,8 @@ export class CapTimelineEditorApp {
                 return;
             }
         }
-        const prepared = !toMedia ? await this._prepareDirectorVideos(track.clips) : [];
-        if (!prepared) return;
         this._recordUndo();
-        for (const row of prepared) this._replaceDirectorVideo(row.clip, 0, row.file, row.trim);
+        if (!toMedia) for (const clip of track.clips) this._initializeDirectorReferences(clip);
         const oldType = track.type;
         track.type = type;
         track.name = T(toMedia ? "media_track_name" : "director_track_name");
@@ -5327,7 +5334,6 @@ export class CapTimelineEditorApp {
         this._h3DraftVersions = new H3DraftVersions(this, el);
         el.querySelector(".cat-te-h3-drafts-open").addEventListener("click", () => this._h3DraftVersions.open(this._selClip));
         this._clipExport = new ClipExport(el);
-        this._videoTrim = new VideoTrim(this, el);
         this._directorKeyframes = new DirectorKeyframes(this, el.querySelector('.cat-te-director-keyframe'), isDirectorTrackType);
         this._imageCrop = new ImageCrop(this, el);
         el.querySelector(".cat-te-media-crop").addEventListener("click", () => {
@@ -17276,81 +17282,30 @@ export class CapTimelineEditorApp {
         this._buildCtxMenu(items, e.clientX, e.clientY);
     }
 
-    async _prepareDirectorVideos(clips) {
-        if (this._preparingDirectorVideos) return null;
-        this._preparingDirectorVideos = true;
-        this._videoTrim.progress(true);
-        const snapshots = clips.map(clip => ({ clip, track: clip.track, start: clip.startTime,
-            offset: clip.sourceOffset || 0, duration: clip.duration, rate: clip.playbackRate || 1,
-            item: this._clipItems(this._ensureClipMeta(clip))[0] }));
-        try {
-            const prepared = [];
-            for (const row of snapshots) {
-                if (row.item?.kind !== "video") continue;
-                const source = videoTrimSource(this, row.item);
-                const result = await cutVideo(this, source.item, source.start + row.offset * source.rate,
-                    row.duration * row.rate * source.rate, row.rate * source.rate);
-                prepared.push({ clip: row.clip, ...result });
-            }
-            if (this._destroyed || snapshots.some(row => this._findClipById(row.clip.id) !== row.clip
-                || row.clip.track !== row.track || row.track.locked || row.clip.startTime !== row.start
-                || row.clip.duration !== row.duration || (row.clip.sourceOffset || 0) !== row.offset
-                || (row.clip.playbackRate || 1) !== row.rate
-                || this._clipItems(this._ensureClipMeta(row.clip))[0]?.file !== row.item?.file)) {
-                throw new Error(T("local_audio_target_changed"));
-            }
-            return prepared;
-        } catch (error) {
-            showCapAlert(error.message);
-            return null;
-        } finally {
-            this._preparingDirectorVideos = false;
-            this._videoTrim.progress(false);
-        }
-    }
-
-    _replaceDirectorVideo(clip, index, file, trim) {
+    _initializeDirectorReferences(clip) {
         const meta = this._ensureClipMeta(clip);
-        const items = this._clipItems(meta);
-        const previous = this._findMediaById(items[index]?.id);
-        const media = this._ensureMedia("video", file);
-        if (previous) {
-            const { id, file: oldFile, location, ...description } = previous;
-            Object.assign(media, description, { location: "input" });
-            if (previous.video_shots) media.video_shots = structuredClone(previous.video_shots);
+        if (meta.referenceTimeline || !this._clipItems(meta).some(item => ['video', 'audio'].includes(item.kind))) return;
+        const refs = referenceTimeline(this, clip);
+        for (const video of refs.videos) {
+            video.trim_in_sec = clip.sourceOffset || 0;
+            video.playback_rate = clip.playbackRate || 1;
+            video.trim_out_sec = video.trim_in_sec + clip.duration * video.playback_rate;
         }
-        media.video_trim = { ...trim };
-        items[index] = { ...items[index], id: media.id, file };
-        meta.items = items;
-        meta.mediaIds = items.map(item => item.id);
-        if (index === 0) {
-            clip.src = file;
-            clip.sourceOffset = 0;
-            clip.playbackRate = 1;
-            clip.sourceDuration = Infinity;
-            meta.trimIn = 0;
-        }
-        this._normalizeVisualMeta(clip, meta, { seedFromClip: false });
-        this._syncClipPrimaryAppearance(clip);
-        this._decorateClip(clip);
-        if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
+        meta.referenceTimeline = refs;
     }
 
     async _convertMediaClipToDirector(clip) {
         const timeline = this._timeline;
         const from = clip?.track;
         if (!timeline || !isMediaTrackType(from?.type) || from.locked) return;
-        const prepared = await this._prepareDirectorVideos([clip]);
-        if (!prepared) return;
         this._recordUndo();
-        for (const row of prepared) this._replaceDirectorVideo(row.clip, 0, row.file, row.trim);
+        this._initializeDirectorReferences(clip);
         const to = timeline.tracks.find(track => isDirectorTrackType(track.type)
             && this._trackHasRoom(track, clip.startTime, clip.duration)) || this._createInsertTrack("image");
         const meta = this._ensureClipMeta(clip);
         meta.clipType = "image";
         meta.mediaKind = "clip";
         meta.trackIndex = this._trackIndex(to);
-        clip.playbackRate = 1;
         from.clips = from.clips.filter(item => item !== clip);
         to.clips.push(clip);
         clip.track = to;
@@ -17741,6 +17696,14 @@ export class CapTimelineEditorApp {
         return this._queueClipsDownstream(clips, workflowPreview);
     }
 
+    async _runSelectedKeyframeDownstream() {
+        if (!this._hasH3VideoGeneratorDownstream()) return;
+        const request = selectedKeyframeRun(this);
+        const target = this._directorKeyframes?.selectedTarget();
+        if (!request || !target) return;
+        return this._runAllActiveClipsDownstream({clips: [target.clip], h3Generation: request});
+    }
+
     async _queueClipsDownstream(clips, workflowPreview = null, h3Generation = null) {
         if ((!h3Generation || (["normal", "draft"].includes(h3Generation.action) && !h3Generation.keyframe_runs)) && this._hasH3VideoGeneratorDownstream()) {
             const request = await confirmKeyframeRun(this, clips);
@@ -17975,7 +17938,19 @@ export class CapTimelineEditorApp {
         const isAudio = track.type === "audio";
         const baseMeta = this._meta.get(clip.id)
             ?? (isAudio ? defaultAudioMeta() : defaultImageMeta());
-        const cloneMeta = () => this._cloneClipMeta(baseMeta);
+        const refs = isDirectorTrackType(track.type)
+            && (baseMeta.referenceTimeline || this._clipItems(baseMeta).some(item => ['video', 'audio'].includes(item.kind)))
+            ? referenceTimeline(this, clip) : null;
+        const keyframeTarget = this._directorKeyframes?.target(clip);
+        const localPoints = refs && keyframeTarget && !keyframeTarget.local
+            ? this._directorKeyframes.points(keyframeTarget).map(point => ({
+                ...point, time: (point.time - keyframeTarget.start) / keyframeTarget.rate,
+            })) : null;
+        const cloneMeta = () => {
+            const meta = this._cloneClipMeta(baseMeta);
+            if (localPoints) meta.video_shots = {source_id: clip.id, points: structuredClone(localPoints)};
+            return meta;
+        };
         const clipId = clip.id;
         const clipStart = clip.startTime;
         const sourceOffset = clip.sourceOffset || 0;
@@ -18004,10 +17979,10 @@ export class CapTimelineEditorApp {
         left._audioBuffer = audioBuffer;
         {
             const lm = cloneMeta();
-            if (this._directorKeyframes?.target(clip)?.local && lm.video_shots) {
+            if ((keyframeTarget?.local || localPoints) && lm.video_shots) {
                 lm.video_shots.points = lm.video_shots.points.filter(point => point.time < leftDur);
             }
-            if (lm.referenceTimeline) lm.referenceTimeline = sliceReferenceTimeline(lm.referenceTimeline, 0, leftDur);
+            if (refs) lm.referenceTimeline = sliceReferenceTimeline(refs, 0, leftDur);
             lm.resourceStartSec = clipStart;
             lm.resourceDurationSec = leftDur;
             if (isAudio) {
@@ -18029,11 +18004,11 @@ export class CapTimelineEditorApp {
         right._audioBuffer = audioBuffer;
         {
             const rm = cloneMeta();
-            if (this._directorKeyframes?.target(clip)?.local && rm.video_shots) {
+            if ((keyframeTarget?.local || localPoints) && rm.video_shots) {
                 rm.video_shots.points = rm.video_shots.points.filter(point => point.time >= leftDur)
                     .map(point => ({...point, time: point.time - leftDur}));
             }
-            if (rm.referenceTimeline) rm.referenceTimeline = sliceReferenceTimeline(rm.referenceTimeline, leftDur, rightDur);
+            if (refs) rm.referenceTimeline = sliceReferenceTimeline(refs, leftDur, rightDur);
             rm.resourceStartSec = t;
             rm.resourceDurationSec = rightDur;
             if (isAudio) {

@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><title>Reference sub-timeline</title>
+<script type="importmap">{"imports": {"/scripts/app.js": "data:text/javascript,export const app={ui:{settings:{getSettingValue:()=> 'zh'}}};"}}</script>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css"><link rel="stylesheet" href="../js/timeline/timeline.css">
+<style>body{font:14px system-ui;background:#10191d;color:#e4edeb;--cat-font-size:14px;--cat-bg:#10191d;--cat-raised:#202c31;--cat-text:#e4edeb;--cat-muted:#a3b5b8;--cat-border:#34464b;--cat-accent:#64d8c5}cap-dialog{--cap-dialog-width:1000px;--cap-dialog-height:640px;--cap-dialog-min-width:420px;--cap-dialog-min-height:300px}.fixture-body{padding:20px 28px}#timeline{height:350px;margin-top:20px}.cat-te-gen-edit-actions{padding:20px 28px}pre{white-space:pre-wrap}</style>
+<cap-dialog><span slot="title">参考子时间轴 · 测试导演 Clip</span><div class="fixture-body"><p>多个视频与音频独立编辑；默认合成一个参考，开启后按轨道传给模型。</p><div id="timeline"></div><pre id="status"></pre></div><div slot="footer" class="cat-te-gen-edit-actions"></div></cap-dialog>
+<script type="module">
+import '../js/components/Dialog.js'; import '../js/components/FormControls.js'; import '../js/components/Switch.js';
+import {Timeline} from '../js/timeline/Timeline.js';
+import {referenceTimelineControls} from '../js/editor/ReferenceTimeline.js';
+const source=await (await fetch('../js/CapTimelineEditorApp.js')).text();
+const normalizeClipVolume=v=>Number(v??1), normalizePlaybackRate=v=>Number(v||1), normalizeVolumePoints=v=>v||[], T=k=>k, TRACK_HEIGHT=64;
+const method=name=>{const start=source.indexOf('    '+name+'(');return new Function('Timeline','T','TRACK_HEIGHT','normalizeClipVolume','normalizePlaybackRate','normalizeVolumePoints','return ({'+source.slice(start,source.indexOf('\n    }',start)+6)+'}).'+name)(Timeline,T,TRACK_HEIGHT,normalizeClipVolume,normalizePlaybackRate,normalizeVolumePoints);};
+const assets=[{id:'v1',kind:'video',file:'video-one.mp4',name:'参考视频一'},{id:'v2',kind:'video',file:'video-two.mp4',name:'参考视频二 · 长名称测试'},{id:'a',kind:'audio',file:'music.wav',name:'参考音乐'}];
+const clip={id:'parent',duration:8,track:{locked:false}}, meta={};
+const state={reference:true,clipId:clip.id,perTrack:false,draft:assets.filter(m=>m.kind==='video').map((m,i)=>({id:m.id,media_id:m.id,file:m.file,location:'input',duration_sec:8,trim_in_sec:0,trim_out_sec:8,edit_start_sec:i*2,volume:1})),audioDraft:[{id:'a',media_id:'a',file:'music.wav',duration:8,edit_start_sec:0,volume:1}]};
+const app=new Proxy({_directorKeyframes:null,_genEditState:state,_projectResources:assets,genEditModal:document.querySelector('cap-dialog'),genEditTlHost:document.querySelector('#timeline'),getFps:()=>24,_findClipById:()=>clip,_ensureClipMeta:()=>meta,_findMediaById:id=>assets.find(m=>m.id===id),_normalizeGenEditAudioDraft:r=>structuredClone(r),_ensureGenVideoAudioBuffer:async()=>null,_fetchPeaks:async()=>({}),_videoUrl:()=>'',_audioUrl:()=>'',_outputVideoUrl:()=>'',_ensureGenVideoDuration:async row=>{row.duration_sec=8;row.trim_out_sec=8;},_destroyGenEditTimeline(){state.timeline?.destroy();},_recordUndo(){},_saveToWidgets(){document.querySelector('#status').textContent='已保存：'+state.draft.length+' 个视频、'+state.audioDraft.length+' 个音频；按轨道：'+state.perTrack;}},{get:(o,k)=>k in o?o[k]:typeof k==='string'&&k.startsWith('_')?()=>{}:undefined});
+for(const name of ['_buildGenEditTimeline','_genEditParentDuration','_genEditTimelineDuration','_genEffectiveDurationSec','_applyGenEditChanges','_syncGenEditClipDisabled'])app[name]=method(name);
+app._buildGenEditTimeline();referenceTimelineControls(app);app._applyGenEditChanges();app.genEditModal.show();
+window.addEventListener('unhandledrejection',e=>document.querySelector('#status').textContent=String(e.reason));
+</script>

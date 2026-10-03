@@ -762,6 +762,12 @@ def _remap_project_files(
             clip.pop("end_image", None)
             clip.pop("start_image", None)
             clip.pop("audio_file", None)
+            timeline = clip.get("reference_timeline") or {}
+            for row in [*timeline.get("videos", []), *timeline.get("audios", [])]:
+                media_row = catalog.get(str(row.get("media_id")))
+                if media_row:
+                    row["file"] = media_row["file"]
+                    row["location"] = "input"
             gens = clip.get("generated_videos")
             if isinstance(gens, list) and generated_mapping:
                 for row in gens:

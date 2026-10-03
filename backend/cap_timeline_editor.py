@@ -20,6 +20,7 @@ from .prompt_text import strip_comment_lines as _strip_comment_lines
 from .cap_clip_prompt_vl import clear_clip_prompt_vl
 from .cap_timeline_project_io import SCHEMA_VERSION, _media_id_for, migrate_project, resolve_clip_media
 from .timecode import resolve_media_path
+from .reference_timeline import compose_reference_timeline
 
 
 def _setting_prompt(settings: dict, key: str) -> str:
@@ -169,6 +170,7 @@ def _material_row(row: dict, resolve_media) -> dict | None:
         "tags": [str(tag).strip() for tag in tags if str(tag).strip()],
         "location": str(row.get("location") or "input"),
         **({"video_trim": dict(row["video_trim"])} if isinstance(row.get("video_trim"), dict) else {}),
+        **({"reference_timeline": True} if row.get("reference_timeline") else {}),
     }
     try:
         stars = int(row.get("stars"))
@@ -766,11 +768,25 @@ class CAP_TimelineEditor:
         reference_outputs = {}
         materials = []
         seen_materials = set()
+        reference_materials = {}
         for clip, start, end, z_index in segments:
             if _is_subtitle_clip(clip):
                 continue
             entries = _clip_visual_entries(project, clip)
+            reference_audios = []
+            if clip.get("reference_timeline"):
+                cid = str(clip["id"])
+                if cid not in reference_materials:
+                    reference_materials[cid] = compose_reference_timeline(project, clip, resolve_media)
+                entries = [entry for entry in entries if entry["row"].get("kind") not in ("video", "audio")]
+                for ref in reference_materials[cid]:
+                    if ref["kind"] == "audio":
+                        reference_audios.append(ref)
+                    else:
+                        entries.append(dict(row=ref, id=ref["id"], enabled=True, use_prompt=False))
             prompt_refs = prompt_reference_rows(project, clip)
+            if clip.get("reference_timeline"):
+                prompt_refs = [ref for ref in prompt_refs if ref.get("kind") not in ("video", "audio")]
             visible_ids = {entry["id"] for entry in entries if entry.get("enabled")}
             for ref in prompt_refs:
                 if ref.get("kind") != "audio" and ref.get("id") not in visible_ids:
@@ -778,7 +794,7 @@ class CAP_TimelineEditor:
             has_media = any(e.get("enabled") and e.get("id") for e in entries)
             has_prompt = bool(_strip_comment_lines(clip.get("prompt") or "").strip())
             # Empty package clips are timeline placeholders (preview only).
-            if not has_media and not has_prompt:
+            if not has_media and not has_prompt and not reference_audios:
                 continue
             for entry in entries:
                 if not entry.get("enabled"):
@@ -827,6 +843,9 @@ class CAP_TimelineEditor:
                 ) if use_audio_track_audio else [],
             }
             audio_ids = {row.get("id") for row in runtime_row["audios"]}
+            for ref in reference_audios:
+                mid = _add_material(materials, seen_materials, ref, resolve_media)
+                runtime_row["audios"].append(dict(id=mid, source_start_ms=0, source_end_ms=ext_end - ext_start, clip_offset_ms=0))
             for ref in prompt_refs:
                 if ref.get("kind") == "audio" and ref.get("id") not in audio_ids:
                     mid = _add_material(materials, seen_materials, ref, resolve_media)

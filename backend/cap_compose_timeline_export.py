@@ -223,7 +223,8 @@ def _collect_plan(
                         duration = min(duration, (float(source_end) - source_in) / rate)
                     if duration <= 0:
                         continue
-                    path = _resolve_output_video(file)
+                    reference = media_map.get(str(gen.get("media_id") or ""))
+                    path = resolve_media_path(reference["file"], location="input") if reference and reference.get("kind") == "video" else _resolve_output_video(file)
                     if not path:
                         raise ValueError(_t("generated_video_not_found", get_last_known_lang(), file=file))
                     end_ms = max(end_ms, round((start_sec + clip_duration) * 1000))

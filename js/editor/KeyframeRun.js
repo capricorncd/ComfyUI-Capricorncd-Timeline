@@ -40,11 +40,12 @@ export async function confirmKeyframeRun(editor, clips) {
         if ((meta.agent || 'MiniMaxH3') !== 'MiniMaxH3') return [];
         const target = editor._directorKeyframes.target(clip);
         if (!target) return [];
+        if (target.local && !editor._directorKeyframes.points(target).length) return [];
         const points = editor._directorKeyframes.points(target).map(point => ({
             time: (point.time - target.start) / target.rate, description: point.description,
         }));
         return [{clip_id: String(clip.id), clip_start_ms: Math.round(clip.startTime * 1000), fps,
-            reference: {id: target.media.id, start: target.start, rate: target.rate},
+            ...(!target.local ? {reference: {id: target.media.id, start: target.start, rate: target.rate}} : {}),
             intervals: keyframeIntervals(clip.duration, fps, points)}];
     });
     if (!runs.length) return {};

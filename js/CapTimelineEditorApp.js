@@ -11,6 +11,7 @@ import { openInsertClip } from './editor/InsertClip.js';
  */
 
 import "./components/TabButton.js";
+import { referenceTimeline, referenceTimelineControls, sliceReferenceTimeline } from './editor/ReferenceTimeline.js';
 import { mergeReferenceProject } from './editor/MergeReferenceProject.js';
 import "./components/ProjectVideoList.js";
 import "./components/PromptHistoryActions.js";
@@ -1521,7 +1522,6 @@ export class CapTimelineEditorApp {
         this.projectVideosPanel?.stop();
         if (save && this._launcherProject?.session) void this._saveLauncherProject(true);
         this._referenceProject?.dialog.close();
-        this._videoTrim?.stop();
         this._h3DraftVersions?.dialog.close();
         // Invalidate any in-flight _openEditor so it won't rebuild after close.
         this._openGen += 1;
@@ -7185,8 +7185,8 @@ export class CapTimelineEditorApp {
         this._meta.set(clip.id, m);
     }
 
-    async _probeOutputVideoDuration(file) {
-        const url = this._outputVideoUrl(file);
+    async _probeOutputVideoDuration(file, location = "output") {
+        const url = location === "input" ? this._videoUrl(file) : this._outputVideoUrl(file);
         if (!url) return null;
         return new Promise((resolve) => {
             const video = document.createElement("video");
@@ -7210,7 +7210,7 @@ export class CapTimelineEditorApp {
         if (!gen?.file) return null;
         const cur = Number(gen.duration_sec);
         if (Number.isFinite(cur) && cur > 0) return cur;
-        const dur = await this._probeOutputVideoDuration(gen.file);
+        const dur = await this._probeOutputVideoDuration(gen.file, gen.location || "output");
         if (dur != null) {
             gen.duration_sec = dur;
             if (gen.trim_out_sec == null) gen.trim_out_sec = dur;
@@ -9655,23 +9655,24 @@ export class CapTimelineEditorApp {
         }
     }
 
-    async _openGenEditModal(clip) {
+    async _openGenEditModal(clip, {reference = false} = {}) {
         if (!this.genEditModal || !clip || clip.track?.type === "audio" || this._genEditState?.merging) return;
         if (isSubtitleTrackType(clip.track?.type)) return;
         const loadSeq = this._loadSeq;
         // Resolve both sides of Context splices before taking the editable snapshot.
-        for (const sibling of [...clip.track.clips]) {
+        for (const sibling of (reference ? [] : [...clip.track.clips])) {
             await this._resolveH3VideoTiming(sibling);
             if (this._destroyed || loadSeq !== this._loadSeq) return;
         }
         const m = this._ensureClipMeta(clip);
-        const rows = this._clipGeneratedVideos(m);
-        if (!rows.length && !m.genEditAudios?.length) {
+        const refs = reference ? referenceTimeline(this, clip) : null;
+        const rows = refs ? refs.videos : this._clipGeneratedVideos(m);
+        if (!reference && !rows.length && !m.genEditAudios?.length) {
             showCapAlert(T("gen_edit_no_videos"));
             return;
         }
         this._closeGenVideoModal();
-        const draft = rows.map((r) => this._cloneGenVideoDraft(r)).filter(Boolean);
+        const draft = rows.map((r) => reference ? structuredClone(r) : this._cloneGenVideoDraft(r)).filter(Boolean);
         await Promise.all(draft.map((g) => this._ensureGenVideoDuration(g)));
         const clipDur = this._genEditParentDuration(clip);
         for (const g of draft) {
@@ -9694,8 +9695,9 @@ export class CapTimelineEditorApp {
         }
         this._genEditState = {
             clipId: clip.id,
+            reference, perTrack: refs?.per_track === true,
             draft,
-            audioDraft: this._normalizeGenEditAudioDraft(m.genEditAudios),
+            audioDraft: this._normalizeGenEditAudioDraft(refs ? refs.audios : m.genEditAudios),
             undoRecorded: false,
             // generatedVideos is newest-first; select the newest entry.
             selectedId: draft[0]?.id || null,
@@ -9704,9 +9706,10 @@ export class CapTimelineEditorApp {
             previewRaf: 0,
         };
         if (this.genEditTitle) {
-            this.genEditTitle.textContent = T("gen_edit_modal_title_named", { name: clip.name || DEFAULT_CLIP_NAME })
-                + (m.muted ? ` · ${T("muted_label")}` : '');
+            this.genEditTitle.textContent = reference ? `${T("reference_timeline")} · ${clip.name || DEFAULT_CLIP_NAME}` : T("gen_edit_modal_title_named", { name: clip.name || DEFAULT_CLIP_NAME });
         }
+        referenceTimelineControls(this);
+        this.genEditModal.querySelector(".cat-te-gen-edit-merge").hidden = reference;
         this.genEditStatus.setStatus("");
         this.genEditModal.hidden = false;
         try { this._timeline?.pause?.(); } catch { /* ignore */ }
@@ -9723,7 +9726,7 @@ export class CapTimelineEditorApp {
         this._syncGenEditInspector();
         // Warm-decode audio so play doesn't start silent / delayed.
         for (const g of draft) {
-            if (g?.file) void this._ensureGenVideoAudioBuffer(g.file, "output");
+            if (g?.file) void this._ensureGenVideoAudioBuffer(g.file, g.location || "output");
         }
         for (const a of this._genEditState.audioDraft || []) {
             if (a?.file) void this._ensureGenVideoAudioBuffer(a.file, "input");
@@ -9764,9 +9767,13 @@ export class CapTimelineEditorApp {
         st.clipDur = clipDur;
 
         const n = st.draft.length;
+        const referenceTracks = new Map();
         for (let i = 0; i < n; i++) {
             const gen = st.draft[i];
-            const track = tl.addTrackAt({
+            const trackId = gen.track_id || `ref-track-${gen.id}`;
+            const existing = st.reference ? referenceTracks.get(trackId) : null;
+            const track = existing || tl.addTrackAt({
+                ...(st.reference ? {id: trackId} : {}),
                 type: "image",
                 name: (gen.file || "").split(/[\\/]/).pop() || T("gen_video_label"),
                 isMain: i === n - 1,
@@ -9776,7 +9783,8 @@ export class CapTimelineEditorApp {
             track.headerEl.style.height = `${TRACK_HEIGHT}px`;
             track.setVisible(gen.enabled !== false);
             track.setMuted(gen.muted === true);
-            this._setupGenEditTrackControls(track, gen.id);
+            if (!existing) this._setupGenEditTrackControls(track, gen.id);
+            if (st.reference) { referenceTracks.set(trackId, track); gen.track_id = trackId; }
 
             const tin = Math.max(0, Number(gen.trim_in_sec) || 0);
             let eff = this._genEffectiveDurationSec(gen);
@@ -9788,7 +9796,7 @@ export class CapTimelineEditorApp {
             }
             const startSec = Math.max(0, Number(gen.edit_start_sec) || 0);
             const dur = Math.max(0.05, eff);
-            const src = this._outputVideoUrl(gen.file);
+            const src = gen.location === "input" ? this._videoUrl(gen.file) : this._outputVideoUrl(gen.file);
             const c = track.addClip({
                 name: (gen.file || "").split(/[\\/]/).pop() || T("gen_video_label"),
                 startTime: startSec,
@@ -9807,7 +9815,7 @@ export class CapTimelineEditorApp {
                 c.el.dataset.genId = gen.id;
                 this._syncGenEditClipDisabled(c, gen.enabled !== false);
                 c.waveformVolume = normalizeClipVolume(gen.volume);
-                void this._ensureGenVideoAudioBuffer(gen.file).then(buffer => {
+                void this._ensureGenVideoAudioBuffer(gen.file, gen.location || "output").then(buffer => {
                     if (!buffer || this._genEditState !== st || st.timeline !== tl || !c.el?.isConnected) return;
                     c.hasAudio = true;
                     c._audioBuffer = buffer;
@@ -10079,6 +10087,9 @@ export class CapTimelineEditorApp {
                     const row = st?.draft?.find((g) => g.id === genId);
                     if (!row) return;
                     row.enabled = !(row.enabled !== false);
+                    if (st.reference) for (const other of st.draft) {
+                        if (other.track_id === row.track_id) other.enabled = row.enabled;
+                    }
                     track.setVisible(row.enabled !== false);
                     for (const c of track.clips || []) {
                         this._syncGenEditClipDisabled(c, row.enabled !== false);
@@ -10101,6 +10112,9 @@ export class CapTimelineEditorApp {
                     const row = st?.draft?.find((g) => g.id === genId);
                     if (!row) return;
                     row.muted = !row.muted;
+                    if (st.reference) for (const other of st.draft) {
+                        if (other.track_id === row.track_id) other.muted = row.muted;
+                    }
                     track.setMuted(!!row.muted);
                     render();
                     this._applyGenEditChanges();
@@ -10209,6 +10223,8 @@ export class CapTimelineEditorApp {
                     nextAudio.push({
                         id: aid || genAudioUid(),
                         track_id: track.id,
+                        ...(prev?.media_id ? {media_id: prev.media_id} : {}),
+                        ...(prev?.location ? {location: prev.location} : {}),
                         file: String(c.src || prev?.file || "").replace(/\\/g, "/"),
                         edit_start_sec: Math.max(0, Number(c.startTime) || 0),
                         duration: Math.max(0.05, Number(c.duration) || 0.05),
@@ -10234,6 +10250,7 @@ export class CapTimelineEditorApp {
                 const start = Math.max(0, Number(c.startTime) || 0);
                 next.push({
                     ...prev,
+                    ...(st.reference ? {track_id: track.id} : {}),
                     enabled: track.visible !== false,
                     muted: track.muted === true,
                     edit_start_sec: start,
@@ -10536,7 +10553,7 @@ export class CapTimelineEditorApp {
 
         try {
             const file = await this._extractAudioFromMedia('', {
-                mix: [{ file: gen.file, location: "output", trim_in_sec: tin, duration_sec: eff,
+                mix: [{ file: gen.file, location: gen.location || "output", trim_in_sec: tin, duration_sec: eff,
                     edit_start_sec: 0, playback_rate: normalizePlaybackRate(gen.playback_rate), volume: 1 }],
                 durationSec: eff,
             });
@@ -10614,7 +10631,7 @@ export class CapTimelineEditorApp {
         const clip = this._findClipById(state.clipId);
         if (!source || !clip) return;
         this._localAudioJobs.open(clip, { state, videoId, audioId, disableSource: kind === 'vc', start: timelineClip.startTime,
-            sources: [{ file: source.file, location: videoId ? "output" : "input", trim_in_sec: timelineClip.sourceOffset || 0,
+            sources: [{ file: source.file, location: source.location || (videoId ? "output" : "input"), trim_in_sec: timelineClip.sourceOffset || 0,
                 duration_sec: timelineClip.duration, playback_rate: timelineClip.playbackRate || 1 }] }, kind);
     }
 
@@ -10671,6 +10688,8 @@ export class CapTimelineEditorApp {
             return {
                 id: String(row.id || "").trim() || genAudioUid(),
                 track_id: typeof row.track_id === "string" ? row.track_id : null,
+                ...(row.media_id ? {media_id: row.media_id} : {}),
+                ...(row.location ? {location: row.location} : {}),
                 file,
                 edit_start_sec: Math.max(0, Number(row.edit_start_sec ?? row.editStartSec) || 0),
                 duration: Math.max(0.05, Number(row.duration ?? row.duration_sec) || 0.05),
@@ -11054,6 +11073,7 @@ export class CapTimelineEditorApp {
                 transform: gen,
                 playbackRate: normalizePlaybackRate(gen.playback_rate),
                 file: gen.file,
+                location: gen.location || "output",
                 muted: gen.muted === true,
                 trimInSec: Math.max(0, Number(gen.trim_in_sec) || 0),
                 editStartSec: start,
@@ -11125,7 +11145,7 @@ export class CapTimelineEditorApp {
         const st = this._genEditState;
         const tl = st?.timeline;
         if (!st || !tl || !tl._playing) return;
-        if (this._meta.get(st.clipId)?.muted) return;
+
         const ctx = this._ensurePlaybackContext();
         const startCtxTime = ctx.currentTime + 0.03;
         const startPlayhead = tl.currentTime;
@@ -11142,7 +11162,7 @@ export class CapTimelineEditorApp {
             if (end <= startPlayhead + 1e-6) continue;
             jobs.push({
                 file: row.file,
-                location: "input",
+                location: row.location || "input",
                 tin: Math.max(0, Number(row.source_offset) || 0),
                 start,
                 end,
@@ -11165,7 +11185,7 @@ export class CapTimelineEditorApp {
             if (end <= start || end <= startPlayhead + 1e-6) continue;
             jobs.push({
                 file: gen.file,
-                location: "output",
+                location: gen.location || "output",
                 volume: normalizeClipVolume(gen.volume),
                 playbackRate: normalizePlaybackRate(gen.playback_rate),
                 tin: Math.max(0, Number(gen.trim_in_sec) || 0),
@@ -11226,6 +11246,25 @@ export class CapTimelineEditorApp {
         const m = this._ensureClipMeta(clip);
         const videos = st.draft.map((g) => ({ ...g }));
         const audios = this._normalizeGenEditAudioDraft(st.audioDraft);
+        if (st.reference) {
+            if (clip.track.locked) return;
+            for (const audio of audios) {
+                if (!audio.media_id) audio.media_id = this._ensureMedia("audio", audio.file).id;
+            }
+            const next = { videos, audios, per_track: st.perTrack === true };
+            if (JSON.stringify(m.referenceTimeline) === JSON.stringify(next)) return;
+            if (!st.undoRecorded) { this._recordUndo(); st.undoRecorded = true; }
+            const target = this._directorKeyframes?.target(clip);
+            if (target && !target.local) {
+                m.video_shots = {source_id: clip.id, points: this._directorKeyframes.points(target).map(point => ({
+                    ...point, time: (point.time - target.start) / target.rate,
+                }))};
+            }
+            m.referenceTimeline = next;
+            this._directorKeyframes?.sync(clip);
+            this._saveToWidgets();
+            return;
+        }
         if (JSON.stringify(m.generatedVideos || []) === JSON.stringify(videos)
             && JSON.stringify(m.genEditAudios || []) === JSON.stringify(audios)) return;
         if (!st.undoRecorded) {
@@ -14588,14 +14627,14 @@ export class CapTimelineEditorApp {
         const jobs = [];
         const t0 = Math.max(0, Number(fromTime) || 0);
         for (const track of this._allImageTracks()) {
-            if (track.visible === false || track.muted) continue;
+            if (!onlyClip && (track.visible === false || track.muted)) continue;
             if (this._draftPreviewMode && !onlyClip && isDirectorTrackType(track.type)) continue;
             const info = this._trackInfo.get(track.id) || {};
-            if (info.enabled === false) continue;
+            if (!onlyClip && info.enabled === false) continue;
             for (const clip of track.clips) {
                 if (onlyClip && clip !== onlyClip) continue;
                 const m = this._meta.get(clip.id) ?? defaultImageMeta();
-                if (m.disabled || m.visible === false || m.muted) continue;
+                if (!onlyClip && (m.disabled || m.visible === false || m.muted)) continue;
                 const gens = onlyClip || this._clipUsesGeneratedPreview(m)
                     ? this._clipGeneratedVideos(m).filter((g) => g.enabled !== false) : [];
                 for (const gen of gens) {
@@ -14612,7 +14651,7 @@ export class CapTimelineEditorApp {
                     const absStart = clip.startTime + editStart;
                     const absEnd = Math.min(clip.endTime, absStart + eff);
                     if (absEnd <= absStart || absEnd <= t0 + 1e-6) continue;
-                    jobs.push({ file: gen.file, location: "output", tin, absStart, absEnd, playbackRate: normalizePlaybackRate(gen.playback_rate), volume: normalizeClipVolume(m.volume) * normalizeClipVolume(gen.volume), volumePoints: gen.volume_points });
+                    jobs.push({ file: gen.file, location: "output", tin, absStart, absEnd, playbackRate: normalizePlaybackRate(gen.playback_rate), volume: (onlyClip ? 1 : normalizeClipVolume(m.volume)) * normalizeClipVolume(gen.volume), volumePoints: gen.volume_points });
                 }
                 // Detached audios from gen-edit modal (saved on the clip).
                 for (const row of this._normalizeGenEditAudioDraft(m.genEditAudios)) {
@@ -14626,7 +14665,7 @@ export class CapTimelineEditorApp {
                         tin: Math.max(0, Number(row.source_offset) || 0),
                         absStart,
                         absEnd,
-                        volume: normalizeClipVolume(m.volume) * normalizeClipVolume(row.volume),
+                        volume: (onlyClip ? 1 : normalizeClipVolume(m.volume)) * normalizeClipVolume(row.volume),
                         volumePoints: row.volume_points,
                     });
                 }
@@ -15275,6 +15314,8 @@ export class CapTimelineEditorApp {
                 text,
                 characterMediaId: c.character_media_id || "",
                 speechPrompt: c.speech_prompt || "",
+                video_shots: c.keyframes ? structuredClone(c.keyframes) : null,
+                referenceTimeline: c.reference_timeline ? structuredClone(c.reference_timeline) : null,
                 disabled: !!c.disabled,
                 visible: c.visible !== false,
                 trackIndex: trackIdx,
@@ -15353,6 +15394,8 @@ export class CapTimelineEditorApp {
                 seed: this._normalizeClipSeed(c.seed),
                 generatedVideos: this._generatedVideosFromJson(c),
                 genEditAudios: this._normalizeGenEditAudioDraft(c.gen_edit_audios),
+            video_shots: c.keyframes ? structuredClone(c.keyframes) : null,
+            referenceTimeline: c.reference_timeline ? structuredClone(c.reference_timeline) : null,
                 previewMode: this._previewModeFromJson(c),
                 resourceDurationSec: Math.max(
                     0.05,
@@ -15441,6 +15484,8 @@ export class CapTimelineEditorApp {
             })),
                 generatedVideos: this._generatedVideosFromJson(c),
                 genEditAudios: this._normalizeGenEditAudioDraft(c.gen_edit_audios),
+            video_shots: c.keyframes ? structuredClone(c.keyframes) : null,
+            referenceTimeline: c.reference_timeline ? structuredClone(c.reference_timeline) : null,
                 previewMode: this._previewModeFromJson(c),
                 resourceDurationSec: Math.max(
                     0.05,
@@ -15506,6 +15551,8 @@ export class CapTimelineEditorApp {
             })),
             generatedVideos: this._generatedVideosFromJson(c),
             genEditAudios: this._normalizeGenEditAudioDraft(c.gen_edit_audios),
+            video_shots: c.keyframes ? structuredClone(c.keyframes) : null,
+            referenceTimeline: c.reference_timeline ? structuredClone(c.reference_timeline) : null,
             previewMode: this._previewModeFromJson(c),
             resourceDurationSec: Math.max(
                 0.05,
@@ -15608,11 +15655,6 @@ export class CapTimelineEditorApp {
         meta.muted = !!muted;
         this._decorateClip(clip);
         if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
-        if (this._genEditState?.clipId === clip.id) {
-            this.genEditTitle.textContent = T("gen_edit_modal_title_named", { name: clip.name || DEFAULT_CLIP_NAME })
-                + (meta.muted ? ` · ${T("muted_label")}` : '');
-            if (this._genEditState.timeline?._playing) void this._startGenEditAudioPlayback();
-        }
         if (this._timeline?._playing) this._startAudioPlayback();
         this._saveToWidgets();
         this._scheduleProgramPreview();
@@ -15730,7 +15772,7 @@ export class CapTimelineEditorApp {
         const genPreview = this._clipUsesGeneratedPreview(m);
         // Video badge: hover plays the clip's edited composition (or live sampling);
         // click toggles normal ↔ generated preview state.
-        const showPreviewBadge = !!(enabledGen || runPreview?.url);
+        const showPreviewBadge = !!(enabledGen || runPreview?.url || m.genEditAudios?.some(row => row.enabled !== false));
         if (showPreviewBadge) {
             if (!previewBadge) {
                 previewBadge = document.createElement("button");
@@ -15749,7 +15791,7 @@ export class CapTimelineEditorApp {
                         return;
                     }
                     const meta = this._meta.get(clip.id) ?? defaultImageMeta();
-                    if (this._firstEnabledGeneratedVideo(meta)?.file) this._startClipHoverPreview(clip);
+                    if (this._firstEnabledGeneratedVideo(meta)?.file || meta.genEditAudios?.some(row => row.enabled !== false)) this._startClipHoverPreview(clip);
                 });
                 previewBadge.addEventListener("mouseleave", () => {
                     this._scheduleResourceGenProgramPreviewStop();
@@ -16885,6 +16927,9 @@ export class CapTimelineEditorApp {
                 for (const id of [...(clip.media_ids || []), ...(clip.prompt_media_ids || []), clip.character_media_id]) {
                     if (id) used.add(String(id));
                 }
+                for (const row of [...(clip.reference_timeline?.videos || []), ...(clip.reference_timeline?.audios || [])]) {
+                    if (row.media_id) used.add(String(row.media_id));
+                }
                 for (const row of clip.generated_videos || []) if (row.file) files.add(fileKey("video", row.file));
                 for (const row of [...(clip.generated_audios || []), ...(clip.gen_edit_audios || [])]) {
                     if (row.file) files.add(fileKey("audio", row.file));
@@ -17140,7 +17185,8 @@ export class CapTimelineEditorApp {
         const generation = [], media = [], audio = [];
         const keyframes = this._directorKeyframes?.target(clip) ? [
             { label: T("shot_add"), shortcut: "Ctrl+P", icon: "pin", fn: () => this._directorKeyframes.add(clip, t) },
-            { label: T("shot_detect"), icon: "layersPlus", disabled: this._directorKeyframes.detecting.has(clip.id), fn: () => void this._directorKeyframes.detect(clip) },
+            ...(!this._directorKeyframes.target(clip).local ? [{ label: T("shot_detect"), icon: "layersPlus", disabled: this._directorKeyframes.detecting.has(clip.id), fn: () => void this._directorKeyframes.detect(clip) }] : []),
+            { label: T("shot_clear"), icon: "trash", danger: true, disabled: !this._directorKeyframes.points(this._directorKeyframes.target(clip)).length, fn: () => this._directorKeyframes.clear(clip) },
         ] : [];
         const editing = [
             { label: T("insert_clip_title"), icon: "insert", fn: () => openInsertClip(this, clip) },
@@ -17192,7 +17238,7 @@ export class CapTimelineEditorApp {
             );
             prompts.push({ label: T("menu_ai_optimize_prompt"), icon: "sparkles", fn: () => void this._openAiOptimizeModal(clip) });
             if (this._clipGeneratedVideos(m).length) media.push({ label: T("menu_trim_video"), icon: "timeline", fn: () => void this._openGenEditModal(clip) });
-            if (this._clipItems(m).some(item => item.kind === "video")) media.push({ label: T("trim_reference_video"), icon: "scissors", fn: () => this._videoTrim.open(clip) });
+            media.push({ label: T("reference_timeline"), icon: "timeline", fn: () => void this._openGenEditModal(clip, {reference: true}) });
             media.push({ label: T("linked_generated_videos_title"), icon: "link", fn: () => void this._openOutputVideosPicker(clip) });
             if (this._clipGeneratedVideos(m).length || m.genEditAudios?.length) audio.push({
                 icon: m.muted ? "volume" : "volumeOff", label: m.muted ? T("unmute_label") : T("mute_label"), fn: () => this._setDirectorClipMuted(clip, !m.muted),
@@ -17366,6 +17412,8 @@ export class CapTimelineEditorApp {
 
     _cloneClipMeta(meta) {
         const m = { ...(meta || {}) };
+        if (meta?.video_shots) m.video_shots = structuredClone(meta.video_shots);
+        if (meta?.referenceTimeline) m.referenceTimeline = structuredClone(meta.referenceTimeline);
         if (Array.isArray(meta?.items)) {
             m.items = meta.items.map((item) => (
                 item && typeof item === "object" ? { ...item } : item
@@ -17956,6 +18004,10 @@ export class CapTimelineEditorApp {
         left._audioBuffer = audioBuffer;
         {
             const lm = cloneMeta();
+            if (this._directorKeyframes?.target(clip)?.local && lm.video_shots) {
+                lm.video_shots.points = lm.video_shots.points.filter(point => point.time < leftDur);
+            }
+            if (lm.referenceTimeline) lm.referenceTimeline = sliceReferenceTimeline(lm.referenceTimeline, 0, leftDur);
             lm.resourceStartSec = clipStart;
             lm.resourceDurationSec = leftDur;
             if (isAudio) {
@@ -17977,6 +18029,11 @@ export class CapTimelineEditorApp {
         right._audioBuffer = audioBuffer;
         {
             const rm = cloneMeta();
+            if (this._directorKeyframes?.target(clip)?.local && rm.video_shots) {
+                rm.video_shots.points = rm.video_shots.points.filter(point => point.time >= leftDur)
+                    .map(point => ({...point, time: point.time - leftDur}));
+            }
+            if (rm.referenceTimeline) rm.referenceTimeline = sliceReferenceTimeline(rm.referenceTimeline, leftDur, rightDur);
             rm.resourceStartSec = t;
             rm.resourceDurationSec = rightDur;
             if (isAudio) {
@@ -18328,7 +18385,7 @@ export class CapTimelineEditorApp {
         const layer = layers.at(-1);
         if (!layer || (layer.kind !== "generated" && layer.kind !== "video")) return;
         const file = layer.kind === "generated" ? layer.file : (layer.item?.file || layer.clip.src);
-        const location = layer.kind === "generated" ? "output" : "input";
+        const location = layer.kind === "generated" ? (layer.location || "output") : "input";
         const slot = JSON.stringify([layer.clip.id, layer.kind === "generated" ? layer.transform?.id : layer.itemIndex]);
         const entry = this._ensurePreviewVideo(file, location, slot);
         if (!entry || usedKeys.has(entry.key)) return;
@@ -18496,7 +18553,7 @@ export class CapTimelineEditorApp {
             }
             if (layer.kind === "generated" || layer.kind === "video") {
                 const file = layer.kind === "generated" ? layer.file : (layer.item?.file || layer.clip.src);
-                const location = layer.kind === "generated" ? "output" : "input";
+                const location = layer.kind === "generated" ? (layer.location || "output") : "input";
                 // Overlapping uses of one file need independent playback positions.
                 const slot = JSON.stringify([layer.clip.id, layer.kind === "generated" ? layer.transform?.id : layer.itemIndex]);
                 const entry = this._ensurePreviewVideo(file, location, slot);
@@ -21007,6 +21064,7 @@ export class CapTimelineEditorApp {
                         id: clip.id,
                         ...(clip.groupId ? { group_id: clip.groupId } : {}),
                         type: "subtitle",
+                        ...(m.video_shots ? { keyframes: structuredClone(m.video_shots) } : {}),
                         enabled: !m.disabled,
                         visible: m.visible !== false,
                         start_ms: startMs,
@@ -21054,6 +21112,7 @@ export class CapTimelineEditorApp {
                     id: clip.id,
                     ...(clip.groupId ? { group_id: clip.groupId } : {}),
                     type: track.type === "audio" ? "audio" : isMediaTrackType(track.type) ? "media" : "clip",
+                    ...(m.video_shots ? { keyframes: structuredClone(m.video_shots) } : {}),
                     enabled: !m.disabled,
                     visible: m.visible !== false,
                     muted: !!m.muted,
@@ -21089,6 +21148,7 @@ export class CapTimelineEditorApp {
                     }
                 } else {
                     row.name = clip.name || DEFAULT_CLIP_NAME;
+                    if (m.referenceTimeline) row.reference_timeline = structuredClone(m.referenceTimeline);
                     row.prompt = m.prompt ?? "";
                     row.prompt_includes = normalizePromptIncludes(m.promptIncludes);
                     row.use_prepend_prompt = m.usePrependPrompt !== false;

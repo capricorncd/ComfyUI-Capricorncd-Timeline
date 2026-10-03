@@ -100,5 +100,18 @@ class KeyframeRunTests(unittest.TestCase):
         data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24, intervals=[])])
         with self.assertRaises(ValueError): module.expand_keyframe_runs(data)
 
+    def test_non_video_keyframes_slice_composed_reference(self):
+        data = self.data()
+        data['clips'][0].update(clip_role='multi_ref', end_ms=6000)
+        data['materials'][0].update(reference_timeline=True, video_trim=dict(file='mixed.mp4', start=0, duration=5, rate=1))
+        data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24,
+            intervals=[dict(start_frame=48, end_frame=120, prompt='Turn around')])])
+        self.assertTrue(module.expand_keyframe_runs(data))
+        row = data['clips'][0]
+        self.assertEqual(row['prompt'], 'Turn around')
+        material = next(item for item in data['materials'] if item['id'] == row['images'][0]['id'])
+        self.assertEqual(material['video_trim']['start'], 2)
+        self.assertEqual(material['video_trim']['duration'], 3)
+
 
 if __name__ == '__main__': unittest.main()

@@ -35,14 +35,16 @@ export class DirectorKeyframes {
         });
     }
     target(clip) {
-        if (!clip || !this.isDirector(clip.track.type)) return null;
+        if (!clip || ['audio', 'voiceover'].includes(clip.track.type)) return null;
         const meta = this.app._ensureClipMeta(clip);
-        if (meta.clipRole !== 'video_ref') return null;
+        const local = () => ({clip, media: meta, source: {item: {id: clip.id}, rate: 1},
+            start: 0, rate: 1, duration: clip.duration, local: true});
+        if (!this.isDirector(clip.track.type) || meta.clipRole !== 'video_ref' || meta.referenceTimeline) return local();
         const items = this.app._clipItems(meta);
         const current = items[this.app._clipPreviewItemIndex(clip, meta)];
         const item = current?.kind === 'video' && current.enabled !== false ? current
             : items.find(row => row.kind === 'video' && row.enabled !== false);
-        if (!item) return null;
+        if (!item) return local();
         const media = this.app._findMediaById(item.id);
         if (!media) return null;
         let source;
@@ -52,14 +54,14 @@ export class DirectorKeyframes {
     }
     points(target) {
         const saved = target.media.video_shots;
-        return saved?.source_id === target.source.item.id ? saved.points : [];
+        return saved && (target.local || saved.source_id === target.source.item.id) ? saved.points : [];
     }
     sync(clip) {
         const target = this.target(clip);
         let markers = clip?.el?.querySelector('cap-shot-markers');
         if (!target) { markers?.remove(); return; }
         if (!target.media.video_shots) {
-            target.media.video_shots = {source_id: target.source.item.id, points: [{time: target.start, description: ''}]};
+            target.media.video_shots = {source_id: target.source.item.id, points: target.local ? [] : [{time: target.start, description: ''}]};
         }
         if (!markers) {
             markers = document.createElement('cap-shot-markers');
@@ -77,7 +79,7 @@ export class DirectorKeyframes {
         if (!selection) return null;
         const clip = this.app._findClipById(selection.clipId);
         const target = this.target(clip);
-        if (!clip?.selected || target?.media.id !== selection.mediaId || !this.points(target).includes(selection.point)) return null;
+        if (!clip?.selected || !target || (target.media.id || clip.id) !== selection.mediaId || !this.points(target).includes(selection.point)) return null;
         if (selection.point.time < target.start - 1e-7 || selection.point.time >= target.start + target.duration - 1e-7) return null;
         return target;
     }
@@ -100,7 +102,7 @@ export class DirectorKeyframes {
     select(target, point) {
         if (!point || target.clip.track.locked) return;
         this.app._timeline.selectClip(target.clip);
-        this.selection = {clipId: target.clip.id, mediaId: target.media.id, point};
+        this.selection = {clipId: target.clip.id, mediaId: target.media.id || target.clip.id, point};
         this.editing = false;
         this.app._timeline.setCurrentTime(target.clip.startTime + (point.time - target.start) / target.rate);
         this.sync(target.clip); this.refreshPanel();
@@ -137,6 +139,14 @@ export class DirectorKeyframes {
             this.save(target);
         }
         return true;
+    }
+    clear(clip) {
+        const target = this.target(clip);
+        if (!target || clip.track.locked || !this.points(target).length) return;
+        this.app._recordUndo();
+        target.media.video_shots = {source_id: target.source.item.id, points: []};
+        this.clearSelection();
+        this.save(target);
     }
     move(delta) {
         const target = this.selectedTarget();
@@ -175,7 +185,7 @@ export class DirectorKeyframes {
     }
     async detect(clip) {
         const target = this.target(clip);
-        if (!target || clip.track.locked || this.detecting.has(clip.id)) return;
+        if (!target || target.local || clip.track.locked || this.detecting.has(clip.id)) return;
         this.sync(clip);
         this.detecting.add(clip.id);
         this.app._timeline.selectClip(clip);

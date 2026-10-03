@@ -3961,16 +3961,7 @@ body.cat-te-media-dnd-over-tl {
     .cat-te-video-convert-body { padding: 16px 18px; }
 }
 
-.cat-te-video-trim-dialog { --cap-dialog-width: 960px; --cap-dialog-height: fit-content; --cap-dialog-min-width: 360px; --cap-dialog-min-height: 240px; }
-.cat-te-video-trim-body { padding: 16px; display: grid; gap: 12px; min-width: 0; }
-.cat-te-video-trim-body label { display: grid; gap: 5px; color: var(--cat-muted); font-size: calc(var(--cat-font-size, 1rem) * 0.857143); }
-.cat-te-video-trim-body select { box-sizing: border-box; width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--cat-border); border-radius: 5px; background: var(--cat-input, #172327); color: var(--cat-text); }
-.cat-te-video-trim-stage { display: flex; justify-content: center; align-items: center; background: #101719; border-radius: 6px; overflow: hidden; }
-.cat-te-video-trim-stage video { display: block; width: 100%; height: min(34vh, 340px); object-fit: contain; }
-.cat-te-video-trim-summary { font-size: calc(var(--cat-font-size, 1rem) * 0.857143); color: var(--cat-muted); font-variant-numeric: tabular-nums; }
-.cat-te-video-trim-dialog [slot="footer"] { display: flex; justify-content: flex-end; gap: 8px; }
 
-.cat-te-video-trim-body [hidden] { display: none; }
 
 .cat-te-insert-storyboard-body, .cat-te-insert-clip-body { padding: 12px 14px; }
 
@@ -4030,9 +4021,6 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-storyboard-settings textarea[name="dialogue"] { min-height: 96px; }
 .cat-te-storyboard-settings [data-selection-empty] { margin: 12px 0; padding: 24px 16px; color: var(--cat-muted); text-align: center; border: 1px dashed var(--cat-border); border-radius: 10px; font-size: calc(var(--cat-font-size, 1rem) * 0.928571); }
 
-.cat-te-video-trim-navigation { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.cat-te-video-trim-navigation label { flex: 1; min-width: 0; }
-.cat-te-video-trim-navigation [data-position] { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cat-te-reference-project {
     --cap-dialog-width: 1000px;
     --cap-dialog-height: 720px;
@@ -4144,3 +4132,7 @@ body.cat-te-media-dnd-over-tl {
 cap-dialog.cat-te-add-material-modal > .cat-te-add-material-preview { flex: 1; min-height: 0; padding: 16px 28px; display: flex; align-items: stretch; box-sizing: border-box; }
 .cat-te-add-material-preview > cap-image-compare { width: 100%; height: auto; flex: 1; }
 .cat-te-add-material-actions > label { margin-right: auto; }
+
+.cat-te-reference-timeline-tools:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.cat-te-reference-timeline-tools cap-select { min-width: 0; flex: 1; }
+.cat-te-reference-timeline-tools label { display: flex; align-items: center; gap: 8px; }

@@ -31,7 +31,12 @@ const jobs=app._collectGeneratedVideoAudioJobs(10,clip);
 assert.deepEqual(jobs.map(j=>j.file),['new.mp4','voice.wav'],'mix only this clip, respect muted video');
 assert.deepEqual(jobs.map(j=>[j.absStart,j.absEnd,j.tin]),[[12,14,1],[11,15,2]]);
 assert.equal(jobs[1].volumePoints,meta.genEditAudios[0].volume_points);
-assert.equal(app._collectGeneratedVideoAudioJobs(10).length,0,'normal timeline still respects preview mode');
+assert.deepEqual(app._collectGeneratedVideoAudioJobs(10).map(job => job.file), ['voice.wav'], 'Normal timeline omits videos in media preview mode');
+meta.muted = true; meta.volume = 0; track.muted = true;
+assert.deepEqual(app._collectGeneratedVideoAudioJobs(10, clip).map(job => job.file), ['new.mp4', 'voice.wav'], 'Hover ignores parent Clip and track mute');
+assert(app._collectGeneratedVideoAudioJobs(10, clip).every(job => job.volume > 0), 'Parent volume only applies to the main timeline');
+assert.equal(app._collectGeneratedVideoAudioJobs(10).length, 0, 'Main timeline still respects both mute scopes');
+meta.muted = false; meta.volume = 1; track.muted = false;
 assert.equal(meta.previewMode,'media','hover never persists a preview mode change');
 
 const audioCtx={currentTime:1};

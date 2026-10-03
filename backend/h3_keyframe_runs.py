@@ -79,6 +79,14 @@ def expand_keyframe_runs(data):
                                       host_local_start_ms=int(audio.get("host_local_start_ms", 0)) + left - audio_start)
                         row["audios"].append(sliced)
                 reference = request.get("reference")
+                for ref in row.get("images", []):
+                    material = materials.get(str(ref.get("id")))
+                    if material and material.get("reference_timeline"):
+                        sliced = copy.deepcopy(material)
+                        sliced["id"] = f"{material['id']}__{cid}"
+                        sliced["video_trim"].update(start=begin / fps, duration=frames / fps)
+                        data["materials"].append(sliced)
+                        ref["id"] = sliced["id"]
                 if reference:
                     material = copy.deepcopy(materials[str(reference["id"])])
                     source = material.get("video_trim") or {}

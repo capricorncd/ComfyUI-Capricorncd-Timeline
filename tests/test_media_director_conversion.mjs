@@ -97,13 +97,3 @@ const restoredCatalog = new Map(project.media.map(row => [row.id, row]));
 sourceRange = videoTrimSource({_findMediaById: id => restoredCatalog.get(id)}, meta.get(first.id).items[0]);
 assert.equal(sourceRange.start, 3); assert.equal(sourceRange.duration, 9);
 assert.equal(sourceRange.item.file, 'original.mp4');
-const videoFrameSeekTime = new Function(trimSource.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '; return videoFrameSeekTime;')();
-// The original MP4 uses 1/16000 timestamps: frame 13 starts after 13/24.
-const frame13Pts = 8667 / 16000;
-assert(13 / 24 < frame13Pts);
-assert(videoFrameSeekTime(13, 24) >= frame13Pts);
-assert(videoFrameSeekTime(13, 24) < 14 / 24);
-for (const fps of [24, 25, 30, 60]) for (let frame = 0; frame < fps * 60; frame++) {
-    assert.equal(Math.floor(videoFrameSeekTime(frame, fps) * fps + 1e-9), frame);
-}
-console.log('Trim preview seeks beyond rounded MP4 boundaries without changing the requested frame.');

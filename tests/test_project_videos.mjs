@@ -28,3 +28,16 @@ assert.deepEqual(editor.written.composed_videos, [{file:'compose/final.mp4'}, {f
 assert.match(source, /composed_videos: this\._projectVideos/);
 assert.equal(source.match(/this\._projectVideos = \(project\.composed_videos/g).length, 2, 'restore on project load and undo');
 console.log('PASS: project video routing, deduplication, closed-editor persistence and restore');
+
+const selectionStart = source.indexOf('        tl.on("clip:select",', source.indexOf('    _bindTimelineEvents() {'));
+const selectionEnd = source.indexOf('        tl.on("clip:add",', selectionStart);
+let select;
+const bindSelection = new Function('tl', source.slice(selectionStart, selectionEnd));
+const selectionEditor = {
+    _projectVideosActive: true,
+    _syncSelectedClip() {}, _updateMediaPreviewInsertBtn() {}, _retargetOutputVideosPickerFromSelection() {},
+    _updatePromptPanel() { assert.equal(this._projectVideosActive, false, 'Clip selection must leave video list before panel refresh'); },
+};
+bindSelection.call(selectionEditor, {on(name, callback) { select = callback; }});
+select({selected:[{id:'clip-a'}]});
+assert.equal(selectionEditor._projectVideosActive, false);

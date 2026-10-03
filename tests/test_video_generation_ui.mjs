@@ -10,6 +10,7 @@ class Element {
     appendChild(item) { this.children.push(item); }
     replaceChildren() { this.children = []; this.textContent = ''; }
     addEventListener(name, handler) { this.handlers[name] = handler; }
+    setAttribute(name, value) { (this.attributes ??= {})[name] = value; }
 }
 globalThis.document = { createElement: () => new Element() };
 let record = { clip_id: 'original', seed: '42', seeds: [], models: [], sampling: [] };
@@ -50,4 +51,10 @@ assert.equal(host.children[1].children[0].textContent, 'first.mp4');
 assert.equal(host.children[1].children[1].textContent, 'Seed: 18446744073709551615\n\nA full shot prompt');
 assert.equal(host.children[2].children[1].textContent, 'video_generation_unavailable');
 assert.equal(seedButton(), undefined, 'project details cannot apply seeds to an unrelated Clip');
+const footer = new Element();
+await show.call(app, null, {file:'final.mp4'}, host, footer);
+assert.equal(footer.children.length, 1);
+assert.equal(footer.children[0].attributes.variant, 'danger');
+assert.equal(footer.children[0].textContent, 'video_prompts_restore');
+assert.equal(host.children[0].children[0].textContent, 'first.mp4', 'restore action is outside scrolling metadata');
 console.log('Video metadata UI: seed application, lock, precision, and legacy checks passed.');

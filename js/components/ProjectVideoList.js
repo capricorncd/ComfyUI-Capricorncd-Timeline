@@ -31,10 +31,9 @@ export class ProjectVideoList extends HTMLElement {
             const video = document.createElement('video');
             video.src = urlFor(row.file);
             video.preload = 'metadata';
-            video.muted = true;
+            video.muted = false;
             video.loop = true;
             video.playsInline = true;
-            video.controls = true;
             const unavailable = document.createElement('p');
             unavailable.hidden = true;
             unavailable.textContent = T('project_video_unavailable');

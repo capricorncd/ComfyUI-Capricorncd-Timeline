@@ -9377,8 +9377,11 @@ export class CapTimelineEditorApp {
         video.preload = 'metadata';
         video.style.cssText = 'width:100%;max-height:40vh;object-fit:contain';
         const metadata = document.createElement('div');
+        const footer = document.createElement('div');
+        footer.slot = 'footer';
+        footer.style.cssText = 'display:flex;justify-content:flex-end';
         body.append(video, metadata);
-        dialog.append(title, body);
+        dialog.append(title, body, footer);
         dialog.addEventListener('close', () => {
             metadata._requestToken = null;
             video.pause();
@@ -9388,7 +9391,7 @@ export class CapTimelineEditorApp {
         }, { once: true });
         this._overlay.append(dialog);
         dialog.showModal();
-        void this._showGenVideoGeneration(null, row, metadata);
+        void this._showGenVideoGeneration(null, row, metadata, footer);
     }
 
     _restoreVideoPrompts(generation) {
@@ -9407,7 +9410,7 @@ export class CapTimelineEditorApp {
         return updates.length;
     }
 
-    async _showGenVideoGeneration(clip, row, host = this.genVideoModal.querySelector(".cat-te-gen-video-generation")) {
+    async _showGenVideoGeneration(clip, row, host = this.genVideoModal.querySelector(".cat-te-gen-video-generation"), actionsHost = host) {
         const token = Symbol();
         host._requestToken = token;
         host.textContent = T("video_generation_loading");
@@ -9419,6 +9422,7 @@ export class CapTimelineEditorApp {
             host.replaceChildren();
             if (!generation) { host.textContent = T("video_generation_unavailable"); return; }
             const restore = document.createElement('cap-button');
+            restore.setAttribute('variant', 'danger');
             restore.textContent = T('video_prompts_restore');
             restore.disabled = !videoPromptUpdates(generation).some(row => {
                 const target = this._findClipById(row.id);
@@ -9429,7 +9433,7 @@ export class CapTimelineEditorApp {
                 const count = this._restoreVideoPrompts(generation);
                 restore.textContent = T('video_prompts_restored', { n: count });
             });
-            host.append(restore);
+            actionsHost.append(restore);
             const records = generation.kind === 'composition'
                 ? (generation.clips || []).map(item => ({ name: item.file, record: item.generation }))
                 : [{ name: '', record: generation }];
@@ -18854,6 +18858,7 @@ export class CapTimelineEditorApp {
             this._overlay.focus({ preventScroll: true });
         }, true);
         tl.on("clip:select", ({ selected }) => {
+            this._projectVideosActive = false;
             this._directorKeyframes?.clearSelection();
             this._selClips = selected ?? tl.getSelectedClips();
             this._syncSelectedClip();

@@ -3969,7 +3969,7 @@ export class CapTimelineEditorApp {
               </div>
               <div class="cat-te-visual-clip-body">
               <div class="cat-te-clip-settings">
-                <cap-shot-control class="cat-te-director-keyframe" hidden></cap-shot-control>
+                <cap-shot-control class="cat-te-director-keyframe" hidden><cap-button class="cat-te-keyframe-drafts-open">${draftT("title")}</cap-button></cap-shot-control>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("type_label")}</span>
                   <select class="cat-te-clip-role" disabled>
@@ -5335,6 +5335,10 @@ export class CapTimelineEditorApp {
         el.querySelector(".cat-te-h3-drafts-open").addEventListener("click", () => this._h3DraftVersions.open(this._selClip));
         this._clipExport = new ClipExport(el);
         this._directorKeyframes = new DirectorKeyframes(this, el.querySelector('.cat-te-director-keyframe'), isDirectorTrackType);
+        el.querySelector('.cat-te-keyframe-drafts-open').addEventListener('click', () => {
+            const run = selectedKeyframeRun(this)?.keyframe_runs[0];
+            if (run) this._h3DraftVersions.open(this._findClipById(run.clip_id), {...run.intervals[0], fps: run.fps, reference: run.reference});
+        });
         this._imageCrop = new ImageCrop(this, el);
         el.querySelector(".cat-te-media-crop").addEventListener("click", () => {
             const item = this._mediaPreviewItem();
@@ -17694,6 +17698,16 @@ export class CapTimelineEditorApp {
         }
 
         return this._queueClipsDownstream(clips, workflowPreview);
+    }
+
+    _refreshKeyframeDrafts() {
+        const button = this._overlay?.querySelector('.cat-te-keyframe-drafts-open');
+        if (!button) return;
+        const run = selectedKeyframeRun(this)?.keyframe_runs[0];
+        const clip = run && this._findClipById(run.clip_id);
+        const rows = clip ? this._h3DraftVersions.rows(clip, {...run.intervals[0], fps: run.fps}) : [];
+        button.textContent = `${draftT('title')} (${rows.length})`;
+        button.disabled = !run;
     }
 
     async _runSelectedKeyframeDownstream() {

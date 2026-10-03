@@ -37,3 +37,16 @@ new Function('project', filterSource).call({_deletedH3DraftIds: new Set(['delete
 assert.deepEqual(restoreProject.tracks[0].clips[0].h3_drafts, [{id: 'kept'}]);
 assert.deepEqual(restoreProject.tracks[0].clips[0].h3_draft_removed, ['deleted']);
 console.log('PASS: restoring history excludes recycled versions and keeps other versions');
+const versions = [
+    {id: 'whole'},
+    {id: 'previous', keyframe_segment: {fps: 24, start_frame: 0, end_frame: 120}},
+    {id: 'part1', keyframe_segment: {fps: 24, start_frame: 120, end_frame: 240}},
+    {id: 'part2', keyframe_segment: {fps: 24, start_frame: 240, end_frame: 360}},
+    {id: 'next', keyframe_segment: {fps: 24, start_frame: 360, end_frame: 480}},
+    {id: 'old-range', keyframe_segment: {fps: 24, start_frame: 120, end_frame: 480}},
+    {id: 'other-fps', keyframe_segment: {fps: 30, start_frame: 120, end_frame: 240}},
+];
+manager.editor._ensureClipMeta = () => ({h3Drafts: versions});
+assert.deepEqual(manager.rows(a, {fps: 24, start_frame: 120, end_frame: 360}).map(row => row.id), ['part1', 'part2']);
+assert.equal(manager.rows(a, null).length, versions.length, 'Clip manager still lists all previews');
+console.log('PASS: keyframe manager includes its continuation parts and excludes other intervals, ranges and fps');

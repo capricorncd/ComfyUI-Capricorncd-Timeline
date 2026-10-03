@@ -15,7 +15,7 @@ const media = {id: 'trim', kind: 'video', file: 'trim.mp4'};
 const original = {id: 'original', file: 'original.mp4'};
 const meta = {clipRole: 'video_ref', prompt: 'Original'};
 const clip = {id: 'clip', selected: true, startTime: 20, sourceOffset: 1, playbackRate: 0.5, duration: 5,
-    track: {type: 'image', locked: false}, el: {querySelector() {return this.markers;}, append(markers) {this.markers = markers;}}};
+    track: {type: 'image', locked: false}, el: {addEventListener(name, handler) {this[name] = handler;}, querySelector() {return this.markers;}, append(markers) {this.markers = markers;}}};
 let records = 0, saves = 0, editor;
 const timeline = {tracks: [{clips: [clip]}], currentTime: 22, selectClip() {editor.clearSelection(); clip.selected = true;}, setCurrentTime(time) {this.currentTime = time;}};
 const app = {_timeline: timeline, _selClip: clip, getFps: () => 24, _ensureClipMeta: () => meta,
@@ -151,4 +151,8 @@ const shortcut = {code: 'KeyP', ctrlKey: true, preventDefault() {this.defaultPre
 assert.equal(handleShortcutKey.call(app, shortcut), true);
 assert.equal(editor.selection.point.time, 4, 'Editor shortcut routing inserts without Timeline focus');
 assert.equal(handleShortcutKey.call(app, {...shortcut, editing: true, defaultPrevented: false}), false);
+clip.el.mousedown({button: 0, composedPath: () => [{localName: 'cap-shot-markers'}]});
+assert(editor.selection, 'Clicking a marker keeps its selection');
+clip.el.mousedown({button: 0, composedPath: () => [{localName: 'div'}]});
+assert.equal(editor.selection, null, 'Clicking the Clip body clears keyframe selection');
 console.log('Director keyframes: shared data, source timing, typing undo, frame moves, lock, detection merge, Ctrl+P and reload passed.');

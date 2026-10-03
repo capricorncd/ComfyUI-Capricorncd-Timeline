@@ -68,9 +68,10 @@ export class H3DraftVersions {
         this.dialog.querySelectorAll('video').forEach(video => video.pause());
     }
 
-    open(clip) {
+    open(clip, interval = null) {
         if (!clip) return;
         this.clipId = clip.id;
+        this.interval = interval;
         this.previewId = null;
         this.render();
         if (!this.dialog.open) this.dialog.show();
@@ -146,11 +147,19 @@ export class H3DraftVersions {
         dialog.showModal();
     }
 
+    rows(clip, interval = this.interval) {
+        return (this.editor._ensureClipMeta(clip).h3Drafts || []).filter(row => {
+            if (!interval) return true;
+            const part = row.keyframe_segment;
+            return part && part.fps === interval.fps && part.start_frame >= interval.start_frame
+                && part.end_frame <= interval.end_frame;
+        });
+    }
+
     render() {
         const clip = this.editor._findClipById(this.clipId);
         if (!clip) { this.dialog.close(); return; }
-        const meta = this.editor._ensureClipMeta(clip);
-        const rows = [...(meta.h3Drafts || [])].sort((a, b) => (a.keyframe_segment?.start_frame || 0) / (a.keyframe_segment?.fps || a.fps || 24) - (b.keyframe_segment?.start_frame || 0) / (b.keyframe_segment?.fps || b.fps || 24));
+        const rows = [...this.rows(clip)].sort((a, b) => (a.keyframe_segment?.start_frame || 0) / (a.keyframe_segment?.fps || a.fps || 24) - (b.keyframe_segment?.start_frame || 0) / (b.keyframe_segment?.fps || b.fps || 24));
         const current = rows.find(row => row.id === this.previewId) || rows[0];
         this.stop();
         this.dialog.replaceChildren();
@@ -170,7 +179,7 @@ export class H3DraftVersions {
             button.title = draftT(key);
             button.setAttribute('aria-label', button.title);
             button.innerHTML = iconHtml(icon, 16);
-            button.disabled = index < 0 || !clips[index + delta];
+            button.disabled = !!this.interval || index < 0 || !clips[index + delta];
             button.addEventListener('click', () => this.step(delta));
             header.append(button);
         }
@@ -287,7 +296,14 @@ export class H3DraftVersions {
             button.disabled = !!clip.track?.locked;
             button.addEventListener('click', async () => {
                 button.disabled = true;
-                try { await this.editor._runH3Stage(clip, action); }
+                try {
+                    if (this.interval) {
+                        const {fps, reference, ...interval} = this.interval;
+                        await this.editor._runAllActiveClipsDownstream({clips: [clip], h3Generation: {action,
+                            keyframe_runs: [{clip_id: String(clip.id), clip_start_ms: Math.round(clip.startTime * 1000), fps,
+                                ...(reference ? {reference} : {}), intervals: [interval]}]}});
+                    } else await this.editor._runH3Stage(clip, action);
+                }
                 catch (error) { showCapAlert(draftT("failed", {message: error.message})); }
                 finally { if (button.isConnected) button.disabled = false; }
             });

@@ -64,6 +64,10 @@ export class DirectorKeyframes {
             target.media.video_shots = {source_id: target.source.item.id, points: target.local ? [] : [{time: target.start, description: ''}]};
         }
         if (!markers) {
+            clip.el.addEventListener('mousedown', event => {
+                if (event.button === 0 && this.selection?.clipId === clip.id
+                    && !event.composedPath().some(element => element.localName === 'cap-shot-markers')) this.clearSelection();
+            }, true);
             markers = document.createElement('cap-shot-markers');
             markers.addEventListener('point-select', event => {
                 const current = this.target(clip);
@@ -90,7 +94,8 @@ export class DirectorKeyframes {
             this.app.getFps(), target.clip.track.locked, {
                 title: T('shot_control'), description: T('shot_description'), hint: T('shot_hint'),
                 delete: T('shot_delete'), insert: T('shot_insert'),
-            });
+        });
+        this.app._refreshKeyframeDrafts?.();
     }
     clearSelection() {
         const clip = this.selection && this.app._findClipById(this.selection.clipId);

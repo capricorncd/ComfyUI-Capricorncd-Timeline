@@ -4,6 +4,8 @@ Reference project preview offers a shared hover dropdown, “Merge into current 
 
 ## Prompt history actions
 
+`cap-shot-control` exposes a default slot for Clip-owned actions. Its keyframe preview sampling action opens the shared version manager filtered to the selected frame interval, including continuation parts. Sampling and HD generation in this view use that interval. Clicking the Clip outside its markers clears keyframe selection.
+
 `PromptHistoryActions.js` provides `<cap-prompt-history-actions>` inside prompt fields at the bottom right. The field wrapper reserves a toolbar row within its border so actions do not cover text while scrolling. `bind(textarea, read, write)` supplies the workflow-owned history document (`schema_version: 1`, `items` with `id`, `text`, `created_at`). History, Save and Copy reuse shared icon buttons. Restoring dispatches input/change through the existing editor path. Timeline prompts and keyframe prompts share the node's hidden `prompt_history_json` widget. Project exports include a separate `prompt_history.json`; missing history on import means an empty history, including older packages.
 
 ## Project video list

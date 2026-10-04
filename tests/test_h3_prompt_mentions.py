@@ -13,6 +13,12 @@ h3 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(h3)
 
 class MentionTests(unittest.TestCase):
+    def test_composed_video_retains_source_filename_mention(self):
+        name = '20261004-232525_clip_1_muse9kgj__kf1_1__h3v2_c0_r124_h0_t3_f24000_s0_n0.mp4'
+        refs = [({'name': 'Reference timeline', 'prompt_aliases': [name]}, '<Video 1>')]
+        self.assertEqual(h3.compile_h3_mentions('subject_definitions:@' + name + ' : 动作参考视频。', refs),
+                         'subject_definitions:<Video 1> : 动作参考视频。')
+
     def test_commented_mentions_do_not_load_selected_assets(self):
         project = {'media': [{'id': 'hero', 'name': '流川枫长发', 'kind': 'image'}]}
         clip = {'prompt': '//@流川枫长发 个', 'prompt_media_ids': ['hero']}

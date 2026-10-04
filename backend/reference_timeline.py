@@ -49,6 +49,9 @@ def compose_reference_timeline(project, clip, resolve_media):
         kind = "video" if has_video else "audio"
         row = dict(id=f"reference_{clip['id']}_{index}", kind=kind, file=composed["output_path"],
             name="Reference timeline", prompt="", media_type="other", location="output")
+        row["prompt_aliases"] = list(dict.fromkeys(
+            str(catalog[item["media_id"]].get("name") or catalog[item["media_id"]]["file"].replace("\\", "/").rsplit("/", 1)[-1])
+            for item in (video_rows if has_video else audio_rows)))
         if kind == "video":
             row["video_trim"] = dict(file=composed["output_path"], start=0, duration=duration_ms / 1000, rate=1)
             row["reference_timeline"] = True

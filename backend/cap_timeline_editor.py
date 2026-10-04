@@ -171,6 +171,7 @@ def _material_row(row: dict, resolve_media) -> dict | None:
         "location": str(row.get("location") or "input"),
         **({"video_trim": dict(row["video_trim"])} if isinstance(row.get("video_trim"), dict) else {}),
         **({"reference_timeline": True} if row.get("reference_timeline") else {}),
+        **({"prompt_aliases": list(row["prompt_aliases"])} if row.get("prompt_aliases") else {}),
     }
     try:
         stars = int(row.get("stars"))

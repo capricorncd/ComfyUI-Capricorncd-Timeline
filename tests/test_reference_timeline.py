@@ -52,6 +52,7 @@ class ReferenceTimelineTests(unittest.TestCase):
         streams = probe(rows[0]['file'])['streams']
         self.assertEqual({stream['codec_type'] for stream in streams}, {'video', 'audio'})
         self.assertEqual(rows[0]['video_trim']['duration'], 1)
+        self.assertEqual(rows[0]['prompt_aliases'], ['source.mp4'])
         self.assertEqual(self.clip, before)
 
     def test_audio_only_outputs_one_mixed_audio(self):

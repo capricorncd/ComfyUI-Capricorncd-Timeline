@@ -11,9 +11,9 @@ def asset_name(row):
 def compile_h3_mentions(prompt, references):
     aliases = {}
     for row, tag in references:
-        name = asset_name(row)
-        if name:
-            aliases.setdefault(name, set()).add(tag)
+        for name in [asset_name(row), *(row.get('prompt_aliases') or [])]:
+            if name:
+                aliases.setdefault(name, set()).add(tag)
     if not aliases or '@' not in prompt:
         return prompt
     pattern = re.compile(r'(?<![A-Za-z0-9_@])@(' + '|'.join(re.escape(name) for name in sorted(aliases, key=len, reverse=True)) + r')(?![\w])')

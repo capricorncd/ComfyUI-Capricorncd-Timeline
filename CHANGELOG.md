@@ -1,5 +1,23 @@
 # Release notes / 更新记录
 
+## 0.17.30 — 2026-10-04
+
+### English
+
+- Add Clip keyframes, selected-interval runs and editable reference video/audio sub-timelines; preserve source ranges when splitting or converting Clips without creating video copies.
+- Fix keyframe reference slicing and automatic prompts, preserve assigned character identities, and configure reference video frame sampling.
+- Add keyframe preview management and HD generation from a specific preview version, side navigation, prompt restoration and one-click prompt copying.
+- Expand keyframe prompt editing, support comments, fix text clipboard shortcuts and rich-text alignment, and synchronize renamed asset references.
+- Remove comments and comment-only references from execution copies while keeping editable prompts intact. Restart ComfyUI and refresh the browser after updating.
+
+### 简体中文
+
+- 新增 Clip 关键帧、选中区间运行和参考音视频子时间轴；分割与转换 Clip 保留源素材范围，不再创建视频副本。
+- 修复关键帧参考视频裁取与自动提示词，保留用户指定的人物身份，支持参考视频抽帧设置。
+- 新增关键帧预览采样管理、指定预览版本生成高清、弹窗两侧导航、提示词回填与一键复制。
+- 关键帧提示词支持展开编辑和注释，修复文字复制粘贴、富文本对齐及素材重命名后的引用同步。
+- 执行副本清理注释与仅出现在注释里的引用，保留编辑原文。更新后重启 ComfyUI 并刷新浏览器。
+
 ## 0.17.29 — 2026-10-02
 
 ### English

@@ -12,6 +12,25 @@ The generator combines enabled prompt sections, Skills, image descriptions and v
 
 Older workflows using H3 Shared Model Prompt Generator must replace it with this config and restore the direct Timeline Editor → Video Generator connection. The bundled `MiniMaxH3_Shared_AutoPrompt.json` still contains the removed node; migrate it using the connections above.
 
+## Asset references and Subject labels
+
+Ordinary reference mode resolves `@asset name` before submission to H3: images → `<Picture N>`, videos → `<Video N>`, audio → `<Audio N>`. Each category starts at 1 and follows the references actually loaded for this run, rather than library order. This applies even with automatic prompting disabled; name replacement does not create Subject definitions. Use the exact asset name followed by whitespace or punctuation. Existing numbered tags are left unchanged; check handwritten indices after reordering references.
+
+Composed reference timelines retain source video names as aliases for their output `<Video N>`. Audio-only timelines retain source audio names for their output `<Audio N>`. Multiple sources may resolve to one output; per-track mode follows actual loaded order. Ambiguous names raise an error. Strict first/last-frame mode uses first/last-frame subject descriptions instead of ordinary Picture replacements.
+
+`<Subject N>` identifies visible content: people, backgrounds, environments, props, clothing, actions, or effects. Picture/Video/Audio identify input assets; Subject numbering is independent. For example:
+
+```text
+subject_definitions:
+<Subject 1>: The long-haired basketball player from @character sheet .
+<Subject 2>: The indoor basketball court from @court sheet .
+<Subject 3>: The basketball from @ball sheet .
+```
+
+If those images load in that order, the mentions become `<Picture 1>`, `<Picture 2>`, and `<Picture 3>`. An image providing identity, environment, or prop design is cited inside its Subject definition. Standalone Picture definitions describe concrete frame or storyboard composition anchors. Content taken from a video can also be a Subject citing `<Video N>`. See the [official Ref2VA guide](https://github.com/MiniMax-AI/MiniMax-H3/blob/main/.agents/skills/h3-prompt-writing/references/ref-en.txt).
+
+Describe new effects with no reference asset directly in `detailed_description`, including shape, color, timing, movement, and disappearance. For example: blue arcs travel along the player's arms during takeoff, then a ring of light bursts around the rim and fades. Do not invent Picture/Video sources or reference-retention analysis for them.
+
 ## Clip Prompt Skills
 
 Prompt Manager now binds a `prompt_skills` list to the current Clip: each entry has `id`, `name`, `text`, and boolean `enabled`. Presets keep their `official__…` / `community__…` IDs; custom entries receive a UUID. The saved text is a snapshot, so a library update does not silently change projects. Selecting the same preset again replaces its snapshot and enables it.

@@ -17,9 +17,10 @@ from .cap_load_image_metadata import read_image_metadata
 from .cap_h3_drafts import latest_draft
 from .cap_h3_skills import list_h3_skills, load_skill_text
 from .h3_prompt_mentions import asset_name, h3_prompt_skill
+from .h3_prompt_frames import select_prompt_frames
 
 
-def prompt_materials(data, row, parser):
+def prompt_materials(data, row, parser, video_frame_count=0, video_frame_mode="uniform", video_frame_numbers=""):
     materials = parser._materials_by_id(data)
     files, pictures, mapping = [], [], []
     refs = parser._ref_list(row.get("images")) + parser._ref_list(row.get("videos"))
@@ -34,6 +35,7 @@ def prompt_materials(data, row, parser):
         entry["setting_description"] = material.get("setting_description", "")
         path, kind = entry["file"], entry["kind"]
         start = len(pictures) + 1
+        frame_mapping = ""
         if kind == "image":
             metadata = read_image_metadata(path)
             raw = json.loads(metadata["raw"])["info"].get("ImageAssetMetadata", {})
@@ -56,19 +58,27 @@ def prompt_materials(data, row, parser):
             if trim.get("file"):
                 path = parser._resolve_file_path(trim["file"], entry.get("location", "assets"))
             start_time = max(0, float(trim.get("start", 0)))
-            video = VideoFromFile(path, start_time=start_time, duration=float(trim.get("duration", 0)))
-            duration = video.get_duration()
-            count = min(8, video.get_frame_count())
-            for i in range(count):
-                time = start_time + max(0, duration - 0.25) * i / max(1, count - 1)
-                frames = VideoFromFile(path, start_time=time, duration=0.25).get_components().images
-                frame = frames[0]
-                pictures.append(Image.fromarray((frame.cpu().numpy().clip(0, 1) * 255).astype(np.uint8)))
+            duration = float(trim.get("duration", 0))
+            if video_frame_mode == "uniform":
+                video = VideoFromFile(path, start_time=start_time, duration=duration)
+                duration = video.get_duration()
+                count = min(video_frame_count or 8, video.get_frame_count())
+                for i in range(count):
+                    time = start_time + max(0, duration - 0.25) * i / max(1, count - 1)
+                    frames = VideoFromFile(path, start_time=time, duration=0.25).get_components().images
+                    frame = frames[0]
+                    pictures.append(Image.fromarray((frame.cpu().numpy().clip(0, 1) * 255).astype(np.uint8)))
+            else:
+                selected = select_prompt_frames(path, start_time, duration, video_frame_mode,
+                                                video_frame_numbers, video_frame_count or 8)
+                pictures.extend(image for _, _, image in selected)
+                frame_mapping = " Trim-relative frame/time: " + ", ".join(
+                    f"{index}/{time:.3f}s" for index, time, _ in selected) + "."
         else:
             continue
         if len(pictures) < start:
             raise ValueError(f"No visual frames could be read from {entry['name']}.")
-        mapping.append(f"Visual input pictures {start}–{len(pictures)} show @{entry['name']} ({kind}).")
+        mapping.append(f"Visual input pictures {start}–{len(pictures)} show @{entry['name']} ({kind})." + frame_mapping)
         files.append(entry)
     for ref in row.get("audios", []):
         material = materials.get(parser._ref_id(ref), ref)
@@ -104,14 +114,20 @@ class CAP_H3AutoPromptConfig:
         }, "optional": {
             "tail_name": tails,
             "output_language": (["简体中文", "繁體中文", "English", "日本語"],),
+            "video_frame_count": ("INT", {"default": 0, "min": 0, "max": 4096, "tooltip": "Frames per reference video for prompt generation only. 0 = automatic (up to 8). A positive number samples that many frames evenly within the trimmed video, limited by available frames. More frames take longer and use more memory."}),
+            "video_frame_mode": (["uniform", "manual", "scene"], {"default": "uniform", "tooltip": "Uniform sampling, exact frame numbers, or scene-change keyframes. Scene mode scans the trimmed video and uses frame count as a maximum (0 = 8)."}),
+            "video_frame_numbers": ("STRING", {"default": "", "tooltip": "Manual mode: 1, 25, 73. Frame 1 is the first frame of each trimmed reference video. Uses source frames, not project FPS. Count is ignored. Out-of-range frames report an error."}),
         }}
 
-    def configure(self, skill="", max_new_tokens=2048, seed=0, output_language="简体中文", tail_name="", skill_preset="none"):
+    def configure(self, skill="", max_new_tokens=2048, seed=0, output_language="简体中文", tail_name="", skill_preset="none", video_frame_count=0,
+                  video_frame_mode="uniform", video_frame_numbers=""):
         return (dict(skill=skill, max_new_tokens=max_new_tokens, seed=seed,
-                     output_language=output_language, tail_name=tail_name, skill_preset=skill_preset),)
+                     output_language=output_language, tail_name=tail_name, skill_preset=skill_preset,
+                     video_frame_count=video_frame_count, video_frame_mode=video_frame_mode,
+                     video_frame_numbers=video_frame_numbers),)
 
 
-def generate_h3_prompts(clip, data, config):
+def generate_h3_prompts(clip, data, config, progress=None):
     request = data.get("h3_generation") or {}
     stage = request.get("action", "normal")
     if stage == "refine":
@@ -125,6 +141,8 @@ def generate_h3_prompts(clip, data, config):
         selected.append(row)
     if not selected:
         return
+    if progress:
+        progress("prompt_prepare", 1, len(selected))
     if config is None:
         raise ValueError("Connect H3 Auto Prompt Config to H3 Video Generator for Clips with automatic prompting enabled.")
     skill = config["skill"]
@@ -148,11 +166,14 @@ def generate_h3_prompts(clip, data, config):
         raise ValueError("Select an installed H3 generation tail in tail_name.")
     tail_clip, = loader().select_tail(tail_name)
     parser = CAP_DataJsonClipParser()
-    for row in selected:
+    for index, row in enumerate(selected):
         comfy.model_management.throw_exception_if_processing_interrupted()
+        if progress:
+            progress("prompt_materials", index + 1, len(selected))
         source = dict(row)
         source.pop("h3_generated_prompt", None)
-        materials, files, images, mapping = prompt_materials(data, source, parser)
+        materials, files, images, mapping = prompt_materials(data, source, parser, config.get("video_frame_count", 0),
+            config.get("video_frame_mode", "uniform"), config.get("video_frame_numbers", ""))
         fixed = "prepend_prompt" in data or "append_prompt" in data
         original = parser._compose_prompt(source, data.get("global_prompt", ""), materials=materials,
             style_prompt=data.get("style_prompt", ""), non_diegetic_music=data.get("non_diegetic_music", ""),
@@ -174,6 +195,8 @@ def generate_h3_prompts(clip, data, config):
         )
         prompt = build_user_prompt(payload).replace(_AUDIO_MODE_INSTRUCTIONS["none"], "")
         prompt += "\nInspection mapping:\n" + "\n".join(mapping)
+        if progress:
+            progress("prompt_generate", index + 1, len(selected))
         output = generator().generate_text(clip=clip, tail_clip=tail_clip, system_prompt=system,
             prompt=prompt, max_new_tokens=max_new_tokens, sampling="deterministic", temperature=0.7,
             top_k=20, top_p=0.8, min_p=0.0, repetition_penalty=1.05, presence_penalty=0.0,
@@ -184,6 +207,8 @@ def generate_h3_prompts(clip, data, config):
             raise ValueError(f"Empty generated prompt for Clip {row['id']}.")
         row["h3_generated_prompt"] = generated
         del images
+        if progress:
+            progress("prompt_done", index + 1, len(selected))
 
 
 NODE_CLASS_MAPPINGS = {"CAP_H3AutoPromptConfig": CAP_H3AutoPromptConfig}

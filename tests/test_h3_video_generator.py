@@ -183,10 +183,11 @@ class GeneratorTests(unittest.TestCase):
 
     def test_auto_prompt_runs_inside_generator_before_prepare(self):
         config = {"skill": "camera"}
-        def generate(clip, data, settings):
+        def generate(clip, data, settings, progress=None):
             self.assertEqual(clip, "clip")
             self.assertIs(settings, config)
             self.assertEqual(self.prepared, [])
+            progress('prompt_generate', 1, 1)
             data['clips'][0]['h3_generated_prompt'] = 'generated camera prompt'
         self.scope['generate_h3_prompts'].side_effect = generate
         result = self.run_node(auto_prompt_config=config)

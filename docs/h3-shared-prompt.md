@@ -8,7 +8,7 @@ Install ComfyUI-H3-Qwen3VL-TextGen and a compatible generation tail in `models/t
 
 Enable **Generate prompt automatically** on the intended Clips (`auto_prompt`, default false). There is no node-level enable switch. Disabled Clips keep their existing prompts. Valid preview refinement reuses the saved prompt; keyframe intervals and long video-reference runs retain their interval prompts rather than rewriting them.
 
-The generator combines enabled prompt sections, Skills, image descriptions and visual references. Videos contribute up to eight sampled frames. Audio is not transcribed; supply dialogue or lyrics explicitly. Original Clip text remains in `prompt`; generated text is held in runtime `h3_generated_prompt`. Connect the video generator's `generated_prompts` output to Show Anything to inspect the actual sampling text.
+The generator combines enabled prompt sections, Skills, image descriptions and visual references. `video_frame_count` defaults to `0` (automatic: up to eight frames per reference video). Set a positive number to sample that many frames evenly within each video's trim range, limited by available frames. This is uniform sampling, not scene detection; it only affects prompt inspection, not H3 video conditioning. More frames increase processing time and memory use. Audio is not transcribed; supply dialogue or lyrics explicitly. Original Clip text remains in `prompt`; generated text is held in runtime `h3_generated_prompt`. Connect the video generator's `generated_prompts` output to Show Anything to inspect the actual sampling text.
 
 Older workflows using H3 Shared Model Prompt Generator must replace it with this config and restore the direct Timeline Editor → Video Generator connection. The bundled `MiniMaxH3_Shared_AutoPrompt.json` still contains the removed node; migrate it using the connections above.
 
@@ -31,3 +31,9 @@ In image asset settings, choose **宫格图（故事板图）** and panel count 
 ## Clip continuation
 
 Clip settings now expose **衔接上一片段 / Continue previous clip** (`reference_previous`, default false). Enabling it prefers 22 context frames and automatically saves the adjacent preceding H3 clip’s latent, even when only that preceding clip is queued. At generation time use the new preceding output, its existing generated video, then its enabled video reference if latent is unavailable. The clips must be adjacent on the same track. Disabling explicitly breaks continuation. Legacy projects without the flag retain their runtime timing behavior. The unused Clip second-sampling checkbox is removed; the generator node’s separate two-stage sampling option is unchanged.
+
+## Video frame selection
+
+`video_frame_mode` defaults to `uniform`, preserving the frame-count setting. `manual` reads `video_frame_numbers`, e.g. `1, 25, 73`: 1-based decoded source frames relative to each reference video’s trim start, independent of project FPS. Duplicates are removed and frames are ordered chronologically; frame count is ignored. Invalid or out-of-range numbers stop with an error. The same selection applies to every reference video.
+
+`scene` scans the trimmed video using small RGB histograms and selects the first frame plus the strongest visual changes (threshold 0.35, at least 0.5 seconds between candidates). Frame count is an upper limit, with 0 meaning 8. Static shots may produce only one frame. This is a lightweight heuristic, not semantic keyframe detection or PySceneDetect; flashes can trigger it and similar-looking cuts can be missed. It adds decoding time, with bounded candidate image storage. Manual and scene selections include frame numbers and timestamps in the model’s inspection mapping.

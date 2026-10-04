@@ -1,5 +1,7 @@
 {
-  "CAP_TrainingDataset": {"display_name": "训练素材时间轴"},
+  "CAP_TrainingDataset": {
+    "display_name": "训练素材时间轴"
+  },
   "CAP_H3AudioRefineConfig": {
     "display_name": "H3 音频修复配置",
     "description": "配置视频生成器的音频修复。默认关闭视频缓存，但保留音频修复；不连接或关闭启用开关时跳过修复。",
@@ -1091,6 +1093,18 @@
       },
       "skill": {
         "name": "补充 Skill 要求"
+      },
+      "video_frame_count": {
+        "name": "视频抽帧数（0 自动）",
+        "tooltip": "仅用于自动提示词，每个参考视频分别抽帧。0：自动，最多 8 帧；正整数：在素材裁剪区间内均匀抽取指定数量，不超过可用帧数。更多帧会增加耗时和显存占用。"
+      },
+      "video_frame_mode": {
+        "name": "视频选帧方式",
+        "tooltip": "uniform：均匀抽帧（默认）；manual：指定帧号；scene：按画面变化自动选关键帧，抽帧数为上限，0 表示最多 8 帧。会扫描整个裁剪区间，不保证识别所有切镜。"
+      },
+      "video_frame_numbers": {
+        "name": "指定帧号",
+        "tooltip": "manual 模式：例如 1, 25, 73。每个参考视频裁剪后的第一帧为 1，使用源视频帧率，与工程帧率无关。忽略抽帧数量；超出范围会报错。"
       }
     },
     "display_name": "H3 自动提示词配置",

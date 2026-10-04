@@ -373,8 +373,15 @@ class CAP_H3VideoGenerator:
                     row["h3_motion_context_length"] = 0
             earlier.append(row)
 
+        workflow_id = (extra_pnginfo or {}).get("workflow", {}).get("id")
+        display_id = dynprompt.get_display_node_id(unique_id) if dynprompt is not None else unique_id
+
+        def prompt_progress(phase, current, total):
+            notify_timeline("cat_h3_progress", node_id=display_id, workflow_id=workflow_id,
+                            clip_index=current, clip_total=total, phase=phase, warnings=warnings)
+
         if stage != "refine":
-            generate_h3_prompts(clip, data, auto_prompt_config)
+            generate_h3_prompts(clip, data, auto_prompt_config, progress=prompt_progress)
         records = execution_graph(prompt, dynprompt, unique_id)
         if base_model is None:
             base_model = model
@@ -400,9 +407,7 @@ class CAP_H3VideoGenerator:
             data["clips"] = candidates
         paths, videos, context_paths = [], [], {}
         generated_prompts = []
-        workflow_id = (extra_pnginfo or {}).get("workflow", {}).get("id")
         run_token = secrets.token_hex(8)
-        display_id = dynprompt.get_display_node_id(unique_id) if dynprompt is not None else unique_id
         phases = ["prepare"] + ([] if stage == "refine" else ["sample"])
         if second_sampling or previews:
             phases += ["upscale", "refine"]

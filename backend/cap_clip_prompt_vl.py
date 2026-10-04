@@ -221,7 +221,7 @@ _H3_ROLE_HINTS = {
     "digital_human": "Use the character image for identity and the supplied audio for exact lip synchronization. Match only audible speech or lead vocals; during instrumental sections and vocal pauses keep the lips gently closed with natural breathing. Keep the face visible. Never invent lyrics or dialogue, and do not mouth along to instruments.",
     "first_last": "The first still is the start frame and the last still is the end frame. Describe a continuous motion that begins on the first and lands on the last.",
     "t2v": "This is text-to-video. If no media is attached, invent the full prompt from the user's text. If stills exist they are style or subject hints, not locked start/end frames.",
-    "video_ref": "Motion, camera, and identity come from the tagged videos. Keep every <Video n> tag. Stills are supporting references.",
+    "video_ref": "Use tagged videos for the contributions explicitly requested by the user. A motion reference supplies action timing and body mechanics, not performer identity, clothing, gender or setting. Preserve characters, roles and locations assigned to still references by the user in both summary and detailed_description. Use video identity or setting only when the user requests it or supplies no replacement. Keep every supplied video reference.",
     "video_edit": "Rewrite as an edit of the source video: keep identity and setting unless the user asks to change them. Keep every <Video n> tag.",
     "other": "Follow the user's clip prompt and tagged media. Keep existing <Picture n> / <Video n> / <Audio n> tags.",
 }

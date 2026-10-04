@@ -13,6 +13,7 @@ class SharedPromptTests(unittest.TestCase):
         tree = ast.parse((ROOT / "backend/cap_h3_prompt_generator.py").read_text(encoding="utf-8"))
         cls = next(n for n in tree.body if isinstance(n, ast.ClassDef))
         self.calls = []
+        self.material_calls = []
         self.clip = object()
         self.valid_previews = set()
         owner = self
@@ -36,7 +37,7 @@ class SharedPromptTests(unittest.TestCase):
             latest_draft=lambda data, row: ({}, {}) if row['id'] in self.valid_previews else None,
             comfy=SimpleNamespace(model_management=SimpleNamespace(throw_exception_if_processing_interrupted=lambda: None)),
             CAP_DataJsonClipParser=lambda: SimpleNamespace(_compose_prompt=lambda row, *a, **kw: row["prompt"]),
-            prompt_materials=lambda *a: ({}, [], None, []),
+            prompt_materials=lambda *a: (self.material_calls.append(a) or ({}, [], None, [])),
             agent_system_prompt=lambda *a: "system", with_prompt_skill=lambda a, b: a + b,
             h3_prompt_skill=lambda p: p["skill"], with_output_language=lambda a, b: a,
             build_user_prompt=lambda p: p["clip_prompt"], _AUDIO_MODE_INSTRUCTIONS={"none": "unused"})
@@ -72,6 +73,64 @@ class SharedPromptTests(unittest.TestCase):
         self.data['clips'][0]['auto_prompt'] = False
         self.generate(self.clip, self.data, None)
         self.assertEqual(self.calls, [])
+
+    def test_progress_reports_only_selected_clips_in_phase_order(self):
+        events = []
+        config, = self.node.configure(tail_name='installed_tail.safetensors')
+        self.generate(self.clip, self.data, config, progress=lambda *args: events.append(args))
+        self.assertEqual(events, [(phase, 1, 1) for phase in
+            ['prompt_prepare', 'prompt_materials', 'prompt_generate', 'prompt_done']])
+        events.clear()
+        self.data['h3_generation'] = {'action': 'refine'}
+        self.generate(self.clip, self.data, config, progress=lambda *args: events.append(args))
+        self.assertEqual(events, [])
+
+    def test_video_frame_setting_reaches_material_reader(self):
+        self.run_prompt(self.clip, json.dumps(self.data), tail_name='installed_tail.safetensors')
+        self.assertEqual(self.material_calls[-1][-3], 0)
+        self.run_prompt(self.clip, json.dumps(self.data), tail_name='installed_tail.safetensors', video_frame_count=16)
+        self.assertEqual(self.material_calls[-1][-3], 16)
+
+    def test_video_sampling_respects_count_and_trim(self):
+        import numpy as np
+        import torch
+        from PIL import Image
+
+        tree = ast.parse((ROOT / 'backend/cap_h3_prompt_generator.py').read_text(encoding='utf-8'))
+        helper = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'prompt_materials')
+        samples = []
+
+        class Video:
+            def __init__(self, path, start_time, duration):
+                self.start_time = start_time
+
+            def get_duration(self):
+                return 3
+
+            def get_frame_count(self):
+                return 12
+
+            def get_components(self):
+                samples.append(self.start_time)
+                return SimpleNamespace(images=torch.zeros((1, 2, 2, 3)))
+
+        scope = dict(np=np, torch=torch, Image=Image, VideoFromFile=Video,
+                     ImageOps=SimpleNamespace(pad=lambda image, size: image), asset_name=lambda entry: 'video')
+        exec(compile(ast.Module(body=[helper], type_ignores=[]), 'materials', 'exec'), scope)
+        parser = SimpleNamespace(_materials_by_id=lambda data: {}, _ref_list=lambda refs: refs or [],
+            _ref_id=lambda ref: ref, _visual_ref_entry=lambda ref, materials: dict(
+                file='video.mp4', kind='video', video_trim={'start': 5, 'duration': 3}))
+        for requested, expected in [(0, 8), (1, 1), (4, 4), (10, 10), (16, 12)]:
+            with self.subTest(requested=requested):
+                samples.clear()
+                _, _, batch, mapping = scope['prompt_materials']({}, {'videos': ['v']}, parser, requested)
+                self.assertEqual(len(samples), expected)
+                self.assertEqual(len(batch), expected)
+                self.assertEqual(samples[0], 5)
+                self.assertTrue(all(5 <= value < 8 for value in samples))
+                if expected > 1:
+                    self.assertEqual(samples[-1], 7.75)
+                self.assertIn(f'1–{expected}', mapping[0])
 
     def test_selected_clips_share_clip_and_preserve_draft(self):
         original = json.dumps(self.data)

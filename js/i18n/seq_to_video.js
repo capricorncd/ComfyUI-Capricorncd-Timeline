@@ -2,6 +2,12 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        h3_prompt_progress: "Automatic prompt · Clip {current} / {total} · {phase}",
+        h3_phase_prompt_prepare: "Preparing text model",
+        h3_phase_prompt_materials: "Reading references / selecting frames",
+        h3_phase_prompt_generate: "Generating prompt",
+        h3_phase_prompt_done: "Prompt ready",
+
         open_folder: "Open folder",
         open_folder_failed: "Could not open folder:",
         h3_warning_missing_context: "Warning: clip {clip} has no available context or generated video from {previous}. Generating independently without motion continuity.",
@@ -27,6 +33,12 @@ export const DICT = {
         ffmpeg_not_found: "ffmpeg not found; please install it and restart ComfyUI",
     },
     zh: {
+        h3_prompt_progress: "自动提示词 · Clip {current} / {total} · {phase}",
+        h3_phase_prompt_prepare: "准备文本模型",
+        h3_phase_prompt_materials: "读取素材 / 抽取参考帧",
+        h3_phase_prompt_generate: "正在生成提示词",
+        h3_phase_prompt_done: "提示词已生成",
+
         open_folder: "打开文件夹",
         open_folder_failed: "无法打开文件夹：",
         h3_warning_missing_context: "警告：片段 {clip} 未找到前段 {previous} 的 Context 或生成视频，本次已改为独立生成，不使用动作续接。",
@@ -52,6 +64,12 @@ export const DICT = {
         ffmpeg_not_found: "未检测到 ffmpeg，请安装后重启 ComfyUI",
     },
     ja: {
+        h3_prompt_progress: "自動プロンプト · Clip {current} / {total} · {phase}",
+        h3_phase_prompt_prepare: "テキストモデルを準備中",
+        h3_phase_prompt_materials: "素材の読み込み / フレーム抽出",
+        h3_phase_prompt_generate: "プロンプト生成中",
+        h3_phase_prompt_done: "プロンプト生成完了",
+
         open_folder: "フォルダーを開く",
         open_folder_failed: "フォルダーを開けません：",
         h3_warning_missing_context: "警告：クリップ {clip} の前段 {previous} に利用可能な Context・生成動画がないため、動作の継続なしで独立生成します。",

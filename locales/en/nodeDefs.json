@@ -1,5 +1,7 @@
 {
-  "CAP_TrainingDataset": {"display_name": "Training Dataset Timeline"},
+  "CAP_TrainingDataset": {
+    "display_name": "Training Dataset Timeline"
+  },
   "CAP_H3FaceRefineConfig": {
     "display_name": "H3 Face Refine Config",
     "inputs": {
@@ -1021,6 +1023,18 @@
       },
       "skill": {
         "name": "Additional skill instructions"
+      },
+      "video_frame_count": {
+        "name": "Video frames (0 = auto)",
+        "tooltip": "For automatic prompts only, per reference video. 0: automatic, up to 8 frames. A positive number samples evenly within the trimmed video, limited by available frames. More frames increase time and memory use."
+      },
+      "video_frame_mode": {
+        "name": "Video frame selection",
+        "tooltip": "uniform: evenly spaced (default); manual: exact frame numbers; scene: select visual changes, with frame count as the maximum (0 = 8). Scans the trimmed video; may miss cuts."
+      },
+      "video_frame_numbers": {
+        "name": "Frame numbers",
+        "tooltip": "Manual: e.g. 1, 25, 73. First trimmed frame = 1, using source frames, not project FPS. Applies to each video. Count ignored; out-of-range values report an error."
       }
     },
     "display_name": "H3 Auto Prompt Config",

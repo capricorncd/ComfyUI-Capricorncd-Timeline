@@ -1,6 +1,7 @@
 """Resolve editor asset names against the references actually loaded for H3."""
 import re
 from pathlib import Path
+from .prompt_text import strip_comment_lines
 
 
 def asset_name(row):
@@ -15,7 +16,7 @@ def compile_h3_mentions(prompt, references):
             aliases.setdefault(name, set()).add(tag)
     if not aliases or '@' not in prompt:
         return prompt
-    pattern = re.compile(r'(?<![\w@])@(' + '|'.join(re.escape(name) for name in sorted(aliases, key=len, reverse=True)) + r')(?![\w])')
+    pattern = re.compile(r'(?<![A-Za-z0-9_@])@(' + '|'.join(re.escape(name) for name in sorted(aliases, key=len, reverse=True)) + r')(?![\w])')
     def replace(match):
         tags = aliases[match[1]]
         if len(tags) != 1:
@@ -38,11 +39,15 @@ def prompt_reference_rows(project, clip):
     for row in catalog:
         if row.get('id') in (clip.get('media_ids') or []):
             texts.extend(point.get('description', '') for point in (row.get('video_shots') or {}).get('points', []))
-    text = '\n'.join(str(value or '') for value in texts)
+    raw_text = '\n'.join(str(value or '') for value in texts)
+    text = strip_comment_lines(raw_text)
     result = []
     for row in catalog:
         name = asset_name(row)
-        if row.get('id') in selected or (name and re.search(r'(?<![\w@])@' + re.escape(name) + r'(?![\w])', text)):
+        pattern = r'(?<![A-Za-z0-9_@])@' + re.escape(name) + r'(?![\w])'
+        mentioned = bool(name and re.search(pattern, text))
+        comment_only = bool(name and re.search(pattern, raw_text) and not mentioned)
+        if mentioned or (row.get('id') in selected and not comment_only):
             result.append(row)
     return result
 

@@ -62,7 +62,7 @@ def expand_keyframe_runs(data):
                 row["prompt"] = prompt
                 row.pop("h3_generated_prompt", None)
                 row["keyframe_segment"] = dict(clip_id=parent, start_frame=begin, end_frame=end, fps=fps,
-                    interval=interval_number, part=part + 1, parts=count, prompt=prompt)
+                    interval_start_frame=first, interval=interval_number, part=part + 1, parts=count, prompt=prompt)
                 offset_start = row["start_ms"] - start_ms
                 offset_end = row["end_ms"] - start_ms
                 row["audios"] = []

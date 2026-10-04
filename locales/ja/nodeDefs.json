@@ -1,5 +1,7 @@
 {
-  "CAP_TrainingDataset": {"display_name": "学習素材タイムライン"},
+  "CAP_TrainingDataset": {
+    "display_name": "学習素材タイムライン"
+  },
   "CAP_H3FaceRefineConfig": {
     "display_name": "H3 顔修復設定",
     "inputs": {
@@ -1021,6 +1023,18 @@
       },
       "skill": {
         "name": "追加の Skill 指示"
+      },
+      "video_frame_count": {
+        "name": "動画フレーム数（0：自動）",
+        "tooltip": "自動プロンプト専用。参照動画ごとに抽出します。0：自動で最大 8 フレーム。正の整数：トリム範囲内で指定数を均等抽出（利用可能なフレーム数まで）。増やすほど時間とメモリを使用します。"
+      },
+      "video_frame_mode": {
+        "name": "動画フレーム選択",
+        "tooltip": "uniform：均等抽出（既定）；manual：番号指定；scene：画面変化で抽出。フレーム数は上限（0 = 8）。トリム範囲全体を走査します。全カットの検出は保証しません。"
+      },
+      "video_frame_numbers": {
+        "name": "指定フレーム番号",
+        "tooltip": "manual：例 1, 25, 73。各動画のトリム後先頭が 1。プロジェクト FPS ではなく元動画のフレームです。抽出数は無視。範囲外はエラー。"
       }
     },
     "display_name": "H3 自動プロンプト設定",

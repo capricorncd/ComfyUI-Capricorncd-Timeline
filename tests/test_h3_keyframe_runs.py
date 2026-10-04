@@ -38,6 +38,7 @@ class KeyframeRunTests(unittest.TestCase):
         module.expand_keyframe_runs(data)
         self.assertEqual(len(data['clips']), 2)
         self.assertEqual(data['clips'][0]['keyframe_segment']['start_frame'], 120)
+        self.assertTrue(all(row['keyframe_segment']['interval_start_frame'] == 120 for row in data['clips']))
         self.assertEqual(data['clips'][1]['keyframe_segment']['end_frame'], 600)
         self.assertEqual([row['video_trim']['start'] for row in data['materials'][1:]], [17, 37])
         self.assertEqual([row['prompt'] for row in data['clips']], ['turn', 'turn'])

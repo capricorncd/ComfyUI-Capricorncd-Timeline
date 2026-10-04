@@ -91,7 +91,7 @@ api.addEventListener("cat_h3_video_ready", event => {
 function showGeneratorProgress(node, data) {
     if (!node?._stvProgress || !data) return;
     const percent = Math.max(0, Math.min(100, Number(data.percent) || 0));
-    const progress = t("h3_progress", {
+    const progress = t(data.phase.startsWith('prompt_') ? "h3_prompt_progress" : "h3_progress", {
         current: data.clip_index, total: data.clip_total, percent,
         phase: t(`h3_phase_${data.phase}`),
     });

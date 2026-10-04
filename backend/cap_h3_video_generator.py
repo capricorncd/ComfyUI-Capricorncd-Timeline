@@ -234,7 +234,7 @@ class CAP_H3VideoGenerator:
         stage = request.get("action", "normal")
         if stage not in ("normal", "draft", "refine"):
             raise ValueError("Unknown H3 generation action.")
-        segmented = stage in ("normal", "draft") and expand_keyframe_runs(data)
+        segmented = (stage in ("normal", "draft") or (stage == "refine" and request.get("keyframe_runs"))) and expand_keyframe_runs(data)
         if stage != "refine":
             data.setdefault("h3_generation", {})["chain_all_clips"] = bool(chain_all_clips)
         if chain_all_clips and stage != "refine":

@@ -151,6 +151,12 @@ export class Dialog extends HTMLElement {
                 header > cap-button { flex-shrink: 0; }
                 .body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
                 .body > slot { display: contents; }
+                dialog.has-navigation { overflow: visible; }
+                ::slotted([slot="previous"]), ::slotted([slot="next"]) {
+                    position: absolute; top: 50%; transform: translateY(-50%);
+                }
+                ::slotted([slot="previous"]) { right: calc(100% + 12px); }
+                ::slotted([slot="next"]) { left: calc(100% + 12px); }
                 ::slotted(*) { flex-shrink: 0; }
                 footer { flex-shrink: 0; padding: 10px 14px 14px; border-top: 1px solid var(--cat-border, #34464b); }
                 footer[hidden] { display: none; }
@@ -163,11 +169,16 @@ export class Dialog extends HTMLElement {
             <dialog aria-labelledby="title">
                 <header><slot id="title" name="title"></slot><cap-button shape="square" variant="neutral" aria-label="Close" title="Close">${iconHtml("close", 18)}</cap-button></header>
                 <div class="body"><slot></slot></div>
+                <slot name="previous"></slot><slot name="next"></slot>
                 <footer hidden><slot name="footer"></slot></footer>
                 <cap-dialog-resize-handle class="resize-handle" aria-hidden="true"></cap-dialog-resize-handle>
             </dialog>`;
         this._dialog = root.querySelector("dialog");
         const footerSlot = root.querySelector('slot[name="footer"]');
+        for (const slot of root.querySelectorAll('slot[name="previous"], slot[name="next"]')) {
+            slot.addEventListener('slotchange', () => this._dialog.classList.toggle('has-navigation',
+                !!this.querySelector('[slot="previous"], [slot="next"]')));
+        }
         footerSlot.addEventListener("slotchange", () => {
             footerSlot.parentElement.hidden = footerSlot.assignedElements().length === 0;
             for (const element of footerSlot.assignedElements()) {

@@ -13,6 +13,7 @@ export class PromptHistoryActions extends HTMLElement {
         </style>`;
         for (const [action, icon, label] of [['history','history','tab_history'],['save','save','save_current_prompt_to_history_title'],['copy','copy','copy_prompt_title']]) {
             const button = document.createElement('cap-button');
+            button.dataset.action = action;
             button.setAttribute('size','small'); button.setAttribute('shape','square');
             button.title = t(label); button.setAttribute('aria-label',t(label));
             button.innerHTML = iconHtml(icon,12);
@@ -20,7 +21,12 @@ export class PromptHistoryActions extends HTMLElement {
             this.shadowRoot.append(button);
         }
     }
-    bind(textarea, read, write) { this.textarea=textarea; this.read=read; this.write=write; }
+    bind(textarea, read, write, {copyOnly = false} = {}) {
+        this.textarea=textarea; this.read=read; this.write=write;
+        for (const button of this.shadowRoot.querySelectorAll('cap-button')) {
+            button.hidden = copyOnly && button.dataset.action !== 'copy';
+        }
+    }
     save(button) {
         const text = this.textarea.value;
         if (!text.trim()) return;

@@ -4,6 +4,8 @@ Reference project preview offers a shared hover dropdown, “Merge into current 
 
 ## Prompt history actions
 
+`cap-dialog` supports `previous` and `next` slots for navigation buttons centered outside its left and right edges. Preview sampling management uses these slots for Clip navigation, matching Prompt Management.
+
 `cap-shot-control` exposes a default slot for Clip-owned actions. Its keyframe preview sampling action opens the shared version manager filtered to the selected frame interval, including continuation parts. Sampling and HD generation in this view use that interval. Clicking the Clip outside its markers clears keyframe selection.
 
 The keyframe description heading includes an Expand icon. It opens a resizable shared dialog with the same textarea, keeping edits, asset mentions, history and copy actions bound to the selected keyframe. Closing restores the field to the sidebar; edits are saved as they are typed.

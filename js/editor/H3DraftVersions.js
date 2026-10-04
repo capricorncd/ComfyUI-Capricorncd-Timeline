@@ -3,6 +3,7 @@ import '../components/Dialog.js';
 import '../components/FormControls.js';
 import '../components/StatusMessage.js';
 import '../components/ExportDirectory.js';
+import '../components/PromptHistoryActions.js';
 import { iconHtml } from '../cap_icons.js';
 import { makeT } from '../cap_i18n.js';
 import { t as T } from '../i18n/timeline_editor.js';
@@ -65,6 +66,8 @@ export class H3DraftVersions {
     }
 
     stop() {
+        this.promptResizeObserver?.disconnect();
+        this.promptResizeObserver = null;
         this.dialog.querySelectorAll('video').forEach(video => video.pause());
     }
 
@@ -174,14 +177,15 @@ export class H3DraftVersions {
         header.append(title);
         for (const [delta, key, icon] of [[-1, 'previous_clip', 'chevronLeft'], [1, 'next_clip', 'chevronRight']]) {
             const button = document.createElement('cap-button');
-            button.setAttribute('shape', 'square');
-            button.setAttribute('size', 'small');
+            button.slot = delta < 0 ? 'previous' : 'next';
+            button.setAttribute('shape', 'circle');
+            button.setAttribute('size', 'large');
             button.title = draftT(key);
             button.setAttribute('aria-label', button.title);
-            button.innerHTML = iconHtml(icon, 16);
+            button.innerHTML = iconHtml(icon, 20);
             button.disabled = !!this.interval || index < 0 || !clips[index + delta];
             button.addEventListener('click', () => this.step(delta));
-            header.append(button);
+            this.dialog.append(button);
         }
         const body = document.createElement('div');
         body.className = 'cat-te-h3-drafts-body';
@@ -222,7 +226,10 @@ export class H3DraftVersions {
             const remove = document.createElement('cap-button');
             remove.setAttribute('size', 'small');
             remove.setAttribute('variant', 'danger');
-            remove.textContent = draftT('remove');
+            remove.setAttribute('shape', 'square');
+            remove.title = draftT('remove');
+            remove.setAttribute('aria-label', remove.title);
+            remove.innerHTML = iconHtml('trash', 16);
             remove.disabled = !!clip.track?.locked;
             remove.addEventListener('click', async () => {
                 remove.disabled = true;
@@ -245,7 +252,10 @@ export class H3DraftVersions {
             });
             const folder = document.createElement('cap-button');
             folder.setAttribute('size', 'small');
-            folder.textContent = T('open_folder_btn');
+            folder.setAttribute('shape', 'square');
+            folder.title = T('open_folder_btn');
+            folder.setAttribute('aria-label', folder.title);
+            folder.innerHTML = iconHtml('folderOpen', 16);
             folder.disabled = !row.file;
             folder.addEventListener('click', async () => {
                 folder.disabled = true;
@@ -262,7 +272,23 @@ export class H3DraftVersions {
                     prompts: [{id: 'h3_clip_prompt', name: 'prompt', text: row.prompt || ''}],
                 });
             });
-            actions.append(details, folder, remove);
+            const hd = document.createElement('cap-button');
+            hd.setAttribute('size', 'small');
+            hd.textContent = draftT('hd');
+            hd.disabled = !!clip.track?.locked;
+            hd.addEventListener('click', async () => {
+                hd.disabled = true;
+                try {
+                    const part = row.keyframe_segment;
+                    await this.editor._runAllActiveClipsDownstream({clips: [clip], h3Generation: {
+                        action: 'refine', version_id: row.id,
+                        ...(part ? {keyframe_runs: [{clip_id: String(clip.id), clip_start_ms: Math.round(clip.startTime * 1000),
+                            fps: part.fps, intervals: [{start_frame: part.start_frame, end_frame: part.end_frame, prompt: row.prompt || ''}]}]} : {}),
+                    }});
+                } catch (error) { showCapAlert(draftT('failed', {message: error.message})); }
+                finally { if (hd.isConnected) hd.disabled = !!clip.track?.locked; }
+            });
+            actions.append(details, hd, folder, remove);
             const timing = document.createElement('div');
             const part = row.keyframe_segment;
             timing.textContent = (part ? draftT('segment', part) + ' · ' : '') + draftT('start', {time: draftStartTime(row)});
@@ -286,10 +312,25 @@ export class H3DraftVersions {
             video.addEventListener('error', () => status.setStatus(draftT('no_video'), 'error'));
             const heading = document.createElement('h4');
             heading.textContent = draftT('prompt');
-            const prompt = document.createElement('div');
-            prompt.className = 'cat-te-h3-draft-prompt';
-            prompt.textContent = current.prompt || '';
-            detail.append(video, status, heading, prompt);
+            const promptField = document.createElement('div');
+            promptField.className = 'cat-te-h3-draft-prompt';
+            const prompt = document.createElement('textarea');
+            prompt.readOnly = true;
+            prompt.setAttribute('aria-label', draftT('prompt'));
+            prompt.value = current.prompt || '';
+            const copy = document.createElement('cap-prompt-history-actions');
+            copy.bind(prompt, null, null, {copyOnly: true});
+            promptField.append(prompt, copy);
+            const resize = () => { prompt.style.height = 'auto'; prompt.style.height = `${prompt.scrollHeight}px`; };
+            let width = 0;
+            this.promptResizeObserver = new ResizeObserver(([entry]) => {
+                if (entry.contentRect.width === width) return;
+                width = entry.contentRect.width;
+                resize();
+            });
+            this.promptResizeObserver.observe(promptField);
+            requestAnimationFrame(resize);
+            detail.append(video, status, heading, promptField);
             layout.append(detail);
         }
         body.append(layout);
@@ -312,7 +353,7 @@ export class H3DraftVersions {
         associate.textContent = draftT('associate'); associate.disabled = !!clip.track?.locked;
         associate.addEventListener('click', () => this.associate(clip));
         footer.append(associate);
-        for (const action of ['draft', 'normal']) {
+        for (const action of ['draft']) {
             const button = document.createElement('cap-button');
             button.textContent = draftT(action === 'draft' ? 'generate' : 'hd');
             button.disabled = !!clip.track?.locked;

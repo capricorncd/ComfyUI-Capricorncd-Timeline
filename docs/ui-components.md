@@ -6,6 +6,10 @@ Reference project preview offers a shared hover dropdown, “Merge into current 
 
 `cap-shot-control` exposes a default slot for Clip-owned actions. Its keyframe preview sampling action opens the shared version manager filtered to the selected frame interval, including continuation parts. Sampling and HD generation in this view use that interval. Clicking the Clip outside its markers clears keyframe selection.
 
+The keyframe description heading includes an Expand icon. It opens a resizable shared dialog with the same textarea, keeping edits, asset mentions, history and copy actions bound to the selected keyframe. Closing restores the field to the sidebar; edits are saved as they are typed.
+
+Keyframe prompts use the shared rich prompt editor. `Ctrl+/` toggles `//` comments on the current or selected lines in both the sidebar and expanded dialog; comment lines are omitted from model prompts.
+
 `PromptHistoryActions.js` provides `<cap-prompt-history-actions>` inside prompt fields at the bottom right. The field wrapper reserves a toolbar row within its border so actions do not cover text while scrolling. `bind(textarea, read, write)` supplies the workflow-owned history document (`schema_version: 1`, `items` with `id`, `text`, `created_at`). History, Save and Copy reuse shared icon buttons. Restoring dispatches input/change through the existing editor path. Timeline prompts and keyframe prompts share the node's hidden `prompt_history_json` widget. Project exports include a separate `prompt_history.json`; missing history on import means an empty history, including older packages.
 
 ## Project video list
@@ -339,3 +343,6 @@ Director reference editing uses the shared child timeline, stored separately in 
 The Run menu offers “Selected keyframe” for an unlocked H3 Clip with a selected marker. It queues only that marker’s interval through the existing keyframe-run path, ending at the next marker or Clip end, without the interval selection dialog.
 
 Converting a media video Clip or track to director stores the existing file ID, source offset, duration and playback rate in its reference sub-timeline. Conversion creates no trimmed file or catalog asset; the original media metadata remains unchanged.
+
+Generated prompt fill uses the same editor action in H3 preview versions and generated-video details. It saves nonempty original text to workflow prompt history before replacement, deduplicates identical history entries, and records undo. Clip results target the recorded Clip; keyframe results target the exact recorded interval start (new continuation records retain `interval_start_frame`). Missing/locked targets and conflicting prompts for the same target are skipped; filling unchanged text is a no-op. Older continuation records without an exact keyframe match cannot be filled. AI prompt generation in Prompt Manager also preserves the replaced Clip text through this action. Tests: `test_video_prompt_restore.mjs`, `test_h3_keyframe_runs.py`.
+`H3DraftVersions` provides a Details button for every preview version. It opens the shared video details dialog with that version's saved prompt, seed and keyframe mapping, without requiring embedded MP4 metadata. Prompt fill uses the same history-preserving action as final video details. Opening details stops preview playback; closing details releases its video.

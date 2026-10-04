@@ -1,7 +1,13 @@
 import "./Button.js";
+import "./Dialog.js";
 import "./PromptMentions.js";
 import "./PromptHistoryActions.js";
 import { formatTimecode } from "../timecode.js";
+import { iconHtml } from "../cap_icons.js";
+import { makeT } from "../cap_i18n.js";
+import { attachRichPromptHandler, setRichPromptValue } from "./RichPrompt.js";
+
+const promptT = makeT({en: {expand: 'Expand keyframe prompt'}, zh: {expand: '展开关键帧提示词'}, ja: {expand: 'キーフレームプロンプトを拡大'}});
 
 export function shotPrompt(points) {
     const shots = [...points].sort((a, b) => a.time - b.time);
@@ -24,6 +30,11 @@ export class ShotControl extends HTMLElement {
                 header, .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
                 .time { margin-left: auto; color: var(--cat-muted); font-variant-numeric: tabular-nums; }
                 label { display: grid; gap: 6px; }
+                .description-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+                cap-dialog { --cap-dialog-width: 720px; --cap-dialog-height: 65vh;
+                    --cap-dialog-min-width: 360px; --cap-dialog-min-height: 300px; }
+                cap-dialog .prompt-field { margin: 16px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+                cap-dialog textarea { flex: 1; min-height: 0; height: 100%; resize: none; }
                 .prompt-field { position: relative; padding-bottom: 32px; border: 1px solid var(--cat-border);
                     border-radius: 6px; background: var(--cat-input); overflow: hidden; }
                 textarea { display: block; box-sizing: border-box; width: 100%; min-height: 78px; resize: vertical; font: inherit; line-height: 1.6;
@@ -33,12 +44,43 @@ export class ShotControl extends HTMLElement {
                 .hint { color: var(--cat-muted); font-size: 0.85em; margin: 0; }
             </style>
             <header><strong></strong><span class="time"></span></header>
-            <label><span></span><div class="prompt-field"><textarea></textarea></div></label>
+            <label><div class="description-heading"><span></span><cap-button data-expand shape="square" size="small"></cap-button></div><div class="prompt-field"><textarea></textarea></div></label>
             <p class="hint"></p><div class="actions"><cap-button variant="danger" data-delete></cap-button><cap-button data-insert></cap-button></div><slot></slot>`;
         this.description = this.shadowRoot.querySelector('textarea');
         this.description.addEventListener('input', () => this.dispatchEvent(new CustomEvent('prompt-change', {detail: this.description.value})));
         this.description.addEventListener('blur', () => this.dispatchEvent(new Event('prompt-commit')));
         for (const action of ['delete', 'insert']) this.shadowRoot.querySelector(`[data-${action}]`).onclick = () => this.dispatchEvent(new Event(action));
+        const expand = this.shadowRoot.querySelector('[data-expand]');
+        expand.title = promptT('expand');
+        expand.setAttribute('aria-label', expand.title);
+        expand.innerHTML = iconHtml('maximize', 16);
+        expand.onclick = () => this.expandPrompt();
+    }
+    connectedCallback() {
+        attachRichPromptHandler(this.description, {mode: 'widget'});
+    }
+    expandPrompt() {
+        if (this.promptDialog?.open) return;
+        const field = this.shadowRoot.querySelector('.prompt-field');
+        const parent = field.parentNode;
+        const dialog = document.createElement('cap-dialog');
+        const title = document.createElement('span');
+        title.slot = 'title';
+        title.textContent = `${this.shadowRoot.querySelector('strong').textContent} · ${this.shadowRoot.querySelector('.time').textContent}`;
+        dialog.append(title, field);
+        if (this.mentions) dialog.append(this.mentions);
+        this.shadowRoot.append(dialog);
+        this.promptDialog = dialog;
+        dialog.addEventListener('close', () => {
+            this.mentions?.close();
+            if (this.mentions) this.shadowRoot.append(this.mentions);
+            parent.append(field);
+            dialog.remove();
+            this.promptDialog = null;
+            this.dispatchEvent(new Event('prompt-commit'));
+        }, {once: true});
+        dialog.showModal();
+        this.description.focus();
     }
     setMentionSource(getAssets) {
         if (!this.mentions) {
@@ -61,7 +103,7 @@ export class ShotControl extends HTMLElement {
         this.shadowRoot.querySelector('.time').textContent = formatTimecode(time * 1000, fps);
         this.shadowRoot.querySelector('label span').textContent = labels.description;
         this.shadowRoot.querySelector('.hint').textContent = labels.hint;
-        this.description.value = point.description || '';
+        setRichPromptValue(this.description, point.description || '', !locked);
         this.description.disabled = locked;
         for (const action of ['delete', 'insert']) {
             const button = this.shadowRoot.querySelector(`[data-${action}]`);
@@ -80,11 +122,13 @@ export class ShotMarkers extends HTMLElement {
                 .marker { position: absolute; top: 0; width: 18px; height: 18px; transform: translateX(-50%); pointer-events: auto; cursor: pointer; }
                 svg { display: block; width: 18px; height: 18px; pointer-events: none; }
                 polygon { fill: var(--cat-text, #e4edeb); stroke: var(--cat-bg, #172327); stroke-width: 1.5; }
-                .selected polygon, .marker:focus polygon { fill: var(--cat-accent, #64d8c5); stroke: var(--cat-text, #e4edeb); stroke-width: 2; }
+                .selected polygon { fill: var(--cat-accent, #64d8c5); stroke: var(--cat-text, #e4edeb); stroke-width: 2; }
+                .marker:focus-visible { outline: 1px solid var(--cat-accent, #64d8c5); outline-offset: 2px; }
             </style><div class="markers"></div>`;
         this.addEventListener('mousedown', event => { event.stopPropagation(); event.preventDefault(); });
         this.addEventListener('dblclick', event => { event.stopPropagation(); event.preventDefault(); });
-        this.shadowRoot.addEventListener('mousedown', event => {
+        this.addEventListener('pointerdown', event => { event.stopPropagation(); event.preventDefault(); });
+        this.shadowRoot.addEventListener('pointerdown', event => {
             if (event.button !== 0) return;
             const marker = event.target.closest('[data-index]');
             if (marker) this.dispatchEvent(new CustomEvent('point-select', {detail: Number(marker.dataset.index)}));

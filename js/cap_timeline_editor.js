@@ -375,6 +375,12 @@ function hookScalarWidgets(node) {
 function onTeGlobalKeyDown(e) {
     const te = CapTimelineEditorApp._open;
     if (!te) return;
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey
+        && (["KeyC", "KeyV", "KeyX"].includes(e.code) || ["c", "v", "x"].includes(e.key?.toLowerCase())) && isEditingField(e)) {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return;
+    }
     if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && isEditingField(e)) {
         // Keep native caret movement; neither timeline nor graph shortcuts own these keys.
         e.stopImmediatePropagation();

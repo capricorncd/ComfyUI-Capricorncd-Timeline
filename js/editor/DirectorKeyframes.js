@@ -64,10 +64,6 @@ export class DirectorKeyframes {
             target.media.video_shots = {source_id: target.source.item.id, points: target.local ? [] : [{time: target.start, description: ''}]};
         }
         if (!markers) {
-            clip.el.addEventListener('mousedown', event => {
-                if (event.button === 0 && this.selection?.clipId === clip.id
-                    && !event.composedPath().some(element => element.localName === 'cap-shot-markers')) this.clearSelection();
-            }, true);
             markers = document.createElement('cap-shot-markers');
             markers.addEventListener('point-select', event => {
                 const current = this.target(clip);
@@ -77,6 +73,10 @@ export class DirectorKeyframes {
         }
         markers.configure(this.points(target), target.start, target.duration,
             this.selection?.clipId === clip.id ? this.selection.point : null, T('shot_control'));
+    }
+    timelinePointer(event) {
+        if (event.button === 0 && this.selection
+            && !event.composedPath().some(element => element.localName === 'cap-shot-markers')) this.clearSelection();
     }
     selectedTarget() {
         const selection = this.selection;
@@ -156,22 +156,6 @@ export class DirectorKeyframes {
         this.clearSelection();
         this.save(target);
     }
-    move(delta) {
-        const target = this.selectedTarget();
-        if (!target) return false;
-        if (target.clip.track.locked) return true;
-        const fps = this.app.getFps();
-        const point = this.selection.point;
-        const frame = Math.round((point.time - target.start) / target.rate * fps) + delta;
-        if (frame < 0 || frame >= Math.ceil(target.clip.duration * fps - 1e-7)) return true;
-        if (this.points(target).some(other => other !== point && Math.round((other.time - target.start) / target.rate * fps) === frame)) return true;
-        this.app._recordUndo();
-        point.time = target.start + frame / fps * target.rate;
-        target.media.video_shots.points.sort((a, b) => a.time - b.time);
-        this.app._timeline.setCurrentTime(target.clip.startTime + frame / fps);
-        this.save(target);
-        return true;
-    }
     key(event) {
         if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.code === 'KeyP') {
             const clip = this.app._selClip;
@@ -182,8 +166,7 @@ export class DirectorKeyframes {
             return;
         }
         if (event.ctrlKey || event.metaKey || event.altKey) return;
-        const handled = ['Delete', 'Backspace'].includes(event.code) ? this.remove()
-            : event.code === 'ArrowLeft' ? this.move(-1) : event.code === 'ArrowRight' ? this.move(1) : false;
+        const handled = ['Delete', 'Backspace'].includes(event.code) ? this.remove() : false;
         if (handled) { event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.(); }
     }
     save(target, updatePanel = true) {

@@ -1644,6 +1644,9 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-gen-edit-preview {
     position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex: 0 0 var(--cat-te-gen-edit-preview-h, 280px);
     height: var(--cat-te-gen-edit-preview-h, 280px);
     min-height: 120px;
@@ -3672,7 +3675,6 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-ai-context-grid input { margin: 0; }
 
-.cat-te-overlay .cap-rich-prompt-mirror,
 .cat-te-vo-prompt,
 .cat-te-vo-style-prompt,
 .cat-te-vo-edit-prompt,

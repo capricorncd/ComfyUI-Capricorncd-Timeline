@@ -1,6 +1,7 @@
 import "./components/ImageCompare.js";
 import "./components/SkillPicker.js";
 import { renameAssetMentions } from './prompt_asset_rename.js';
+import { cleanRunPrompts } from './editor/RunPromptCleanup.js';
 import { copyPromptSkills, enabledPromptSkills } from './components/PromptSkills.js';
 import { H3DraftVersions, draftT } from "./editor/H3DraftVersions.js";
 import { openInsertClip } from './editor/InsertClip.js';
@@ -1159,7 +1160,12 @@ export class CapTimelineEditorApp {
         if (!mod || e.altKey) return false;
 
         const key = this._shortcutModKey(e);
-        const inField = !!e.target?.closest?.("input, textarea, select, [contenteditable='true']");
+        const inField = isEditingField(e);
+        if (["c", "v", "x"].includes(key) && inField) {
+            e.stopPropagation();
+            e.stopImmediatePropagation?.();
+            return true;
+        }
         if (this.genEditModal && !this.genEditModal.hidden && ["c", "v", "x", "b"].includes(key)) return this.handleGenEditKey(e);
 
         // Claim the shortcut so other bubble handlers skip; tracker undo is
@@ -5335,6 +5341,7 @@ export class CapTimelineEditorApp {
         el.querySelector(".cat-te-h3-drafts-open").addEventListener("click", () => this._h3DraftVersions.open(this._selClip));
         this._clipExport = new ClipExport(el);
         this._directorKeyframes = new DirectorKeyframes(this, el.querySelector('.cat-te-director-keyframe'), isDirectorTrackType);
+        this.tlHost.addEventListener('pointerdown', event => this._directorKeyframes.timelinePointer(event), true);
         el.querySelector('.cat-te-keyframe-drafts-open').addEventListener('click', () => {
             const run = selectedKeyframeRun(this)?.keyframe_runs[0];
             if (run) this._h3DraftVersions.open(this._findClipById(run.clip_id), {...run.intervals[0], fps: run.fps, reference: run.reference});
@@ -9372,17 +9379,18 @@ export class CapTimelineEditorApp {
         this.genVideoModal.hidden = false;
     }
 
-    _openProjectVideoDetails(row) {
+    _openProjectVideoDetails(row, generation = null) {
         this.projectVideosPanel?.stop();
         const dialog = document.createElement('cap-dialog');
         dialog.style.cssText = '--cap-dialog-width:800px;--cap-dialog-min-width:480px;--cap-dialog-min-height:360px';
         const title = document.createElement('span');
         title.slot = 'title';
-        title.textContent = row.file.split('/').pop();
+        title.textContent = row.file?.split('/').pop() || T('project_video_details');
         const body = document.createElement('div');
         body.style.cssText = 'padding:20px 28px;display:grid;gap:18px';
         const video = document.createElement('video');
-        video.src = this._outputVideoUrl(row.file);
+        if (row.file) video.src = this._outputVideoUrl(row.file);
+        else video.hidden = true;
         video.controls = true;
         video.preload = 'metadata';
         video.style.cssText = 'width:100%;max-height:40vh;object-fit:contain';
@@ -9401,33 +9409,55 @@ export class CapTimelineEditorApp {
         }, { once: true });
         this._overlay.append(dialog);
         dialog.showModal();
-        void this._showGenVideoGeneration(null, row, metadata, footer);
+        void this._showGenVideoGeneration(null, row, metadata, footer, generation);
     }
 
     _restoreVideoPrompts(generation) {
-        const updates = videoPromptUpdates(generation).map(row => ({ ...row, clip: this._findClipById(row.id) }))
-            .filter(row => row.clip && !row.clip.track?.locked);
+        return this._fillGeneratedPrompts(videoPromptUpdates(generation));
+    }
+
+    _generatedPromptTarget({id, segment}) {
+        const clip = this._findClipById(id);
+        if (!clip || clip.track?.locked) return null;
+        if (!segment) return {clip, owner: this._ensureClipMeta(clip), key: 'prompt'};
+        const target = this._directorKeyframes.target(clip);
+        if (!target || !(segment.fps > 0)) return null;
+        const point = this._directorKeyframes.points(target).find(point =>
+            Math.round((point.time - target.start) / target.rate * segment.fps) === (segment.interval_start_frame ?? segment.start_frame));
+        return point ? {clip, owner: point, key: 'description', target} : null;
+    }
+
+    _fillGeneratedPrompts(rows) {
+        const updates = rows.map(row => ({...row, destination: this._generatedPromptTarget(row)}))
+            .filter(row => row.destination && row.text?.trim() && row.destination.owner[row.destination.key] !== row.text);
         if (!updates.length) return 0;
         this._recordUndo();
-        for (const { clip, text } of updates) {
-            const meta = this._ensureClipMeta(clip);
-            meta.prompt = text;
-            this._meta.set(clip.id, meta);
+        const history = this._promptHistoryDocument();
+        for (const { destination } of updates) {
+            const text = String(destination.owner[destination.key] || '');
+            if (text.trim() && !history.items.some(row => row.text === text)) {
+                history.items.unshift({id: crypto.randomUUID(), text, created_at: new Date().toISOString()});
+            }
         }
+        this._savePromptHistory(history);
+        for (const { destination, text } of updates) destination.owner[destination.key] = text;
+        for (const { destination } of updates) if (destination.target) this._directorKeyframes.save(destination.target);
         this._syncSelectedClip();
         this._refreshFinalPromptDisplay();
         this._saveToWidgets();
         return updates.length;
     }
 
-    async _showGenVideoGeneration(clip, row, host = this.genVideoModal.querySelector(".cat-te-gen-video-generation"), actionsHost = host) {
+    async _showGenVideoGeneration(clip, row, host = this.genVideoModal.querySelector(".cat-te-gen-video-generation"), actionsHost = host, generation = null) {
         const token = Symbol();
         host._requestToken = token;
         host.textContent = T("video_generation_loading");
         try {
-            const response = await api.fetchApi(`/audio_keyframe_timeline/video_generation?file=${encodeURIComponent(row.file)}`);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const { generation } = await response.json();
+            if (!generation) {
+                const response = await api.fetchApi(`/audio_keyframe_timeline/video_generation?file=${encodeURIComponent(row.file)}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                ({ generation } = await response.json());
+            }
             if (host._requestToken !== token || !host.isConnected || (clip && this.genVideoModal.hidden)) return;
             host.replaceChildren();
             if (!generation) { host.textContent = T("video_generation_unavailable"); return; }
@@ -9435,8 +9465,7 @@ export class CapTimelineEditorApp {
             restore.setAttribute('variant', 'danger');
             restore.textContent = T('video_prompts_restore');
             restore.disabled = !videoPromptUpdates(generation).some(row => {
-                const target = this._findClipById(row.id);
-                return target && !target.track?.locked;
+                return this._generatedPromptTarget(row);
             });
             restore.title = T('video_prompts_restore_hint');
             restore.addEventListener('click', () => {
@@ -10953,8 +10982,13 @@ export class CapTimelineEditorApp {
         const canvas = this.genEditPreviewCanvas;
         if (!st || !canvas || this.genEditModal?.hidden) return;
         const stage = canvas.parentElement;
-        const w = Math.max(2, Math.floor(stage?.clientWidth || 320));
-        const h = Math.max(2, Math.floor(stage?.clientHeight || 180));
+        const projectSize = this.getPreviewSize();
+        const scale = Math.min((stage?.clientWidth || 320) / projectSize.w,
+            (stage?.clientHeight || 180) / projectSize.h);
+        const w = Math.max(2, Math.floor(projectSize.w * scale));
+        const h = Math.max(2, Math.floor(projectSize.h * scale));
+        canvas.style.width = `${w}px`;
+        canvas.style.height = `${h}px`;
         const sizeChanged = canvas.width !== w || canvas.height !== h;
         if (sizeChanged) {
             canvas.width = w;
@@ -16340,6 +16374,7 @@ export class CapTimelineEditorApp {
                 if (typeof meta[key] === "string") meta[key] = replace(meta[key]);
             }
             if (Array.isArray(meta.promptSkills)) meta.promptSkills = meta.promptSkills.map(row => ({...row, text: replace(row.text)}));
+            for (const point of meta.video_shots?.points || []) point.description = replace(point.description);
         }
         for (const row of this._projectResources || []) {
             for (const point of row.video_shots?.points || []) point.description = replace(point.description);
@@ -16351,11 +16386,9 @@ export class CapTimelineEditorApp {
         }
         this._syncScalarsToProjectJson();
         this._updatePromptPanel();
+        this._directorKeyframes?.refreshPanel();
         if (this.aiOptimizeModal && !this.aiOptimizeModal.hidden) {
-            const clip = this._findClipById(this._aiOptimizeClipId);
-            if (clip && this.aiSrcText && !this.aiSrcText.readOnly) {
-                setRichPromptValue(this.aiSrcText, this._promptManagerValue(this._aiOptimizeSrc, clip), true);
-            }
+            this._fillAiOptimizeSrc();
             this._syncAiPromptTargetControls();
         }
     }
@@ -17734,14 +17767,15 @@ export class CapTimelineEditorApp {
             stamp = this._makeGenVideoStamp();
             expectedFile = this._clipSpecifiedVideoPath(clips[0].id, stamp);
         }
+        const cleaned = cleanRunPrompts(this._buildProject(), h3Generation);
         const job = {
             clipId: String(clips[0].id),
             clipIds: clips.map(c => String(c.id)),
             stamp,
             expectedFile,
-            projectJson: JSON.stringify(this._buildProject()),
+            projectJson: JSON.stringify(cleaned.project),
             workflowPreview,
-            h3Generation,
+            h3Generation: cleaned.generation,
         };
         CapTimelineEditorApp._clipRunEditor = this;
         CapTimelineEditorApp._clipRunJobs = [job];
@@ -20755,7 +20789,7 @@ export class CapTimelineEditorApp {
             if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
             const text = String(data.prompt || "").trim();
             if (!text) throw new Error(T("model_no_prompt_returned"));
-            this._writePromptManagerValue("clip", text, { recordUndo: true });
+            this._fillGeneratedPrompts([{id: String(clip.id), text}]);
             this._setAiOptimizeSrcTab("clip");
         } catch (error) {
             if (ac.signal.aborted || error?.name === "AbortError") return;

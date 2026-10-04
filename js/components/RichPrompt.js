@@ -113,7 +113,7 @@ function syncMirrorLayout(ta) {
 }
 
 function hasValidMirror(ta) {
-    return !!(ta?._capMirror && document.contains(ta._capMirror) && ta._capMirror.isConnected);
+    return !!(ta?._capMirror?.isConnected);
 }
 
 export function isRichPromptReady(widget) {
@@ -501,7 +501,7 @@ export function attachRichPromptHandler(ta, { mode = "widget" } = {}) {
     if (!ta._capRichHistory) resetPromptHistory(ta);
 
     const onKeydown = (e) => {
-        if (!document.contains(ta)) {
+        if (!ta.isConnected) {
             detachRichPromptHandler(ta);
             return;
         }

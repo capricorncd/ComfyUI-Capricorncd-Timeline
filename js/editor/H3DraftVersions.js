@@ -252,7 +252,17 @@ export class H3DraftVersions {
                 try { await this.editor._revealOutput({ filename: row.file }); }
                 finally { folder.disabled = !row.file; }
             });
-            actions.append(folder, remove);
+            const details = document.createElement('cap-button');
+            details.setAttribute('size', 'small');
+            details.textContent = T('project_video_details');
+            details.addEventListener('click', () => {
+                this.stop();
+                this.editor._openProjectVideoDetails(row, {
+                    clip_id: String(clip.id), seed: row.seed, keyframe_segment: row.keyframe_segment,
+                    prompts: [{id: 'h3_clip_prompt', name: 'prompt', text: row.prompt || ''}],
+                });
+            });
+            actions.append(details, folder, remove);
             const timing = document.createElement('div');
             const part = row.keyframe_segment;
             timing.textContent = (part ? draftT('segment', part) + ' · ' : '') + draftT('start', {time: draftStartTime(row)});
@@ -286,6 +296,18 @@ export class H3DraftVersions {
         const footer = document.createElement('div');
         footer.slot = 'footer';
         footer.className = 'cat-te-h3-draft-actions';
+        if (current?.prompt) {
+            const restore = document.createElement('cap-button');
+            const update = {id: String(clip.id), text: current.prompt, segment: current.keyframe_segment};
+            restore.textContent = T('video_prompts_restore');
+            restore.title = T('video_prompts_restore_hint');
+            restore.disabled = !this.editor._generatedPromptTarget(update);
+            restore.addEventListener('click', () => {
+                const count = this.editor._fillGeneratedPrompts([update]);
+                restore.textContent = T('video_prompts_restored', {n: count});
+            });
+            footer.append(restore);
+        }
         const associate = document.createElement('cap-button');
         associate.textContent = draftT('associate'); associate.disabled = !!clip.track?.locked;
         associate.addEventListener('click', () => this.associate(clip));

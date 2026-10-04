@@ -14,6 +14,7 @@ const start = source.indexOf('    _renameMediaPromptReferences(');
 const method = new Function('renameAssetMentions', 'SETTING_PROMPT_KEYS', 'setRichPromptValue',
     `return ({${source.slice(start, source.indexOf('\n    }', start) + 6)}})._renameMediaPromptReferences`)(rename, ['prepend_prompt'], (input, value) => input.value = value);
 const meta = {prompt:'@old walks', promptMediaIds:['asset-id'], promptSkills:[{text:'Preserve @old'}], generatedVideos:[{prompt:'@old historical'}]};
+meta.video_shots = {points: [{description: '@old close-up'}]};
 const editor = {
     _meta:new Map([['clip',meta]]),
     _projectResources:[{id:'asset-id',name:'new',video_shots:{points:[{description:'Follow @old'}]}}],
@@ -23,6 +24,7 @@ const editor = {
 };
 method.call(editor,'old','new');
 assert.equal(meta.prompt,'@new walks');
+assert.equal(meta.video_shots.points[0].description, '@new close-up');
 assert.equal(meta.promptSkills[0].text,'Preserve @new');
 assert.deepEqual(meta.promptMediaIds,['asset-id']);
 assert.equal(meta.generatedVideos[0].prompt,'@old historical');
@@ -30,4 +32,10 @@ assert.equal(editor._projectResources[0].video_shots.points[0].description,'Foll
 assert.equal(editor._settingPromptInputs.prepend_prompt.value,'Use @new');
 assert.equal(editor._storyboards[0].description,'@new enters');
 assert(editor.synced);
+editor.aiOptimizeModal = {hidden: false};
+editor.aiSrcText = {value: '@new walks'};
+editor._fillAiOptimizeSrc = () => {editor.aiSrcText.value = meta.prompt;};
+editor._syncAiPromptTargetControls = () => {};
+method.call(editor, 'new', 'renamed');
+assert.equal(editor.aiSrcText.value, '@renamed walks', 'Open prompt manager refreshes after asset renaming');
 console.log('PASS: current prompts and keyframes update; asset IDs and generation history remain intact');

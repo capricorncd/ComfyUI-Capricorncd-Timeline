@@ -6,9 +6,9 @@ import { iconHtml } from '../cap_icons.js';
 import { api } from '../../../scripts/api.js';
 
 const T = makeT({
-    zh: { label: '导出目录', choose: '选择目录', change: '更改目录', reset: '使用默认 output 目录', missing: '目录不存在，请输入已存在的目录', failed: '无法检查目录，请确认服务连接' },
-    en: { label: 'Export directory', choose: 'Choose folder', change: 'Change folder', reset: 'Use default output folder', missing: 'Directory does not exist. Enter an existing folder.', failed: 'Cannot check directory. Check the server connection.' },
-    ja: { label: '出力先', choose: 'フォルダーを選択', change: 'フォルダーを変更', reset: '既定の output フォルダーを使用', missing: 'フォルダーが存在しません。既存のフォルダーを入力してください。', failed: 'フォルダーを確認できません。接続を確認してください。' },
+    zh: { unbind: '解绑', label: '导出目录', choose: '选择目录', change: '更改目录', reset: '使用默认 output 目录', missing: '目录不存在，请输入已存在的目录', failed: '无法检查目录，请确认服务连接' },
+    en: { unbind: 'Unbind', label: 'Export directory', choose: 'Choose folder', change: 'Change folder', reset: 'Use default output folder', missing: 'Directory does not exist. Enter an existing folder.', failed: 'Cannot check directory. Check the server connection.' },
+    ja: { unbind: '関連付け解除', label: '出力先', choose: 'フォルダーを選択', change: 'フォルダーを変更', reset: '既定の output フォルダーを使用', missing: 'フォルダーが存在しません。既存のフォルダーを入力してください。', failed: 'フォルダーを確認できません。接続を確認してください。' },
 });
 
 const STORAGE_KEY = 'capricorncd.timeline.last-export-directory';
@@ -126,7 +126,16 @@ export class ExportDirectory extends HTMLElement {
         this.choose.textContent = T(this.value ? 'change' : 'choose');
         this.choose.hidden = !this.nativePicker;
         this.openButton.hidden = !this.hasAttribute('project-directory') || !this.value;
-        this.reset.hidden = this.hasAttribute('project-directory') || !this.nativePicker || !this.value;
+        const projectDirectory = this.hasAttribute('project-directory');
+        this.reset.hidden = !this.value || (!projectDirectory && !this.nativePicker);
+        if (projectDirectory) {
+            this.reset.textContent = T('unbind');
+            this.reset.setAttribute('variant', 'danger');
+            this.reset.removeAttribute('shape');
+            this.reset.setAttribute('size', 'small');
+            this.reset.title = T('unbind');
+            this.reset.setAttribute('aria-label', T('unbind'));
+        }
     }
     get disabled() { return this._disabled || false; }
     setStatus(message, state = '') { this.status.setStatus(message, state); }

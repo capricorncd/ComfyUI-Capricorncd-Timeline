@@ -26,6 +26,15 @@ try {
     const projectField = document.querySelector('#project');
     assert(projectField.value === '' && projectField.input.value === '', 'unassociated projects do not inherit export directory');
     assert(projectField.reset.hidden && projectField.input.readOnly, 'project association requires explicit native selection');
+    let projectChanges = 0;
+    projectField.addEventListener('change', () => projectChanges++);
+    projectField.value = 'D:/bound-project';
+    assert(!projectField.reset.hidden && projectField.reset.textContent === '解绑', 'bound project exposes Unbind');
+    assert(projectField.reset.getAttribute('variant') === 'danger', 'unbind uses shared danger style');
+    projectField.reset.click();
+    assert(projectField.value === '' && projectField.input.value === '' && projectChanges === 1, 'unbind clears address and commits association change');
+    assert(projectField.reset.hidden && projectField.openButton.hidden, 'unbound project hides directory actions');
+
     assert(field.value === lastExportDirectory(), 'restore after page reload');
     await field.pick();
     assert(field.value === next, 'selected path');

@@ -4776,6 +4776,7 @@ export class CapTimelineEditorApp {
               <cap-status-message class="cat-te-ai-generate-status" hidden></cap-status-message>
               <footer class="cat-te-modal-footer cat-te-ai-optimize-actions">
                 <cap-button variant="ghost" size="small" class="cat-te-ai-clip-duration" title="${T("copy_clip_id")}"><span class="cat-te-ai-clip-id-label"></span> <span class="cat-te-ai-clip-duration-value">00:00.00</span></cap-button>
+                <cap-button class="cat-te-ai-draft">${iconHtml("listCollapse", 12)}<span>${T("preview_sampling_btn")}</span></cap-button>
                 <cap-button class="cat-te-ai-generate">${iconHtml("sparkles", 12)}<span>${T("generate_clip_prompt_btn")}</span></cap-button>
                 <cap-button variant="primary" class="cat-te-ai-run">${iconHtml("play", 12)}<span>${T("workflow_run_queue")}</span></cap-button>
                 <cap-button variant="danger" class="cat-te-workflow-stop" hidden>${iconHtml("stop", 12)}<span>${T("workflow_stop")}</span></cap-button>
@@ -5794,6 +5795,8 @@ export class CapTimelineEditorApp {
             if (this._modelPreviewPromptId) void this._stopModelPreview();
             else void this._startModelPreview();
         });
+        this.aiDraftBtn = el.querySelector(".cat-te-ai-draft");
+        this.aiDraftBtn.addEventListener("click", () => void this._runPromptManagerDraft());
         this.aiRunBtn = el.querySelector(".cat-te-ai-run");
         this.aiClipDurationEl = el.querySelector(".cat-te-ai-clip-duration-value");
         this.aiClipIdLabel = el.querySelector(".cat-te-ai-clip-id-label");
@@ -8065,6 +8068,8 @@ export class CapTimelineEditorApp {
         if (this.aiClipDurationEl) {
             this.aiClipDurationEl.textContent = formatTimecode((Number(clip?.duration) || 0) * 1000, this._timeline?.fps || 24);
         }
+        if (this.aiDraftBtn) this.aiDraftBtn.disabled = this._workflowRunSubmitting || !clip
+            || !isDirectorTrackType(clip.track?.type) || clip.track?.locked;
         this.aiRunBtn.disabled = this._workflowRunSubmitting || !clip;
         this.aiRunBtn.innerHTML = `${iconHtml("play", 12)}<span>${T(this._workflowQueueBusy()
             ? "workflow_run_queue" : "workflow_run_preview")}</span>`;
@@ -8090,6 +8095,21 @@ export class CapTimelineEditorApp {
             this._workflowQueueRemaining = null;
         }
         this._syncWorkflowRunButton();
+    }
+
+    async _runPromptManagerDraft() {
+        if (this._workflowRunSubmitting) return;
+        const clip = this._findClipById(this._aiOptimizeClipId);
+        if (!clip) return;
+        this._onPromptManagerSourceInput();
+        this._workflowRunSubmitting = true;
+        this._syncWorkflowRunButton();
+        try {
+            await this._runH3Stage(clip, "draft");
+        } finally {
+            this._workflowRunSubmitting = false;
+            this._syncWorkflowRunButton();
+        }
     }
 
     async _runPromptManagerWorkflow() {

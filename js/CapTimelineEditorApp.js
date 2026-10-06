@@ -16408,6 +16408,7 @@ export class CapTimelineEditorApp {
         this._updatePromptPanel();
         this._directorKeyframes?.refreshPanel();
         if (this.aiOptimizeModal && !this.aiOptimizeModal.hidden) {
+        this.mediaPreviewModal.querySelector('.cat-te-media-preview-close').focus({ preventScroll: true });
             this._fillAiOptimizeSrc();
             this._syncAiPromptTargetControls();
         }

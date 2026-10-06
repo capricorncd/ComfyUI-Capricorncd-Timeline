@@ -6570,7 +6570,7 @@ export class CapTimelineEditorApp {
                 kind,
                 file,
                 location: "input",
-                name: local.name || file.split(/[\\/]/).pop() || file,
+                name: local.name || this._defaultMediaName(file),
                 prompt: local.prompt || "",
                 generation_prompt: local.generationPrompt || "",
                 setting_description: local.settingDescription || "",
@@ -6604,8 +6604,12 @@ export class CapTimelineEditorApp {
                 id: row.id || mediaUid(),
                 kind,
                 file: row.file,
+    _defaultMediaName(file) {
+        return String(file || "").split(/[\\/]/).pop().replace(/\.[^.]+$/, "");
+    }
+
                 location: "input",
-                name: row.name || String(row.file).split(/[\\/]/).pop(),
+                name: row.name || this._defaultMediaName(row.file),
                 prompt: String(row.prompt || ""),
                 generation_prompt: String(row.generation_prompt || ""),
                 setting_description: String(row.setting_description || ""),
@@ -6708,7 +6712,7 @@ export class CapTimelineEditorApp {
                 kind,
                 file,
                 location: "input",
-                name: row.name || local.name || file.split(/[\\/]/).pop() || file,
+                name: row.name || local.name || this._defaultMediaName(file),
                 prompt: String(row.prompt || local.prompt || ""),
                 generation_prompt: String(row.generation_prompt || row.generationPrompt || local.generationPrompt || ""),
                 setting_description: String(row.setting_description || row.settingDescription || local.settingDescription || ""),
@@ -6748,7 +6752,7 @@ export class CapTimelineEditorApp {
                             kind: row.kind,
                             file: row.file,
                             location: "input",
-                            name: row.file.split(/[\\/]/).pop() || row.file,
+                            name: this._defaultMediaName(row.file),
                             prompt: "",
                             generation_prompt: "",
                             setting_description: "",
@@ -7018,7 +7022,7 @@ export class CapTimelineEditorApp {
         const row = this._findMedia(kind, file);
         if (row) {
             return {
-                name: row.name || file.split(/[\\/]/).pop() || file,
+                name: row.name || this._defaultMediaName(file),
                 stars: Number.isFinite(Number(row.stars)) ? Number(row.stars) : undefined,
                 prompt: String(row.prompt || ""),
                 generationPrompt: String(row.generation_prompt || ""),
@@ -7035,7 +7039,7 @@ export class CapTimelineEditorApp {
         const next = this._parseMediaMeta(meta);
         const row = this._ensureMedia(kind, file);
         if (row) {
-            row.name = next.name || file.split(/[\\/]/).pop() || file;
+            row.name = next.name || this._defaultMediaName(file);
             row.prompt = next.prompt || "";
             row.generation_prompt = next.generationPrompt || "";
             row.setting_description = next.settingDescription || "";
@@ -16331,7 +16335,7 @@ export class CapTimelineEditorApp {
     _fillMediaPreviewMeta(kind, file) {
         const meta = this._getMediaMeta(kind, file);
         const known = MEDIA_ASSET_TYPES.some((t) => t.id === meta.mediaType);
-        if (this.mediaPreviewName) this.mediaPreviewName.value = meta.name || file.split(/[\\/]/).pop() || file;
+        if (this.mediaPreviewName) this.mediaPreviewName.value = meta.name || this._defaultMediaName(file);
         if (this.mediaGenerationPrompt) setRichPromptValue(this.mediaGenerationPrompt, meta.generationPrompt || "", true);
         if (this.mediaSettingDescription) setRichPromptValue(this.mediaSettingDescription, meta.settingDescription || "", true);
         if (this.mediaPreviewType) {

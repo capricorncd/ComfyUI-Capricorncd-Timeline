@@ -291,6 +291,7 @@ function normalizeGeneratedVideo(row) {
         volume: normalizeClipVolume(row.volume),
         media_scale: Math.max(1, Math.min(300, Number(row.media_scale ?? 100))),
         media_offset_x: Math.max(-100, Math.min(100, Number(row.media_offset_x ?? 0))),
+        auto_arrange: row.auto_arrange === true,
         media_offset_y: Math.max(-100, Math.min(100, Number(row.media_offset_y ?? 0))),
         ...(row.h3_context_from ? { h3_context_from: row.h3_context_from } : {}),
         ...(row.h3_context_original_out != null ? { h3_context_original_out: row.h3_context_original_out } : {}),
@@ -2030,6 +2031,21 @@ export class CapTimelineEditorApp {
             items.push({
                 label: T(label), icon: direction < 0 ? "arrowUp" : "arrowDown",
                 disabled: !this._canMoveTrack(track, direction),
+        items.push({
+            label: T("auto_arrange_track"), icon: track.autoArrange ? "check" : "timeline",
+            disabled: !!track.locked,
+            fn: () => {
+                this._recordUndo();
+                track.autoArrange = !track.autoArrange;
+                track.arrangeClips();
+                this._timeline._refresh();
+                this._refreshTimelineDuration();
+                this._syncSelectedClip();
+                this._saveToWidgets();
+                this._scheduleProgramPreview();
+                if (this._timeline._playing) this._startAudioPlayback();
+            },
+        });
                 fn: () => this._moveTrack(track, direction),
             });
         }
@@ -9881,6 +9897,7 @@ export class CapTimelineEditorApp {
                 c.waveformVolume = normalizeClipVolume(gen.volume);
                 void this._ensureGenVideoAudioBuffer(gen.file, gen.location || "output").then(buffer => {
                     if (!buffer || this._genEditState !== st || st.timeline !== tl || !c.el?.isConnected) return;
+                autoArrange: gen.auto_arrange === true,
                     c.hasAudio = true;
                     c._audioBuffer = buffer;
                     if (!Number.isFinite(c.sourceDuration)) c.sourceDuration = buffer.duration;
@@ -9943,6 +9960,7 @@ export class CapTimelineEditorApp {
                         if (!c.el?.isConnected) return;
                         c.waveformPeaks = r.peaks?.[0] || null;
                         c._audioBuffer = r.buffer || null;
+                    autoArrange: row.auto_arrange === true,
                         c.sourceDuration = r.duration || c.sourceDuration;
                         if (typeof c._refreshWaveRow === "function") c._refreshWaveRow();
                     }).catch(() => {});
@@ -9992,6 +10010,16 @@ export class CapTimelineEditorApp {
         tl.on("clip:delete", ({ clips }) => this._deleteGenEditClips(clips));
         tl.on("clip:moveend", () => {
             this._pullGenEditDraftFromTimeline();
+        const rearranged = tl.tracks.some(track => track.autoArrange && track.clips.some(c => {
+            const row = track.type === 'audio'
+                ? st.audioDraft.find(a => a.id === st.audioMap.get(c.id))
+                : st.draft.find(g => g.id === st.clipMap.get(c.id));
+            return row && Math.abs(c.startTime - (Number(row.edit_start_sec) || 0)) > 1e-6;
+        }));
+        if (rearranged) {
+            this._pullGenEditDraftFromTimeline();
+            this._applyGenEditChanges();
+        }
             this._applyGenEditChanges();
             refreshBound();
             this._scheduleGenEditPreview();
@@ -10137,6 +10165,21 @@ export class CapTimelineEditorApp {
                     track.setLocked(!track.locked);
                     render();
                 });
+                label: T("auto_arrange_track"), icon: track.autoArrange ? "check" : "timeline", disabled: !!track.locked,
+                fn: () => {
+                    const st = this._genEditState;
+                    if (!st?.timeline || st.merging || track.locked) return;
+                    st.timeline.pause();
+                    track.autoArrange = !track.autoArrange;
+                    track.arrangeClips();
+                    this._pullGenEditDraftFromTimeline();
+                    this._applyGenEditChanges();
+                    st.timeline._refresh();
+                    this._syncGenEditOutOfBoundsUI(st.timeline, st.clipDur);
+                    this._syncGenEditInspector();
+                    this._scheduleGenEditPreview();
+                },
+            }, {
                 render();
             } else if (kind === "visible") {
                 const render = () => {
@@ -10329,6 +10372,7 @@ export class CapTimelineEditorApp {
         }
         st.draft = next;
         st.audioDraft = nextAudio.filter((a) => a.file);
+                        auto_arrange: track.autoArrange === true,
     }
 
     _syncGenEditClipDisabled(clip, enabled) {
@@ -10356,6 +10400,7 @@ export class CapTimelineEditorApp {
         st.audioDraft = st.audioDraft.filter(row => !audioIds.has(row.id));
         if (!st.draft.some(row => row.id === st.selectedId)) st.selectedId = st.draft[0]?.id || null;
         const time = st.timeline.currentTime;
+                    auto_arrange: track.autoArrange === true,
         this._applyGenEditChanges();
         this._buildGenEditTimeline();
         st.timeline.setCurrentTime(time);
@@ -10794,6 +10839,7 @@ export class CapTimelineEditorApp {
                 await this._addAudioAtTime(audioFile, atSec, null, { canInsert: valid, duration: source.duration_sec });
                 if (!valid()) return;
                 this._setDirectorClipMuted(clip, true);
+                auto_arrange: row.auto_arrange === true,
             } catch (error) {
                 showCapAlert(T("separate_audio_failed", { msg: error instanceof Error ? error.message : String(error) }));
             }
@@ -15348,6 +15394,7 @@ export class CapTimelineEditorApp {
                 mediaId: audioMedia?.id || "",
                 resourceStartSec: Math.max(0, Number(c.resource_start_sec) || startTime),
                 resourceDurationSec: Math.max(0.05, Number(c.resource_duration_sec) || dur),
+                autoArrange: row.auto_arrange === true,
             });
             this._decorateClip(clip);
             return;
@@ -21453,6 +21500,7 @@ export class CapTimelineEditorApp {
             ? parsed.project
             : null;
         if (!project || !Array.isArray(project.tracks)) return false;
+                            auto_arrange: v.auto_arrange === true,
 
         let target = null;
         if (clipId) {
@@ -21484,6 +21532,7 @@ export class CapTimelineEditorApp {
         const existing = Array.isArray(target.generated_videos)
             ? target.generated_videos.map(normalizeGeneratedVideo).filter(Boolean)
             : [];
+                            auto_arrange: a.auto_arrange === true,
         const have = new Set(existing.map((row) => row.file));
         const added = [];
         for (const file of normalized) {
@@ -21540,6 +21589,7 @@ export class CapTimelineEditorApp {
     async _mergeReferenceProject(token, position) {
         const openGen = this._openGen;
         const response = await api.fetchApi('/audio_keyframe_timeline/reference_project_merge', {
+                auto_arrange: track.autoArrange === true,
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token, media: this._serializeMediaCatalog() }),
         });
@@ -21597,6 +21647,12 @@ export class CapTimelineEditorApp {
                 }
             }
         } finally {
+        let arranged = false;
+        for (const track of this._timeline.tracks) arranged = track.arrangeClips() || arranged;
+        if (arranged) {
+            this._timeline._refresh();
+            this._refreshTimelineDuration();
+        }
             this._settingPromptSyncing = false;
         }
         if (wroteAnySettingPrompt) this._syncScalarsToProjectJson();

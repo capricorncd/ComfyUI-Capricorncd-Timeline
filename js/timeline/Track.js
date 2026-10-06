@@ -16,6 +16,7 @@ export class Track extends EventEmitter {
     this.locked = data.locked ?? false;
     this.visible = data.visible ?? true;
     this.muted = data.muted ?? false;
+    this.autoArrange = data.autoArrange === true;
     this.clips = [];
 
     this.el = this._buildTrack();
@@ -90,6 +91,7 @@ export class Track extends EventEmitter {
     this.clips.push(clip);
     this.el.appendChild(clip.el);
     clip._applyPosition();
+    this.arrangeClips();
     return clip;
   }
 
@@ -98,10 +100,27 @@ export class Track extends EventEmitter {
     if (idx === -1) return false;
     this.clips[idx].el.remove();
     this.clips.splice(idx, 1);
+    this.arrangeClips();
     return true;
   }
 
   getClip(clipId) { return this.clips.find(c => c.id === clipId); }
+
+  arrangeClips() {
+    if (!this.autoArrange || this.locked || !this.clips.length) return false;
+    const clips = [...this.clips].sort((a, b) => a.startTime - b.startTime);
+    let end = 0;
+    let changed = false;
+    for (const clip of clips) {
+      if (Math.abs(clip.startTime - end) > 1e-6) {
+        clip.startTime = end;
+        clip._applyPosition();
+        changed = true;
+      }
+      end = clip.endTime;
+    }
+    return changed;
+  }
 
   refreshClips() { this.clips.forEach(c => c._applyPosition()); }
 
@@ -204,6 +223,6 @@ export class Track extends EventEmitter {
   }
 
   toJSON() {
-    return { id: this.id, type: this.type, name: this.name, clips: this.clips.map(c => c.toJSON()) };
+    return { id: this.id, type: this.type, name: this.name, autoArrange: this.autoArrange, clips: this.clips.map(c => c.toJSON()) };
   }
 }

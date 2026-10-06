@@ -2845,6 +2845,7 @@ body.cat-te-media-dnd-over-tl {
     font-family: inherit;
 }
 .cat-te-media-preview-meta textarea { resize: vertical; min-height: 54px; }
+.cat-te-media-preview-meta .cat-te-media-setting-description { line-height: 1.65; min-height: calc(8.25em + 14px); }
 
 .cat-te-media-preview-modal .cat-te-media-preview-dialog {
     --cap-dialog-min-width: 640px;

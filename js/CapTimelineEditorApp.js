@@ -4283,7 +4283,7 @@ export class CapTimelineEditorApp {
                   <div class="cat-te-media-preview-meta-row cat-te-media-preview-desc-row">
                     <span class="cat-te-media-preview-desc-label">${T("media_asset_description")}</span>
                     <div class="cat-te-media-preview-desc-wrap">
-                      <textarea class="cat-te-media-setting-description" rows="3" placeholder="${T("media_asset_description_placeholder")}"></textarea>
+                      <textarea class="cat-te-media-setting-description" rows="5" placeholder="${T("media_asset_description_placeholder")}"></textarea>
                     </div>
                   </div>
                   <div class="cat-te-character-voice" hidden></div>

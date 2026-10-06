@@ -3,7 +3,7 @@ import "./components/SkillPicker.js";
 import { renameAssetMentions } from './prompt_asset_rename.js';
 import { cleanRunPrompts } from './editor/RunPromptCleanup.js';
 import { copyPromptSkills, enabledPromptSkills } from './components/PromptSkills.js';
-import { H3DraftVersions, draftT } from "./editor/H3DraftVersions.js";
+import { H3DraftVersions, draftT, draftCountLabel } from "./editor/H3DraftVersions.js";
 import { openInsertClip } from './editor/InsertClip.js';
 /*!
  * Copyright (c) 2026 capricorncd
@@ -17398,7 +17398,6 @@ export class CapTimelineEditorApp {
                 : { label: T("menu_run"), icon: "play", fn: () => void this._runClipDownstream(clip) });
             generation.push(
                 { label: draftT("generate"), icon: "listCollapse", fn: () => void this._runH3Stage(clip, "draft") },
-                { label: `${draftT("title")} (${(m.h3Drafts || []).length})`, icon: "video", fn: () => this._h3DraftVersions.open(clip) },
                 { label: T("run_track_right_menu"), icon: "chevronRight", fn: () => void this._runSelectedTrackSide("right", clip) },
                 { label: T("run_track_left_menu"), icon: "chevronLeft", fn: () => void this._runSelectedTrackSide("left", clip) },
             );
@@ -17421,10 +17420,11 @@ export class CapTimelineEditorApp {
             this._timeline.pause();
             this._clipExport.open(this._buildProject(), clip.id, this._launcherProject?.session?.directory);
         } });
-        if (!isAudio && !isVoiceover && !isSubtitle && !isMedia) media.push({
-            label: T("clear_clip_video_links"), icon: "close", danger: true, disabled: !this._clipGeneratedVideos(m).length,
-            fn: () => void this._clearClipGeneratedVideoLinks(clip),
-        });
+        if (clip.track.type !== "filter" && !isAudio && !isVoiceover && !isSubtitle && !isMedia) media.push(
+            { label: T("clear_clip_video_links"), icon: "close", danger: true, disabled: !this._clipGeneratedVideos(m).length,
+                fn: () => void this._clearClipGeneratedVideoLinks(clip) },
+            { label: draftCountLabel(m.h3Drafts), icon: "video", fn: () => this._h3DraftVersions.open(clip) },
+        );
         const grouping = [
             { label: T("menu_group_clips"), icon: "grid", fn: () => this._setClipGroup(false), disabled: this._timeline.getSelectedClips().length < 2 },
             { label: T("menu_ungroup_clips"), icon: "grid", fn: () => this._setClipGroup(true), disabled: !this._timeline.getSelectedClips().some(c => c.groupId) },
@@ -17862,7 +17862,7 @@ export class CapTimelineEditorApp {
         const run = selectedKeyframeRun(this)?.keyframe_runs[0];
         const clip = run && this._findClipById(run.clip_id);
         const rows = clip ? this._h3DraftVersions.rows(clip, {...run.intervals[0], fps: run.fps}) : [];
-        button.textContent = `${draftT('title')} (${rows.length})`;
+        button.textContent = draftCountLabel(rows);
         button.disabled = !run;
     }
 
@@ -19091,6 +19091,10 @@ export class CapTimelineEditorApp {
                 console.error("[CapTE] clip settings panel sync failed", err);
             }
         });
+                { label: draftT("disable_all"), icon: "videoOff", danger: true,
+                    disabled: !this._h3DraftVersions.clips().some(clip => !clip.track?.locked
+                        && this._h3DraftVersions.rows(clip, null).some(row => row.enabled !== false)),
+                    fn: () => this._h3DraftVersions.disableAll() },
         tl.on("clip:add", ({ clip }) => {
             this._decorateClip(clip);
             this._renderMediaGrid();
@@ -19570,7 +19574,7 @@ export class CapTimelineEditorApp {
         const draftsButton = this._overlay?.querySelector(".cat-te-h3-drafts-open");
         if (draftsButton) {
             draftsButton.disabled = disabled;
-            draftsButton.textContent = `${draftT("title")} (${(m?.h3Drafts || []).length})`;
+            draftsButton.textContent = draftCountLabel(m?.h3Drafts);
         }
         if (this.useAudioTrackAudioCb) {
             this.useAudioTrackAudioCb.disabled = disabled;
@@ -19729,6 +19733,7 @@ export class CapTimelineEditorApp {
             [this.subFontSelect, "fontFamily", "str"],
             [this.subSizeInput, "fontSize", "num"],
             [this.subScaleInput, "subtitleScale", "num"],
+        this._refreshKeyframeDrafts();
             [this.subLetterSpacingInput, "letterSpacing", "num"],
             [this.subColorInput, "color", "str"],
             [this.subBoldCb, "bold", "bool"],

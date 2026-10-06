@@ -92,7 +92,9 @@ export class PromptHistoryActions extends HTMLElement {
             for(const row of rows){
                 const card=document.createElement('section');
                 const time=document.createElement('small');time.textContent=new Date(row.created_at).toLocaleString();
-                const text=document.createElement('div');text.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;margin:8px 0';text.textContent=row.text;
+                const text=document.createElement('cap-readonly-prompt');
+                text.style.margin='8px 0';text.value=row.text;
+                text.setAttribute('aria-label',t('tab_history'));
                 const apply=document.createElement('cap-button');apply.textContent=t('replace_all_title');
                 apply.disabled=this.textarea.disabled||this.textarea.readOnly;
                 apply.onclick=()=>{
@@ -151,3 +153,34 @@ export class PromptHistoryActions extends HTMLElement {
     }
 }
 customElements.define('cap-prompt-history-actions',PromptHistoryActions);
+
+export class ReadonlyPrompt extends HTMLElement {
+    constructor() {
+        super();
+        this.attachShadow({mode:'open'}).innerHTML = `<style>
+            :host { display:block; min-width:0; }
+            .field { position:relative; padding-bottom:32px; border:1px solid var(--cat-border); border-radius:6px; background:var(--cat-input); }
+            textarea { display:block; box-sizing:border-box; width:100%; padding:10px; border:0; resize:none; overflow:hidden; background:transparent; color:var(--cat-text); font:inherit; line-height:1.65; }
+        </style><div class="field"><textarea readonly></textarea><cap-prompt-history-actions></cap-prompt-history-actions></div>`;
+        this.textarea = this.shadowRoot.querySelector('textarea');
+        this.shadowRoot.querySelector('cap-prompt-history-actions').bind(this.textarea, null, null, {copyOnly:true});
+    }
+    get value() { return this.textarea.value; }
+    set value(text) { this.textarea.value = text || ''; if (this.isConnected) this.resize(); }
+    resize() {
+        this.textarea.style.height = 'auto';
+        this.textarea.style.height = `${this.textarea.scrollHeight}px`;
+    }
+    connectedCallback() {
+        this.textarea.setAttribute('aria-label', this.getAttribute('aria-label') || t('copy_prompt_title'));
+        let width = 0;
+        this.observer = new ResizeObserver(([entry]) => {
+            if (entry.contentRect.width === width) return;
+            width = entry.contentRect.width; this.resize();
+        });
+        this.observer.observe(this);
+        requestAnimationFrame(() => { if (this.isConnected) this.resize(); });
+    }
+    disconnectedCallback() { this.observer?.disconnect(); }
+}
+customElements.define('cap-readonly-prompt',ReadonlyPrompt);

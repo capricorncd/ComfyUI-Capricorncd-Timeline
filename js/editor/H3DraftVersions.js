@@ -11,7 +11,7 @@ import { t as T } from '../i18n/timeline_editor.js';
 export const draftT = makeT({
     en: {
         associate: 'Associate existing folder', no_match: 'No preview versions belonging to this Clip were found.', hd: 'Generate HD', segment: 'Keyframe {interval} · part {part}/{parts}', start: 'Clip start {time}',
-        previous_clip: 'Previous Clip', next_clip: 'Next Clip',
+        previous_clip: 'Previous Clip', next_clip: 'Next Clip', disable_all: 'Disable all previews',
         playback_mode: "Preview versions", playback_hint: "Play preview versions along the timeline (latest enabled version per Clip)", playback_exit: "Exit preview version playback",
         generate_all: "Batch preview sampling — all clips", generate_selected: "Batch preview sampling — selected clips",
         title: 'Preview sampling manager', generate: 'Batch preview sampling',
@@ -23,7 +23,7 @@ export const draftT = makeT({
     },
     zh: {
         associate: '关联已有文件夹', no_match: '此文件夹没有属于当前 Clip 的预览版本。', hd: '生成高清版', segment: '关键帧区间 {interval} · 第 {part}/{parts} 段', start: 'Clip 内开始 {time}',
-        previous_clip: '上一个 Clip', next_clip: '下一个 Clip',
+        previous_clip: '上一个 Clip', next_clip: '下一个 Clip', disable_all: '一键全部禁用预览采样',
         playback_mode: "预览版模式", playback_hint: "沿时间轴播放各 Clip 最新启用的预览版", playback_exit: "退出预览版播放模式",
         generate_all: "全部片段批量预览采样", generate_selected: "选中片段批量预览采样",
         title: '预览采样管理', generate: '批量预览采样',
@@ -35,7 +35,7 @@ export const draftT = makeT({
     },
     ja: {
         associate: '既存フォルダーを関連付け', no_match: 'この Clip のプレビューが見つかりません。', hd: '高解像度版を生成', segment: 'キーフレーム {interval} · {part}/{parts}', start: 'Clip 内開始 {time}',
-        previous_clip: '前の Clip', next_clip: '次の Clip',
+        previous_clip: '前の Clip', next_clip: '次の Clip', disable_all: '全プレビューを無効にする',
         playback_mode: "プレビュー版モード", playback_hint: "各 Clip の最新の有効なプレビューをタイムラインで再生", playback_exit: "プレビュー版モードを終了",
         generate_all: "全クリップのプレビューバッチ生成", generate_selected: "選択クリップのプレビューバッチ生成",
         title: 'プレビューサンプリング管理', generate: 'プレビューバッチ生成',
@@ -46,6 +46,10 @@ export const draftT = makeT({
         failed: '実行失敗：{message}', prompt: 'プレビューのプロンプト', delete_failed: '削除失敗：{message}', removed: '動画・latent・バージョン情報をごみ箱に移動しますか？Ctrl+Z は使えません。すべてのファイルをごみ箱から手動で復元し、「既存フォルダーを関連付け」で再登録してください。',
     },
 });
+
+export function draftCountLabel(rows = []) {
+    return `${draftT('title')} (${rows.filter(row => row.enabled !== false).length}/${rows.length})`;
+}
 
 export function draftStartTime(row) {
     const part = row.keyframe_segment;
@@ -66,8 +70,6 @@ export class H3DraftVersions {
     }
 
     stop() {
-        this.promptResizeObserver?.disconnect();
-        this.promptResizeObserver = null;
         this.dialog.querySelectorAll('video').forEach(video => video.pause());
     }
 
@@ -111,6 +113,25 @@ export class H3DraftVersions {
             this.editor._setVisualSettingsEnabled(true, this.editor._ensureClipMeta(clip));
         }
         this.render();
+    }
+
+    disableAll(clips = this.clips(), interval = null) {
+        const targets = clips.filter(clip => !clip.track?.locked)
+            .map(clip => ({clip, ids: new Set(this.rows(clip, interval).filter(row => row.enabled !== false).map(row => row.id))}))
+            .filter(target => target.ids.size);
+        if (!targets.length) return;
+        this.editor._recordUndo();
+        for (const {clip, ids} of targets) {
+            const meta = this.editor._ensureClipMeta(clip);
+            meta.h3Drafts = meta.h3Drafts.map(row => ids.has(row.id) ? {...row, enabled: false} : row);
+        }
+        this.editor._saveToWidgets();
+        if (targets.some(({clip}) => clip.id === this.editor._selClip?.id)) {
+            this.editor._setVisualSettingsEnabled(true, this.editor._ensureClipMeta(this.editor._selClip));
+        }
+        this.editor._scheduleProgramPreview();
+        if (this.editor._timeline?._playing) this.editor._startAudioPlayback();
+        if (this.dialog.open) this.render();
     }
 
     associate(clip) {
@@ -164,6 +185,7 @@ export class H3DraftVersions {
         if (!clip) { this.dialog.close(); return; }
         const rows = [...this.rows(clip)].sort((a, b) => (a.keyframe_segment?.start_frame || 0) / (a.keyframe_segment?.fps || a.fps || 24) - (b.keyframe_segment?.start_frame || 0) / (b.keyframe_segment?.fps || b.fps || 24));
         const current = rows.find(row => row.id === this.previewId) || rows[0];
+        const listScroll = this.dialog.querySelector(".cat-te-h3-drafts-list")?.scrollTop || 0;
         this.stop();
         this.dialog.replaceChildren();
         const title = document.createElement('span');
@@ -188,7 +210,7 @@ export class H3DraftVersions {
             this.dialog.append(button);
         }
         const body = document.createElement('div');
-        body.className = 'cat-te-h3-drafts-body';
+        body.className = 'cat-te-h3-drafts-body cat-te-h3-drafts-manager-body';
         const hint = document.createElement('p');
         hint.className = 'cat-te-h3-drafts-hint';
         hint.textContent = draftT(rows.length ? 'hint' : 'empty');
@@ -303,7 +325,7 @@ export class H3DraftVersions {
             video.controls = true;
             video.autoplay = true;
             video.loop = true;
-            video.muted = true;
+            video.muted = false;
             video.playsInline = true;
             video.preload = 'metadata';
             const status = document.createElement('cap-status-message');
@@ -312,24 +334,9 @@ export class H3DraftVersions {
             video.addEventListener('error', () => status.setStatus(draftT('no_video'), 'error'));
             const heading = document.createElement('h4');
             heading.textContent = draftT('prompt');
-            const promptField = document.createElement('div');
-            promptField.className = 'cat-te-h3-draft-prompt';
-            const prompt = document.createElement('textarea');
-            prompt.readOnly = true;
-            prompt.setAttribute('aria-label', draftT('prompt'));
-            prompt.value = current.prompt || '';
-            const copy = document.createElement('cap-prompt-history-actions');
-            copy.bind(prompt, null, null, {copyOnly: true});
-            promptField.append(prompt, copy);
-            const resize = () => { prompt.style.height = 'auto'; prompt.style.height = `${prompt.scrollHeight}px`; };
-            let width = 0;
-            this.promptResizeObserver = new ResizeObserver(([entry]) => {
-                if (entry.contentRect.width === width) return;
-                width = entry.contentRect.width;
-                resize();
-            });
-            this.promptResizeObserver.observe(promptField);
-            requestAnimationFrame(resize);
+            const promptField = document.createElement('cap-readonly-prompt');
+            promptField.setAttribute('aria-label', draftT('prompt'));
+            promptField.value = current.prompt || '';
             detail.append(video, status, heading, promptField);
             layout.append(detail);
         }
@@ -337,6 +344,12 @@ export class H3DraftVersions {
         const footer = document.createElement('div');
         footer.slot = 'footer';
         footer.className = 'cat-te-h3-draft-actions';
+        const disable = document.createElement('cap-button');
+        disable.textContent = draftT('disable_all');
+        disable.setAttribute('variant', 'danger');
+        disable.disabled = !!clip.track?.locked || !rows.some(row => row.enabled !== false);
+        disable.addEventListener('click', () => this.disableAll([clip], this.interval));
+        footer.append(disable);
         if (current?.prompt) {
             const restore = document.createElement('cap-button');
             const update = {id: String(clip.id), text: current.prompt, segment: current.keyframe_segment};
@@ -373,5 +386,6 @@ export class H3DraftVersions {
             footer.append(button);
         }
         this.dialog.append(header, body, footer);
+        list.scrollTop = listScroll;
     }
 }

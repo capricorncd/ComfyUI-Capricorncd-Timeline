@@ -1,0 +1,33 @@
+<!doctype html><meta charset="utf-8">
+<script type="importmap">{"imports":{"/scripts/api.js":"data:text/javascript,export const api={apiURL:p=>p};","/scripts/app.js":"data:text/javascript,export const app={extensionManager:{setting:{get:()=> 'zh'}}};"}}</script>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<style>body{font:16px system-ui;--cat-font-size:16px;--cat-bg:#10151d;--cat-surface:#19212d;--cat-raised:#222d3b;--cat-text:#e2e8f0;--cat-muted:#a0adbe;--cat-border-soft:#344255;--cat-border:#344255;--cat-accent:#69b4ff}</style><pre id="result">RUNNING</pre>
+<script type="module">
+import {H3DraftVersions} from '../js/editor/H3DraftVersions.js';
+const clip={id:'a',track:{type:'image'},startTime:0};
+const meta={h3Drafts:Array.from({length:20},(_,i)=>({id:String(i),width:608,height:352,seed:i,prompt:('测试提示词\n').repeat(100)}))};
+let undo=0;
+const editor={_timeline:{tracks:[{type:'image',clips:[clip]}]},_findClipById:()=>clip,_ensureClipMeta:()=>meta,_recordUndo:()=>undo++, _saveToWidgets(){},_scheduleProgramPreview(){},_generatedPromptTarget:()=>null};
+const view=new H3DraftVersions(editor,document.body);view.open(clip);
+window.fixture={view,meta};
+const assert=(ok,msg)=>{if(!ok)throw Error(msg)};
+const frame=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+try{
+ await frame();
+ let list=view.dialog.querySelector('.cat-te-h3-drafts-list');
+ let detail=view.dialog.querySelector('.cat-te-h3-draft-detail');
+ assert(list.scrollHeight>list.clientHeight,'list scrolls');
+ assert(detail.scrollHeight>detail.clientHeight,'detail scrolls');
+ list.scrollTop=list.scrollHeight;const scroll=list.scrollTop;
+ list.lastElementChild.querySelector('cap-button').click();await frame();
+ list=view.dialog.querySelector('.cat-te-h3-drafts-list');detail=view.dialog.querySelector('.cat-te-h3-draft-detail');
+ assert(Math.abs(list.scrollTop-scroll)<2,'list position preserved');
+ assert(detail.scrollTop===0,'selected video pane starts at top');
+ const body=view.dialog.shadowRoot.querySelector('.body');
+ assert(body.scrollHeight<=body.clientHeight+2,'dialog body does not scroll');
+ const disable=view.dialog.querySelector('[slot=footer] cap-button[variant=danger]');disable.click();await frame();
+ assert(meta.h3Drafts.every(row=>row.enabled===false)&&undo===1,'disable all once');
+ assert(view.dialog.querySelector('[slot=footer] cap-button[variant=danger]').disabled,'all-disabled button state');
+ document.querySelector('#result').textContent='PASS';
+}catch(e){document.querySelector('#result').textContent='FAIL '+e.stack;}
+</script>

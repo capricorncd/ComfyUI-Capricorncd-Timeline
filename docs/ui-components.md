@@ -4,6 +4,8 @@ Reference project preview offers a shared hover dropdown, “Merge into current 
 
 ## Prompt history actions
 
+`PromptHistoryActions.js` also registers `<cap-readonly-prompt>` for history entries and preview sampling prompts. Set its `value` and `aria-label`. It owns the read-only textarea, shared Copy icon with success feedback, and automatic full-text height; content scrolls with the dialog body. History entries retain their restore and delete actions below the field.
+
 `cap-dialog` supports `previous` and `next` slots for navigation buttons centered outside its left and right edges. Preview sampling management uses these slots for Clip navigation, matching Prompt Management.
 
 `cap-shot-control` exposes a default slot for Clip-owned actions. Its keyframe preview sampling action opens the shared version manager filtered to the selected frame interval, including continuation parts. Sampling and HD generation in this view use that interval. Clicking the Clip outside its markers clears keyframe selection.
@@ -15,6 +17,12 @@ Keyframe prompts use the shared rich prompt editor. `Ctrl+/` toggles `//` commen
 `PromptHistoryActions.js` provides `<cap-prompt-history-actions>` inside prompt fields at the bottom right. The field wrapper reserves a toolbar row within its border so actions do not cover text while scrolling. `bind(textarea, read, write)` supplies the workflow-owned history document (`schema_version: 1`, `items` with `id`, `text`, `created_at`). History, Save and Copy reuse shared icon buttons. Restoring dispatches input/change through the existing editor path. Timeline prompts and keyframe prompts share the node's hidden `prompt_history_json` widget. Project exports include a separate `prompt_history.json`; missing history on import means an empty history, including older packages.
 
 ## Project video list
+
+The asset library uses shared `cap-tab-button` controls for Media, Text, Effects, Filters and Adjust. Media has vertical All/Image/Video/Audio tabs and defaults to All; mixed imports keep All selected. Text opens the existing subtitle insertion dialog. Filters offers Fair, Bright and Natural portrait presets. Clicking adds a filter Clip at the playhead on a separate filter/effect track, one third of a normal track's height. Select it to change preset or strength (0–100%, default 70%); drag, trim, split, copy, disable and undo work as for other Clips. Track visibility disables its filters. Filters affect the composed picture for their time range, before subtitles, and stack from lower to upper tracks. Preview and final export share a local RGB LUT with trilinear interpolation; active filters require re-encoding. These are approximate skin-color adjustments, not face detection or proprietary CapCut presets. Effects and Adjust retain empty states. Horizontal and vertical tab sets support their matching arrow keys and Home/End.
+
+Reference trimming uses the shared list's `compact` attribute in the independently scrolling right panel. Rows have 56×32 video thumbnails or audio icons, a single-line name with a full-name tooltip, and the shared Add menu. Hover plays video/audio unmuted; leaving, switching lists or closing pauses it. Only visible video rows preload metadata; compact audio loads on hover and has no native control bar. The default project video list retains its larger cards. Optional `name` labels the asset. The reference-only footer action Reset Clip Duration sets the parent duration to the latest enabled child video/audio end, respecting video trim and speed, with undo.
+
+Reference and generated-video child timeline track hover/context menus include Auto Arrange. Enabled tracks start at zero and close gaps after insertion, removal, movement or trimming, preserving source trims and speed. The flag is persisted as `auto_arrange` on each child row and restored with the track; locked tracks cannot toggle it. Child edits retain the parent editor's undo behavior.
 
 `ProjectVideoList.js` provides `<cap-project-video-list>`. `setVideos(rows, urlFor, menuFor)` renders output file records with unmuted hover playback and a shared dropdown menu. List previews have no native playback controls and pause on pointer leave; playback controls remain available in Details. The project video details dialog places the prompt-overwrite action at the right of its fixed footer, using the shared danger variant. `stop()` pauses previews when switching tabs or closing the editor; disconnect also pauses them. The editor owns menu actions and persists `composed_videos` in the project. Removing an entry keeps its disk file. H3 final-composition notifications carry source Clip IDs and workflow identity to associate results with the project, including single-file results.
 
@@ -332,6 +340,8 @@ Skill picker regression fixture also covers revealing and focusing the New Skill
 
 `PanelDivider.js` provides `<cap-panel-divider>` for horizontal pane widths. `resize(px, notify=true)` clamps width and emits `panel-resize` with `detail.width`. Pointer capture and Left/Right keys adjust the right pane. `aria-label` localizes its name. Training source errors clear on successful selection; explicit Relink preserves validated source edits.
 
+Reference audio/video trimming and generated-video trimming share a divider between the preview/timeline and settings panels. Drag it or use Left/Right while focused to adjust widths; the settings pane keeps a minimum width and is limited to half the available space.
+
 Timeline Ctrl/Meta+wheel accumulates zoom until the next animation frame and retains the pointer pivot. Explicit setZoom and destroy cancel pending wheel work. Clip position updates avoid replacing unchanged duration text and color styles. TrainingDatasetEditor mounts clip elements only around its visible viewport; all Clip model objects remain in the track for geometry and data operations.
 
 ## Image comparison
@@ -348,3 +358,13 @@ Converting a media video Clip or track to director stores the existing file ID, 
 
 Generated prompt fill uses the same editor action in H3 preview versions and generated-video details. It saves nonempty original text to workflow prompt history before replacement, deduplicates identical history entries, and records undo. Clip results target the recorded Clip; keyframe results target the exact recorded interval start (new continuation records retain `interval_start_frame`). Missing/locked targets and conflicting prompts for the same target are skipped; filling unchanged text is a no-op. Older continuation records without an exact keyframe match cannot be filled. AI prompt generation in Prompt Manager also preserves the replaced Clip text through this action. Tests: `test_video_prompt_restore.mjs`, `test_h3_keyframe_runs.py`.
 `H3DraftVersions` provides a Details button for every preview version. It opens the shared video details dialog with that version's saved prompt, seed and keyframe mapping, without requiring embedded MP4 metadata. Prompt fill uses the same history-preserving action as final video details. Opening details stops preview playback; closing details releases its video.
+
+## Inline prompt editor
+
+`InlinePromptEditor.js` provides `<cap-inline-prompt>`, an independent contenteditable editor. `configure(textarea, assets)` connects existing plain-text prompt storage/events and rich-prompt undo to the visible editor. References are inline `contenteditable="false"` tags in the prompt body, with shared danger × buttons and image/video hover previews. The previous external tag row is removed. Clipboard/export/generation use plain `@name` text, never tag HTML or × labels. The hidden textarea retains the caller's value/selection interface; disconnect restores it. Readonly/disabled fields and IME composition are supported. Remaining occurrences or keyframe references retain a Clip binding; undo restores removed references.
+
+Run preparation also filters `prompt_media_ids` against uncommented active Clip, enabled global and keyframe prompts before queuing. Unreferenced or missing IDs are pruned from the queued snapshot and written back to the running Clips without changing library assets.
+
+Verify with `tests/inline_prompt.browser.html`, `node tests/test_run_prompt_cleanup.mjs` and `node tests/test_rich_prompt.mjs`.
+
+Preview sampling management scrolls the version list and playback/prompt column independently, preserving list position when selecting a version. Its Disable all previews action disables the displayed Clip/interval versions; the timeline More menu disables all unlocked director Clips’ preview versions. Both record one undo entry and retain preview files for browsing. Narrow dialogs stack two independently scrollable panes.

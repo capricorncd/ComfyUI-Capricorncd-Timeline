@@ -1,0 +1,24 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Reference assets compact scroll</title>
+<link rel="stylesheet" href="../js/cap_timeline_editor.css">
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app={ui:{settings:{getSettingValue:()=> 'zh'}}};"}}</script>
+<style>body{font:14px system-ui;margin:20px;background:#10191d;color:#e4edeb;--cat-font-size:14px;--cat-bg:#10191d;--cat-surface:#192226;--cat-text:#e4edeb;--cat-muted:#a3b5b8;--cat-raised:#24353f;--cat-border:#34464b;--cat-border-soft:#34464b;--cat-accent:#64d8c5}
+.cat-te-gen-edit-dialog{height:540px;width:min(96vw,900px);border:1px solid var(--cat-border);border-radius:10px;overflow:hidden}
+.cat-te-gen-edit-left{background:var(--cat-surface);padding:10px}.cat-te-gen-edit-preview{color:var(--cat-muted)}.timeline{border-top:1px solid var(--cat-border);padding:16px;margin-top:20px}
+#result{font-size:13px}</style></head><body><h3>修剪参考音视频</h3>
+<div class="cat-te-gen-edit-dialog"><div class="cat-te-modal-header">参考视频 · 滚动验证</div>
+<div class="cat-te-gen-edit-body"><div class="cat-te-gen-edit-left"><div class="cat-te-gen-edit-preview">固定预览窗口</div><div class="timeline">固定子时间轴</div></div>
+<div class="cat-te-gen-edit-divider"></div><div class="cat-te-gen-edit-right"><label>按轨道给模型 <input type="checkbox"></label><cap-project-video-list compact></cap-project-video-list></div></div>
+<div class="cat-te-gen-edit-actions">重置 Clip 时间</div></div><p id="result">加载中</p>
+<script type="module">
+import '../js/components/ProjectVideoList.js';
+const list=document.querySelector('cap-project-video-list');
+const rows=Array.from({length:60},(_,index)=>({file:`20261005-013354_clip_${index+1}_muse9kgj__kf1_1__h3v2_c0_r124_h0_t3_f24000_s0_n0.mp4`,kind:index%4===3?'audio':'video',name:index%4===3?'Dancing Out of Time - 发行.wav':index===0?'篮球参考':null}));
+list.setVideos(rows,()=>new URL('./.compact-list-sample.mp4',location.href).href,()=>{});
+const left=document.querySelector('.cat-te-gen-edit-left'),right=document.querySelector('.cat-te-gen-edit-right'),body=document.querySelector('.cat-te-gen-edit-body');
+const before=left.getBoundingClientRect().top;right.scrollTop=400;
+requestAnimationFrame(()=>{
+const height=list.shadowRoot.querySelector('article').getBoundingClientRect().height;
+document.querySelector('#result').textContent=`${rows.length} 个素材；行高 ${height}px；右侧滚动 ${right.scrollTop}px；左侧移动 ${left.getBoundingClientRect().top-before}px；外层滚动 ${body.scrollTop}px`;
+if(height>60 || right.scrollTop!==400 || left.getBoundingClientRect().top!==before || body.scrollTop!==0)throw Error('Compact scroll verification failed');
+});
+</script></body></html>

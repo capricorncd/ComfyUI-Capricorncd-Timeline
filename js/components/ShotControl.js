@@ -83,6 +83,7 @@ export class ShotControl extends HTMLElement {
         this.description.focus();
     }
     setMentionSource(getAssets) {
+        this.getMentionAssets = getAssets;
         if (!this.mentions) {
             this.mentions = document.createElement('cap-prompt-mentions');
             this.shadowRoot.append(this.mentions);
@@ -93,7 +94,7 @@ export class ShotControl extends HTMLElement {
     }
     bindPromptHistory(read, write) {
         const actions = document.createElement('cap-prompt-history-actions');
-        actions.bind(this.description, read, write);
+        actions.bind(this.description, read, write, {getAssets: () => this.getMentionAssets?.() || []});
         this.shadowRoot.querySelector('.prompt-field').append(actions);
     }
     configure(point, time, fps, locked, labels) {

@@ -1,6 +1,7 @@
 import './Button.js';
 import './Dialog.js';
 import './StatusMessage.js';
+import './PromptTemplateActions.js';
 import { iconHtml } from '../cap_icons.js';
 import { t } from '../i18n/prompt_library.js';
 import { setRichPromptValue } from './RichPrompt.js';
@@ -9,8 +10,13 @@ export class PromptHistoryActions extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({mode:'open'}).innerHTML = `<style>
-            :host { position:absolute; bottom:4px; right:4px; z-index:3; display:flex; justify-content:flex-end; gap:4px; }
+            :host { position:absolute; bottom:4px; left:4px; right:4px; z-index:3; display:flex; justify-content:flex-end; gap:4px; pointer-events:none; }
+            cap-prompt-template-actions { margin-right:auto; }
+            cap-button { pointer-events:auto; }
+            cap-dialog { pointer-events:auto; }
         </style>`;
+        this.templates = document.createElement('cap-prompt-template-actions');
+        this.shadowRoot.append(this.templates);
         for (const [action, icon, label] of [['history','history','tab_history'],['save','save','save_current_prompt_to_history_title'],['copy','copy','copy_prompt_title']]) {
             const button = document.createElement('cap-button');
             button.dataset.action = action;
@@ -21,8 +27,10 @@ export class PromptHistoryActions extends HTMLElement {
             this.shadowRoot.append(button);
         }
     }
-    bind(textarea, read, write, {copyOnly = false} = {}) {
+    bind(textarea, read, write, {copyOnly = false, getAssets = () => []} = {}) {
         this.textarea=textarea; this.read=read; this.write=write;
+        this.templates.hidden = copyOnly;
+        this.templates.bind(textarea, getAssets);
         for (const button of this.shadowRoot.querySelectorAll('cap-button')) {
             button.hidden = copyOnly && button.dataset.action !== 'copy';
         }

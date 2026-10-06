@@ -11495,6 +11495,7 @@ export class CapTimelineEditorApp {
         if (!clip || clip.track?.locked || !isDirectorTrackType(clip.track?.type)) return;
         const meta = this._ensureClipMeta(clip);
         if (meta.promptMediaIds?.includes(asset.id)) return;
+            description: row.setting_description || row.prompt || row.generation_prompt || '',
         this._recordUndo();
         meta.promptMediaIds = [...(meta.promptMediaIds || []), asset.id];
         this._saveToWidgets();
@@ -11570,7 +11571,7 @@ export class CapTimelineEditorApp {
             }
 
             const actions = document.createElement('cap-prompt-history-actions');
-            actions.bind(ta, () => this._promptHistoryDocument(), data => this._savePromptHistory(data));
+            actions.bind(ta, () => this._promptHistoryDocument(), data => this._savePromptHistory(data), {getAssets: () => this._promptMentionAssets()});
             host.append(actions);
         }
     }

@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Prompt templates</title>
+<style>
+    :root {--cat-bg:#101c22;--cat-surface:#17272f;--cat-raised:#22343e;--cat-input:#101c22;--cat-text:#e2e8f0;--cat-muted:#94a3b8;--cat-border:#526571;--cat-border-soft:#344950;--cat-accent:#80c4ff;--cat-selected:#274866;--cat-font-size:14px;}
+    body {background:var(--cat-bg);color:var(--cat-text);font:14px sans-serif;padding:36px;}
+    .field {position:relative;width:min(650px,90vw);padding-bottom:32px;background:var(--cat-input);border:1px solid var(--cat-border);border-radius:6px;}
+    textarea {box-sizing:border-box;width:100%;height:180px;padding:12px;color:var(--cat-text);background:transparent;font:inherit;border:0;resize:vertical;}
+</style>
+<script type="importmap">{"imports":{"../../scripts/app.js":"data:text/javascript,export const app = {};"}}</script>
+<h2>提示词模板与参考描述</h2>
+<div class="field"><textarea aria-label="测试提示词">@角色长发 在 @球场 表演。</textarea><cap-prompt-history-actions></cap-prompt-history-actions></div>
+<pre id="result">Loading</pre>
+<cap-readonly-prompt aria-label="只读提示词"></cap-readonly-prompt>
+<script type="module">
+    import '../js/components/PromptHistoryActions.js';
+    import {attachRichPromptHandler} from '../js/components/RichPrompt.js';
+    const ta = document.querySelector('textarea');
+    attachRichPromptHandler(ta);
+    const assets = [{id:'character',name:'角色长发',description:'黑色长发，红色11号篮球服，保持面容和服装一致。'},
+        {id:'court',name:'球场',description:'室内篮球场，木质地板，标准篮球架。'}];
+    let history = {schema_version:1,items:[]};
+    document.querySelector('cap-prompt-history-actions').bind(ta,()=>history,data=>history=data,{getAssets:()=>assets});
+    document.querySelector('cap-readonly-prompt').value = '只读提示词保留复制功能。';
+    document.querySelector('#result').textContent='READY';
+</script>

@@ -4,6 +4,10 @@ Reference project preview offers a shared hover dropdown, “Merge into current 
 
 ## Prompt history actions
 
+Editable prompt fields also show two hover icon menus at the bottom left through `PromptTemplateActions.js`. Templates insert at the saved caret/selection with rich-prompt undo. Eight editable H3 examples cover multi-image, video reference, digital avatar, audio-driven performance, first/last frame, first frame, last frame and text-to-image prompts. The last menu item opens shared `cap-dialog` template management: add, edit, delete, five-star ratings, JSON import/export. Ratings sort descending and ties retain stored order. Templates are saved in browser local storage and shared across projects on the same origin. Import validates `schema_version: 1`, updates matching IDs and skips duplicate name/text pairs. Storage/format errors remain visible.
+
+The reference-description menu lists exact named references from the field's uncommented text, deduplicated by asset ID. It inserts the asset's setting description (falling back to its prompt or generation prompt) at the caret; assets without descriptions stay disabled. `bind(..., {getAssets})` supplies the asset list for regular and keyframe fields. Read-only prompt boxes retain only Copy.
+
 `PromptHistoryActions.js` also registers `<cap-readonly-prompt>` for history entries and preview sampling prompts. Set its `value` and `aria-label`. It owns the read-only textarea, shared Copy icon with success feedback, and automatic full-text height; content scrolls with the dialog body. History entries retain their restore and delete actions below the field.
 
 `cap-dialog` supports `previous` and `next` slots for navigation buttons centered outside its left and right edges. Preview sampling management uses these slots for Clip navigation, matching Prompt Management.

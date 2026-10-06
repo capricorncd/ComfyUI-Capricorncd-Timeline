@@ -6,6 +6,7 @@ import { cleanRunPrompts } from './editor/RunPromptCleanup.js';
 import { copyPromptSkills, enabledPromptSkills } from './components/PromptSkills.js';
 import { H3DraftVersions, draftT, draftCountLabel } from "./editor/H3DraftVersions.js";
 import { openInsertClip } from './editor/InsertClip.js';
+import { selectedClipProject } from './editor/SelectedClipProject.js';
 /*!
  * Copyright (c) 2026 capricorncd
  * SPDX-License-Identifier: Apache-2.0
@@ -2901,6 +2902,35 @@ export class CapTimelineEditorApp {
         this._saveToWidgets();
         const graph = CapTimelineEditorApp._graphRoot(this.node.graph);
         return JSON.parse(JSON.stringify(graph.serialize()));
+    }
+
+    async _newProjectFromSelectedClips() {
+        if (!this._canCreateProject()) return;
+        const selected = this._timeline.getSelectedClips();
+        if (!selected.length) return;
+        try {
+            const workflow = this._exportWorkflowSnapshot();
+            const source = this._buildProject();
+            const name = `${source.name} - ${T("selected_clips")}`;
+            const project = selectedClipProject(source, selected.map(clip => clip.id), name);
+            const graph = this.node.graph;
+            const serializedGraph = graph === CapTimelineEditorApp._graphRoot(graph) ? workflow
+                : workflow.definitions?.subgraphs?.find(subgraph => subgraph.id === graph.id);
+            const node = serializedGraph?.nodes?.find(node => node.id === this.node.id);
+            if (!node) throw new Error(T("export_workflow_unavailable"));
+            const widgets = this.node.widgets.filter(widget => widget.serialize !== false);
+            const values = {project_json: JSON.stringify(project), storyboard_json: JSON.stringify(buildStoryboardDocument([]))};
+            node.properties ??= {};
+            node.properties.cat_named = {...node.properties.cat_named, ...values};
+            for (const [index, widget] of widgets.entries()) {
+                if (widget.name in values) node.widgets_values[index] = values[widget.name];
+            }
+            workflow.id = crypto.randomUUID();
+            this.close();
+            await app.loadGraphData(workflow, true, true, `${name}.json`);
+        } catch (error) {
+            showCapAlert(error.message);
+        }
     }
 
     _buildExportProject(includeUnused = false) {
@@ -19122,6 +19152,9 @@ export class CapTimelineEditorApp {
                 },
                 { label: T("shortcuts_title"), icon: "info", fn: () => this.shortcutsDialog.showModal() },
                 { label: T("new_project"), icon: "insert", disabled: !this._canCreateProject(), fn: () => void this._newProject() },
+                { label: T("new_project_from_selected"), icon: "copy",
+                    disabled: !this._canCreateProject() || !this._timeline?.getSelectedClips().length,
+                    fn: () => void this._newProjectFromSelectedClips() },
                 ...(this._launcherProject ? [
                     { label: launcherT("save"), icon: "save", fn: () => void this._saveLauncherProject(false) },
                     { label: launcherT("folder"), icon: "squareArrowOutUpRight", disabled: !this._launcherProject.session, fn: () => void this._openLauncherProjectFolder() },

@@ -9865,6 +9865,9 @@ export class CapTimelineEditorApp {
     _buildGenEditTimeline() {
         const st = this._genEditState;
         if (!st || !this.genEditTlHost) return;
+        const previous = st.timeline;
+        const view = previous ? {zoom: previous._zoom, time: previous.currentTime,
+            left: previous.scrollEl.scrollLeft, top: previous.scrollEl.scrollTop} : null;
         this._destroyGenEditTimeline();
         const clipDur = this._genEditParentDuration();
         const tlDur = this._genEditTimelineDuration(clipDur, st.draft);
@@ -9875,7 +9878,7 @@ export class CapTimelineEditorApp {
             playEndTime: clipDur,
             fps,
             timeFormat: "frames",
-            zoom: 1.4,
+            zoom: view?.zoom ?? 1.4,
             addTrackTypes: [],
         });
         tl.toolbarEl?.querySelector(".tl-btn-add-track")?.remove();
@@ -10155,6 +10158,11 @@ export class CapTimelineEditorApp {
                 } });
             this._buildCtxMenu(items, e.clientX, e.clientY);
         });
+        if (view) {
+            tl.setCurrentTime(view.time);
+            tl.scrollEl.scrollLeft = view.left;
+            tl.scrollEl.scrollTop = view.top;
+        }
     }
 
     _setupGenEditTrackDeleteMenu(track) {
@@ -11487,6 +11495,7 @@ export class CapTimelineEditorApp {
         return this._projectResources.map(row => ({
             id: row.id, name: row.name || row.file.split(/[\\/]/).pop(), file: row.file,
             kind: row.kind, category: MEDIA_ASSET_TYPES.some(type => type.id === row.media_type) ? row.media_type : "other",
+            description: row.setting_description || row.prompt || row.generation_prompt || '',
             preview: row.kind === "image" ? this._imgUrl(row.file) : row.kind === "video" ? this._videoUrl(row.file) : "",
         }));
     }
@@ -11495,7 +11504,6 @@ export class CapTimelineEditorApp {
         if (!clip || clip.track?.locked || !isDirectorTrackType(clip.track?.type)) return;
         const meta = this._ensureClipMeta(clip);
         if (meta.promptMediaIds?.includes(asset.id)) return;
-            description: row.setting_description || row.prompt || row.generation_prompt || '',
         this._recordUndo();
         meta.promptMediaIds = [...(meta.promptMediaIds || []), asset.id];
         this._saveToWidgets();

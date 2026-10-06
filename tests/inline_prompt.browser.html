@@ -1,0 +1,90 @@
+<!doctype html>
+<meta charset="utf-8"><title>Inline prompt editor regression</title>
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app={extensionManager:{setting:{get:()=> 'zh'}}};"}}</script>
+<style>body{font:14px system-ui;background:#10191d;color:#e4edeb;--cat-text:#e4edeb;--cat-muted:#a3b5b8;--cat-bg:#10191d;--cat-surface:#192226;--cat-raised:#202c31;--cat-input:#10191d;--cat-border-soft:#34464b;--cat-accent:#5dcfca}main{max-width:700px;margin:32px}textarea{width:100%;height:240px;font:inherit}label{display:block}pre{white-space:pre-wrap}</style>
+<main><label>提示词<textarea aria-label="提示词"></textarea></label><cap-prompt-mentions></cap-prompt-mentions><pre id="result">RUNNING</pre></main>
+<script type="module">
+import '../js/components/PromptMentions.js';
+import {attachRichPromptHandler,setRichPromptValue,undoRichPrompt,toggleComment} from '../js/components/RichPrompt.js';
+const assert=(value,message)=>{if(!value)throw Error(message)};
+const ta=document.querySelector('textarea'),picker=document.querySelector('cap-prompt-mentions');
+const assets=[{id:'hero',name:'女篮珠玑动员',kind:'image',file:'hero.png',preview:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"><rect width="120" height="80" fill="teal"/></svg>')},{id:'scene',name:'雨夜 街道',kind:'image',file:'street.png'}];
+attachRichPromptHandler(ta,{mode:'widget'});
+picker.bind(ta,()=>assets);
+const component=document.querySelector('cap-inline-prompt');
+window.fixture={ta,picker,component,assets};
+try {
+ setRichPromptValue(ta,'显示“ComfyUI Capricorn”。\n@女篮珠玑动员 在 @雨夜 街道 奔跑。');
+ const editor=component.editor;
+ assert(editor.isContentEditable,'contenteditable editor');
+ assert(getComputedStyle(editor).fontFamily===getComputedStyle(document.querySelector('main')).fontFamily,'inherits interface font family');
+ document.querySelector('main').style.setProperty('--cat-te-prompt-font-size','18px');
+ assert(getComputedStyle(editor).fontSize==='18px','uses prompt font size');
+ document.querySelector('main').style.setProperty('--cat-te-prompt-font-size','22px');
+ assert(getComputedStyle(editor).fontSize==='22px','live prompt font size updates');
+ document.querySelector('main').style.removeProperty('--cat-te-prompt-font-size');
+ document.querySelector('main').style.setProperty('--cat-font-size','17px');
+ assert(getComputedStyle(editor).fontSize==='17px','global font size fallback');
+ document.querySelector('main').style.removeProperty('--cat-font-size');
+
+ assert(editor.querySelectorAll('.tag').length===2,'tags inside prompt');
+ assert(editor.querySelector('.tag').contentEditable==='false','immutable token');
+ assert(!document.querySelector('cap-prompt-reference-tags'),'no external tag list');
+ const text=ta.value;
+ ta.focus(); ta.setSelectionRange(text.length,text.length);
+ editor.dispatchEvent(new InputEvent('beforeinput',{inputType:'insertText',data:'结束',bubbles:true,cancelable:true}));
+ assert(ta.value===text+'结束','typing updates plain text');
+ undoRichPrompt(ta); assert(ta.value===text,'undo typing');
+ editor.querySelector('.tag cap-button').click();
+ assert(!ta.value.includes('@女篮'),'x deletes only reference');
+ assert(!ta.value.includes('删除素材引用'),'button label not serialized');
+ undoRichPrompt(ta); assert(ta.value===text,'undo tag deletion');
+ const tokenStart=text.indexOf('@女篮'),tokenEnd=tokenStart+'@女篮珠玑动员'.length;
+ ta.focus();ta.setSelectionRange(tokenEnd,tokenEnd);
+ editor.dispatchEvent(new InputEvent('beforeinput',{inputType:'deleteContentBackward',bubbles:true,cancelable:true}));
+ assert(ta.value===text,'backspace cannot remove tag');
+ ta.setSelectionRange(tokenStart,tokenEnd);
+ editor.dispatchEvent(new InputEvent('beforeinput',{inputType:'insertText',data:'replace',bubbles:true,cancelable:true}));
+ assert(ta.value===text,'cannot replace tag contents');
+ ta.readOnly=true; component.configure(ta,assets);assert(!editor.isContentEditable,'readonly');
+ ta.readOnly=false;component.configure(ta,assets);
+ const tag=editor.querySelector('.tag');tag.dispatchEvent(new PointerEvent('pointerenter'));
+ assert(component.shadowRoot.querySelector('.preview').matches(':popover-open'),'hover preview');
+ tag.dispatchEvent(new PointerEvent('pointerleave'));
+ assert(!component.shadowRoot.querySelector('.preview').matches(':popover-open'),'preview closes');
+ setRichPromptValue(ta,'// note\n动作');
+ assert(editor.querySelector('.comment')?.textContent==='// note\n','comment presentation');
+ ta.focus();ta.setSelectionRange(8,10);toggleComment(ta);
+ assert(ta.value==='// note\n//动作','comment shortcut');
+ setRichPromptValue(ta,'第一行'); ta.focus();ta.setSelectionRange(3,3);
+ editor.dispatchEvent(new InputEvent('beforeinput',{inputType:'insertParagraph',bubbles:true,cancelable:true}));
+ assert(ta.value==='第一行\n' && editor.querySelector('br[data-tail]'),'trailing newline caret placeholder');
+ editor.dispatchEvent(new InputEvent('beforeinput',{inputType:'insertText',data:'下一行',bubbles:true,cancelable:true}));
+ assert(ta.value==='第一行\n下一行','text after newline');
+ const clipboard=new DataTransfer();ta.setSelectionRange(0,ta.value.length);
+ editor.dispatchEvent(new ClipboardEvent('copy',{clipboardData:clipboard,bubbles:true,cancelable:true}));
+ assert(clipboard.getData('text/plain')===ta.value,'plain text copy');
+ setRichPromptValue(ta,'输入');ta.focus();ta.setSelectionRange(2,2);
+ editor.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));
+ const composed=document.createTextNode('中文');editor.append(composed);
+ const range=document.createRange();range.setStart(composed,2);range.collapse(true);
+ const selection=component.shadowRoot.getSelection();selection.removeAllRanges();selection.addRange(range);
+ editor.dispatchEvent(new CompositionEvent('compositionend',{data:'中文',bubbles:true}));
+ assert(ta.value==='输入中文' && ta.selectionStart===4,'IME composition commits text and caret');
+ component.remove();document.querySelector('label').append(component);
+ assert(ta.style.display==='none' && ta._capInlineEditor===component,'moving editor restores adapter');
+ const fillContainer=document.createElement('div');
+ fillContainer.style.cssText='display:flex;flex-direction:column;height:500px;padding-bottom:32px;box-sizing:border-box';
+ const fillText=document.createElement('textarea');fillText.style.cssText='flex:1 1 auto;min-height:0';
+ const fillEditor=document.createElement('cap-inline-prompt');fillContainer.append(fillText,fillEditor);document.querySelector('main').append(fillContainer);
+ attachRichPromptHandler(fillText);fillEditor.configure(fillText,assets);
+ assert(Math.abs(fillEditor.editor.getBoundingClientRect().height-468)<2,'fills container without frozen height or empty bottom');
+ fillContainer.style.height='300px';
+ assert(Math.abs(fillEditor.editor.getBoundingClientRect().height-268)<2,'shrinks with container');
+ fillContainer.style.height='700px';
+ assert(Math.abs(fillEditor.editor.getBoundingClientRect().height-668)<2,'grows beyond previous 400px cap');
+ fillContainer.remove();
+ setRichPromptValue(ta,text);
+ document.querySelector('#result').textContent='PASS: inline tags, typing, undo, protected references, readonly, hover and comments';
+} catch(error) {document.querySelector('#result').textContent='FAIL: '+error.stack;}
+</script>

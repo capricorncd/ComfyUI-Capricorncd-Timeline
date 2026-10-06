@@ -87,6 +87,7 @@ export class ShotControl extends HTMLElement {
             this.mentions = document.createElement('cap-prompt-mentions');
             this.shadowRoot.append(this.mentions);
             this.mentions.addEventListener('asset-mention', event => this.dispatchEvent(new CustomEvent('asset-mention', {detail: event.detail})));
+            this.mentions.addEventListener('asset-mention-remove', event => this.dispatchEvent(new CustomEvent('asset-mention-remove', {detail: event.detail})));
         }
         this.mentions.bind(this.description, getAssets);
     }

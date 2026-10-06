@@ -1,10 +1,12 @@
+import { replaceRichPromptRange } from './RichPrompt.js';
+import { assetMentionRanges } from './InlinePromptEditor.js';
 import './Button.js';
 import { iconHtml } from '../cap_icons.js';
 import { makeT } from '../cap_i18n.js';
 const T = makeT({
-    zh: { title: '选择关联素材', search: '搜索素材名称…', all: '全部', character: '角色', scene: '场景', prop: '道具', grid_storyboard: '宫格图', other: '其他', empty: '没有匹配的素材', close: '关闭素材列表' },
-    en: { title: 'Select linked asset', search: 'Search asset names…', all: 'All', character: 'Characters', scene: 'Scenes', prop: 'Props', grid_storyboard: 'Storyboard grids', other: 'Other', empty: 'No matching assets', close: 'Close asset list' },
-    ja: { title: '関連素材を選択', search: '素材名を検索…', all: 'すべて', character: 'キャラクター', scene: 'シーン', prop: '小道具', grid_storyboard: '絵コンテ', other: 'その他', empty: '一致する素材がありません', close: '素材一覧を閉じる' },
+    zh: { unavailable: '素材预览不可用', remove: '删除素材引用', title: '选择关联素材', search: '搜索素材名称…', all: '全部', character: '角色', scene: '场景', prop: '道具', grid_storyboard: '宫格图', other: '其他', empty: '没有匹配的素材', close: '关闭素材列表' },
+    en: { unavailable: 'Asset preview unavailable', remove: 'Remove asset reference', title: 'Select linked asset', search: 'Search asset names…', all: 'All', character: 'Characters', scene: 'Scenes', prop: 'Props', grid_storyboard: 'Storyboard grids', other: 'Other', empty: 'No matching assets', close: 'Close asset list' },
+    ja: { unavailable: '素材プレビューがありません', remove: '素材参照を削除', title: '関連素材を選択', search: '素材名を検索…', all: 'すべて', character: 'キャラクター', scene: 'シーン', prop: '小道具', grid_storyboard: '絵コンテ', other: 'その他', empty: '一致する素材がありません', close: '素材一覧を閉じる' },
 });
 
 export function mentionQuery(value, cursor) {
@@ -70,10 +72,31 @@ export class PromptMentions extends HTMLElement {
         this.getAssets = getAssets;
         this.controller = new AbortController();
         const signal = this.controller.signal;
+        let previous = assetMentionRanges(textarea.value, getAssets());
+        textarea.addEventListener('input', event => {
+            if (event.isComposing) return;
+            const current = assetMentionRanges(textarea.value, getAssets());
+            const ids = new Set(current.flatMap(range => range.assets.map(asset => asset.id)));
+            for (const asset of previous.flatMap(range => range.assets)) {
+                if (!ids.has(asset.id)) this.dispatchEvent(new CustomEvent('asset-mention-remove', {detail: asset}));
+            }
+            previous = current;
+            for (const asset of current.flatMap(range => range.assets)) {
+                this.dispatchEvent(new CustomEvent('asset-mention', {detail: asset}));
+            }
+        }, {signal});
+        this.tags?.remove();
+        this.tags = document.createElement('cap-inline-prompt');
+        textarea.after(this.tags);
+        const renderTags = () => this.tags.configure(textarea, getAssets());
+        textarea.addEventListener('input', renderTags, {signal});
+        textarea.addEventListener('change', renderTags, {signal});
+        renderTags();
         const update = event => {
             if (event.isComposing || textarea.readOnly || textarea.disabled) { this.close(); return; }
             this.match = mentionQuery(textarea.value, textarea.selectionStart);
-            if (!this.match || textarea.selectionStart !== textarea.selectionEnd) { this.close(); return; }
+            if (!this.match || textarea.selectionStart !== textarea.selectionEnd
+                || assetMentionRanges(textarea.value, getAssets()).some(range => this.match.start === range.start && this.match.end === range.end)) { this.close(); return; }
             this.assets = getAssets();
             this.search.value = this.match.query;
             this.hidden = false;
@@ -84,6 +107,7 @@ export class PromptMentions extends HTMLElement {
         textarea.addEventListener('compositionend', update, {signal});
         textarea.addEventListener('click', () => this.close(), {signal});
         textarea.addEventListener('keydown', this.onKey, {signal, capture:true});
+        this.tags.addEventListener('keydown', this.onKey, {signal, capture:true});
         document.addEventListener('pointerdown', event => {
             if (!event.composedPath().includes(this) && event.target !== textarea) this.close();
         }, {signal});
@@ -97,10 +121,10 @@ export class PromptMentions extends HTMLElement {
         this.hidden = true;
         if (this.controller?.signal.aborted) this.bind(this.textarea, this.getAssets);
     }
-    disconnectedCallback() { this.controller?.abort(); }
+    disconnectedCallback() { this.controller?.abort(); this.tags?.remove(); }
     close() { this.hidden = true; }
     place() {
-        const rect = this.textarea.getBoundingClientRect();
+        const rect = (this.textarea._capInlineEditor || this.textarea).getBoundingClientRect();
         const height = Math.min(360, window.innerHeight - 24);
         this.style.maxHeight = `${height}px`;
         this.style.left = `${Math.max(12, Math.min(rect.left + 12, window.innerWidth - this.offsetWidth - 12))}px`;
@@ -148,8 +172,7 @@ export class PromptMentions extends HTMLElement {
         const ta = this.textarea;
         if (ta.readOnly || ta.disabled || !this.match) return;
         ta.focus();
-        ta.setRangeText(`@${asset.name} `, this.match.start, this.match.end, 'end');
-        ta.dispatchEvent(new Event('input', {bubbles:true}));
+        replaceRichPromptRange(ta, `@${asset.name} `, this.match.start, this.match.end);
         this.dispatchEvent(new CustomEvent('asset-mention', {detail:asset}));
         this.close();
     }

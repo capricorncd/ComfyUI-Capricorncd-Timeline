@@ -15,3 +15,12 @@ assert.equal(result.generation.keyframe_runs[0].intervals[0].prompt, 'Dunk');
 assert.equal(JSON.stringify(project), original, 'Editor keeps comments and bindings unchanged');
 assert.equal(generation.keyframe_runs[0].intervals[0].prompt, '// old\nDunk');
 console.log('PASS: run-only comment and reference cleanup preserves editable source');
+
+const references = {media: [{id:'stale', name:'Deleted'}, {id:'live',name:'Hero'}, {id:'key',name:'Shot'}, {id:'global',name:'Style'}],
+    settings:{prepend_prompt:'@Style'},tracks:[{clips:[{prompt:'@Hero moves',prompt_media_ids:['stale','live','key','global','missing'],
+    keyframes:{points:[{description:'@Shot turns'}]}}]}]};
+assert.deepEqual(cleanRunPrompts(references).project.tracks[0].clips[0].prompt_media_ids,['live','key','global']);
+assert.deepEqual(references.tracks[0].clips[0].prompt_media_ids,['stale','live','key','global','missing']);
+references.tracks[0].clips[0].use_prepend_prompt=false;
+assert.deepEqual(cleanRunPrompts(references).project.tracks[0].clips[0].prompt_media_ids,['live','key']);
+console.log('PASS: run preparation removes unmentioned bindings and retains active keyframe/global references');

@@ -59,6 +59,7 @@ export class RichPrompt extends HTMLElement {
     }
 
     render(ta) {
+        if (ta._capInlineEditor) { this.hidden = true; return; }
         this.textarea = ta;
         const m = this;
         syncMirrorLayout(ta);
@@ -254,6 +255,7 @@ function preparePromptEdit(ta) {
 }
 
 export function undoRichPrompt(ta, redo = false) {
+    ta = ta?._capPromptTextarea || ta;
     if (!ta?._capRichAttached) return false;
     if (ta.readOnly || ta.disabled) return true;
     if (ta._capRichHistory?.current.value !== ta.value) resetPromptHistory(ta);
@@ -270,14 +272,16 @@ export function undoRichPrompt(ta, redo = false) {
     return true;
 }
 
-export function replaceRichPromptRange(ta, text, start = ta.selectionStart, end = ta.selectionEnd) {
+export function replaceRichPromptRange(ta, text, start = ta.selectionStart, end = ta.selectionEnd, allowProtected = false, inputType = "") {
+    if (!allowProtected && ta._capProtectedRanges?.().some(range => start === end
+        ? start > range.start && start < range.end : start < range.end && end > range.start)) return;
     if (ta.readOnly || ta.disabled) return;
     ta.focus();
     preparePromptEdit(ta);
     ta._capRichHistory.type = "";
     ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
     ta.setSelectionRange(start + text.length, start + text.length);
-    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    ta.dispatchEvent(inputType ? new InputEvent("input", { bubbles: true, inputType }) : new Event("input", { bubbles: true }));
     syncPromptWidgetFromTextarea(ta);
     updateRichPromptMirror(ta);
 }
@@ -299,7 +303,7 @@ export function toggleComment(ta) {
     const allC = lines.every(isPromptComment);
     const newLines = allC ? lines.map(l => l.replace(/^(\s*)\/\//, "$1")) : lines.map(l => "//" + l);
 
-    replaceRichPromptRange(ta, newLines.join("\n"), lineStart, lineEnd);
+    replaceRichPromptRange(ta, newLines.join("\n"), lineStart, lineEnd, true);
 
     const delta = allC ? -2 : 2;
     ta.setSelectionRange(
@@ -505,7 +509,8 @@ export function attachRichPromptHandler(ta, { mode = "widget" } = {}) {
             detachRichPromptHandler(ta);
             return;
         }
-        const fromTa = e.target === ta || e.currentTarget === ta || document.activeElement === ta;
+        const fromTa = e.target === ta || e.currentTarget === ta || document.activeElement === ta
+            || (ta._capInlineEditor && e.composedPath().includes(ta._capInlineEditor));
         if (!fromTa) return;
 
         const mod = e.ctrlKey || e.metaKey;

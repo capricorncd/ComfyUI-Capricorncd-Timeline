@@ -25,7 +25,7 @@ export function cleanRunPrompts(project, generation) {
             if (index < 0) return false;
             const name = names[index];
             const mentions = text => renameAssetMentions(text, name, name + '__run_reference', names) !== text;
-            return !mentions(raw) || mentions(clean);
+            return mentions(clean);
         });
         cleanFields(clip, ['prompt', 'style_prompt', 'speech_prompt']);
         for (const point of clip.keyframes?.points || []) cleanFields(point, ['description']);

@@ -26,6 +26,7 @@ import "./components/StatusMessage.js";
 import "./components/PromptMentions.js";
 import "./components/DropdownButton.js";
 import "./components/ContextMenu.js";
+import { assetMentionRanges } from "./components/InlinePromptEditor.js";
 import "./components/ThemePicker.js";
 import "./components/RadioButton.js";
 import { FontCatalog } from "./editor/FontCatalog.js";
@@ -1086,7 +1087,7 @@ export class CapTimelineEditorApp {
             e.stopImmediatePropagation();
             return true;
         }
-        if (e.target?.closest?.("input, textarea, select, [contenteditable='true']")) return false;
+        if (isEditingField(e)) return false;
         const key = this._shortcutModKey(e);
         if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && ["c", "v", "x", "b"].includes(key)) {
             e.preventDefault();
@@ -1290,7 +1291,7 @@ export class CapTimelineEditorApp {
     handleAiOptimizeKey(e) {
         if (!this._overlay?.classList.contains("open")) return false;
         if (!this.aiOptimizeModal || this.aiOptimizeModal.hidden) return false;
-        if (e.target?.closest?.("input, textarea, select, [contenteditable='true']")) return false;
+        if (isEditingField(e)) return false;
         if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return false;
         void this._stepAiOptimizeClip(e.key === "ArrowRight" ? 1 : -1);
         e.preventDefault();
@@ -5842,7 +5843,7 @@ export class CapTimelineEditorApp {
         });
 
         el.addEventListener("keydown", e => {
-            const typing = !!e.target?.closest?.("input, textarea, select, [contenteditable='true']");
+            const typing = isEditingField(e);
             if (this._blockingModal === this.mediaPreviewModal && this.handleMediaPreviewKey(e)) return;
             if (this._blockingModal === this.genVideoModal && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !typing) {
                 this._stepGenVideoPreview(e.key === "ArrowRight" ? 1 : -1);
@@ -11499,11 +11500,29 @@ export class CapTimelineEditorApp {
             if (!row.enabled) item.classList.add("is-disabled");
 
             const enable = document.createElement("input");
+    _unlinkPromptMention(clip, asset) {
+        if (!clip || clip.track?.locked) return;
+        const meta = this._ensureClipMeta(clip);
+        if (!meta.promptMediaIds?.includes(asset.id)) return;
+        const texts = [meta.prompt, ...(meta.video_shots?.points || []).map(point => point.description)];
+        if (texts.some(text => assetMentionRanges(String(text || ""), [asset]).length)) return;
+        meta.promptMediaIds = meta.promptMediaIds.filter(id => id !== asset.id);
+        this._saveToWidgets();
+    }
+
             enable.type = "checkbox";
             enable.className = "cat-te-clip-video-enabled";
             enable.checked = row.enabled !== false;
             enable.title = row.enabled ? T("disable_label") : T("enable_label");
             enable.addEventListener("click", (e) => e.stopPropagation());
+            mentions.addEventListener("asset-mention-remove", ({ detail: asset }) => {
+                if (textarea.matches(".cat-te-settings-prompt-input, .cat-te-media-setting-description, .cat-te-media-generation-prompt")) return;
+                if (textarea === this.aiSrcText && SETTING_PROMPT_KEYS.includes(this._aiOptimizeSrc)) return;
+                const clip = textarea === this.aiSrcText || textarea === this.aiSystemInput
+                    ? this._findClipById(this._aiOptimizeClipId) : textarea === this.genEditPrompt
+                    ? this._findClipById(this._genEditState?.clipId) : this._selClip;
+                queueMicrotask(() => this._unlinkPromptMention(clip, asset));
+            });
             enable.addEventListener("change", () => {
                 this._setGeneratedAudioEnabled(clip, row.id, !!enable.checked);
             });
@@ -12248,7 +12267,7 @@ export class CapTimelineEditorApp {
         if (modal === this.genEditModal && this.handleGenEditKey(e)) return true;
         if (modal === this.mediaPreviewModal && this.handleMediaPreviewKey(e)) return true;
         if (modal === this.aiOptimizeModal && this.handleAiOptimizeKey(e)) return true;
-        const typing = e.target?.closest?.("input, textarea, select, [contenteditable='true']");
+        const typing = isEditingField(e);
         if (!typing && (e.key === "Delete" || e.key === "Backspace" || ((e.ctrlKey || e.metaKey) && ["z", "y", "v", "b", "g"].includes(e.key.toLowerCase())))) {
             e.preventDefault();
             e.stopImmediatePropagation();
@@ -18017,6 +18036,16 @@ export class CapTimelineEditorApp {
         const keyframeTarget = this._directorKeyframes?.target(clip);
         const localPoints = refs && keyframeTarget && !keyframeTarget.local
             ? this._directorKeyframes.points(keyframeTarget).map(point => ({
+        const runIds = new Set(clips.map(clip => String(clip.id)));
+        let cleanedBindings = false;
+        for (const track of cleaned.project.tracks || []) for (const row of track.clips || []) {
+            if (!runIds.has(String(row.id))) continue;
+            const meta = this._meta.get(row.id);
+            if (!meta?.promptMediaIds || JSON.stringify(meta.promptMediaIds) === JSON.stringify(row.prompt_media_ids)) continue;
+            if (!cleanedBindings) this._recordUndo();
+            meta.promptMediaIds = [...row.prompt_media_ids];
+            cleanedBindings = true;
+        }
                 ...point, time: (point.time - keyframeTarget.start) / keyframeTarget.rate,
             })) : null;
         const cloneMeta = () => {

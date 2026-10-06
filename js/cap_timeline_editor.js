@@ -403,6 +403,12 @@ function onTeGlobalKeyDown(e) {
     if (te.handleDeleteKey(e)) return;
 }
 
+function onTeGlobalPaste(e) {
+    if (!CapTimelineEditorApp._open) return;
+    const editor = e.composedPath?.().find(node => node?.localName === "cap-inline-prompt");
+    if (editor) editor.paste(e);
+}
+
 function onTeGlobalKeyUp(e) {
     const te = CapTimelineEditorApp._open;
     if (!te || e.key !== "Alt") return;
@@ -481,6 +487,7 @@ app.registerExtension({
         // rely on stopImmediatePropagation alone.
         window.addEventListener("keydown", onTeGlobalKeyDown, true);
         window.addEventListener("keyup", onTeGlobalKeyUp, true);
+        window.addEventListener("paste", onTeGlobalPaste, true);
         hookQueuePrompt();
         hookLoadGraphData();
         // comfyAPI / ChangeTracker may boot after extension setup.

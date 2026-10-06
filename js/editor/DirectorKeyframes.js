@@ -18,6 +18,10 @@ export class DirectorKeyframes {
         panel.setMentionSource(() => app._promptMentionAssets());
         panel.bindPromptHistory(() => app._promptHistoryDocument(), data => app._savePromptHistory(data));
         panel.addEventListener('asset-mention', event => app._linkPromptMention(this.selectedTarget()?.clip, event.detail));
+        panel.addEventListener('asset-mention-remove', event => {
+            const clip = this.selectedTarget()?.clip;
+            queueMicrotask(() => app._unlinkPromptMention(clip, event.detail));
+        });
         this.editing = false;
         this.detecting = new Set();
         this.status = document.createElement('cap-status-message');

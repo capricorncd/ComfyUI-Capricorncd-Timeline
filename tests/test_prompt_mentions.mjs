@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const src=readFileSync(new URL('../js/components/PromptMentions.js',import.meta.url),'utf8');
-const {mentionQuery,PromptMentions}=new Function('HTMLElement','customElements','makeT','iconHtml',src.replace(/^import .*;\r?\n/gm,'').replaceAll('export ','')+';return {mentionQuery,PromptMentions};')(class {},{define(){}},dict=>key=>dict.en[key],()=> '');
+const inlineSource=readFileSync(new URL('../js/components/InlinePromptEditor.js',import.meta.url),'utf8');
+const assetMentionRanges=new Function('HTMLElement','customElements','makeT',inlineSource.replace(/^import .*;\r?\n/gm,'').replaceAll('export ','')+';return assetMentionRanges;')(class {},{define(){}},dict=>key=>dict.en[key]);
+const {mentionQuery,PromptMentions}=new Function('HTMLElement','customElements','makeT','iconHtml','assetMentionRanges','replaceRichPromptRange',src.replace(/^import .*;\r?\n/gm,'').replaceAll('export ','')+';return {mentionQuery,PromptMentions};')(class {},{define(){}},dict=>key=>dict.en[key],()=> '',assetMentionRanges,(ta,text,start,end)=>{ta.setRangeText(text,start,end,'end');ta.dispatchEvent(new Event('input'));});
 assert.deepEqual(mentionQuery('Hello @角色',9),{start:6,end:9,query:'角色'});
 assert.equal(mentionQuery('@角色 A ',6),null);
 assert.equal(mentionQuery('normal',6),null);
@@ -15,13 +17,13 @@ assert.deepEqual(calls[0],['@角色 A ',3,5,'end']);assert.equal(calls[1],'input
 const appSource=readFileSync(new URL('../js/CapTimelineEditorApp.js',import.meta.url),'utf8');
 function method(name){const start=appSource.indexOf('    '+name+'(');return new Function('return ({'+appSource.slice(start,appSource.indexOf('\n    }',start)+6)+'}).'+name)();}
 const row={id:'m1',kind:'image',file:'folder/hero.png'};
-const app={_parseMediaMeta:method('_parseMediaMeta'),_getMediaMeta:method('_getMediaMeta'),_writeMediaMeta:method('_writeMediaMeta'),_findMedia:()=>row,_ensureMedia:()=>row,_mediaStarsByDir:{},_mediaStarsId:()=> 'hero',_saveMediaStarsForDir(){this.saved=true}};
-assert.equal(app._getMediaMeta('image',row.file).name,'hero.png');
+const app={_defaultMediaName:method('_defaultMediaName'),_parseMediaMeta:method('_parseMediaMeta'),_getMediaMeta:method('_getMediaMeta'),_writeMediaMeta:method('_writeMediaMeta'),_findMedia:()=>row,_ensureMedia:()=>row,_mediaStarsByDir:{},_mediaStarsId:()=> 'hero',_saveMediaStarsForDir(){this.saved=true}};
+assert.equal(app._getMediaMeta('image',row.file).name,'hero');
 app._writeMediaMeta('image',row.file,{name:'新角色',settingDescription:'Description'});
 assert.equal(row.name,'新角色');assert.equal(app._getMediaMeta('image',row.file).name,'新角色');
 assert.equal(app._parseMediaMeta(JSON.parse(JSON.stringify(app._mediaStarsByDir.hero))).name,'新角色');
 assert.equal(row.setting_description,'Description');
-app._writeMediaMeta('image',row.file,{name:'  '});assert.equal(row.name,'hero.png');
+app._writeMediaMeta('image',row.file,{name:'  '});assert.equal(row.name,'hero');
 const dbl=appSource.slice(appSource.indexOf('tl._tracksEl?.addEventListener("dblclick"'),appSource.indexOf('const scroll = tl.scrollEl;',appSource.indexOf('tl._tracksEl?.addEventListener("dblclick"')));
 assert(dbl.includes('_openAiOptimizeModal(clip)'));assert(!dbl.includes('_directorKeyframes.add'));
 console.log('PASS: @ queries, named insertion, stable selection ID, media name persistence/defaults, double-click prompt routing');
@@ -36,9 +38,9 @@ assert.deepEqual(meta.promptMediaIds,['hero']);assert(host.saved);
 assert(appSource.includes('prompt_media_ids: [...(m.promptMediaIds || [])]'));
 console.log('PASS: prompt-only references stay separate from visible materials and persist');
 
-globalThis.document = new EventTarget();
+globalThis.document = Object.assign(new EventTarget(),{createElement:()=>Object.assign(new EventTarget(),{configure(){},remove(){}})});
 globalThis.window = new EventTarget();
-const textarea = Object.assign(new EventTarget(), {value:'@', selectionStart:1, selectionEnd:1});
+const textarea = Object.assign(new EventTarget(), {value:'@', selectionStart:1, selectionEnd:1,after(){}});
 const livePicker = Object.assign(Object.create(PromptMentions.prototype), {
     search:{value:''}, render(){this.results=this.assets;}, place(){}, onKey(){}, hidden:true,
 });

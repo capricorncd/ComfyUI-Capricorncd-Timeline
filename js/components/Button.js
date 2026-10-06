@@ -19,9 +19,9 @@ export class Button extends HTMLElement {
                     min-width: 0;
                     height: 28px;
                     padding: 0 10px;
-                    border: 1px solid var(--cat-border-soft, #344950);
+                    border: 1px solid color-mix(in srgb, var(--cat-muted, #94a3b8) 45%, var(--cat-border, #344950));
                     border-radius: 6px;
-                    background: var(--cat-raised, rgba(255,255,255,0.06));
+                    background: color-mix(in srgb, var(--cat-text, #e2e8f0) 8%, var(--cat-raised, #24353f));
                     color: var(--cat-text, #e2e8f0);
                     font-family: inherit;
                     font-size: calc(var(--cat-font-size, 1rem) * 0.857143);
@@ -29,7 +29,7 @@ export class Button extends HTMLElement {
                     cursor: pointer;
                     transition: background 0.12s, border-color 0.12s;
                 }
-                button:hover { background: color-mix(in srgb, var(--cat-text) 8%, var(--cat-surface)); border-color: var(--cat-border); }
+                button:hover { background: color-mix(in srgb, var(--cat-text, #e2e8f0) 14%, var(--cat-raised, #24353f)); border-color: var(--cat-muted, #94a3b8); }
                 button:focus { outline: none; }
                 button:focus-visible { outline: 2px solid var(--cat-accent); outline-offset: 2px; }
                 :host([shape="square"]) button { width: 28px; padding: 0; }

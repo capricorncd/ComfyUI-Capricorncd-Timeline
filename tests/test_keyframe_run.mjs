@@ -53,3 +53,26 @@ assert.equal(await runSelected.call(editor),true);
 assert.deepEqual(queued.clips,[clip]);
 assert.deepEqual(queued.h3Generation,request);
 console.log('Selected keyframe runs only its interval, maps source rate, closes at Clip end and respects selection/lock/model guards');
+
+const captured = {target, point:points[1]};
+editor._directorKeyframes.selection = null;
+assert.deepEqual(selectedKeyframeRun(editor,captured), request, 'dialog keeps its own keyframe after selection clears');
+editor.node = {};
+editor._aiOptimizeKeyframe = captured;
+editor._queueClipsDownstream = (clips, preview, generation) => ({clips,preview,generation});
+const method = name => {
+    const start = appSource.indexOf(`    async ${name}(`);
+    return new Function('selectedKeyframeRun','isDirectorTrackType','showCapAlert','draftT',
+        `return ({${appSource.slice(start,appSource.indexOf('\n    }',start)+6)}}).${name}`)(
+        selectedKeyframeRun,()=>true,()=>{},()=> '');
+};
+const preview = {};
+const normal = await method('_runClipDownstream').call(editor,clip,preview);
+assert.deepEqual(normal.clips,[clip]);
+assert.deepEqual(normal.generation,request);
+assert.deepEqual(preview.clipIds,[String(clip.id)]);
+const draft = await method('_runH3Stage').call(editor,clip,'draft',captured);
+assert.deepEqual(draft.generation,{...request,action:'draft'});
+clip.track.locked = true;
+assert.equal(await method('_runClipDownstream').call(editor,clip,preview),undefined);
+console.log('Keyframe prompt dialog: captured interval used for normal/draft runs, preview association and lock guard passed');

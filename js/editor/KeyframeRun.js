@@ -49,12 +49,14 @@ function clipKeyframeRun(editor, clip) {
         intervals: keyframeIntervals(clip.duration, fps, points)};
 }
 
-export function selectedKeyframeRun(editor) {
-    const target = editor._directorKeyframes?.selectedTarget();
+export function selectedKeyframeRun(editor, selected = null) {
+    const target = selected?.target || editor._directorKeyframes?.selectedTarget();
     if (!target || target.clip.track.locked) return null;
     const run = clipKeyframeRun(editor, target.clip);
     if (!run) return null;
-    const frame = Math.round((editor._directorKeyframes.selection.point.time - target.start) / target.rate * run.fps);
+    const point = selected?.point || editor._directorKeyframes.selection.point;
+    if (!editor._directorKeyframes.points(target).includes(point)) return null;
+    const frame = Math.round((point.time - target.start) / target.rate * run.fps);
     const interval = run.intervals.find(row => row.start_frame === frame);
     return interval ? {action: 'normal', keyframe_runs: [{...run, intervals: [interval]}]} : null;
 }

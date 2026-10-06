@@ -376,3 +376,5 @@ Preview sampling management scrolls the version list and playback/prompt column 
 The selected keyframe settings emit `prompt-expand` to open the existing Clip prompt manager. Its Clip prompt tab becomes Keyframe prompt, reading/writing the captured point description; resource and global prompt tabs retain their usual scope. The full prompt uses the keyframe description in place of the Clip prompt. Clip navigation is disabled in keyframe mode. Closing or opening a normal Clip restores the normal scope.
 
 Shared buttons with `role="menuitem"` or `role="menuitemcheckbox"` have no border or resting fill, including danger actions. Context menus in the toolbar and main/child track hover menus use this presentation; danger text and hover feedback remain red.
+
+Running from keyframe prompt management queues only the captured keyframe interval, including draft sampling; the interval ends at the next keyframe or the Clip end. Clearing timeline selection while the dialog is open does not change this scope. Removed points and locked Clips do not queue a run.

@@ -8201,7 +8201,7 @@ export class CapTimelineEditorApp {
         this._workflowRunSubmitting = true;
         this._syncWorkflowRunButton();
         try {
-            await this._runH3Stage(clip, "draft");
+            await this._runH3Stage(clip, "draft", this._aiOptimizeKeyframe);
         } finally {
             this._workflowRunSubmitting = false;
             this._syncWorkflowRunButton();
@@ -8545,6 +8545,7 @@ export class CapTimelineEditorApp {
     }
 
     async _startModelPreview() {
+        if (this._aiOptimizeKeyframe) return this._runPromptManagerWorkflow();
         const clip = this._findClipById(this._aiOptimizeClipId);
         if (!clip || this._modelPreviewPromptId || this._workflowPreview?.active) return;
         this._clearWorkflowPreview();
@@ -17988,9 +17989,14 @@ export class CapTimelineEditorApp {
         return result;
     }
 
-    async _runH3Stage(clip, action) {
+    async _runH3Stage(clip, action, keyframe = null) {
         if (!clip || !isDirectorTrackType(clip.track?.type) || clip.track?.locked) return;
         if (!this._hasH3VideoGeneratorDownstream()) { showCapAlert(draftT("unavailable")); return; }
+        if (keyframe) {
+            const request = selectedKeyframeRun(this, keyframe);
+            if (!request || keyframe.target.clip !== clip) return;
+            return this._queueClipsDownstream([clip], null, {...request, action});
+        }
         if (!await this._validateClipRunDurations([clip])) return;
         await this._queueClipsDownstream([clip], null, {action});
     }
@@ -18024,6 +18030,12 @@ export class CapTimelineEditorApp {
      */
     async _runClipDownstream(clip, workflowPreview = null) {
         if (!clip || !this.node) return;
+        if (this._aiOptimizeKeyframe?.target.clip === clip) {
+            const request = selectedKeyframeRun(this, this._aiOptimizeKeyframe);
+            if (!request) return;
+            if (workflowPreview) workflowPreview.clipIds = [String(clip.id)];
+            return this._queueClipsDownstream([clip], workflowPreview, request);
+        }
         const m = this._meta.get(clip.id) ?? defaultImageMeta();
         if (clip.track?.type === "audio" || m.clipType === "audio") {
             showCapAlert(T("audio_clip_not_in_data_json"));

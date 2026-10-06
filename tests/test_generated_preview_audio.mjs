@@ -10,8 +10,9 @@ function method(name) {
   assert(start >= 0, name);
   const end = source.indexOf('\n    }', start) + 6;
   return new Function('normalizePlaybackRate', 'normalizeClipVolume', 'defaultImageMeta', 'volumeAt',
-    'return ({' + source.slice(start, end) + '}).' + name)(
-    normalizePlaybackRate, v => Math.max(0, Math.min(5, Number(v ?? 1))), () => ({}), points => points[0]?.gain ?? 1);
+    'referenceTimeline', 'isDirectorTrackType', 'return ({' + source.slice(start, end) + '}).' + name)(
+    normalizePlaybackRate, v => Math.max(0, Math.min(5, Number(v ?? 1))), () => ({}), points => points[0]?.gain ?? 1,
+    (app, clip) => app._meta.get(clip.id).referenceTimeline, type => type === 'director');
 }
 const gen = (file, extra = {}) => ({file, enabled:true, duration_sec:5, ...extra});
 const meta = {
@@ -54,6 +55,25 @@ track.muted=false;
 assert.deepEqual(app._collectGeneratedVideoAudioJobs(16).map(j=>j.file), ['second.mp4','voice.wav']);
 
 const played=[];
+app._clipUsesGeneratedPreview = () => false;
+meta.referenceTimeline = {
+  videos: [gen('reference.mp4', {muted:true, trim_in_sec:2, trim_out_sec:6, playback_rate:2})],
+  audios: [{file:'reference.wav', location:'output', edit_start_sec:1, duration:2, muted:true}],
+};
+assert.deepEqual(app._collectGeneratedVideoAudioJobs(10), []);
+clip._audioBuffer = {}; clip.hasAudio = true; track.type = 'director';
+app._timeline.tracks = [track];
+assert.deepEqual(method('_collectAudibleClips').call(app), [], 'reference timeline replaces original cached audio');
+meta.referenceTimeline.videos[0].muted = false;
+let referenceJobs = app._collectGeneratedVideoAudioJobs(10);
+assert.equal(referenceJobs[0].tin, 2);
+assert.equal(referenceJobs[0].absEnd, 12);
+assert.equal(referenceJobs[0].playbackRate, 2);
+meta.referenceTimeline.audios[0].muted = false;
+assert.equal(app._collectGeneratedVideoAudioJobs(10)[1].location, 'output');
+assert(app._collectGeneratedVideoAudioJobs(10, clip).some(job => job.file === 'first.mp4'), 'hover still uses generated child timeline');
+delete meta.referenceTimeline;
+app._clipUsesGeneratedPreview = () => true;
 const scheduled=[];
 meta.generatedVideos[1].volume = 1.5;
 meta.genEditAudios[0].volume = 2;

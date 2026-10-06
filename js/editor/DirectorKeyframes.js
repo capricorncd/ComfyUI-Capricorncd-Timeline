@@ -39,7 +39,7 @@ export class DirectorKeyframes {
         });
     }
     target(clip) {
-        if (!clip || ['audio', 'voiceover'].includes(clip.track.type)) return null;
+        if (!clip || ['audio', 'voiceover', 'filter'].includes(clip.track.type)) return null;
         const meta = this.app._ensureClipMeta(clip);
         const local = () => ({clip, media: meta, source: {item: {id: clip.id}, rate: 1},
             start: 0, rate: 1, duration: clip.duration, local: true});

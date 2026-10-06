@@ -30,6 +30,10 @@ speed_spec = importlib.util.spec_from_file_location('media_speed', source.parent
 speed = importlib.util.module_from_spec(speed_spec)
 speed_spec.loader.exec_module(speed)
 scope.update(playback_rate=speed.playback_rate, audio_speed_filter=speed.audio_speed_filter)
+filter_spec = importlib.util.spec_from_file_location('portrait_filters', source.parent / 'portrait_filters.py')
+portrait = importlib.util.module_from_spec(filter_spec)
+filter_spec.loader.exec_module(portrait)
+scope.update(collect_filters=portrait.collect_filters, write_lut=portrait.write_lut)
 exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef)
                             and n.name in names], type_ignores=[]), str(source), 'exec'), scope)
 

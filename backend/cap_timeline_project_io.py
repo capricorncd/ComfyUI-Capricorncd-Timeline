@@ -393,6 +393,8 @@ def _migrate_schema_1_to_2(project: dict) -> None:
         if not isinstance(track, dict):
             continue
         track_type = str(track.get("type") or "visual").lower()
+        if track_type == "filter":
+            continue
         for clip in track.get("clips") or []:
             if not isinstance(clip, dict):
                 continue
@@ -539,6 +541,8 @@ def _ensure_clip_media_ids(project: dict) -> None:
         if not isinstance(track, dict):
             continue
         track_type = str(track.get("type") or "visual").lower()
+        if track_type == "filter":
+            continue
         for clip in track.get("clips") or []:
             if not isinstance(clip, dict):
                 continue

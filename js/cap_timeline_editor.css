@@ -854,12 +854,18 @@ body.cat-te-row-resize * {
 }
 
 .cat-te-media-tabs {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
+    flex-direction: column;
     flex-shrink: 0;
-    padding: 0 6px;
-    border-bottom: 1px solid var(--cat-raised);
+    padding: 6px;
+    border-right: 1px solid var(--cat-border-soft);
 }
+.cat-te-media-tabs[hidden] { display:none; }
+.cat-te-library-tabs { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); flex-shrink:0; border-bottom:1px solid var(--cat-border-soft); }
+.cat-te-library-tab { min-width:0; }
+.cat-te-media-browser { display:grid; grid-template-columns:72px minmax(0,1fr); flex:1; min-height:0; }
+.cat-te-media-browser.cat-te-library-category { grid-template-columns:minmax(0,1fr); }
+.cat-te-media-header-actions[hidden], .cat-te-media-footer[hidden] { display:none; }
 
 .cat-te-media-tab { min-width: 0; }
 
@@ -1642,6 +1648,17 @@ body.cat-te-media-dnd-over-tl {
     gap: 0;
     --cat-te-gen-edit-preview-h: 280px;
 }
+.cat-te-gen-edit-body:has(> .cat-te-gen-edit-divider) {
+    grid-template-columns: minmax(0, 1fr) 6px clamp(260px, var(--cat-te-gen-edit-right-w, 300px), 50%);
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+}
+.cat-te-gen-edit-body:has(> .cat-te-gen-edit-divider) > .cat-te-gen-edit-right {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-gutter: stable;
+}
 .cat-te-gen-edit-preview {
     position: relative;
     display: flex;
@@ -1650,7 +1667,9 @@ body.cat-te-media-dnd-over-tl {
     flex: 0 0 var(--cat-te-gen-edit-preview-h, 280px);
     height: var(--cat-te-gen-edit-preview-h, 280px);
     min-height: 120px;
-    background: #000;
+    background-color: var(--cat-bg);
+    background-image: conic-gradient(var(--cat-raised) 25%, transparent 0 50%, var(--cat-raised) 0 75%, transparent 0);
+    background-size: 20px 20px;
     border-radius: 6px;
     overflow: hidden;
 }
@@ -4085,6 +4104,11 @@ body.cat-te-media-dnd-over-tl {
 
 .cat-te-h3-drafts { --cap-dialog-width: 940px; --cap-dialog-height: 660px; --cap-dialog-min-width: 420px; --cap-dialog-min-height: 320px; }
 .cat-te-h3-drafts-body { padding: 20px 28px; container-type: inline-size; }
+.cat-te-h3-drafts-manager-body { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: hidden; }
+.cat-te-h3-drafts-manager-body .cat-te-h3-drafts-layout { flex: 1 1 0; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+.cat-te-h3-drafts-manager-body .cat-te-h3-drafts-list,
+.cat-te-h3-drafts-manager-body .cat-te-h3-draft-detail { min-height: 0; overflow: auto; padding: 4px; scrollbar-gutter: stable; }
+.cat-te-h3-drafts-list > .cat-te-h3-draft-row { flex-shrink: 0; }
 .cat-te-h3-drafts-hint { color: var(--cat-muted); line-height: 1.6; margin: 0 0 18px; }
 .cat-te-h3-drafts-layout { display: grid; grid-template-columns: minmax(180px, 28%) minmax(0, 1fr); gap: 18px; }
 .cat-te-h3-drafts-list { display: flex; flex-direction: column; gap: 16px; }
@@ -4099,16 +4123,13 @@ body.cat-te-media-dnd-over-tl {
 @media (max-width: 760px) {
     .cat-te-h3-drafts-body { padding: 16px 18px; }
     .cat-te-h3-drafts-layout { grid-template-columns: minmax(0, 1fr); }
+    .cat-te-h3-drafts-manager-body .cat-te-h3-drafts-layout { grid-template-rows: minmax(100px, .45fr) minmax(0, 1fr); }
 }
 
 .cat-te-h3-draft-row > cap-button { width: 100%; min-width: 0; }
-.cat-te-h3-drafts-manager-body { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: hidden; }
-.cat-te-h3-drafts-manager-body .cat-te-h3-drafts-layout { flex: 1 1 0; min-height: 0; grid-template-rows: minmax(0, 1fr); }
-.cat-te-h3-drafts-manager-body .cat-te-h3-drafts-list,
-.cat-te-h3-drafts-manager-body .cat-te-h3-draft-detail { min-height: 0; overflow: auto; padding: 4px; scrollbar-gutter: stable; }
-.cat-te-h3-drafts-list > .cat-te-h3-draft-row { flex-shrink: 0; }
 @container (max-width: 560px) {
     .cat-te-h3-drafts-layout { grid-template-columns: minmax(0, 1fr); }
+    .cat-te-h3-drafts-manager-body .cat-te-h3-drafts-layout { grid-template-rows: minmax(100px, .45fr) minmax(0, 1fr); }
 }
 .cat-te-keyframe-run { --cap-dialog-width: 580px; --cap-dialog-min-width: 300px; --cap-dialog-min-height: 220px; }
 .cat-te-keyframe-run-body { display: grid; gap: 12px; padding: 20px 28px; }
@@ -4123,13 +4144,11 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-keyframe-interval-number { color: var(--cat-accent); font-size: .85em; font-weight: 600; }
 .cat-te-keyframe-interval-parts { margin-left: auto; color: var(--cat-muted); font-size: .85em; }
 .cat-te-keyframe-run-heading { margin-top: 8px; overflow-wrap: anywhere; }
-    .cat-te-h3-drafts-manager-body .cat-te-h3-drafts-layout { grid-template-rows: minmax(100px, .45fr) minmax(0, 1fr); }
 .cat-te-keyframe-interval-content > small { margin-top: 6px; font-size: .92em; }
 .cat-te-keyframe-run-body small { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--cat-muted); line-height: 1.6; }
 .cat-te-keyframe-run-body input[type="text"] { width: 100%; min-width: 0; box-sizing: border-box; padding: 8px; border: 1px solid var(--cat-border); border-radius: 6px; background: var(--cat-input); color: var(--cat-text); font: inherit; }
 .cat-te-keyframe-range-header { display: flex; align-items: center; gap: 8px; }
 .cat-te-keyframe-range-header .cat-te-keyframe-exclude { margin-left: auto; align-items: center; flex-wrap: nowrap; }
-    .cat-te-h3-drafts-manager-body .cat-te-h3-drafts-layout { grid-template-rows: minmax(100px, .45fr) minmax(0, 1fr); }
 .cat-te-keyframe-run-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 @media (max-width: 600px) { .cat-te-keyframe-run-body { padding: 16px 18px; } }
 
@@ -4155,6 +4174,7 @@ cap-dialog.cat-te-add-material-modal > .cat-te-add-material-preview { flex: 1; m
 .cat-te-add-material-preview > cap-image-compare { width: 100%; height: auto; flex: 1; }
 .cat-te-add-material-actions > label { margin-right: auto; }
 
-.cat-te-reference-timeline-tools:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.cat-te-reference-timeline-tools:not([hidden]) { display: flex; flex-direction: column; gap: 12px; }
+.cat-te-reference-reset-duration { margin-left: auto; }
 .cat-te-reference-timeline-tools cap-select { min-width: 0; flex: 1; }
 .cat-te-reference-timeline-tools label { display: flex; align-items: center; gap: 8px; }

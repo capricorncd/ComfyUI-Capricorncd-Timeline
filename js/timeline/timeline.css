@@ -338,6 +338,9 @@
   background-color: var(--clip-color, #4a9eff);
 }
 
+.tl-track-filter .tl-clip { top: 2px; bottom: 2px; border-radius: 4px; }
+.tl-track-header-filter .tl-track-actions { gap: 2px; }
+
 .tl-clip:has(> cap-shot-markers) {
   overflow: visible;
   border-width: 1px;

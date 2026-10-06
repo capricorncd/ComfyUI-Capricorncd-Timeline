@@ -1,3 +1,4 @@
+import { FILTER_PRESETS, PortraitFilterRenderer, activePortraitFilters } from "./editor/PortraitFilters.js";
 import "./components/ImageCompare.js";
 import "./components/SkillPicker.js";
 import { renameAssetMentions } from './prompt_asset_rename.js';
@@ -13,6 +14,7 @@ import { openInsertClip } from './editor/InsertClip.js';
 
 import "./components/TabButton.js";
 import { referenceTimeline, referenceTimelineControls, sliceReferenceTimeline } from './editor/ReferenceTimeline.js';
+import './components/PanelDivider.js';
 import { mergeReferenceProject } from './editor/MergeReferenceProject.js';
 import "./components/ProjectVideoList.js";
 import "./components/PromptHistoryActions.js";
@@ -24,9 +26,9 @@ import "./components/MediaCarousel.js";
 import { AgentSettings } from "./editor/AgentSettings.js";
 import "./components/StatusMessage.js";
 import "./components/PromptMentions.js";
+import { assetMentionRanges } from "./components/InlinePromptEditor.js";
 import "./components/DropdownButton.js";
 import "./components/ContextMenu.js";
-import { assetMentionRanges } from "./components/InlinePromptEditor.js";
 import "./components/ThemePicker.js";
 import "./components/RadioButton.js";
 import { FontCatalog } from "./editor/FontCatalog.js";
@@ -141,6 +143,7 @@ const OUTPUT_VIDEOS_TIME_RANGES = [
     { id: "custom", get label() { return T("time_range_custom"); } },
 ];
 const MEDIA_LIBRARY_TABS = [
+    { id: "all", get label() { return T("library_all"); } },
     { id: "image", get label() { return T("media_kind_image"); } },
     { id: "video", get label() { return T("media_kind_video"); } },
     { id: "audio", get label() { return T("media_kind_audio"); } },
@@ -288,10 +291,10 @@ function normalizeGeneratedVideo(row) {
         h3_trim_applied: row.h3_trim_applied === true,
         ...(row.keyframe_segment ? {keyframe_segment: {...row.keyframe_segment}} : {}),
         playback_rate: normalizePlaybackRate(row.playback_rate),
+        auto_arrange: row.auto_arrange === true,
         volume: normalizeClipVolume(row.volume),
         media_scale: Math.max(1, Math.min(300, Number(row.media_scale ?? 100))),
         media_offset_x: Math.max(-100, Math.min(100, Number(row.media_offset_x ?? 0))),
-        auto_arrange: row.auto_arrange === true,
         media_offset_y: Math.max(-100, Math.min(100, Number(row.media_offset_y ?? 0))),
         ...(row.h3_context_from ? { h3_context_from: row.h3_context_from } : {}),
         ...(row.h3_context_original_out != null ? { h3_context_original_out: row.h3_context_original_out } : {}),
@@ -713,7 +716,7 @@ function isMediaTrackType(type) {
 }
 
 function trackHeightFor(type) {
-    return isSubtitleTrackType(type) ? SUBTITLE_TRACK_HEIGHT : TRACK_HEIGHT;
+    return type === "filter" ? TRACK_HEIGHT / 3 : isSubtitleTrackType(type) ? SUBTITLE_TRACK_HEIGHT : TRACK_HEIGHT;
 }
 
 function isSubtitleClipMeta(meta, track) {
@@ -834,7 +837,8 @@ export class CapTimelineEditorApp {
         this._mediaStatus = new Map();
         this._projectResources = [];
         this._videoThumbCache = new Map();
-        this._mediaTab = "image";
+        this._mediaTab = "all";
+        this._assetLibraryTab = "media";
         this._mediaStarFilter = "all";
         this._mediaUsageFilter = "all";
         this._mediaTypeFilters = new Set();
@@ -1940,6 +1944,7 @@ export class CapTimelineEditorApp {
     }
 
     _trackTypeRank(track) {
+        if (track?.type === "filter") return -1;
         if (isSubtitleTrackType(track?.type)) return 0;
         if (isMediaTrackType(track?.type)) return 1;
         if (isDirectorTrackType(track?.type)) return 2;
@@ -2001,6 +2006,7 @@ export class CapTimelineEditorApp {
             this._addUserTrack(type);
         };
         return this._buildCtxMenu([
+            { label: T("filter_track"), icon: "sparkles", fn: () => addTrack("filter") },
             { label: T("subtitle_track_menu"), icon: "text", fn: () => addTrack("text") },
             { label: T("media_track_menu"), icon: "film", fn: () => addTrack("video") },
             { label: T("director_track_menu"), icon: "clapperboard", fn: () => addTrack("image") },
@@ -2025,12 +2031,6 @@ export class CapTimelineEditorApp {
             disabled: !!track.locked || track.clips.length < 2,
             fn: () => this._removeTrackGaps(track),
         });
-        if (isSubtitleTrackType(track.type)) items.push({ label: T('speech_convert'), disabled: track.locked || !track.clips.length,
-            fn: () => this._openLocalSubtitleSpeech(track.clips) });
-        for (const [direction, label] of [[-1, "move_up_title"], [1, "move_down_title"]]) {
-            items.push({
-                label: T(label), icon: direction < 0 ? "arrowUp" : "arrowDown",
-                disabled: !this._canMoveTrack(track, direction),
         items.push({
             label: T("auto_arrange_track"), icon: track.autoArrange ? "check" : "timeline",
             disabled: !!track.locked,
@@ -2046,6 +2046,12 @@ export class CapTimelineEditorApp {
                 if (this._timeline._playing) this._startAudioPlayback();
             },
         });
+        if (isSubtitleTrackType(track.type)) items.push({ label: T('speech_convert'), disabled: track.locked || !track.clips.length,
+            fn: () => this._openLocalSubtitleSpeech(track.clips) });
+        for (const [direction, label] of [[-1, "move_up_title"], [1, "move_down_title"]]) {
+            items.push({
+                label: T(label), icon: direction < 0 ? "arrowUp" : "arrowDown",
+                disabled: !this._canMoveTrack(track, direction),
                 fn: () => this._moveTrack(track, direction),
             });
         }
@@ -2259,7 +2265,7 @@ export class CapTimelineEditorApp {
 
     _addUserTrack(type) {
         if (!this._timeline) return;
-        const name = type === "audio"
+        const name = type === "filter" ? T("filter_track") : type === "audio"
             ? T("audio_track_name")
             : isVoiceoverTrackType(type)
                 ? T("voiceover_track_name")
@@ -2277,7 +2283,7 @@ export class CapTimelineEditorApp {
         this._trackInfo.set(track.id, {
             trackIndex: this._nextTrackIndex(),
             enabled: true,
-            role: type === "audio"
+            role: type === "filter" ? "filter" : type === "audio"
                 ? "audio"
                 : isVoiceoverTrackType(type)
                     ? "voiceover"
@@ -3856,10 +3862,15 @@ export class CapTimelineEditorApp {
                 <div class="cat-te-media-title">${T("media_title")}</div>
                 <div class="cat-te-media-header-actions"></div>
               </div>
-              <div class="cat-te-media-tabs" role="tablist" aria-label="${T("media_title")}">
-                ${MEDIA_LIBRARY_TABS.map((tab) => `<cap-tab-button variant="tab" class="cat-te-media-tab" role="tab" data-kind="${tab.id}" aria-selected="${tab.id === "image"}">${tab.label}</cap-tab-button>`).join("")}
+              <div class="cat-te-library-tabs" role="tablist" aria-label="${T("media_title")}">
+                ${['media','text','effects','filters','adjust'].map(id=>`<cap-tab-button variant="tab" class="cat-te-library-tab" data-library-tab="${id}" aria-selected="${id==='media'}">${T('library_'+id)}</cap-tab-button>`).join('')}
               </div>
-              <div class="cat-te-media-grid"></div>
+              <div class="cat-te-media-browser">
+                <div class="cat-te-media-tabs" role="tablist" aria-orientation="vertical" aria-label="${T("library_media")}">
+                  ${MEDIA_LIBRARY_TABS.map(tab=>`<cap-tab-button variant="tab" class="cat-te-media-tab" data-kind="${tab.id}" aria-selected="${tab.id==='all'}">${tab.label}</cap-tab-button>`).join('')}
+                </div>
+                <div class="cat-te-media-grid" role="tabpanel"></div>
+              </div>
               <div class="cat-te-media-footer">
                 <cap-button class="cat-te-media-primary-action"></cap-button>
               </div>
@@ -3973,6 +3984,16 @@ export class CapTimelineEditorApp {
                     <input class="cat-te-clip-opacity" type="range" min="0" max="100" step="1" value="100" />
                     <span class="cat-te-clip-opacity-value">100%</span>
                   </span>
+                </label>
+              </div>
+              <div class="cat-te-filter-panel" hidden>
+                <label class="cat-te-clip-setting-row"><span>${T("library_filters")}</span>
+                  <select>${FILTER_PRESETS.map(p=>`<option value="${p}">${T('filter_'+p)}</option>`).join('')}</select>
+                </label>
+                <label class="cat-te-clip-setting-row"><span>${T("filter_strength")}</span>
+                  <cap-slider default-value="70" reset-label="${T('slider_reset')}">
+                    <input type="range" min="0" max="100" step="1" value="70" /><output>70%</output>
+                  </cap-slider>
                 </label>
               </div>
               <div class="cat-te-clip-volume-panel" hidden>
@@ -4341,6 +4362,7 @@ export class CapTimelineEditorApp {
                   <div class="cat-te-gen-edit-vsplit" title="${T("gen_edit_resize_preview_title")}"></div>
                   <div class="cat-te-gen-edit-tl-host"></div>
                 </div>
+                <cap-panel-divider class="cat-te-gen-edit-divider" aria-label="${T('gen_edit_resize_panels')}"></cap-panel-divider>
                 <div class="cat-te-gen-edit-right">
                   <div class="cat-te-gen-edit-name" title=""></div>
                   <div class="cat-te-gen-edit-file" title=""></div>
@@ -5700,6 +5722,26 @@ export class CapTimelineEditorApp {
         for (const input of this.genEditTransformInputs) input.addEventListener("input", () => this._onGenEditTransformInput(input));
         this.genEditSpeed.addEventListener("input", () => this._onGenEditSpeedInput());
         this._bindGenEditPreviewResize();
+        const genEditDivider = this.genEditModal.querySelector('cap-panel-divider');
+        genEditDivider.resize(300, false);
+        genEditDivider.addEventListener('panel-resize', ({detail}) => {
+            this.genEditModal.style.setProperty('--cat-te-gen-edit-right-w', `${detail.width}px`);
+            this._genEditState?.timeline?._refresh();
+            this._scheduleGenEditPreview();
+        });
+        const libraryTabs = [...el.querySelectorAll('.cat-te-library-tab')];
+        libraryTabs.forEach(tab=>tab.addEventListener('click',()=>{
+            this._assetLibraryTab=tab.dataset.libraryTab;
+            this._mediaBatchSelected.clear();this._renderMediaGrid();
+        }));
+        for (const [tabs,previous,next] of [[libraryTabs,'ArrowLeft','ArrowRight'],[Array.from(this.mediaTabs),'ArrowUp','ArrowDown']]) {
+            tabs.forEach((tab,index)=>tab.addEventListener('keydown',event=>{
+                if (![previous,next,'Home','End'].includes(event.key)) return;
+                event.preventDefault();event.stopPropagation();
+                const target=event.key==='Home' ? 0 : event.key==='End' ? tabs.length-1 : (index+(event.key===next ? 1 : -1)+tabs.length)%tabs.length;
+                tabs[target].click();tabs[target].focus();
+            }));
+        }
         el.querySelector(".cat-te-vo-edit-close")?.addEventListener("click", () => this._closeVoiceoverEditModal(false));
         el.querySelector(".cat-te-vo-edit-cancel")?.addEventListener("click", () => this._closeVoiceoverEditModal(false));
         el.querySelector(".cat-te-vo-edit-save")?.addEventListener("click", () => this._closeVoiceoverEditModal(true));
@@ -6440,7 +6482,7 @@ export class CapTimelineEditorApp {
         actions.appendChild(this._makeTrackSlot(track, "lock"));
         actions.appendChild(this._makeTrackSlot(
             track,
-            (isDirectorTrackType(track.type) || isMediaTrackType(track.type) || isSubtitleTrackType(track.type)) ? "visible" : null,
+            (track.type === "filter" || isDirectorTrackType(track.type) || isMediaTrackType(track.type) || isSubtitleTrackType(track.type)) ? "visible" : null,
         ));
         // Audio / voiceover: mute; image/video: mute (embedded audio); subtitle: placeholder.
         actions.appendChild(this._makeTrackSlot(
@@ -6562,6 +6604,10 @@ export class CapTimelineEditorApp {
         return `${kind}:${file}`;
     }
 
+    _defaultMediaName(file) {
+        return String(file || "").split(/[\\/]/).pop().replace(/\.[^.]+$/, "");
+    }
+
     _findMediaById(id) {
         const key = String(id || "");
         if (!key) return null;
@@ -6621,10 +6667,6 @@ export class CapTimelineEditorApp {
                 id: row.id || mediaUid(),
                 kind,
                 file: row.file,
-    _defaultMediaName(file) {
-        return String(file || "").split(/[\\/]/).pop().replace(/\.[^.]+$/, "");
-    }
-
                 location: "input",
                 name: row.name || this._defaultMediaName(row.file),
                 prompt: String(row.prompt || ""),
@@ -6942,7 +6984,7 @@ export class CapTimelineEditorApp {
                 const durationMsOut = Math.max(1, Math.round(duration * 1000));
                 clips.push({
                     ...clip,
-                    clip_type: isAudio
+                    clip_type: trackType === "filter" ? "filter" : isAudio
                         ? "audio"
                         : isVoiceover
                             ? "voiceover"
@@ -9855,6 +9897,7 @@ export class CapTimelineEditorApp {
             const track = existing || tl.addTrackAt({
                 ...(st.reference ? {id: trackId} : {}),
                 type: "image",
+                autoArrange: gen.auto_arrange === true,
                 name: (gen.file || "").split(/[\\/]/).pop() || T("gen_video_label"),
                 isMain: i === n - 1,
             }, i);
@@ -9897,7 +9940,6 @@ export class CapTimelineEditorApp {
                 c.waveformVolume = normalizeClipVolume(gen.volume);
                 void this._ensureGenVideoAudioBuffer(gen.file, gen.location || "output").then(buffer => {
                     if (!buffer || this._genEditState !== st || st.timeline !== tl || !c.el?.isConnected) return;
-                autoArrange: gen.auto_arrange === true,
                     c.hasAudio = true;
                     c._audioBuffer = buffer;
                     if (!Number.isFinite(c.sourceDuration)) c.sourceDuration = buffer.duration;
@@ -9918,6 +9960,7 @@ export class CapTimelineEditorApp {
                 aTrack = tl.addTrack({
                     id: trackId,
                     type: "audio",
+                    autoArrange: row.auto_arrange === true,
                     name: row.file.split(/[\\/]/).pop() || T("audio_track_name"),
                     height: TRACK_HEIGHT,
                 });
@@ -9960,7 +10003,6 @@ export class CapTimelineEditorApp {
                         if (!c.el?.isConnected) return;
                         c.waveformPeaks = r.peaks?.[0] || null;
                         c._audioBuffer = r.buffer || null;
-                    autoArrange: row.auto_arrange === true,
                         c.sourceDuration = r.duration || c.sourceDuration;
                         if (typeof c._refreshWaveRow === "function") c._refreshWaveRow();
                     }).catch(() => {});
@@ -9968,6 +10010,16 @@ export class CapTimelineEditorApp {
             }
         }
 
+        const rearranged = tl.tracks.some(track => track.autoArrange && track.clips.some(c => {
+            const row = track.type === 'audio'
+                ? st.audioDraft.find(a => a.id === st.audioMap.get(c.id))
+                : st.draft.find(g => g.id === st.clipMap.get(c.id));
+            return row && Math.abs(c.startTime - (Number(row.edit_start_sec) || 0)) > 1e-6;
+        }));
+        if (rearranged) {
+            this._pullGenEditDraftFromTimeline();
+            this._applyGenEditChanges();
+        }
         tl.duration = Math.max(tlDur, this._genEditTimelineDuration(clipDur, st.draft));
         tl.setPlayEndTime(clipDur);
         this._syncGenEditOutOfBoundsUI(tl, clipDur);
@@ -10010,16 +10062,6 @@ export class CapTimelineEditorApp {
         tl.on("clip:delete", ({ clips }) => this._deleteGenEditClips(clips));
         tl.on("clip:moveend", () => {
             this._pullGenEditDraftFromTimeline();
-        const rearranged = tl.tracks.some(track => track.autoArrange && track.clips.some(c => {
-            const row = track.type === 'audio'
-                ? st.audioDraft.find(a => a.id === st.audioMap.get(c.id))
-                : st.draft.find(g => g.id === st.clipMap.get(c.id));
-            return row && Math.abs(c.startTime - (Number(row.edit_start_sec) || 0)) > 1e-6;
-        }));
-        if (rearranged) {
-            this._pullGenEditDraftFromTimeline();
-            this._applyGenEditChanges();
-        }
             this._applyGenEditChanges();
             refreshBound();
             this._scheduleGenEditPreview();
@@ -10123,6 +10165,21 @@ export class CapTimelineEditorApp {
             clearTimeout(this._trackTypeMenuHideTimer);
             const rect = anchor.getBoundingClientRect();
             const menu = this._buildCtxMenu([{
+                label: T("auto_arrange_track"), icon: track.autoArrange ? "check" : "timeline", disabled: !!track.locked,
+                fn: () => {
+                    const st = this._genEditState;
+                    if (!st?.timeline || st.merging || track.locked) return;
+                    st.timeline.pause();
+                    track.autoArrange = !track.autoArrange;
+                    track.arrangeClips();
+                    this._pullGenEditDraftFromTimeline();
+                    this._applyGenEditChanges();
+                    st.timeline._refresh();
+                    this._syncGenEditOutOfBoundsUI(st.timeline, st.clipDur);
+                    this._syncGenEditInspector();
+                    this._scheduleGenEditPreview();
+                },
+            }, {
                 label: T("delete_track_menu"), icon: "trash", danger: true, disabled: !!track.locked,
                 fn: () => this._deleteGenEditClips(track.clips),
             }], rect.right + 4, rect.top, { ignoreNextClick: false });
@@ -10165,21 +10222,6 @@ export class CapTimelineEditorApp {
                     track.setLocked(!track.locked);
                     render();
                 });
-                label: T("auto_arrange_track"), icon: track.autoArrange ? "check" : "timeline", disabled: !!track.locked,
-                fn: () => {
-                    const st = this._genEditState;
-                    if (!st?.timeline || st.merging || track.locked) return;
-                    st.timeline.pause();
-                    track.autoArrange = !track.autoArrange;
-                    track.arrangeClips();
-                    this._pullGenEditDraftFromTimeline();
-                    this._applyGenEditChanges();
-                    st.timeline._refresh();
-                    this._syncGenEditOutOfBoundsUI(st.timeline, st.clipDur);
-                    this._syncGenEditInspector();
-                    this._scheduleGenEditPreview();
-                },
-            }, {
                 render();
             } else if (kind === "visible") {
                 const render = () => {
@@ -10330,6 +10372,7 @@ export class CapTimelineEditorApp {
                     nextAudio.push({
                         id: aid || genAudioUid(),
                         track_id: track.id,
+                        auto_arrange: track.autoArrange === true,
                         ...(prev?.media_id ? {media_id: prev.media_id} : {}),
                         ...(prev?.location ? {location: prev.location} : {}),
                         file: String(c.src || prev?.file || "").replace(/\\/g, "/"),
@@ -10357,6 +10400,7 @@ export class CapTimelineEditorApp {
                 const start = Math.max(0, Number(c.startTime) || 0);
                 next.push({
                     ...prev,
+                    auto_arrange: track.autoArrange === true,
                     ...(st.reference ? {track_id: track.id} : {}),
                     enabled: track.visible !== false,
                     muted: track.muted === true,
@@ -10372,7 +10416,6 @@ export class CapTimelineEditorApp {
         }
         st.draft = next;
         st.audioDraft = nextAudio.filter((a) => a.file);
-                        auto_arrange: track.autoArrange === true,
     }
 
     _syncGenEditClipDisabled(clip, enabled) {
@@ -10400,7 +10443,6 @@ export class CapTimelineEditorApp {
         st.audioDraft = st.audioDraft.filter(row => !audioIds.has(row.id));
         if (!st.draft.some(row => row.id === st.selectedId)) st.selectedId = st.draft[0]?.id || null;
         const time = st.timeline.currentTime;
-                    auto_arrange: track.autoArrange === true,
         this._applyGenEditChanges();
         this._buildGenEditTimeline();
         st.timeline.setCurrentTime(time);
@@ -10797,6 +10839,7 @@ export class CapTimelineEditorApp {
             return {
                 id: String(row.id || "").trim() || genAudioUid(),
                 track_id: typeof row.track_id === "string" ? row.track_id : null,
+                auto_arrange: row.auto_arrange === true,
                 ...(row.media_id ? {media_id: row.media_id} : {}),
                 ...(row.location ? {location: row.location} : {}),
                 file,
@@ -10839,7 +10882,6 @@ export class CapTimelineEditorApp {
                 await this._addAudioAtTime(audioFile, atSec, null, { canInsert: valid, duration: source.duration_sec });
                 if (!valid()) return;
                 this._setDirectorClipMuted(clip, true);
-                auto_arrange: row.auto_arrange === true,
             } catch (error) {
                 showCapAlert(T("separate_audio_failed", { msg: error instanceof Error ? error.message : String(error) }));
             }
@@ -11369,6 +11411,11 @@ export class CapTimelineEditorApp {
             const next = { videos, audios, per_track: st.perTrack === true };
             if (JSON.stringify(m.referenceTimeline) === JSON.stringify(next)) return;
             if (!st.undoRecorded) { this._recordUndo(); st.undoRecorded = true; }
+            const referenceDuration = rows => Math.max(0,
+                ...rows.videos.filter(row => row.enabled !== false).map(row => (Number(row.edit_start_sec) || 0) + (this._genEffectiveDurationSec(row) || 0)),
+                ...rows.audios.filter(row => row.enabled !== false).map(row => (Number(row.edit_start_sec) || 0) + (Number(row.duration) || 0)));
+            const duration = referenceDuration(next);
+            const timingChanged = m.referenceTimeline && referenceDuration(m.referenceTimeline) !== duration;
             const target = this._directorKeyframes?.target(clip);
             if (target && !target.local) {
                 m.video_shots = {source_id: clip.id, points: this._directorKeyframes.points(target).map(point => ({
@@ -11376,8 +11423,18 @@ export class CapTimelineEditorApp {
                 }))};
             }
             m.referenceTimeline = next;
+            if (timingChanged && duration > 0) {
+                clip.duration = duration;
+                this._rememberResourceTiming(clip);
+                clip._applyPosition();
+                clip.track.arrangeClips();
+                this._ensureTimelineLength(clip.endTime);
+                this._refreshTimelineDuration();
+                if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
+            }
             this._directorKeyframes?.sync(clip);
             this._saveToWidgets();
+            this._scheduleProgramPreview();
             return;
         }
         if (JSON.stringify(m.generatedVideos || []) === JSON.stringify(videos)
@@ -11406,16 +11463,12 @@ export class CapTimelineEditorApp {
         this._genEditState = null;
         if (this._timeline) this._timeline._keyboardSuspended = false;
         if (this.genEditModal) this.genEditModal.hidden = true;
+        this.genEditModal?.querySelector('cap-project-video-list')?.stop();
         this._scheduleProgramPreview();
     }
 
     _clipGeneratedAudios(meta) {
         const rows = Array.isArray(meta?.generatedAudios) ? meta.generatedAudios : [];
-            const referenceDuration = rows => Math.max(0,
-                ...rows.videos.filter(row => row.enabled !== false).map(row => (Number(row.edit_start_sec) || 0) + (this._genEffectiveDurationSec(row) || 0)),
-                ...rows.audios.filter(row => row.enabled !== false).map(row => (Number(row.edit_start_sec) || 0) + (Number(row.duration) || 0)));
-            const duration = referenceDuration(next);
-            const timingChanged = m.referenceTimeline && referenceDuration(m.referenceTimeline) !== duration;
         return rows.map((row) => normalizeGeneratedAudio(row)).filter(Boolean);
     }
 
@@ -11423,18 +11476,8 @@ export class CapTimelineEditorApp {
         return this._clipGeneratedAudios(meta).find((row) => row.enabled !== false) || null;
     }
 
-            if (timingChanged && duration > 0) {
-                clip.duration = duration;
-                this._rememberResourceTiming(clip);
-                clip._applyPosition();
-                clip.track.arrangeClips();
-                this._ensureTimelineLength(clip.endTime);
-                this._refreshTimelineDuration();
-                if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
-            }
     _generatedAudioUrl(file) {
         const rel = String(file || "").replace(/\\/g, "/").replace(/^\/+/, "");
-            this._scheduleProgramPreview();
         if (!rel) return "";
         if (rel.includes("/")) return this._outputVideoUrl(rel) || this._audioUrl(rel);
         return this._audioUrl(rel) || this._outputVideoUrl(rel);
@@ -11457,13 +11500,30 @@ export class CapTimelineEditorApp {
         this._saveToWidgets();
     }
 
+    _unlinkPromptMention(clip, asset) {
+        if (!clip || clip.track?.locked) return;
+        const meta = this._ensureClipMeta(clip);
+        if (!meta.promptMediaIds?.includes(asset.id)) return;
+        const texts = [meta.prompt, ...(meta.video_shots?.points || []).map(point => point.description)];
+        if (texts.some(text => assetMentionRanges(String(text || ""), [asset]).length)) return;
+        meta.promptMediaIds = meta.promptMediaIds.filter(id => id !== asset.id);
+        this._saveToWidgets();
+    }
+
     _attachPromptMentions(root) {
         for (const textarea of root.querySelectorAll("textarea[data-prompt-copy-attached]")) {
             const mentions = document.createElement("cap-prompt-mentions");
             textarea.parentElement.append(mentions);
             mentions.bind(textarea, () => this._promptMentionAssets());
+            mentions.addEventListener("asset-mention-remove", ({ detail: asset }) => {
+                if (textarea.matches(".cat-te-settings-prompt-input, .cat-te-media-setting-description, .cat-te-media-generation-prompt")) return;
+                if (textarea === this.aiSrcText && SETTING_PROMPT_KEYS.includes(this._aiOptimizeSrc)) return;
+                const clip = textarea === this.aiSrcText || textarea === this.aiSystemInput
+                    ? this._findClipById(this._aiOptimizeClipId) : textarea === this.genEditPrompt
+                    ? this._findClipById(this._genEditState?.clipId) : this._selClip;
+                queueMicrotask(() => this._unlinkPromptMention(clip, asset));
+            });
             mentions.addEventListener("asset-mention", ({ detail: asset }) => {
-        this.genEditModal?.querySelector('cap-project-video-list')?.stop();
                 if (textarea.matches(".cat-te-settings-prompt-input, .cat-te-media-setting-description, .cat-te-media-generation-prompt")) return;
                 if (textarea === this.aiSrcText && SETTING_PROMPT_KEYS.includes(this._aiOptimizeSrc)) return;
                 const clip = textarea === this.aiSrcText || textarea === this.aiSystemInput
@@ -11562,29 +11622,11 @@ export class CapTimelineEditorApp {
             if (!row.enabled) item.classList.add("is-disabled");
 
             const enable = document.createElement("input");
-    _unlinkPromptMention(clip, asset) {
-        if (!clip || clip.track?.locked) return;
-        const meta = this._ensureClipMeta(clip);
-        if (!meta.promptMediaIds?.includes(asset.id)) return;
-        const texts = [meta.prompt, ...(meta.video_shots?.points || []).map(point => point.description)];
-        if (texts.some(text => assetMentionRanges(String(text || ""), [asset]).length)) return;
-        meta.promptMediaIds = meta.promptMediaIds.filter(id => id !== asset.id);
-        this._saveToWidgets();
-    }
-
             enable.type = "checkbox";
             enable.className = "cat-te-clip-video-enabled";
             enable.checked = row.enabled !== false;
             enable.title = row.enabled ? T("disable_label") : T("enable_label");
             enable.addEventListener("click", (e) => e.stopPropagation());
-            mentions.addEventListener("asset-mention-remove", ({ detail: asset }) => {
-                if (textarea.matches(".cat-te-settings-prompt-input, .cat-te-media-setting-description, .cat-te-media-generation-prompt")) return;
-                if (textarea === this.aiSrcText && SETTING_PROMPT_KEYS.includes(this._aiOptimizeSrc)) return;
-                const clip = textarea === this.aiSrcText || textarea === this.aiSystemInput
-                    ? this._findClipById(this._aiOptimizeClipId) : textarea === this.genEditPrompt
-                    ? this._findClipById(this._genEditState?.clipId) : this._selClip;
-                queueMicrotask(() => this._unlinkPromptMention(clip, asset));
-            });
             enable.addEventListener("change", () => {
                 this._setGeneratedAudioEnabled(clip, row.id, !!enable.checked);
             });
@@ -13165,6 +13207,13 @@ export class CapTimelineEditorApp {
             : normalizeClipItem({ kind, file });
         if (!item) return;
         m.items.push(item);
+        if (m.referenceTimeline && item.kind === "video"
+            && !m.referenceTimeline.videos.some(row => row.media_id === item.id)) {
+            m.referenceTimeline.videos.push({id: `ref_${item.id}`, media_id: item.id,
+                file: item.file, location: media?.location || "input", enabled: true,
+                muted: false, volume: 1, edit_start_sec: 0,
+                trim_in_sec: 0, trim_out_sec: null, playback_rate: 1});
+        }
         this._meta.set(clip.id, m);
         this._setClipPreviewItemIndex(clip, m.items.length - 1);
         this._syncClipPrimaryAppearance(clip);
@@ -13207,13 +13256,6 @@ export class CapTimelineEditorApp {
         if (!current) return;
         const name = current.file.split(/[\\/]/).pop() || current.file;
         this._openDeleteConfirm(T("confirm_remove_from_clip", { name }), () => this._removeClipItemNow(clip, current.id, index));
-        if (m.referenceTimeline && item.kind === "video"
-            && !m.referenceTimeline.videos.some(row => row.media_id === item.id)) {
-            m.referenceTimeline.videos.push({id: `ref_${item.id}`, media_id: item.id,
-                file: item.file, location: media?.location || "input", enabled: true,
-                muted: false, volume: 1, edit_start_sec: 0,
-                trim_in_sec: 0, trim_out_sec: null, playback_rate: 1});
-        }
     }
 
     _removeClipItemNow(clip, itemId, fallbackIndex) {
@@ -13226,6 +13268,12 @@ export class CapTimelineEditorApp {
         if (removeIndex < 0 || removeIndex >= items.length) return;
         const selected = this._clipPreviewItemIndex(clip, m);
         this._recordUndo();
+        if (m.referenceTimeline) {
+            const removed = items[removeIndex];
+            for (const key of ["videos", "audios"]) {
+                m.referenceTimeline[key] = m.referenceTimeline[key].filter(row => row.media_id !== removed.id);
+            }
+        }
         m.items = items.filter((_, i) => i !== removeIndex).map((item) => ({
             id: item.id,
             kind: item.kind,
@@ -13268,15 +13316,9 @@ export class CapTimelineEditorApp {
         this._overlay?.querySelector(".cat-te-media-filter-btn")?.classList.remove("active");
         return true;
     }
-        if (m.referenceTimeline) {
-            const removed = items[removeIndex];
-            for (const key of ["videos", "audios"]) {
-                m.referenceTimeline[key] = m.referenceTimeline[key].filter(row => row.media_id !== removed.id);
-            }
-        }
 
     _matchesMediaTab(kind) {
-        return kind === this._mediaTab;
+        return this._mediaTab === "all" || kind === this._mediaTab;
     }
 
     _libraryMediaEntries() {
@@ -13695,7 +13737,100 @@ export class CapTimelineEditorApp {
         host.appendChild(panel);
     }
 
+    _insertPortraitFilter(preset) {
+        const tl = this._timeline;
+        if (!tl || !FILTER_PRESETS.includes(preset)) return;
+        this._recordUndo();
+        const start = tl.currentTime ?? 0;
+        const duration = Math.max(1 / this.getFps(), this._selClip?.duration ?? 5);
+        const track = tl.tracks.find(t => t.type === 'filter' && !t.locked && t.visible && this._trackHasRoom(t, start, duration))
+            ?? this._addUserTrack('filter');
+        const clip = tl.addClip(track.id, { id: uid(), name: T('filter_' + preset), startTime: start, duration, color: track.color });
+        this._meta.set(clip.id, { clipType: 'filter', filterPreset: preset, filterStrength: 0.7, disabled: false, visible: true });
+        this._ensureTimelineLength(clip.endTime);
+        this._decorateClip(clip);
+        tl.selectClip(clip);
+        this._refreshTimelineDuration();
+        this._saveToWidgets();
+        this._programFrameKey = null;
+        this._scheduleProgramPreview();
+    }
+
+    _fillFilterPanel(clip) {
+        const panel = this._overlay.querySelector('.cat-te-filter-panel');
+        const active = clip?.track.type === 'filter';
+        panel.hidden = !active;
+        if (!active) return;
+        const m = this._ensureClipMeta(clip);
+        const preset = panel.querySelector('select'), input = panel.querySelector('input'), value = panel.querySelector('output');
+        preset.value = m.filterPreset;
+        input.value = Math.round(m.filterStrength * 100);
+        value.textContent = input.value + '%';
+        preset.disabled = input.disabled = !!clip.track.locked;
+        const change = () => {
+            if (clip.track.locked || this._selClip !== clip) return;
+            if (!panel._undoArmed) { this._recordUndo(); panel._undoArmed = true; }
+            m.filterPreset = preset.value;
+            m.filterStrength = Number(input.value) / 100;
+            value.textContent = input.value + '%';
+            clip.name = T('filter_' + m.filterPreset);
+            const label = clip.el.querySelector('.tl-clip-label');
+            if (label) label.textContent = clip.name;
+            this._saveToWidgets();
+            this._programFrameKey = null;
+            this._scheduleProgramPreview();
+        };
+        panel._undoArmed = false;
+        input.oninput = change;
+        input.onchange = () => { panel._undoArmed = false; };
+        preset.onchange = () => { change(); panel._undoArmed = false; };
+    }
+
     _renderMediaGrid() {
+        if (this._portraitFilterPreview) {
+            this._portraitFilterPreview = null;
+            this._programFrameKey = null;
+            this._scheduleProgramPreview();
+        }
+        const category=this._assetLibraryTab || 'media';
+        this._overlay?.querySelectorAll('.cat-te-library-tab').forEach(tab=>{
+            const active=tab.dataset.libraryTab===category;
+            tab.setAttribute('aria-selected',String(active));tab.tabIndex=active ? 0 : -1;
+        });
+        const mediaActive=category==='media';
+        const subTabs=this._overlay?.querySelector('.cat-te-media-tabs');
+        if(subTabs)subTabs.hidden=!mediaActive;
+        this._overlay?.querySelector('.cat-te-media-browser')?.classList.toggle('cat-te-library-category',!mediaActive);
+        if(this.mediaStarFilterHost)this.mediaStarFilterHost.hidden=!mediaActive;
+        const footer=this._overlay?.querySelector('.cat-te-media-footer');
+        if(footer)footer.hidden=!mediaActive;
+        if(!mediaActive){
+            this._closeMediaFilterPanel();this.mediaGrid.replaceChildren();
+            if(category==='text'){
+                const add=document.createElement('cap-button');add.textContent=T('insert_subtitle_clip_menu');
+                add.addEventListener('click',()=>this._insertSubtitleAtTime(this._timeline?.currentTime ?? 0));this.mediaGrid.append(add);
+            }else if(category==='filters'){
+                for(const preset of FILTER_PRESETS){
+                    const add=document.createElement('cap-button');add.textContent=T('filter_'+preset);
+                    add.title=T('filter_add_hint');
+                    const preview = active => {
+                        this._portraitFilterPreview = active ? { preset, strength: 0.7 } : null;
+                        this._programFrameKey = null;
+                        this._scheduleProgramPreview();
+                    };
+                    add.addEventListener('pointerenter',()=>preview(true));
+                    add.addEventListener('pointerleave',()=>preview(false));
+                    add.addEventListener('focus',()=>preview(true));
+                    add.addEventListener('blur',()=>preview(false));
+                    add.addEventListener('click',()=>{ preview(false); this._insertPortraitFilter(preset); });
+                    this.mediaGrid.append(add);
+                }
+            }else{
+                const empty=document.createElement('div');empty.className='cat-te-media-empty';
+                empty.textContent=T('library_category_empty');this.mediaGrid.append(empty);
+            }
+            return;
+        }
         this.mediaTabs?.forEach((tab) => {
             const active = tab.dataset.kind === this._mediaTab;
             tab.classList.toggle("is-active", active);
@@ -14774,6 +14909,7 @@ export class CapTimelineEditorApp {
                     // via Web Audio (canvas <video> stays muted).
                     if (this._draftPreviewMode && isDirectorTrackType(track.type)) continue;
                     if (this._clipUsesGeneratedPreview(m)) continue;
+                    if (m?.referenceTimeline) continue;
                 }
                 out.push(clip);
             }
@@ -15147,7 +15283,7 @@ export class CapTimelineEditorApp {
         const projectTracks = Array.isArray(project.tracks) ? project.tracks : [];
         const tracksCfg = projectTracks.map((track, order) => {
             const rawType = String(track.type || "visual").toLowerCase();
-            const type = rawType === "audio"
+            const type = rawType === "filter" ? "filter" : rawType === "audio"
                 ? "audio"
                 : rawType === "voiceover"
                     ? "voiceover"
@@ -15258,6 +15394,7 @@ export class CapTimelineEditorApp {
                 height: trackHeightFor(row.type),
                 color: row.color,
                 locked: !!row.locked,
+                autoArrange: row.auto_arrange === true,
                 visible: row.visible !== false,
                 muted: !!row.muted,
             }, index);
@@ -15382,6 +15519,11 @@ export class CapTimelineEditorApp {
         const startTime = decoded.startTime;
         const dur = Math.max(1 / fps, decoded.duration);
 
+        if (track.type === 'filter') {
+            const clip=this._addRestoredClip(track,{id:c.id || uid(),groupId:c.group_id,name:c.name || T('filter_'+(c.filter_preset || 'fair')),startTime,duration:dur,color:track.color});
+            this._meta.set(clip.id,{clipType:'filter',filterPreset:c.filter_preset || 'fair',filterStrength:Number(c.filter_strength ?? 0.7),disabled:c.disabled === true,visible:c.visible !== false});
+            this._decorateClip(clip);return;
+        }
         if (clipType === "audio") {
             const mediaRows = this._jsonClipMediaRows(c);
             const audioRow = mediaRows.find((row) => row.kind === "audio") || mediaRows[0];
@@ -15426,7 +15568,6 @@ export class CapTimelineEditorApp {
                 mediaId: audioMedia?.id || "",
                 resourceStartSec: Math.max(0, Number(c.resource_start_sec) || startTime),
                 resourceDurationSec: Math.max(0.05, Number(c.resource_duration_sec) || dur),
-                autoArrange: row.auto_arrange === true,
             });
             this._decorateClip(clip);
             return;
@@ -15836,7 +15977,7 @@ export class CapTimelineEditorApp {
             clip.audioEnvelope.render();
         }
         const track = clip.track;
-        const trackHidden = (isDirectorTrackType(track.type) || isMediaTrackType(track.type) || isSubtitleTrackType(track.type)) && track.visible === false;
+        const trackHidden = (track.type === "filter" || isDirectorTrackType(track.type) || isMediaTrackType(track.type) || isSubtitleTrackType(track.type)) && track.visible === false;
         const trackMuted = (track.type === "audio" || isVoiceoverTrackType(track.type)) && track.muted;
         const isAudio = m.clipType === "audio" || track.type === "audio";
         const isVoiceover = isVoiceoverClipMeta(m, track);
@@ -16267,6 +16408,7 @@ export class CapTimelineEditorApp {
         media.className = `cat-te-media-preview-content cat-te-media-preview-${kind}`;
         this.mediaPreviewStage.appendChild(media);
         this.mediaPreviewModal.hidden = false;
+        this.mediaPreviewModal.querySelector('.cat-te-media-preview-close').focus({ preventScroll: true });
     }
 
     _stepMediaPreview(delta) {
@@ -16510,7 +16652,6 @@ export class CapTimelineEditorApp {
         this._updatePromptPanel();
         this._directorKeyframes?.refreshPanel();
         if (this.aiOptimizeModal && !this.aiOptimizeModal.hidden) {
-        this.mediaPreviewModal.querySelector('.cat-te-media-preview-close').focus({ preventScroll: true });
             this._fillAiOptimizeSrc();
             this._syncAiPromptTargetControls();
         }
@@ -16752,7 +16893,7 @@ export class CapTimelineEditorApp {
                 targetClip,
             });
             const lastKind = uploaded.at(-1)?.kind;
-            if (mode === "library" && lastKind && lastKind !== this._mediaTab) {
+            if (mode === "library" && lastKind && this._mediaTab !== "all" && lastKind !== this._mediaTab) {
                 Array.from(this.mediaTabs || []).find((tab) => tab.dataset.kind === lastKind)?.click();
             }
             this._showFileDropStatus(
@@ -17391,7 +17532,7 @@ export class CapTimelineEditorApp {
                 { icon: m.muted ? "volume" : "volumeOff", label: m.muted ? T("unmute_label") : T("mute_label"), fn: () => this._setMediaClipMuted(clip, !m.muted) },
                 { label: T("menu_separate_audio"), icon: "audio", fn: () => void this._separateClipAudio(clip) },
             );
-        } else {
+        } else if (clip.track.type !== "filter") {
             const runState = this._clipRunState(clip.id);
             generation.push(runState === "running"
                 ? { label: T("menu_abort"), icon: "stop", fn: () => void this._abortClipDownstream(clip) }
@@ -17615,6 +17756,8 @@ export class CapTimelineEditorApp {
         const wantVoiceover = isVoiceoverTrackType(snap.trackType);
         const wantSub = isSubtitleTrackType(snap.trackType);
         const wantMedia = isMediaTrackType(snap.trackType);
+        if(snap.trackType==='filter')return tl.tracks.find(t=>t.id===snap.trackId && t.type==='filter' && !t.locked)
+            ?? tl.tracks.find(t=>t.type==='filter' && !t.locked && t.visible) ?? this._addUserTrack('filter');
         const orig = tl.getTrack(snap.trackId);
         if (orig && !orig.locked && orig.visible !== false) {
             const ok = wantAudio
@@ -17651,7 +17794,9 @@ export class CapTimelineEditorApp {
 
     _createPasteTrack(snap) {
         let track = null;
-        if (snap.trackType === "audio") {
+        if (snap.trackType === "filter") {
+            track=this._addUserTrack("filter");
+        } else if (snap.trackType === "audio") {
             track = this._createInsertTrack("audio");
         } else if (isVoiceoverTrackType(snap.trackType)) {
             track = this._addUserTrack("voiceover") || this._createInsertTrack("voiceover");
@@ -17891,6 +18036,16 @@ export class CapTimelineEditorApp {
             expectedFile = this._clipSpecifiedVideoPath(clips[0].id, stamp);
         }
         const cleaned = cleanRunPrompts(this._buildProject(), h3Generation);
+        const runIds = new Set(clips.map(clip => String(clip.id)));
+        let cleanedBindings = false;
+        for (const track of cleaned.project.tracks || []) for (const row of track.clips || []) {
+            if (!runIds.has(String(row.id))) continue;
+            const meta = this._meta.get(row.id);
+            if (!meta?.promptMediaIds || JSON.stringify(meta.promptMediaIds) === JSON.stringify(row.prompt_media_ids)) continue;
+            if (!cleanedBindings) this._recordUndo();
+            meta.promptMediaIds = [...row.prompt_media_ids];
+            cleanedBindings = true;
+        }
         const job = {
             clipId: String(clips[0].id),
             clipIds: clips.map(c => String(c.id)),
@@ -18115,16 +18270,6 @@ export class CapTimelineEditorApp {
         const keyframeTarget = this._directorKeyframes?.target(clip);
         const localPoints = refs && keyframeTarget && !keyframeTarget.local
             ? this._directorKeyframes.points(keyframeTarget).map(point => ({
-        const runIds = new Set(clips.map(clip => String(clip.id)));
-        let cleanedBindings = false;
-        for (const track of cleaned.project.tracks || []) for (const row of track.clips || []) {
-            if (!runIds.has(String(row.id))) continue;
-            const meta = this._meta.get(row.id);
-            if (!meta?.promptMediaIds || JSON.stringify(meta.promptMediaIds) === JSON.stringify(row.prompt_media_ids)) continue;
-            if (!cleanedBindings) this._recordUndo();
-            meta.promptMediaIds = [...row.prompt_media_ids];
-            cleanedBindings = true;
-        }
                 ...point, time: (point.time - keyframeTarget.start) / keyframeTarget.rate,
             })) : null;
         const cloneMeta = () => {
@@ -18298,6 +18443,8 @@ export class CapTimelineEditorApp {
     }
 
     _disposeProgramPreview() {
+        this._portraitFilterRenderer?.dispose();
+        this._portraitFilterRenderer = null;
         this._stopResourceGenProgramPreview();
         if (this._programPreviewRaf) {
             cancelAnimationFrame(this._programPreviewRaf);
@@ -18651,6 +18798,7 @@ export class CapTimelineEditorApp {
                             transform: gen,
                             playbackRate: normalizePlaybackRate(gen.playback_rate),
                             file: gen.file,
+                            location: refs ? gen.location || "input" : "output",
                             muted: gen.muted === true || !!track.muted || !!m.muted,
                             trimInSec: Math.max(0, Number(gen.trim_in_sec) || 0),
                             editStartSec: start,
@@ -18798,7 +18946,6 @@ export class CapTimelineEditorApp {
         if (this._storyboardMode) return;
         if (this._isGenEditModalOpen()) return;
         if (this._resourceGenPreview?.merged) {
-                            location: refs ? gen.location || "input" : "output",
             this._renderClipHoverPreview();
             return;
         }
@@ -18865,6 +19012,12 @@ export class CapTimelineEditorApp {
             layers,
             onVideoUsed: (key) => usedVideoKeys.add(key),
         });
+        const portraitFilters=activePortraitFilters(this._timeline.tracks,this._meta,t,this._trackInfo);
+        if (this._portraitFilterPreview) portraitFilters.push(this._portraitFilterPreview);
+        if(portraitFilters.length){
+            this._portraitFilterRenderer ??= new PortraitFilterRenderer(()=>{this._programFrameKey=null;this._scheduleProgramPreview();});
+            this._portraitFilterRenderer.apply(off,portraitFilters);
+        }
         this._drawSubtitleOverlays(octx, cw, ch, t);
         const drew = drewVisual || (!layers.length && hasSub);
         if (playing) this._warmNextPreviewVideo(t, usedVideoKeys);
@@ -18938,6 +19091,10 @@ export class CapTimelineEditorApp {
             return this._buildCtxMenu([
                 { label: storyboardT(this._storyboardMode ? "playback" : "mode"), icon: "image", fn: () => this._setStoryboardMode(!this._storyboardMode) },
                 { label: T("reset_track_order"), icon: "refresh", fn: () => this._resetTrackOrder() },
+                { label: draftT("disable_all"), icon: "videoOff", danger: true,
+                    disabled: !this._h3DraftVersions.clips().some(clip => !clip.track?.locked
+                        && this._h3DraftVersions.rows(clip, null).some(row => row.enabled !== false)),
+                    fn: () => this._h3DraftVersions.disableAll() },
                 {
                     label: T("clear_generated_video_links"), icon: "close", danger: true,
                     disabled: !this._clipsWithGeneratedVideoLinks().length,
@@ -19002,7 +19159,7 @@ export class CapTimelineEditorApp {
                 if (clip.track?.type === "audio" || meta.clipType === "audio") return;
                 if (isVoiceoverTrackType(clip.track?.type) || isVoiceoverClipMeta(meta, clip.track)) return;
                 if (isSubtitleTrackType(clip.track?.type) || isSubtitleClipMeta(meta, clip.track)) return;
-                if (isMediaTrackType(clip.track?.type)) return;
+                if (clip.track?.type === "filter" || isMediaTrackType(clip.track?.type)) return;
                 e.preventDefault();
                 e.stopPropagation();
                 this._timeline.selectClip(clip);
@@ -19091,10 +19248,6 @@ export class CapTimelineEditorApp {
                 console.error("[CapTE] clip settings panel sync failed", err);
             }
         });
-                { label: draftT("disable_all"), icon: "videoOff", danger: true,
-                    disabled: !this._h3DraftVersions.clips().some(clip => !clip.track?.locked
-                        && this._h3DraftVersions.rows(clip, null).some(row => row.enabled !== false)),
-                    fn: () => this._h3DraftVersions.disableAll() },
         tl.on("clip:add", ({ clip }) => {
             this._decorateClip(clip);
             this._renderMediaGrid();
@@ -19419,7 +19572,7 @@ export class CapTimelineEditorApp {
                 this.clipSourceDurEl.textContent = "";
             }
         }
-        this._renderClipGeneratedVideosList(clip, m, isAudio || isSubtitle || isMedia);
+        this._renderClipGeneratedVideosList(clip, m, isAudio || isSubtitle || isMedia || track.type === 'filter');
     }
 
     /** Ensure `_meta` has an entry for `clip` (create defaults if missing). */
@@ -19433,6 +19586,10 @@ export class CapTimelineEditorApp {
             else if (isSubtitleTrackType(clip.track?.type)) m = defaultSubtitleMeta(ti);
             else m = defaultImageMeta(ti);
             this._meta.set(clip.id, m);
+        }
+        if (clip.track?.type === 'filter') {
+            m.clipType='filter';m.filterPreset=FILTER_PRESETS.includes(m.filterPreset) ? m.filterPreset : 'fair';
+            m.filterStrength=Math.max(0,Math.min(1,Number(m.filterStrength ?? 0.7)));return m;
         }
         m.volume = normalizeClipVolume(m.volume);
         if (
@@ -19524,7 +19681,7 @@ export class CapTimelineEditorApp {
         this.clipOpacityInput.value = String(Math.round(opacity * 100));
         this.clipOpacityValue.textContent = `${Math.round(opacity * 100)}%`;
         this._clipOpacityUndoArmed = false;
-        const visible = !!clip && !isSubtitle;
+        const visible = !!clip && !isSubtitle && clip.track.type!=="filter";
         if (this.clipVolumePanel) this.clipVolumePanel.hidden = !visible;
         if (!this.clipVolumeInput) return;
         this._clipVolumeFilling = true;
@@ -19576,6 +19733,7 @@ export class CapTimelineEditorApp {
             draftsButton.disabled = disabled;
             draftsButton.textContent = draftCountLabel(m?.h3Drafts);
         }
+        this._refreshKeyframeDrafts();
         if (this.useAudioTrackAudioCb) {
             this.useAudioTrackAudioCb.disabled = disabled;
             this.useAudioTrackAudioCb.checked = enabled && !!m?.useAudioTrackAudio;
@@ -19675,7 +19833,8 @@ export class CapTimelineEditorApp {
         if (this.subtitlePanel) this.subtitlePanel.hidden = !clip || !isSubtitle;
         if (this.voiceoverPanel) this.voiceoverPanel.hidden = !clip || !isVoiceover;
         this._fillClipVolumeControl(clip, isSubtitle);
-        if (!clip || isAudio || isSubtitle) {
+        this._fillFilterPanel(clip);
+        if (!clip || isAudio || isSubtitle || clip.track.type==='filter') {
             this._disableVisualPromptControls();
         } else if (isVoiceover) {
             this._disableVisualPromptControls();
@@ -19733,7 +19892,6 @@ export class CapTimelineEditorApp {
             [this.subFontSelect, "fontFamily", "str"],
             [this.subSizeInput, "fontSize", "num"],
             [this.subScaleInput, "subtitleScale", "num"],
-        this._refreshKeyframeDrafts();
             [this.subLetterSpacingInput, "letterSpacing", "num"],
             [this.subColorInput, "color", "str"],
             [this.subBoldCb, "bold", "bool"],
@@ -21192,11 +21350,16 @@ export class CapTimelineEditorApp {
                             : isSubTrack
                                 ? defaultSubtitleMeta(ti)
                                 : defaultImageMeta(ti));
-                if (track.type !== "audio" && !isVoiceoverTrack && !isSubTrack) {
+                if (track.type !== "filter" && track.type !== "audio" && !isVoiceoverTrack && !isSubTrack) {
                     this._normalizeVisualMeta(clip, m);
                 }
                 // Frame-grid ms so abutting clips share boundaries on reload.
                 const { startMs, durationMs } = encodeClipTimingMs(clip.startTime, clip.duration, fps);
+                if (track.type==='filter') return {
+                    id:clip.id,...(clip.groupId ? {group_id:clip.groupId} : {}),type:'filter',name:clip.name,
+                    start_ms:startMs,duration_ms:durationMs,enabled:!m.disabled,visible:m.visible!==false,
+                    filter_preset:m.filterPreset,filter_strength:m.filterStrength,
+                };
                 if (isVoiceoverTrack) {
                     const voRow = {
                         id: clip.id,
@@ -21337,6 +21500,7 @@ export class CapTimelineEditorApp {
                     if (generated.length) {
                         row.generated_videos = generated.map((v) => ({
                             id: v.id,
+                            auto_arrange: v.auto_arrange === true,
                             file: v.file,
                             enabled: v.enabled !== false,
                             muted: v.muted === true,
@@ -21368,6 +21532,7 @@ export class CapTimelineEditorApp {
                         row.gen_edit_audios = genAudios.map((a) => ({
                             id: a.id,
                             track_id: a.track_id,
+                            auto_arrange: a.auto_arrange === true,
                             file: a.file,
                             edit_start_sec: a.edit_start_sec,
                             duration: a.duration,
@@ -21396,7 +21561,7 @@ export class CapTimelineEditorApp {
             const trackInfo = this._trackInfo.get(track.id) || {};
             return {
                 id: track.id,
-                type: track.type === "audio"
+                type: track.type === "filter" ? "filter" : track.type === "audio"
                     ? "audio"
                     : isVoiceoverTrack
                         ? "voiceover"
@@ -21424,6 +21589,7 @@ export class CapTimelineEditorApp {
                 visible: track.visible !== false,
                 muted: !!track.muted,
                 locked: !!track.locked,
+                auto_arrange: track.autoArrange === true,
                 color: track.color,
                 ...(isSubTrack
                     ? {
@@ -21481,6 +21647,12 @@ export class CapTimelineEditorApp {
         if (this._destroyed) return;
         if (!this._isNodeOnLiveGraph()) return;
         if (!this._timeline || !this._timelineReady) return;
+        let arranged = false;
+        for (const track of this._timeline.tracks) arranged = track.arrangeClips() || arranged;
+        if (arranged) {
+            this._timeline._refresh();
+            this._refreshTimelineDuration();
+        }
         const storyboardWidget = this._w("storyboard_json");
         if (storyboardWidget && !this._storyboardLoadError) storyboardWidget.value = JSON.stringify(this._buildStoryboardDocument());
         this._writeProjectJson(JSON.stringify(this._buildProject()));
@@ -21541,7 +21713,6 @@ export class CapTimelineEditorApp {
             ? parsed.project
             : null;
         if (!project || !Array.isArray(project.tracks)) return false;
-                            auto_arrange: v.auto_arrange === true,
 
         let target = null;
         if (clipId) {
@@ -21573,7 +21744,6 @@ export class CapTimelineEditorApp {
         const existing = Array.isArray(target.generated_videos)
             ? target.generated_videos.map(normalizeGeneratedVideo).filter(Boolean)
             : [];
-                            auto_arrange: a.auto_arrange === true,
         const have = new Set(existing.map((row) => row.file));
         const added = [];
         for (const file of normalized) {
@@ -21630,7 +21800,6 @@ export class CapTimelineEditorApp {
     async _mergeReferenceProject(token, position) {
         const openGen = this._openGen;
         const response = await api.fetchApi('/audio_keyframe_timeline/reference_project_merge', {
-                auto_arrange: track.autoArrange === true,
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token, media: this._serializeMediaCatalog() }),
         });
@@ -21688,12 +21857,6 @@ export class CapTimelineEditorApp {
                 }
             }
         } finally {
-        let arranged = false;
-        for (const track of this._timeline.tracks) arranged = track.arrangeClips() || arranged;
-        if (arranged) {
-            this._timeline._refresh();
-            this._refreshTimelineDuration();
-        }
             this._settingPromptSyncing = false;
         }
         if (wroteAnySettingPrompt) this._syncScalarsToProjectJson();
@@ -21703,7 +21866,7 @@ export class CapTimelineEditorApp {
         const projectTracks = Array.isArray(project.tracks) ? project.tracks : [];
         const tracks = projectTracks.map((track, order) => {
             const rawType = String(track.type || "visual").toLowerCase();
-            const type = rawType === "audio"
+            const type = rawType === "filter" ? "filter" : rawType === "audio"
                 ? "audio"
                 : rawType === "voiceover"
                     ? "voiceover"

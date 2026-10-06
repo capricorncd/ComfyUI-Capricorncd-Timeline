@@ -28,7 +28,7 @@ def _probe(path, frames=False):
 
 def stream_copy_plan(plan, watermark_active):
     """Return eligible ordered segments, or a user-facing fallback reason code."""
-    if watermark_active or plan["subtitle_segs"]:
+    if watermark_active or plan["subtitle_segs"] or plan.get("filter_segs"):
         return None, "overlays"
     if not shutil.which("ffprobe"):
         return None, "format"

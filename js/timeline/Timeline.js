@@ -486,6 +486,13 @@ export class Timeline extends EventEmitter {
 
     this.on('clip:move', () => this._clampCurrentTime());
     this.on('clip:resize', () => this._clampCurrentTime());
+    for (const event of ['clip:moveend', 'clip:resizeend', 'clip:update']) {
+      this.on(event, () => {
+        let changed = false;
+        for (const track of this.tracks) changed = track.arrangeClips() || changed;
+        if (changed) this._refresh();
+      });
+    }
 
     if (window.ResizeObserver) {
       this._ro = new ResizeObserver(() => {

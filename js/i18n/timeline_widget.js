@@ -2,6 +2,7 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        filter_track: "Filter / effect track",
         add_track: "+ Track",
         add_track_title: "Add a media, voiceover, audio, or subtitle track",
         video_track: "Video Track",
@@ -11,6 +12,7 @@ export const DICT = {
         voiceover_track: "Voiceover Track",
     },
     zh: {
+        filter_track: "滤镜特效轨道",
         add_track: "+ 轨道",
         add_track_title: "添加媒体、配音、音频或字幕轨道",
         video_track: "视频轨道",
@@ -20,6 +22,7 @@ export const DICT = {
         voiceover_track: "配音轨道",
     },
     ja: {
+        filter_track: "フィルター・エフェクトトラック",
         add_track: "+ トラック",
         add_track_title: "メディア・ボイスオーバー・オーディオ・字幕トラックを追加",
         video_track: "ビデオトラック",

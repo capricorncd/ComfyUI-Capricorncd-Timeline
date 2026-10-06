@@ -18,6 +18,7 @@ from PIL import ImageFilter
 
 from .audio_envelope import normalize_volume_points, volume_points_filter
 from .media_speed import playback_rate, audio_speed_filter
+from .portrait_filters import collect_filters, write_lut
 from .compose_stream_copy import stream_copy_plan, copy_segments
 from .cap_i18n import get_last_known_lang, t as _t
 from .cap_compose_clip_videos import _probe_has_audio, _run_ffmpeg
@@ -363,6 +364,7 @@ def _collect_plan(
         "video_segs": video_segs,
         "audio_segs": audio_segs,
         "subtitle_segs": subtitle_segs,
+        "filter_segs": collect_filters(tracks, fps),
     }
 
 
@@ -741,6 +743,7 @@ def compose_timeline_project(
         cmd += ["-i", _ffmpeg_path(seg["path"])]
 
     subtitle_paths: list[str] = []
+    lut_paths: list[str] = []
     filters: list[str] = []
     wm_cleanup_path = None
     if export_video:
@@ -800,6 +803,14 @@ def compose_timeline_project(
             filters.append(
                 f"[{prev}][v{i}]overlay=x='{x}':y='{y}':eof_action=pass:repeatlast=0:enable='{enable}'[{out}]"
             )
+            prev = out
+        for i, effect in enumerate(plan["filter_segs"]):
+            path = write_lut(effect["preset"], effect["strength"])
+            lut_paths.append(path)
+            escaped = path.replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+            out = f"portrait{i}"
+            enable = f"gte(t\\,{(round(effect['start'] * fps) - 0.5) / fps:.9f})*lt(t\\,{(round(effect['end'] * fps) - 0.5) / fps:.9f})"
+            filters.append(f"[{prev}]lut3d=file='{escaped}':interp=trilinear:enable='{enable}'[{out}]")
             prev = out
         filters.append(f"[{prev}]format=yuv420p[vout]")
         filters += wm_filters
@@ -916,7 +927,7 @@ def compose_timeline_project(
             os.unlink(filter_path)
         if wm_cleanup_path and os.path.exists(wm_cleanup_path):
             os.unlink(wm_cleanup_path)
-        for path in subtitle_paths:
+        for path in subtitle_paths + lut_paths:
             if os.path.exists(path):
                 os.unlink(path)
     return {

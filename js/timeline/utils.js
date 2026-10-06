@@ -40,6 +40,7 @@ export const formatTime = (secs, fps = null) => {
 // happened to be active when this module was first imported. Use
 // trackTypeLabel(type) below instead of TRACK_TYPES[type].label.
 export const TRACK_TYPES = {
+  filter: { color: "#8064a8", icon: ICONS.sparkles, height: 26 },
   video: { color: '#527f9c', icon: ICONS.film, height: 76 },
   audio: { color: '#388b78', icon: '♫', height: 76 },
   image: { color: '#927ba7', icon: '⬛', height: 76 },
@@ -48,6 +49,7 @@ export const TRACK_TYPES = {
 };
 
 const TRACK_TYPE_LABEL_KEYS = {
+  filter: "filter_track",
   video: 'video_track',
   audio: 'audio_track',
   image: 'image_track',

@@ -1,7 +1,7 @@
 [project]
 name = "ComfyUI-Capricorncd-Timeline"
 description = "A timeline editor for longer AI video projects in ComfyUI, including music videos and short dramas. Manage prompts and assets, generate and refine clips, and compose complete videos in one project."
-version = "0.17.30"
+version = "0.17.31"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.10"
 

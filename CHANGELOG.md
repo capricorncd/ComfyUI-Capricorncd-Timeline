@@ -1,5 +1,25 @@
 # Release notes / 更新记录
 
+## 0.17.31 — 2026-10-06
+
+### English
+
+- Add projects from selected Clips in a new workflow tab, aligning the earliest Clip to zero and keeping referenced media without the old project directory.
+- Add prompt templates and reference-description insertion; share Clip prompt management with keyframes and fix cursor navigation, @ suggestions and scrolling.
+- Add media category tabs, portrait filters with live preview and compact filter tracks; support automatic arrangement in main and child timelines.
+- Fix reference sub-timeline synchronization, compact media previews and isolated scrolling.
+- Keep disk files when removing library assets; recycle explicitly deleted generated files and preview video/latent versions on Windows.
+- Remove borders from menu actions, including main and child track hover menus. Restart ComfyUI and refresh the browser after updating.
+
+### 简体中文
+
+- 新增使用选中 Clip 创建独立工作流，在新标签页打开；最早 Clip 对齐零点，保留引用素材，不复制旧工程工作目录。
+- 新增提示词模板和参考素材描述插入；关键帧共用 Clip 提示词管理，修复方向键、@ 素材列表及文本滚动。
+- 新增素材分类、人像滤镜实时预览和紧凑滤镜轨道；主时间轴与子时间轴支持自动排列。
+- 修复参考音视频子时间轴同步，优化紧凑素材预览及独立滚动。
+- 删除素材库记录保留磁盘文件；明确删除生成文件或预览视频、latent 版本时移入 Windows 回收站。
+- 菜单项去除边框，主时间轴和子时间轴轨道悬停菜单同步调整。更新后重启 ComfyUI 并刷新浏览器。
+
 ## 0.17.30 — 2026-10-04
 
 ### English

@@ -3256,9 +3256,9 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-output-video-hover-video {
     display: block;
-    height: 200px;
+    height: min(360px, calc(100vh - 24px));
     width: auto;
-    max-width: min(560px, calc(100vw - 24px));
+    max-width: min(720px, calc(100vw - 24px));
     background: #000;
     vertical-align: top;
 }

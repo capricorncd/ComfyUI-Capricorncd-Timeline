@@ -55,3 +55,23 @@ for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
     }
 }
 console.log('Prompt arrows: native line/cursor movement and Shift selection preserved; canvas shortcuts isolated');
+const textarea = {value: 'first line\n@reference last line', selectionStart: 5, selectionEnd: 5};
+const selectedRanges = [];
+const inline = {textarea, syncSelection() {}, setSelection(start, end) {selectedRanges.push([start, end]);},
+    nativeSelection(start, end) {this.selectionStart = start; this.selectionEnd = end;}};
+for (const modifier of ['ctrlKey', 'metaKey']) {
+    const select = {key: 'a', [modifier]: true,
+        preventDefault() {this.prevented = true;}, stopImmediatePropagation() {this.stopped = true;}};
+    inlineKey.call(inline, select);
+    assert(select.prevented && select.stopped);
+    assert.deepEqual(selectedRanges.at(-1), [0, textarea.value.length]);
+    assert.equal(textarea.selectionStart, 0);
+    assert.equal(textarea.selectionEnd, textarea.value.length);
+}
+for (const key of ['Delete', 'Backspace']) {
+    const deletion = {key, stopPropagation() {this.stopped = true;},
+        preventDefault() {throw new Error('Deletion must reach beforeinput');}};
+    inlineKey.call(inline, deletion);
+    assert(deletion.stopped);
+}
+console.log('Prompt select-all stays inside the editor and synchronizes the full replacement range; deletion stays local.');

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import {stripH3Timing, h3TimingFromFilename} from '../js/editor/H3Timing.js';
 
 const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
 const start = source.indexOf('function normalizeOutputVideoPath(');
@@ -11,9 +12,9 @@ const addKeyframeVideo = new Function('makeT', keyframeSource.replace(/^import .
 function method(name) {
     const start = source.indexOf(`    ${name}(`);
     assert(start >= 0, name);
-    return new Function('normalizeOutputVideoPath', 'normalizeGeneratedVideo', 'genVideoUid', 'T', 'addKeyframeVideo',
+    return new Function('normalizeOutputVideoPath', 'normalizeGeneratedVideo', 'genVideoUid', 'T', 'addKeyframeVideo', 'stripH3Timing', 'h3TimingFromFilename',
         `return ({${source.slice(start, source.indexOf('\n    }', start) + 6)}}).${name}`)(
-        normalizeOutputVideoPath, row => ({...row}), () => `gv_${++nextId}`, key => key, addKeyframeVideo);
+        normalizeOutputVideoPath, row => ({...row}), () => `gv_${++nextId}`, key => key, addKeyframeVideo, stripH3Timing, h3TimingFromFilename);
 }
 
 function editor(ready = true) {
@@ -138,3 +139,16 @@ segmentRows = segmentsEditor.project.tracks[0].clips[0].generated_videos;
 assert.equal(segmentRows.length, 2);
 assert.equal(segmentRows[0].trim_out_sec - segmentRows[0].trim_in_sec, 9, 'completion replay preserves manual trimming');
 console.log('PASS: keyframe outputs persist with independent positions/trims and survive completion replay');
+const customEditor = editor(false);
+customEditor._pendingGeneratedJobs.push({clipId: 'a', keyframeRun: {fps: 24,
+    intervals: [{start_frame: 360, end_frame: 840, prompt: 'shot'}]}});
+const customFile = 'CapTimelineEditor/project/20261007-010203_a__kf1_2__h3v2_c22_r260_h0_t1_f24000_s0_n3.mp4';
+customEditor._onTimelineVideoSaved({detail: {clip_id: 'a', file: customFile}});
+const customRow = customEditor.project.tracks[0].clips[0].generated_videos[0];
+assert.equal(customRow.edit_start_sec, 25);
+assert.equal(customRow.trim_in_sec, 19 / 24);
+assert.equal(customRow.trim_out_sec - customRow.trim_in_sec, 10);
+assert.equal(customRow.prompt, 'shot');
+customEditor._onTimelineVideoSaved({detail: {clip_id: 'a', file: customFile}});
+assert.equal(customEditor.project.tracks[0].clips[0].generated_videos.length, 1);
+console.log('PASS: custom workflow keyframe output uses the submitted interval and context trim, without duplicates');

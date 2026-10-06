@@ -2465,6 +2465,7 @@ export class CapTimelineEditorApp {
             stamp,
             expectedFile: stamp ? this._clipSpecifiedVideoPath(clip.id, stamp) : null,
             projectJson,
+            keyframeRun: h3Generation?.keyframe_runs?.find(run => String(run.clip_id) === String(clip.id)),
         }));
 
         CapTimelineEditorApp._installClipRunJobHook();
@@ -2494,6 +2495,7 @@ export class CapTimelineEditorApp {
                         files: [],
                         expectedFile: job.expectedFile,
                         stamp: job.stamp || stamp,
+                        keyframeRun: job.keyframeRun,
                     });
                 }
                 const result = await app.queuePrompt(0, chunk);
@@ -2731,7 +2733,7 @@ export class CapTimelineEditorApp {
         const n = normalizeOutputVideoPath(file);
         if (!n) return null;
         const m = stripH3Timing(n).match(/^CapTimelineEditor\/[^/]+\/(\d{8}-\d{6})_(.+)\.mp4$/i);
-        return m ? String(m[2]).trim() || null : null;
+        return m ? String(m[2]).trim().replace(/__kf\d+_\d+$/i, "") || null : null;
     }
 
     _teNotifyBelongsHere(clipId, file) {
@@ -8082,6 +8084,30 @@ export class CapTimelineEditorApp {
             clipId = job?.clipId ? String(job.clipId) : "";
         }
         if (!clipId || !this._teNotifyBelongsHere(clipId, file)) return;
+        const marker = stripH3Timing(file).match(/__kf(\d+)_(\d+)\.mp4$/i);
+        const pending = this._pendingGeneratedJobs.find(job => String(job.clipId) === clipId);
+        const run = pending?.keyframeRun;
+        const timing = h3TimingFromFilename(file);
+        if (marker && run && timing) {
+            const intervalIndex = Number(marker[1]) - 1;
+            const interval = run.intervals.find((row, index) => (row.number ?? index + 1) === intervalIndex + 1);
+            if (interval) {
+                const count = Math.ceil((interval.end_frame - interval.start_frame) / Math.max(1, Math.floor(10 * run.fps)));
+                const part = Number(marker[2]);
+                if (part >= 1 && part <= count) {
+                    const frames = interval.end_frame - interval.start_frame;
+                    this._receiveKeyframeVideo({clip_id: clipId, filename: file, keyframe_segment: {
+                        clip_id: clipId, fps: run.fps, output_fps: timing.fps,
+                        start_frame: interval.start_frame + Math.round(frames * (part - 1) / count),
+                        end_frame: interval.start_frame + Math.round(frames * part / count),
+                        interval_start_frame: interval.start_frame, interval: intervalIndex + 1,
+                        part, parts: count, prompt: interval.prompt || '',
+                        trim_frames: timing.context - timing.carry + timing.head, raw_frames: timing.raw,
+                    }});
+                    return;
+                }
+            }
+        }
         if (this._workflowPreview?.clipId === String(clipId)
             && this._workflowPreview.promptId === this._promptIdFromEvent(e)) {
             this._finishWorkflowPreview(T("model_preview_complete"), file);
@@ -9927,7 +9953,7 @@ export class CapTimelineEditorApp {
         const tl = new Timeline(this.genEditTlHost, {
             audioEnvelopeEnabled: true,
             duration: tlDur,
-            playEndTime: clipDur,
+            playEndTime: st.reference ? null : clipDur,
             fps,
             timeFormat: "frames",
             zoom: view?.zoom ?? 1.4,
@@ -9936,7 +9962,7 @@ export class CapTimelineEditorApp {
         tl.toolbarEl?.querySelector(".tl-btn-add-track")?.remove();
         tl.toolbarEl?.querySelector(".tl-btn-history")?.remove();
         if (tl._durEl) {
-            tl._durEl.textContent = `/ ${tl.formatTime(clipDur)}`;
+            tl._durEl.textContent = `/ ${tl.formatTime(st.reference ? tl._contentEndTime() : clipDur)}`;
             tl._durEl.title = T("gen_edit_playable_duration_title");
         }
         st.timeline = tl;
@@ -10076,14 +10102,15 @@ export class CapTimelineEditorApp {
             this._applyGenEditChanges();
         }
         tl.duration = Math.max(tlDur, this._genEditTimelineDuration(clipDur, st.draft));
-        tl.setPlayEndTime(clipDur);
+        tl.setPlayEndTime(st.reference ? null : clipDur);
+        if (st.reference && tl._durEl) tl._durEl.textContent = `/ ${tl.formatTime(tl._contentEndTime())}`;
         this._syncGenEditOutOfBoundsUI(tl, clipDur);
         tl._refresh?.();
 
         const refreshBound = () => {
             const cd = this._genEditParentDuration();
             st.clipDur = cd;
-            tl.setPlayEndTime(cd);
+            tl.setPlayEndTime(st.reference ? null : cd);
             let maxEnd = this._genEditTimelineDuration(cd, st.draft);
             for (const track of tl.tracks) {
                 for (const c of track.clips || []) maxEnd = Math.max(maxEnd, c.endTime);
@@ -10093,7 +10120,7 @@ export class CapTimelineEditorApp {
                 tl._refresh?.();
             }
             this._syncGenEditOutOfBoundsUI(tl, cd);
-            if (tl._durEl) tl._durEl.textContent = `/ ${tl.formatTime(cd)}`;
+            if (tl._durEl) tl._durEl.textContent = `/ ${tl.formatTime(st.reference ? tl._contentEndTime() : cd)}`;
         };
 
         tl.on("clip:select", ({ clip: c }) => {
@@ -10168,7 +10195,7 @@ export class CapTimelineEditorApp {
             this._syncGenEditInspector();
             const t = tl.currentTime;
             const cd = st.clipDur ?? clipDur;
-            const canSplit = t > c.startTime + 1e-3 && t < c.endTime - 1e-3 && t < cd - 1e-3;
+            const canSplit = t > c.startTime + 1e-3 && t < c.endTime - 1e-3 && (st.reference || t < cd - 1e-3);
             const isAudioClip = !!(st.audioMap?.get(c.id) || c.el?.dataset?.audioId || c.track?.type === "audio");
             const items = isAudioClip
                 ? [{
@@ -11096,6 +11123,7 @@ export class CapTimelineEditorApp {
         const end = this._genEditTimelineDuration(this._genEditParentDuration(), st.draft);
         st.timeline.duration = Math.max(st.timeline.duration, end);
         st.timeline._refresh();
+        if (st.reference && st.timeline._durEl) st.timeline._durEl.textContent = `/ ${st.timeline.formatTime(st.timeline._contentEndTime())}`;
         this._syncGenEditOutOfBoundsUI(st.timeline, this._genEditParentDuration());
         if (st.timeline._playing) void this._startGenEditAudioPlayback();
         this._scheduleGenEditPreview();
@@ -11176,7 +11204,7 @@ export class CapTimelineEditorApp {
         const playing = !!st.timeline?._playing;
 
         // Outside the parent clip window: no playback / no render.
-        if (t >= clipDur - 1e-9) {
+        if (!st.reference && t >= clipDur - 1e-9) {
             this._stopGenEditAudioPlayback();
             this._pauseUnusedPreviewVideos(new Set());
             ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -11262,7 +11290,7 @@ export class CapTimelineEditorApp {
     _collectGenEditPreviewLayers(t) {
         const st = this._genEditState;
         if (!st) return [];
-        const clipDur = this._genEditParentDuration();
+        const clipDur = st.reference ? st.timeline._contentEndTime() : this._genEditParentDuration();
         if (!(t < clipDur - 1e-9)) return [];
         const hostClip = {
             startTime: 0,
@@ -11328,7 +11356,7 @@ export class CapTimelineEditorApp {
             try {
                 const url = location === "output"
                     ? this._outputVideoUrl(rel)
-                    : (this._audioUrl(rel) || this._videoUrl(rel));
+                    : this._assetFileUrl(rel, mediaKindFromFilename(rel, "audio"), location);
                 if (!url) return null;
                 const r = await this._fetchPeaks(url);
                 return r?.buffer || null;
@@ -11366,7 +11394,7 @@ export class CapTimelineEditorApp {
         const ctx = this._ensurePlaybackContext();
         const startCtxTime = ctx.currentTime + 0.03;
         const startPlayhead = tl.currentTime;
-        const clipDur = this._genEditParentDuration();
+        const clipDur = st.reference ? tl._contentEndTime() : this._genEditParentDuration();
         const sources = [];
         this._genEditAudioSources = sources;
         const token = (st._audioPlayToken = (st._audioPlayToken || 0) + 1);
@@ -12626,10 +12654,10 @@ export class CapTimelineEditorApp {
         const video = this._outputVideoHoverVideo;
         if (!el || el.hidden || !anchorEl?.isConnected) return;
         const rect = anchorEl.getBoundingClientRect();
-        const vh = 200;
-        const vw = video?.videoWidth && video?.videoHeight
-            ? Math.max(120, Math.round(vh * (video.videoWidth / video.videoHeight)))
-            : Math.round(vh * 16 / 9);
+        const ratio = video?.videoWidth && video?.videoHeight
+            ? video.videoWidth / video.videoHeight : 16 / 9;
+        const vh = Math.min(360, window.innerHeight - 24, Math.min(720, window.innerWidth - 24) / ratio);
+        const vw = Math.round(vh * ratio);
         const gap = 28;
         const margin = 8;
         // Keep the whole preview clear of the floating picker (usually docked right).
@@ -14986,7 +15014,8 @@ export class CapTimelineEditorApp {
                     // via Web Audio (canvas <video> stays muted).
                     if (this._draftPreviewMode && isDirectorTrackType(track.type)) continue;
                     if (this._clipUsesGeneratedPreview(m)) continue;
-                    if (m?.referenceTimeline) continue;
+                    if (m?.referenceTimeline || (isDirectorTrackType(track.type)
+                        && this._clipItems(m).some(item => ['video', 'audio'].includes(item.kind)))) continue;
                 }
                 out.push(clip);
             }
@@ -15010,7 +15039,9 @@ export class CapTimelineEditorApp {
                 if (onlyClip && clip !== onlyClip) continue;
                 const m = this._meta.get(clip.id) ?? defaultImageMeta();
                 if (!onlyClip && (m.disabled || m.visible === false || m.muted)) continue;
-                const refs = !onlyClip && m.referenceTimeline && !this._clipUsesGeneratedPreview(m)
+                const refs = !onlyClip && !this._clipUsesGeneratedPreview(m)
+                    && (m.referenceTimeline || (isDirectorTrackType(track.type)
+                        && this._clipItems(m).some(item => ['video', 'audio'].includes(item.kind))))
                     ? referenceTimeline(this, clip) : null;
                 const gens = refs ? refs.videos.filter(g => g.enabled !== false)
                     : onlyClip || this._clipUsesGeneratedPreview(m)
@@ -18195,6 +18226,7 @@ export class CapTimelineEditorApp {
                     files: [],
                     expectedFile: stamp ? this._clipSpecifiedVideoPath(current.id, stamp) : null,
                     stamp,
+                    keyframeRun: cleaned.generation?.keyframe_runs?.find(run => String(run.clip_id) === String(current.id)),
                 });
             }
             const result = await app.queuePrompt(0, 1);

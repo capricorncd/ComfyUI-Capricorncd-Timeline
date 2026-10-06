@@ -55,13 +55,18 @@ export class InlinePromptEditor extends HTMLElement {
             }
             const key = event.key.toLowerCase();
             if ((event.ctrlKey || event.metaKey) && !event.altKey) {
-                if (key === 'z' || key === 'y') {
+                if (key === 'a') {
+                    event.preventDefault(); event.stopImmediatePropagation();
+                    this.setSelection(0, this.textarea.value.length);
+                    this.nativeSelection.call(this.textarea, 0, this.textarea.value.length);
+                } else if (key === 'z' || key === 'y') {
                     event.preventDefault(); event.stopImmediatePropagation();
                     undoRichPrompt(this.textarea, key === 'y' || event.shiftKey);
                 } else if (key === '/') {
                     event.preventDefault(); event.stopImmediatePropagation(); toggleComment(this.textarea);
                 }
             }
+            if (key === 'delete' || key === 'backspace') event.stopPropagation();
         });
         this.editor.addEventListener('beforeinput', event => this.beforeInput(event));
         this.editor.addEventListener('compositionstart', () => { this.composing = true; this.syncSelection(); });

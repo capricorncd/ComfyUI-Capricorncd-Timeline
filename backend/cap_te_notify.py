@@ -23,7 +23,7 @@ def clip_id_from_output_video(path: str) -> str:
     if not s:
         return ""
     m = _SPECIFIED_VIDEO_RE.search(H3_SUFFIX.sub("", s))
-    return str(m.group(2)).strip() if m else ""
+    return re.sub(r"__kf\d+_\d+$", "", str(m.group(2)).strip()) if m else ""
 
 
 def notify_timeline(event: str, **data) -> None:

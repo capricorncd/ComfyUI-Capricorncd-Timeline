@@ -50,6 +50,9 @@ export class InlinePromptEditor extends HTMLElement {
         this.editor.addEventListener('keyup', () => this.syncSelection());
         this.editor.addEventListener('keydown', event => {
             this.syncSelection();
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+                event.stopPropagation();
+            }
             const key = event.key.toLowerCase();
             if ((event.ctrlKey || event.metaKey) && !event.altKey) {
                 if (key === 'z' || key === 'y') {
@@ -214,6 +217,7 @@ export class InlinePromptEditor extends HTMLElement {
         const end = anchor == null ? ta.selectionEnd : Math.max(anchor, focus);
         this.syncing = true;
         ta.value = this.textOf(this.editor);
+        this.nativeSelection.call(ta, start, end);
         ta.dispatchEvent(new Event('input', {bubbles: true}));
         this.syncing = false;
         this.configure(ta, this.assets);

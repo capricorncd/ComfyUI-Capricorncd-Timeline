@@ -67,6 +67,7 @@ from .cap_load_images_from_dir import (
 from .cap_clear_directory import (
     NODE_CLASS_MAPPINGS as _CCD_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _CCD_NAMES,
+    _win_send_to_recycle_bin,
 )
 from .cap_windows_shutdown import (
     NODE_CLASS_MAPPINGS as _CWS_CLASS,
@@ -579,14 +580,17 @@ def _register_routes():
             spec = _asset_kind(kind)
             if not name or not spec or os.path.splitext(name)[1].lower() not in spec[1]:
                 return web.json_response({"error": t("invalid_asset", lang)}, status=400)
-            # Only allow deleting Timeline Editor uploads under input/capricorncd-timeline/
-            if not name.startswith("capricorncd-timeline/"):
-                return web.json_response({"error": t("only_timeline_uploads_deletable", lang)}, status=400)
-            path = _safe_join(_fp.get_input_directory(), name)
-            if not path or not os.path.isfile(path):
+            if data.get("location") != "output":
+                return web.json_response({"error": "Only generated output files can be recycled."}, status=400)
+            path = _safe_join(_fp.get_output_directory(), name)
+            if not path:
+                return web.json_response({"error": t("invalid_asset", lang)}, status=400)
+            if not os.path.isfile(path):
                 return web.json_response({"ok": True, "deleted": False, "missing": True})
-            os.remove(path)
-            return web.json_response({"ok": True, "deleted": True})
+            if sys.platform != "win32":
+                return web.json_response({"error": "Recycling files requires Windows."}, status=400)
+            await asyncio.to_thread(_win_send_to_recycle_bin, path)
+            return web.json_response({"ok": True, "deleted": True, "recycled": True})
         except Exception as exc:
             logging.exception("[CapricorncdTools] delete_asset error")
             return web.json_response({"error": str(exc)}, status=500)

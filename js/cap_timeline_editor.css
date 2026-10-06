@@ -2584,6 +2584,13 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-final-prompt:not(:disabled) {
     cursor: pointer;
 }
+.cat-te-final-prompt-wrap > .cat-te-final-prompt {
+    flex: 1;
+    height: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
 
 .cat-te-prompt-includes {
     display: flex;

@@ -27,6 +27,10 @@ export class DirectorKeyframes {
         this.status = document.createElement('cap-status-message');
         this.status.hidden = true;
         panel.after(this.status);
+        panel.addEventListener('prompt-expand', () => {
+            const target = this.selectedTarget();
+            if (target) void app._openAiOptimizeModal(target.clip, {target, point: this.selection.point});
+        });
         panel.addEventListener('delete', () => this.remove());
         panel.addEventListener('insert', () => this.insertPrompt());
         panel.addEventListener('prompt-commit', () => { this.editing = false; });
@@ -170,6 +174,25 @@ export class DirectorKeyframes {
             return;
         }
         if (event.ctrlKey || event.metaKey || event.altKey) return;
+        if (['ArrowLeft', 'ArrowRight'].includes(event.code)) {
+            const target = this.selectedTarget();
+            if (!target) return;
+            event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.();
+            if (target.clip.track.locked) return;
+            const point = this.selection.point;
+            const fps = this.app.getFps();
+            const frame = Math.round((point.time - target.start) / target.rate * fps);
+            const next = Math.max(0, Math.min(Math.ceil(target.duration / target.rate * fps) - 1,
+                frame + (event.code === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 10 : 1)));
+            if (next === frame || this.points(target).some(other => other !== point
+                && Math.round((other.time - target.start) / target.rate * fps) === next)) return;
+            this.app._recordUndo();
+            point.time = target.start + next / fps * target.rate;
+            target.media.video_shots.points.sort((a, b) => a.time - b.time);
+            this.save(target);
+            this.select(target, point);
+            return;
+        }
         const handled = ['Delete', 'Backspace'].includes(event.code) ? this.remove() : false;
         if (handled) { event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.(); }
     }

@@ -15,6 +15,19 @@ assert.equal(InlinePromptEditor.prototype.offsetAt.call(host,editor,2),8);
 assert.equal(InlinePromptEditor.prototype.offsetAt.call(host,editor.childNodes[2],2),10);
 console.log('PASS: named reference ranges, longest names, escaped punctuation, tag serialization and caret offsets');
 
+const committed = Object.assign(new EventTarget(), {value:'', selectionStart:0, selectionEnd:0,
+    setSelectionRange(start, end) {this.selectionStart=start;this.selectionEnd=end;}});
+let cursorAtInput;
+committed.addEventListener('input', () => {cursorAtInput=committed.selectionStart;});
+const composingEditor = {textarea:committed, editor:{},
+    shadowRoot:{getSelection:()=>({rangeCount:1,anchorNode:{},anchorOffset:1,focusNode:{},focusOffset:1})},
+    offsetAt:(node, offset)=>offset, textOf:()=> '@',
+    nativeSelection:committed.setSelectionRange, configure(){}};
+InlinePromptEditor.prototype.commitDom.call(composingEditor);
+assert.equal(committed.value, '@');
+assert.equal(cursorAtInput, 1, '@ suggestions must see the committed caret before input listeners run');
+console.log('PASS: IME/native input publishes text and caret together for reference suggestions');
+
 const appSource=readFileSync(new URL('../js/CapTimelineEditorApp.js',import.meta.url),'utf8');
 const start=appSource.indexOf('    _unlinkPromptMention(');
 const unlink=new Function('assetMentionRanges','return ({'+appSource.slice(start,appSource.indexOf('\n    }',start)+6)+'})._unlinkPromptMention')(assetMentionRanges);

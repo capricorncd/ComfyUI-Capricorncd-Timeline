@@ -7966,10 +7966,13 @@ export class CapTimelineEditorApp {
                 { label: T('project_video_details'), icon: 'info', fn: () => this._openProjectVideoDetails(row) },
                 { label: T('open_output_directory'), icon: 'squareArrowOutUpRight', fn: () => void this._revealOutput({ filename: row.file }) },
                 { label: T('delete_btn'), icon: 'trash', danger: true, fn: () => {
-                    this._recordUndo();
-                    this._projectVideos = this._projectVideos.filter(item => item.file !== row.file);
-                    this._renderProjectVideos();
-                    this._saveToWidgets();
+                    this._openDeleteConfirm(T("confirm_recycle_generated_file", { name: row.file }), async () => {
+                        await this._recycleGeneratedFile(row.file);
+                        this._recordUndo();
+                        this._projectVideos = this._projectVideos.filter(item => item.file !== row.file);
+                        this._renderProjectVideos();
+                        this._saveToWidgets();
+                    });
                 } },
             ], rect.left, rect.bottom + 4, { ignoreNextClick: false }));
     }
@@ -9366,7 +9369,10 @@ export class CapTimelineEditorApp {
         const row = rows.find((item) => item.id === videoId);
         if (!row) return;
         const name = row.file.split(/[\\/]/).pop();
-        this._openDeleteConfirm(T("confirm_remove_from_clip", { name }), () => this._removeGeneratedVideo(clip, videoId));
+        this._openDeleteConfirm(T("confirm_recycle_generated_file", { name }), async () => {
+            await this._recycleGeneratedFile(row.file);
+            this._removeGeneratedVideo(clip, videoId);
+        });
     }
 
     _removeGeneratedVideo(clip, videoId) {
@@ -11521,6 +11527,7 @@ export class CapTimelineEditorApp {
 
     _attachPromptMentions(root) {
         for (const textarea of root.querySelectorAll("textarea[data-prompt-copy-attached]")) {
+            if (textarea.classList.contains("cat-te-final-prompt")) continue;
             const mentions = document.createElement("cap-prompt-mentions");
             textarea.parentElement.append(mentions);
             mentions.bind(textarea, () => this._promptMentionAssets());
@@ -11579,7 +11586,10 @@ export class CapTimelineEditorApp {
             }
 
             const actions = document.createElement('cap-prompt-history-actions');
-            actions.bind(ta, () => this._promptHistoryDocument(), data => this._savePromptHistory(data), {getAssets: () => this._promptMentionAssets()});
+            actions.bind(ta, () => this._promptHistoryDocument(), data => this._savePromptHistory(data), {
+                copyOnly: ta.classList.contains("cat-te-final-prompt"),
+                getAssets: () => this._promptMentionAssets(),
+            });
             host.append(actions);
         }
     }
@@ -11745,7 +11755,10 @@ export class CapTimelineEditorApp {
         const row = before.find((item) => item.id === audioId);
         if (!row) return;
         const name = String(row.file || "").split(/[\\/]/).pop();
-        this._openDeleteConfirm(T("confirm_remove_from_clip", { name }), () => this._removeGeneratedAudio(clip, audioId));
+        this._openDeleteConfirm(T("confirm_recycle_generated_file", { name }), async () => {
+            await this._recycleGeneratedFile(row.file, 'audio');
+            this._removeGeneratedAudio(clip, audioId);
+        });
     }
 
     _removeGeneratedAudio(clip, audioId) {
@@ -17293,10 +17306,8 @@ export class CapTimelineEditorApp {
         this._renderMediaGrid();
     }
 
-    /** Remove one library media from project/timeline lists. Returns whether disk delete is needed. */
+    /** Remove one library media from project/timeline lists, preserving its disk file. */
     _removeLibraryMediaEntry(file, kind) {
-        const status = this._mediaStatus.get(`${kind}:${file}`) || { location: "input" };
-        const missing = status.location === "missing";
         const media = this._findMedia(kind, file);
         const mediaId = media?.id;
         const removedClipIds = new Set();
@@ -17343,14 +17354,14 @@ export class CapTimelineEditorApp {
         }
         if (kind === "video") this._videoThumbCache.delete(file);
         this._mediaBatchSelected.delete(this._mediaBatchKey(kind, file));
-        return { needDisk: !missing, removedClipIds };
+        return { removedClipIds };
     }
 
-    async _deleteDiskAsset(file, kind) {
+    async _recycleGeneratedFile(file, kind = 'video') {
         const response = await fetch(api.apiURL("/audio_keyframe_timeline/delete_asset"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: file, kind }),
+            body: JSON.stringify({ name: file, kind, location: 'output' }),
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || T("delete_file_failed"));
@@ -17404,20 +17415,20 @@ export class CapTimelineEditorApp {
         const action = this._pendingDeleteAction;
         if (typeof action !== "function") return;
         this._closeMediaDeleteModal();
-        await action();
+        try {
+            await action();
+        } catch (error) {
+            showCapAlert(error.message || T("delete_file_failed"));
+        }
     }
 
     async _performMediaDelete(entries, batch) {
         this._recordUndo();
-        const diskJobs = [];
         for (const { file, kind } of entries) {
-            const { needDisk } = this._removeLibraryMediaEntry(file, kind);
-            if (needDisk) diskJobs.push(this._deleteDiskAsset(file, kind).catch((err) => err));
+            this._removeLibraryMediaEntry(file, kind);
         }
         this._syncSelectedClip();
         this._updatePromptPanel();
-        const results = await Promise.all(diskJobs);
-        const failed = results.filter((r) => r instanceof Error);
         if (batch) {
             this._mediaBatchSelected.clear();
             this._mediaBatchMode = false;
@@ -17425,11 +17436,6 @@ export class CapTimelineEditorApp {
         this._renderMediaGrid();
         this._refreshTimelineDuration();
         this._scheduleProgramPreview();
-        if (failed.length) {
-            showCapAlert(entries.length === 1
-                ? T("asset_removed_disk_delete_failed", { msg: failed[0].message })
-                : T("removed_with_n_disk_delete_failures", { n: failed.length }));
-        }
     }
 
     _dismissContextMenuOutside(e) {
@@ -20405,6 +20411,11 @@ export class CapTimelineEditorApp {
 
     _promptManagerValue(tab, clip) {
         if (!clip) return "";
+        const keyframe = this._aiOptimizeKeyframe;
+        if (keyframe?.target.clip === clip) {
+            if (tab === "clip") return String(keyframe.point.description || "");
+            if (tab === "final") return this._composeFinalPrompt(clip, {...this._ensureClipMeta(clip), prompt: keyframe.point.description});
+        }
         if (tab === "final") return this._composeFinalPrompt(clip);
         if (SETTING_PROMPT_KEYS.includes(tab)) return this._readSettingPrompt(tab);
         const meta = this._ensureClipMeta(clip);
@@ -20415,10 +20426,19 @@ export class CapTimelineEditorApp {
         if (tab === "resource" || tab === "final") return false;
         const clip = this._findClipById(this._aiOptimizeClipId) || this._selClip;
         if (!clip) return false;
+        if (this._aiOptimizeKeyframe?.target.clip === clip && tab === "clip" && clip.track.locked) return false;
         if (recordUndo) this._recordUndo();
         const value = String(text ?? "");
         if (SETTING_PROMPT_KEYS.includes(tab)) {
             this._writeSettingPrompt(tab, value);
+            return true;
+        }
+        const keyframe = this._aiOptimizeKeyframe;
+        if (keyframe?.target.clip === clip) {
+            if (clip.track.locked) return false;
+            keyframe.point.description = value;
+            this._directorKeyframes.save(keyframe.target, false);
+            this._directorKeyframes.refreshPanel();
             return true;
         }
         const meta = this._ensureClipMeta(clip);
@@ -20706,7 +20726,8 @@ export class CapTimelineEditorApp {
             button.setAttribute("aria-selected", active ? "true" : "false");
         });
         if (this.aiSrcText) {
-            this.aiSrcText.readOnly = next === "resource" || next === "final";
+            this.aiSrcText.readOnly = next === "resource" || next === "final"
+                || (next === "clip" && !!this._aiOptimizeKeyframe?.target.clip.track.locked);
             this.aiSrcText.classList.remove("is-readonly");
             this.aiSrcText.title = "";
         }
@@ -20843,8 +20864,11 @@ export class CapTimelineEditorApp {
         return AI_PROMPT_LANGUAGES.includes(value) ? value : "简体中文";
     }
 
-    async _openAiOptimizeModal(clip = this._selClip) {
+    async _openAiOptimizeModal(clip = this._selClip, keyframe = null) {
         if (!clip || !isDirectorTrackType(clip.track?.type) || !this.aiOptimizeModal) return;
+        this._aiOptimizeKeyframe = keyframe;
+        const promptTab = [...(this.aiSourceTabs || [])].find(tab => tab.dataset.sourceTab === "clip");
+        if (promptTab) promptTab.textContent = keyframe ? T("keyframe_prompt_tab") : T("clip_prompt_tab");
         this.aiOptimizeModal.hidden = false;
         this._aiOptimizeSrc = "clip";
         this._setAiOptimizeRightTab("ai");
@@ -20859,6 +20883,7 @@ export class CapTimelineEditorApp {
         this.aiOptimizeModal.hidden = true;
         this.aiPreviewVideo?.pause();
         this._aiOptimizeClipId = null;
+        this._aiOptimizeKeyframe = null;
         this._syncAiOptimizeNavButtons();
     }
 
@@ -20875,7 +20900,7 @@ export class CapTimelineEditorApp {
     _syncAiOptimizeNavButtons() {
         const open = !!(this.aiOptimizeModal && !this.aiOptimizeModal.hidden);
         const clips = open ? this._aiOptimizeEligibleClips() : [];
-        const multi = clips.length > 1;
+        const multi = clips.length > 1 && !this._aiOptimizeKeyframe;
         if (this.aiOptimizePrevBtn) this.aiOptimizePrevBtn.disabled = !multi;
         if (this.aiOptimizeNextBtn) this.aiOptimizeNextBtn.disabled = !multi;
     }
@@ -20923,7 +20948,7 @@ export class CapTimelineEditorApp {
     }
 
     async _stepAiOptimizeClip(delta) {
-        if (!this.aiOptimizeModal || this.aiOptimizeModal.hidden) return;
+        if (!this.aiOptimizeModal || this.aiOptimizeModal.hidden || this._aiOptimizeKeyframe) return;
         const clips = this._aiOptimizeEligibleClips();
         if (clips.length < 2) return;
         let idx = clips.findIndex((c) => c.id === this._aiOptimizeClipId);

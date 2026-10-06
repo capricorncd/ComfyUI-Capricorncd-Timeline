@@ -1,5 +1,4 @@
 import "./Button.js";
-import "./Dialog.js";
 import "./PromptMentions.js";
 import "./PromptHistoryActions.js";
 import { formatTimecode } from "../timecode.js";
@@ -31,10 +30,6 @@ export class ShotControl extends HTMLElement {
                 .time { margin-left: auto; color: var(--cat-muted); font-variant-numeric: tabular-nums; }
                 label { display: grid; gap: 6px; }
                 .description-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-                cap-dialog { --cap-dialog-width: 720px; --cap-dialog-height: 65vh;
-                    --cap-dialog-min-width: 360px; --cap-dialog-min-height: 300px; }
-                cap-dialog .prompt-field { margin: 16px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
-                cap-dialog textarea { flex: 1; min-height: 0; height: 100%; resize: none; }
                 .prompt-field { position: relative; padding-bottom: 32px; border: 1px solid var(--cat-border);
                     border-radius: 6px; background: var(--cat-input); overflow: hidden; }
                 textarea { display: block; box-sizing: border-box; width: 100%; min-height: 78px; resize: vertical; font: inherit; line-height: 1.6;
@@ -60,27 +55,7 @@ export class ShotControl extends HTMLElement {
         attachRichPromptHandler(this.description, {mode: 'widget'});
     }
     expandPrompt() {
-        if (this.promptDialog?.open) return;
-        const field = this.shadowRoot.querySelector('.prompt-field');
-        const parent = field.parentNode;
-        const dialog = document.createElement('cap-dialog');
-        const title = document.createElement('span');
-        title.slot = 'title';
-        title.textContent = `${this.shadowRoot.querySelector('strong').textContent} · ${this.shadowRoot.querySelector('.time').textContent}`;
-        dialog.append(title, field);
-        if (this.mentions) dialog.append(this.mentions);
-        this.shadowRoot.append(dialog);
-        this.promptDialog = dialog;
-        dialog.addEventListener('close', () => {
-            this.mentions?.close();
-            if (this.mentions) this.shadowRoot.append(this.mentions);
-            parent.append(field);
-            dialog.remove();
-            this.promptDialog = null;
-            this.dispatchEvent(new Event('prompt-commit'));
-        }, {once: true});
-        dialog.showModal();
-        this.description.focus();
+        this.dispatchEvent(new Event('prompt-expand'));
     }
     setMentionSource(getAssets) {
         this.getMentionAssets = getAssets;

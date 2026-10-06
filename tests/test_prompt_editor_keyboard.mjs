@@ -24,7 +24,7 @@ function event(key, editing, flags = {}) {
     return { key, target: host, composedPath: () => editing ? [{ isContentEditable: true }, host] : [host],
         preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; }, ...flags };
 }
-for (const key of ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'z', 'y', 'v']) {
+for (const key of ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'z', 'y', 'v']) {
     const e = event(key, true, { ctrlKey: ['z', 'y', 'v'].includes(key) });
     assert.equal(handleModal.call(owner, e), true);
     assert(!e.prevented && !e.stopped, `${key} must reach the shadow editor`);
@@ -41,3 +41,17 @@ const e = event('Backspace', false);
 handleModal.call(owner, e);
 assert(!e.prevented, 'Focused shadow input is recognized when event path is unavailable');
 console.log('Modal shadow editor: deletion, clipboard, undo and cursor keys preserved');
+
+const inlineSource = readFileSync(new URL('../js/components/InlinePromptEditor.js', import.meta.url), 'utf8');
+const keyStart = inlineSource.indexOf("this.editor.addEventListener('keydown', event => {") + "this.editor.addEventListener('keydown', event => {".length;
+const keyEnd = inlineSource.indexOf('\n        });', keyStart);
+const inlineKey = new Function('event', inlineSource.slice(keyStart, keyEnd));
+for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
+    for (const shiftKey of [false, true]) {
+        const e = {key, shiftKey, stopPropagation() {this.stopped = true;},
+            preventDefault() {throw new Error('Native cursor movement must stay enabled');}};
+        inlineKey.call({syncSelection() {}}, e);
+        assert(e.stopped, `${key} must stay within the prompt editor`);
+    }
+}
+console.log('Prompt arrows: native line/cursor movement and Shift selection preserved; canvas shortcuts isolated');

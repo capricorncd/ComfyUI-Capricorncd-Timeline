@@ -61,3 +61,25 @@ assert.deepEqual(tabs, ['clip', 'resource', 'prepend_prompt', 'append_prompt', '
 const translations = readFileSync(new URL('../js/i18n/timeline_editor.js', import.meta.url), 'utf8');
 assert.equal((translations.match(/full_prompt_tab:/g) || []).length, 3);
 console.log('Full prompt tab: order, readonly, same composition, comments, include refresh and source isolation passed');
+
+clip.track = {locked:false};
+const point = {description:'Keyframe action'};
+const target = {clip};
+app._aiOptimizeKeyframe = {target, point};
+meta.promptIncludes = ['clip'];
+assert.equal(app._promptManagerValue('clip', clip), 'Keyframe action');
+assert.equal(app._promptManagerValue('final', clip), 'Keyframe action');
+let keyframeSaves = 0;
+app._directorKeyframes = {
+    save(savedTarget) {assert.equal(savedTarget, target); keyframeSaves++;}, refreshPanel() {},
+};
+assert(app._writePromptManagerValue('clip', 'Updated keyframe', {recordUndo:false}));
+assert.equal(point.description, 'Updated keyframe');
+assert.equal(meta.prompt, 'Latest generated action', 'keyframe edits preserve Clip prompt');
+assert.equal(keyframeSaves, 1);
+clip.track.locked = true;
+assert.equal(app._writePromptManagerValue('clip', 'Locked edit'), false);
+assert.equal(point.description, 'Updated keyframe');
+app._aiOptimizeKeyframe = null;
+assert.equal(app._promptManagerValue('clip', clip), 'Latest generated action');
+console.log('Keyframe prompt manager: shared tabs, keyframe-only persistence, full prompt, lock and normal Clip restoration passed');

@@ -1276,7 +1276,7 @@ export class CapTimelineEditorApp {
      */
     handleMediaPreviewKey(e) {
         if (!this._overlay?.classList.contains("open")) return false;
-        if (this.mediaPreviewModal?.hidden) return false;
+        if (this.mediaPreviewModal?.hidden && !this._mediaPreviewDocked) return false;
         if (this.rawMetaModal && !this.rawMetaModal.hidden) return false;
         if (e.target?.closest?.("[role='tab']")) return false;
         if (this._mediaPreviewState?.browse === false) return false;
@@ -3267,7 +3267,7 @@ export class CapTimelineEditorApp {
     async _revealOutput(output) {
         if (!output) return;
         try {
-            const response = await fetch(api.apiURL(output.reveal_token ? "/audio_keyframe_timeline/reveal_export" : "/audio_keyframe_timeline/reveal_output"), {
+            const response = await fetch(api.apiURL(output.reveal_token ? "/audio_keyframe_timeline/reveal_export" : output.location ? "/audio_keyframe_timeline/reveal_asset" : "/audio_keyframe_timeline/reveal_output"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(output),
@@ -5411,7 +5411,10 @@ export class CapTimelineEditorApp {
         el.querySelector(".cat-te-h3-drafts-open").addEventListener("click", () => this._h3DraftVersions.open(this._selClip));
         this._clipExport = new ClipExport(el);
         this._directorKeyframes = new DirectorKeyframes(this, el.querySelector('.cat-te-director-keyframe'), isDirectorTrackType);
-        this.tlHost.addEventListener('pointerdown', event => this._directorKeyframes.timelinePointer(event), true);
+        this.tlHost.addEventListener('pointerdown', event => {
+            if (this._mediaPreviewDocked) this._closeMediaPreview();
+            this._directorKeyframes.timelinePointer(event);
+        }, true);
         el.querySelector('.cat-te-keyframe-drafts-open').addEventListener('click', () => {
             const run = selectedKeyframeRun(this)?.keyframe_runs[0];
             if (run) this._h3DraftVersions.open(this._findClipById(run.clip_id), {...run.intervals[0], fps: run.fps, reference: run.reference});
@@ -5496,7 +5499,7 @@ export class CapTimelineEditorApp {
         this.mediaPreviewReplaceBtn?.addEventListener("click", () => this._replaceMediaPreviewMaterial());
         this.mediaPreviewInsertClipBtn?.addEventListener("click", () => this._insertMediaPreviewIntoClips());
         this.mediaPreviewBody?.addEventListener("mousedown", (e) => {
-            if (this.mediaPreviewModal.hidden) return;
+            if (this.mediaPreviewModal.hidden && !this._mediaPreviewDocked) return;
             if (this._mediaPreviewState?.browse === false) return;
             if (e.button !== 0) return;
             if (e.target.closest(".cat-te-media-preview-stars, .cat-te-media-preview-nav, .cat-te-modal-close, .cat-te-media-preview-actions")) return;
@@ -5505,7 +5508,7 @@ export class CapTimelineEditorApp {
             this._stepMediaPreview(1);
         });
         this.mediaPreviewBody?.addEventListener("contextmenu", (e) => {
-            if (this.mediaPreviewModal.hidden) return;
+            if (this.mediaPreviewModal.hidden && !this._mediaPreviewDocked) return;
             if (this._mediaPreviewState?.browse === false) return;
             if (e.target.closest(".cat-te-media-preview-stars, .cat-te-media-preview-nav, .cat-te-modal-close, .cat-te-media-preview-actions")) return;
             e.preventDefault();
@@ -5932,7 +5935,7 @@ export class CapTimelineEditorApp {
 
         el.addEventListener("keydown", e => {
             const typing = isEditingField(e);
-            if (this._blockingModal === this.mediaPreviewModal && this.handleMediaPreviewKey(e)) return;
+            if ((this._blockingModal === this.mediaPreviewModal || this._mediaPreviewDocked) && this.handleMediaPreviewKey(e)) return;
             if (this._blockingModal === this.genVideoModal && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !typing) {
                 this._stepGenVideoPreview(e.key === "ArrowRight" ? 1 : -1);
                 e.preventDefault();
@@ -7953,6 +7956,15 @@ export class CapTimelineEditorApp {
         if (video?.composition) { this._receiveProjectVideo(e.detail); return; }
         // The final composition has no clip_id and must not become a Clip take.
         if (!video?.clip_id || video.type !== "output") return;
+        const session = this._workflowPreview;
+        if (session?.clipId === String(video.clip_id) && session.promptId === this._promptIdFromEvent(e)) {
+            const file = normalizeOutputVideoPath([video.subfolder, video.filename].filter(Boolean).join('/'));
+            if (file) {
+                session.savedFile = file;
+                session.entry = {url: this._outputVideoUrl(file), mime: "video/mp4", clipId: session.clipId, final: true};
+                this._showWorkflowPreview();
+            }
+        }
         if (video.h3_draft) { this._receiveH3Draft(video.h3_draft); return; }
         if (video.keyframe_segment) { this._receiveKeyframeVideo(video); return; }
         this._onTimelineVideoSaved({ detail: {
@@ -7985,6 +7997,7 @@ export class CapTimelineEditorApp {
     }
 
     _selectProjectVideos(active) {
+        if (this._mediaPreviewDocked) this._closeMediaPreview();
         this._projectVideosActive = active;
         this._syncSidebarMode(!!this._selClip);
         if (active) this._renderProjectVideos();
@@ -8162,7 +8175,15 @@ export class CapTimelineEditorApp {
             this.aiClipIdBtn.title = T("copy_clip_id");
         }
         if (this.aiClipDurationEl) {
-            this.aiClipDurationEl.textContent = formatTimecode((Number(clip?.duration) || 0) * 1000, this._timeline?.fps || 24);
+            const fps = this._timeline?.fps || 24;
+            let info = formatTimecode((Number(clip?.duration) || 0) * 1000, fps);
+            const keyframe = this._aiOptimizeKeyframe;
+            if (keyframe?.target.clip === clip) {
+                const index = this._directorKeyframes.points(keyframe.target).indexOf(keyframe.point);
+                const time = (keyframe.point.time - keyframe.target.start) / keyframe.target.rate;
+                if (index >= 0) info += ` · ${T("shot_control")} ${index + 1} · ${formatTimecode(time * 1000, fps)}`;
+            }
+            this.aiClipDurationEl.textContent = info;
         }
         if (this.aiDraftBtn) this.aiDraftBtn.disabled = this._workflowRunSubmitting || !clip
             || !isDirectorTrackType(clip.track?.type) || clip.track?.locked;
@@ -8194,21 +8215,10 @@ export class CapTimelineEditorApp {
     }
 
     async _runPromptManagerDraft() {
-        if (this._workflowRunSubmitting) return;
-        const clip = this._findClipById(this._aiOptimizeClipId);
-        if (!clip) return;
-        this._onPromptManagerSourceInput();
-        this._workflowRunSubmitting = true;
-        this._syncWorkflowRunButton();
-        try {
-            await this._runH3Stage(clip, "draft", this._aiOptimizeKeyframe);
-        } finally {
-            this._workflowRunSubmitting = false;
-            this._syncWorkflowRunButton();
-        }
+        return this._runPromptManagerWorkflow("draft");
     }
 
-    async _runPromptManagerWorkflow() {
+    async _runPromptManagerWorkflow(action = "normal") {
         if (this._workflowRunSubmitting) return;
         const clip = this._findClipById(this._aiOptimizeClipId);
         if (!clip) return;
@@ -8227,7 +8237,9 @@ export class CapTimelineEditorApp {
                 this._setAiOptimizeRightTab("preview");
                 this._showWorkflowPreview();
             }
-            const queued = await this._runClipDownstream(clip, session);
+            const queued = action === "draft"
+                ? await this._runH3Stage(clip, action, this._aiOptimizeKeyframe, session)
+                : await this._runClipDownstream(clip, session);
             if (session && !queued) this._finishWorkflowPreview(T("workflow_run_not_queued"));
         } finally {
             this._workflowRunSubmitting = false;
@@ -9025,6 +9037,9 @@ export class CapTimelineEditorApp {
     async _flushPendingGeneratedVideos(e) {
         if (this._destroyed || !this._isNodeOnLiveGraph()) return;
         const promptId = this._promptIdFromEvent(e);
+        if (promptId && this._workflowPreview?.promptId === promptId && this._workflowPreview.savedFile) {
+            this._finishWorkflowPreview(T("model_preview_complete"), this._workflowPreview.savedFile);
+        }
         if (promptId && this._workflowPreview?.promptId === promptId && !this._workflowPreview.entry?.final) {
             const session = this._workflowPreview;
             let file = null;
@@ -11858,6 +11873,7 @@ export class CapTimelineEditorApp {
         const url = this._generatedAudioUrl(row.file);
         if (!url) return;
         // Reuse media preview stage as a simple audio player.
+        if (this._mediaPreviewDocked) this._closeMediaPreview();
         if (!this.mediaPreviewModal || !this.mediaPreviewStage) {
             const a = new Audio(url);
             void a.play().catch(() => {});
@@ -13065,6 +13081,7 @@ export class CapTimelineEditorApp {
     }
 
     _previewOutputAudioFile(file) {
+        if (this._mediaPreviewDocked) this._closeMediaPreview();
         const url = this._generatedAudioUrl(file);
         if (!url) return;
         if (!this.mediaPreviewModal || !this.mediaPreviewStage) {
@@ -13939,6 +13956,8 @@ export class CapTimelineEditorApp {
         const batchKey = this._mediaBatchKey(kind, file);
         item.className = `cat-te-media-item cat-te-media-${kind}`;
         item.dataset.mediaKey = batchKey;
+        const preview = this._mediaPreviewDocked && this._mediaPreviewItem();
+        item.classList.toggle("cat-te-media-preview-selected", preview?.file === file && preview?.kind === kind);
         item.classList.toggle("cat-te-media-missing", status.location === "missing");
         item.classList.toggle("cat-te-media-selected", this._mediaBatchSelected.has(batchKey));
         item.title = this._mediaBatchMode
@@ -14042,6 +14061,11 @@ export class CapTimelineEditorApp {
             if (status.location === "missing") items.push({
                 label: T("relink_file_menu"), icon: "link",
                 fn: () => this._chooseMaterialFile({ file, kind }),
+            });
+            items.push({
+                label: T("open_folder_btn"), icon: "squareArrowOutUpRight",
+                disabled: status.location === "missing",
+                fn: () => void this._revealOutput({filename: file, location: status.location || "input", kind}),
             });
             items.push({
                 label: T("delete_btn"), icon: "trash",
@@ -16421,6 +16445,10 @@ export class CapTimelineEditorApp {
         const item = this._mediaPreviewItem();
         if (!item) return;
         const { file, kind } = item;
+        const selectedKey = this._mediaPreviewDocked ? this._mediaBatchKey(kind, file) : null;
+        for (const card of this.mediaGrid.querySelectorAll('[data-media-key]')) {
+            card.classList.toggle('cat-te-media-preview-selected', card.dataset.mediaKey === selectedKey);
+        }
         this._overlay.querySelector(".cat-te-media-crop").hidden = kind !== "image";
 
         for (const media of this.mediaPreviewStage.querySelectorAll("audio, video")) {
@@ -16460,8 +16488,42 @@ export class CapTimelineEditorApp {
         }
         media.className = `cat-te-media-preview-content cat-te-media-preview-${kind}`;
         this.mediaPreviewStage.appendChild(media);
-        this.mediaPreviewModal.hidden = false;
-        this.mediaPreviewModal.querySelector('.cat-te-media-preview-close').focus({ preventScroll: true });
+        if (this._mediaPreviewDocked && kind !== "image") {
+            media.autoplay = true;
+            media.play().catch(() => {});
+        }
+        this.mediaPreviewModal.hidden = !!this._mediaPreviewDocked;
+        if (!this._mediaPreviewDocked) this.mediaPreviewModal.querySelector('.cat-te-media-preview-close').focus({ preventScroll: true });
+    }
+
+    _setMediaPreviewDocked(docked) {
+        if (!!this._mediaPreviewDocked === docked) return;
+        if (docked) {
+            this._timeline?.pause();
+            this._stopAudioPlayback();
+            this._stopResourceGenProgramPreview();
+            this._projectVideosActive = false;
+            const panel = document.createElement('div');
+            panel.className = 'cat-te-asset-settings';
+            this.sidebarPanel.append(panel);
+            const nodes = [this.mediaPreviewModal.querySelector('.cat-te-media-preview-header'),
+                this.mediaPreviewModal.querySelector('.cat-te-media-preview-meta'), this.mediaPreviewFooter, this.mediaPreviewBody];
+            this._mediaPreviewDockNodes = nodes.map(node => {
+                const marker = document.createComment('asset-preview');
+                node.before(marker);
+                (node === this.mediaPreviewBody ? this.programStage : panel).append(node);
+                return {node, marker};
+            });
+            this._assetSettingsPanel = panel;
+        } else {
+            for (const {node, marker} of this._mediaPreviewDockNodes || []) marker.replaceWith(node);
+            this._mediaPreviewDockNodes = null;
+            this._assetSettingsPanel?.remove();
+            this._assetSettingsPanel = null;
+        }
+        this._mediaPreviewDocked = docked;
+        this.programStage.classList.toggle('is-asset-preview', docked);
+        this._syncSidebarMode(!!this._selClip);
     }
 
     _stepMediaPreview(delta) {
@@ -16494,6 +16556,9 @@ export class CapTimelineEditorApp {
     }
 
     _openMediaPreview(file, kind) {
+        if (this._mediaPreviewState) this._saveMediaPreviewMeta();
+        this._setMediaPreviewDocked(true);
+        this._timeline?.selectClip(null);
         const items = this._visibleMediaEntries();
         let index = file ? items.findIndex((e) => e.file === file && e.kind === kind) : -1;
         if (index < 0 && file) {
@@ -16516,6 +16581,7 @@ export class CapTimelineEditorApp {
     }
 
     _openClipMediaPreview(clip) {
+        this._setMediaPreviewDocked(false);
         const items = this._clipPreviewMediaEntries(clip)
             .map((item, clipItemIndex) => ({ ...item, clipItemIndex }))
             .filter(item => item.enabled !== false);
@@ -16556,6 +16622,8 @@ export class CapTimelineEditorApp {
         this._mediaInfoRequest = null;
         this._mediaRawRequest = null;
         this._mediaPreviewState = null;
+        for (const card of this.mediaGrid.querySelectorAll('.cat-te-media-preview-selected')) card.classList.remove('cat-te-media-preview-selected');
+        this._setMediaPreviewDocked(false);
         this._applyMediaPreviewChrome();
     }
 
@@ -17989,16 +18057,16 @@ export class CapTimelineEditorApp {
         return result;
     }
 
-    async _runH3Stage(clip, action, keyframe = null) {
+    async _runH3Stage(clip, action, keyframe = null, workflowPreview = null) {
         if (!clip || !isDirectorTrackType(clip.track?.type) || clip.track?.locked) return;
         if (!this._hasH3VideoGeneratorDownstream()) { showCapAlert(draftT("unavailable")); return; }
         if (keyframe) {
             const request = selectedKeyframeRun(this, keyframe);
             if (!request || keyframe.target.clip !== clip) return;
-            return this._queueClipsDownstream([clip], null, {...request, action});
+            return this._queueClipsDownstream([clip], workflowPreview, {...request, action});
         }
         if (!await this._validateClipRunDurations([clip])) return;
-        await this._queueClipsDownstream([clip], null, {action});
+        return this._queueClipsDownstream([clip], workflowPreview, {action});
     }
 
     _receiveH3Draft(version) {
@@ -19292,6 +19360,7 @@ export class CapTimelineEditorApp {
             this._overlay.focus({ preventScroll: true });
         }, true);
         tl.on("clip:select", ({ selected }) => {
+            if (this._mediaPreviewDocked) this._closeMediaPreview();
             this._projectVideosActive = false;
             this._directorKeyframes?.clearSelection();
             this._selClips = selected ?? tl.getSelectedClips();
@@ -19431,6 +19500,7 @@ export class CapTimelineEditorApp {
         });
         tl.on("zoomchange", () => this._refreshTimelineDuration());
         tl.on("play", () => {
+            if (this._mediaPreviewDocked) this._closeMediaPreview();
             this._programFrameKey = null;
             this._stopResourceGenProgramPreview();
             this._startAudioPlayback();
@@ -20230,6 +20300,15 @@ export class CapTimelineEditorApp {
     }
 
     _syncSidebarMode(hasClip) {
+        if (this._mediaPreviewDocked) {
+            this.projectPanel.hidden = this.clipPanel.hidden = this.multiSelectionPanel.hidden = true;
+            if (this.projectVideosPanel) this.projectVideosPanel.hidden = true;
+            if (this._storyboardPage) this._storyboardPage.panel.hidden = true;
+            this.sidebarTitle.textContent = T("media_basic_settings");
+            this.sidebarTitle.setAttribute('aria-selected', 'true');
+            this.projectVideosTab?.setAttribute('aria-selected', 'false');
+            return;
+        }
         const showVideos = !!this._projectVideosActive;
         if (this.projectVideosPanel) {
             this.projectVideosPanel.hidden = !showVideos;

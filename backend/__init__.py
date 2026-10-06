@@ -955,6 +955,28 @@ def _register_routes():
             logging.exception("[CapricorncdTools] extract_audio error")
             return web.json_response({"error": str(exc)}, status=500)
 
+    @routes.post("/audio_keyframe_timeline/reveal_asset")
+    async def api_reveal_asset(request: web.Request) -> web.Response:
+        lang = resolve_lang(request)
+        try:
+            data = await request.json()
+            location = data.get("location")
+            if location not in ("input", "output"):
+                return web.json_response({"error": t("invalid_asset", lang)}, status=400)
+            name = str(data.get("filename", "")).strip()
+            spec = _asset_kind(data.get("kind"))
+            if not spec or os.path.splitext(name)[1].lower() not in spec[1]:
+                return web.json_response({"error": t("invalid_asset", lang)}, status=400)
+            base = folder_paths.get_input_directory() if location == "input" else folder_paths.get_output_directory()
+            path = _safe_join(base, name)
+            if not path or not os.path.isfile(path):
+                return web.json_response({"error": t("file_not_found", lang)}, status=404)
+            await asyncio.to_thread(reveal_file, path)
+            return web.json_response({"ok": True})
+        except Exception as exc:
+            logging.exception("[CapricorncdTools] reveal_asset error")
+            return web.json_response({"error": str(exc)}, status=500)
+
     @routes.post("/audio_keyframe_timeline/reveal_output")
     async def api_reveal_output(request: web.Request) -> web.Response:
         import folder_paths as _fp

@@ -298,3 +298,31 @@ pipeline._onPromptExecuted({detail: {prompt_id: 'own', output: {
 }}});
 assert.equal(pipeline._workflowPreview.entry.url, '/view/project/saved_selected.mp4');
 console.log('PASS: related previews reject other Clip outputs and final composition.');
+
+queue = {queue_running: [], queue_pending: []};
+const sampling = editor();
+sampling._aiOptimizeKeyframe = {point:{description:'shot'}};
+sampling._runH3Stage = async (clip, action, keyframe, session) => {
+    assert.equal(action, 'draft');
+    assert.equal(keyframe, sampling._aiOptimizeKeyframe);
+    assert.equal(session, sampling._workflowPreview);
+    assert(session.active);
+    return true;
+};
+await sampling._runPromptManagerWorkflow('draft');
+assert.equal(sampling._aiOptimizeRightTab, 'preview');
+assert(sampling._workflowPreview);
+console.log('PASS: keyframe draft sampling creates and passes the same visible workflow preview session');
+sampling._workflowPreview.promptId = 'sampling';
+sampling._receiveH3Draft = () => {};
+sampling._receiveKeyframeVideo = () => {};
+const ready = method('_onH3ClipVideoReady');
+ready.call(sampling, {detail:{prompt_id:'sampling',video:{clip_id:'selected',type:'output',
+    filename:'draft.mp4',subfolder:'drafts',h3_draft:{id:'version'}}}});
+assert.equal(sampling.rendered.entry.url, '/view/drafts/draft.mp4');
+assert.equal(sampling._workflowPreview.savedFile, 'drafts/draft.mp4');
+ready.call(sampling, {detail:{prompt_id:'sampling',video:{clip_id:'selected',type:'output',
+    filename:'shot.mp4',subfolder:'shots',keyframe_segment:{start_frame:120}}}});
+assert.equal(sampling.rendered.entry.url, '/view/shots/shot.mp4');
+assert(sampling._workflowPreview.active, 'saved continuation segment must not stop the ongoing preview session');
+console.log('PASS: draft and keyframe saved videos populate the preview without ending continuation early');

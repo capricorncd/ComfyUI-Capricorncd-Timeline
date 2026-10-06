@@ -378,3 +378,5 @@ The selected keyframe settings emit `prompt-expand` to open the existing Clip pr
 Shared buttons with `role="menuitem"` or `role="menuitemcheckbox"` have no border or resting fill, including danger actions. Context menus in the toolbar and main/child track hover menus use this presentation; danger text and hover feedback remain red.
 
 Running from keyframe prompt management queues only the captured keyframe interval, including draft sampling; the interval ends at the next keyframe or the Clip end. Clearing timeline selection while the dialog is open does not change this scope. Removed points and locked Clips do not queue a run.
+
+Selecting a library asset docks the existing preview body into the program stage and its header, details/settings and actions into the right sidebar. It does not open a blocking modal or focus the name field. The active library card has an accent outline; switching assets updates it. Selecting or playing the timeline, selecting sidebar tabs or closing the asset settings restores the normal timeline view. Clip-specific media dialogs retain their existing behavior.

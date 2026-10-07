@@ -247,17 +247,23 @@ class GeneratorTests(unittest.TestCase):
 
     def test_keyframe_long_interval_saves_continuations_without_composing(self):
         result = self.run_node([dict(id="a", clip_role="video_ref", start_ms=0, end_ms=25000)])
-        self.assertEqual(len(self.saved), 3)
+        self.assertEqual(len(self.saved), 2)
         self.assertFalse(self.composed)
-        self.assertEqual(sum(name == "MiniMaxH3MotionContextSaveLatent" for name, _ in self.calls), 2)
-        self.assertEqual(sum(name == "MiniMaxH3MotionContextLoadLatent" for name, _ in self.calls), 2)
+        self.assertEqual(sum(name == "MiniMaxH3MotionContextSaveLatent" for name, _ in self.calls), 1)
+        self.assertEqual(sum(name == "MiniMaxH3MotionContextLoadLatent" for name, _ in self.calls), 1)
         videos = result["ui"]["clip_videos"]
-        self.assertEqual([video["clip_id"] for video in videos], ["a"] * 3)
-        self.assertEqual([video["keyframe_segment"]["start_frame"] for video in videos], [0, 200, 400])
+        self.assertEqual([video["clip_id"] for video in videos], ["a"] * 2)
+        self.assertEqual([video["keyframe_segment"]["start_frame"] for video in videos], [0, 300])
         self.assertEqual(videos[-1]["keyframe_segment"]["end_frame"], 600)
         for video in videos:
             segment = video["keyframe_segment"]
             self.assertGreaterEqual(segment["raw_frames"] - segment["trim_frames"], segment["end_frame"] - segment["start_frame"])
+
+    def test_manual_segment_duration_is_used(self):
+        result = self.run_node([dict(id="a", clip_role="video_ref", start_ms=0, end_ms=25000)],
+                               max_segment_seconds=10)
+        videos = result["ui"]["clip_videos"]
+        self.assertEqual([video["keyframe_segment"]["start_frame"] for video in videos], [0, 200, 400])
 
     def test_latent_name_matches_video_and_two_pass_names_do_not_collide(self):
         self.run_node([dict(id="a", start_ms=0, end_ms=5000, save_latent=True)])
@@ -282,11 +288,11 @@ class GeneratorTests(unittest.TestCase):
         result = self.run_node([dict(id="a", start_ms=0, end_ms=25000, seed=10, clip_role="video_ref")],
             h3_generation={"action": "draft"}, preview_sampling_batch=2)
         videos = result["ui"]["clip_videos"]
-        self.assertEqual([v["keyframe_segment"]["start_frame"] for v in videos], [0, 200, 400, 0, 200, 400])
-        self.assertEqual([v["clip_id"] for v in videos], ["a"] * 6)
+        self.assertEqual([v["keyframe_segment"]["start_frame"] for v in videos], [0, 300, 0, 300])
+        self.assertEqual([v["clip_id"] for v in videos], ["a"] * 4)
         calls = [name for name, _ in self.calls]
-        self.assertEqual(calls.count("MiniMaxH3MotionContextLoadLatent"), 4)
-        self.assertEqual(self.scope["save_draft"].call_count, 6)
+        self.assertEqual(calls.count("MiniMaxH3MotionContextLoadLatent"), 2)
+        self.assertEqual(self.scope["save_draft"].call_count, 4)
         self.assertFalse(self.composed)
 
     def test_preview_batch_defaults_to_one(self):

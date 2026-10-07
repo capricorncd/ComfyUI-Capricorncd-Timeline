@@ -212,6 +212,7 @@ class CAP_H3VideoGenerator:
                 "interpolation_config": ("CAP_H3_INTERPOLATION_CONFIG", {"tooltip": "Connect H3 Interpolation Config. Enable or disable interpolation on that config node."}),
                 "concat_full_videos": ("BOOLEAN", {"default": False, "tooltip": "When compose_final is enabled, concatenate complete generated files in generation order. Keep all frames and original audio; ignore Clip durations, context replacement and head/tail trimming. Also supports keyframe interval runs. A single file is reused."}),
                 "preview_sampling_batch": ("INT", {"default": 1, "min": 1, "max": 100, "tooltip": "Number of preview candidates per Clip, generated sequentially with different seeds. Only used by Batch preview sampling."}),
+                "max_segment_seconds": ("FLOAT", {"default": 15.0, "min": 0.1, "max": 3600.0, "step": 0.1, "tooltip": "Maximum duration per generated segment. Longer video-reference Clips and keyframe intervals use latent continuation. This is separate from second sampling."}),
             },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "unique_id": "UNIQUE_ID", "dynprompt": "DYNPROMPT"},
         }
@@ -227,14 +228,14 @@ class CAP_H3VideoGenerator:
                  prompt=None, extra_pnginfo=None,
                  unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False,
                  face_refine_config=None, selflift_config=None,
-                 interpolation_config=None, audio_refine_config=None, preview_sampling_batch=1, concat_full_videos=False, auto_prompt_config=None):
+                 interpolation_config=None, audio_refine_config=None, preview_sampling_batch=1, concat_full_videos=False, auto_prompt_config=None, max_segment_seconds=15):
         data = json.loads(data_json)
         width, height, fps = _validate(data)
         request = data.get("h3_generation") or {}
         stage = request.get("action", "normal")
         if stage not in ("normal", "draft", "refine"):
             raise ValueError("Unknown H3 generation action.")
-        segmented = (stage in ("normal", "draft") or (stage == "refine" and request.get("keyframe_runs"))) and expand_keyframe_runs(data)
+        segmented = (stage in ("normal", "draft") or (stage == "refine" and request.get("keyframe_runs"))) and expand_keyframe_runs(data, max_segment_seconds)
         if stage != "refine":
             data.setdefault("h3_generation", {})["chain_all_clips"] = bool(chain_all_clips)
         if chain_all_clips and stage != "refine":

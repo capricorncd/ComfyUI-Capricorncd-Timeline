@@ -3,7 +3,7 @@ import copy
 import math
 
 
-def expand_keyframe_runs(data):
+def expand_keyframe_runs(data, max_segment_seconds=15):
     requests = {str(run["clip_id"]): run for run in (data.get("h3_generation") or {}).get("keyframe_runs", [])}
     materials = {str(row["id"]): row for row in data.get("materials", [])}
     expanded = []
@@ -14,7 +14,7 @@ def expand_keyframe_runs(data):
         end_ms = clip.get("preview_end_ms", clip["end_ms"])
         duration_frames = round((end_ms - start_ms) * fps / 1000)
         request = requests.get(parent)
-        if request is None and (clip.get("clip_role") != "video_ref" or duration_frames <= 10 * fps):
+        if request is None and (clip.get("clip_role") != "video_ref" or duration_frames <= max_segment_seconds * fps):
             expanded.append(clip)
             continue
         request = request or {"fps": fps, "clip_start_ms": start_ms,
@@ -34,7 +34,7 @@ def expand_keyframe_runs(data):
             local_end = origin + round(last * 1000 / fps)
             if local_start < start_ms - 1 or local_end > end_ms + 1:
                 raise ValueError("Keyframe interval is outside the Clip. Confirm the intervals again.")
-            count = math.ceil((last - first) / max(1, math.floor(10 * fps)))
+            count = math.ceil((last - first) / max(1, math.floor(max_segment_seconds * fps)))
             keyframe_prompt = interval.get("prompt") or ""
             prompt = keyframe_prompt if keyframe_prompt.strip() else clip.get("prompt", "")
             previous_id = None

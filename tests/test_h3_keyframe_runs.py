@@ -21,14 +21,24 @@ class KeyframeRunTests(unittest.TestCase):
         data['clips'][0]['h3_drafts'] = [{'id': 'saved-preview'}]
         self.assertTrue(module.expand_keyframe_runs(data))
         self.assertTrue(all(row['h3_drafts'] == [{'id': 'saved-preview'}] for row in data['clips']))
-        self.assertEqual(len(data['clips']), 3)
+        self.assertEqual(len(data['clips']), 2)
         self.assertEqual(sum(row['h3_timing']['play_frames'] for row in data['clips']), 600)
-        self.assertEqual([row['save_latent'] for row in data['clips']], [True, True, False])
+        self.assertEqual([row['save_latent'] for row in data['clips']], [True, False])
         self.assertEqual(data['clips'][1]['h3_timing']['previous_source_clip_id'], data['clips'][0]['source_clip_id'])
         for row in data['clips']:
             timing = row['h3_timing']
-            self.assertLessEqual(timing['play_frames'], 240)
+            self.assertLessEqual(timing['play_frames'], 360)
             self.assertEqual(timing['raw_frames'] - timing['context_frames'] + timing['context_carry_frames'] - timing['tail_frames'], timing['play_frames'])
+
+    def test_manual_segment_limit(self):
+        data = self.data()
+        module.expand_keyframe_runs(data, 10)
+        self.assertEqual(len(data['clips']), 3)
+        self.assertTrue(all(row['h3_timing']['play_frames'] <= 240 for row in data['clips']))
+        data = self.data()
+        data['clips'][0]['end_ms'] = 16000
+        self.assertFalse(module.expand_keyframe_runs(data))
+        self.assertEqual(len(data['clips']), 1)
 
     def test_selection_reference_slice_and_prompt(self):
         data = self.data()

@@ -4,9 +4,9 @@ import { iconHtml } from '../cap_icons.js';
 import { makeT } from '../cap_i18n.js';
 
 const t = makeT({
-    en: {range: 'Intervals', rangeHelp: 'e.g. 1,3,5-90 (inclusive)', exclude: 'Exclude', invalid: 'Use interval numbers and inclusive ranges, e.g. 1,3,5-90.', title: 'Run keyframe intervals', hint: 'Select intervals to run; uncheck to exclude. Intervals over 10 seconds use latent continuation. Each result is kept separately in Trim Video at its original position, with excess frames trimmed.', all: 'Select all', none: 'Clear selection', run: 'Run selected', cancel: 'Cancel', parts: '{count} passes'},
-    zh: {range: '区间编号', rangeHelp: '例如 1,3,5-90（含 90）', exclude: '除外', invalid: '请输入区间编号或包含两端的范围，例如 1,3,5-90。', title: '运行关键帧区间', hint: '勾选执行，取消勾选即排除。超过 10 秒的区间使用 latent 分段续接；生成结果分别加入修剪视频管理，按原位置对齐并裁掉多余帧。', all: '全选', none: '全不选', run: '运行所选区间', cancel: '取消', parts: '{count} 次生成'},
-    ja: {range: '区間番号', rangeHelp: '例：1,3,5-90（90 を含む）', exclude: '除外', invalid: '区間番号または範囲を入力してください（例：1,3,5-90）。', title: 'キーフレーム区間を実行', hint: '実行する区間を選択してください。10 秒を超える区間は latent を引き継いで生成します。各動画は元の位置とトリム範囲で動画編集に追加されます。', all: 'すべて選択', none: '選択解除', run: '選択区間を実行', cancel: 'キャンセル', parts: '{count} 回生成'},
+    en: {range: 'Intervals', rangeHelp: 'e.g. 1,3,5-90 (inclusive)', exclude: 'Exclude', invalid: 'Use interval numbers and inclusive ranges, e.g. 1,3,5-90.', title: 'Run keyframe intervals', hint: 'Select intervals to run; uncheck to exclude. Intervals over 15 seconds use latent continuation. Each result is kept separately in Trim Video at its original position, with excess frames trimmed.', all: 'Select all', none: 'Clear selection', run: 'Run selected', cancel: 'Cancel', parts: '{count} passes'},
+    zh: {range: '区间编号', rangeHelp: '例如 1,3,5-90（含 90）', exclude: '除外', invalid: '请输入区间编号或包含两端的范围，例如 1,3,5-90。', title: '运行关键帧区间', hint: '勾选执行，取消勾选即排除。超过 15 秒的区间使用 latent 分段续接；生成结果分别加入修剪视频管理，按原位置对齐并裁掉多余帧。', all: '全选', none: '全不选', run: '运行所选区间', cancel: '取消', parts: '{count} 次生成'},
+    ja: {range: '区間番号', rangeHelp: '例：1,3,5-90（90 を含む）', exclude: '除外', invalid: '区間番号または範囲を入力してください（例：1,3,5-90）。', title: 'キーフレーム区間を実行', hint: '実行する区間を選択してください。15 秒を超える区間は latent を引き継いで生成します。各動画は元の位置とトリム範囲で動画編集に追加されます。', all: 'すべて選択', none: '選択解除', run: '選択区間を実行', cancel: 'キャンセル', parts: '{count} 回生成'},
 });
 
 export function parseIntervalSelection(value, count) {
@@ -100,7 +100,7 @@ export async function confirmKeyframeRun(editor, clips) {
             const number = document.createElement('span'); number.className = 'cat-te-keyframe-interval-number'; number.textContent = String(interval.number).padStart(2, '0');
             const time = document.createElement('span'); time.textContent = `${(interval.start_frame / fps).toFixed(2)}–${(interval.end_frame / fps).toFixed(2)} s`;
             const parts = document.createElement('span'); parts.className = 'cat-te-keyframe-interval-parts';
-            parts.textContent = t('parts', {count: Math.ceil((interval.end_frame - interval.start_frame) / Math.floor(10 * fps))});
+            parts.textContent = t('parts', {count: Math.ceil((interval.end_frame - interval.start_frame) / Math.floor(15 * fps))});
             header.append(number, time, parts); text.append(header);
             if (interval.prompt) { const prompt = document.createElement('small'); prompt.textContent = interval.prompt; text.append(prompt); }
             label.append(input, text); body.append(label); checks.push({input, run, interval});

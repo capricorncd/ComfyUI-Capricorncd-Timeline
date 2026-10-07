@@ -141,6 +141,7 @@ export function referenceTimelineControls(app) {
         clip.duration = duration;
         app._rememberResourceTiming(clip);
         clip._applyPosition();
+        clip.track.arrangeClips();
         app._ensureTimelineLength(clip.endTime);
         app._refreshTimelineDuration();
         app._saveToWidgets();

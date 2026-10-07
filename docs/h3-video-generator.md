@@ -1,5 +1,7 @@
 # MiniMax H3 Video Generator
 
+Maximum segment duration defaults to 15 seconds and is editable on the node. Longer video-reference Clips and keyframe intervals use latent continuation, with each segment associated at its original position. This setting is independent of second sampling.
+
 [README](../README.md) · [All nodes](nodes.md)
 
 Node ID: `CAP_H3VideoGenerator`. Category: `Capricorncd/MiniMaxH3`.

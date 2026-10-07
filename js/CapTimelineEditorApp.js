@@ -8092,7 +8092,7 @@ export class CapTimelineEditorApp {
             const intervalIndex = Number(marker[1]) - 1;
             const interval = run.intervals.find((row, index) => (row.number ?? index + 1) === intervalIndex + 1);
             if (interval) {
-                const count = Math.ceil((interval.end_frame - interval.start_frame) / Math.max(1, Math.floor(10 * run.fps)));
+                const count = Math.ceil((interval.end_frame - interval.start_frame) / Math.max(1, Math.floor(15 * run.fps)));
                 const part = Number(marker[2]);
                 if (part >= 1 && part <= count) {
                     const frames = interval.end_frame - interval.start_frame;
@@ -11499,11 +11499,6 @@ export class CapTimelineEditorApp {
             const next = { videos, audios, per_track: st.perTrack === true };
             if (JSON.stringify(m.referenceTimeline) === JSON.stringify(next)) return;
             if (!st.undoRecorded) { this._recordUndo(); st.undoRecorded = true; }
-            const referenceDuration = rows => Math.max(0,
-                ...rows.videos.filter(row => row.enabled !== false).map(row => (Number(row.edit_start_sec) || 0) + (this._genEffectiveDurationSec(row) || 0)),
-                ...rows.audios.filter(row => row.enabled !== false).map(row => (Number(row.edit_start_sec) || 0) + (Number(row.duration) || 0)));
-            const duration = referenceDuration(next);
-            const timingChanged = m.referenceTimeline && referenceDuration(m.referenceTimeline) !== duration;
             const target = this._directorKeyframes?.target(clip);
             if (target && !target.local) {
                 m.video_shots = {source_id: clip.id, points: this._directorKeyframes.points(target).map(point => ({
@@ -11511,15 +11506,7 @@ export class CapTimelineEditorApp {
                 }))};
             }
             m.referenceTimeline = next;
-            if (timingChanged && duration > 0) {
-                clip.duration = duration;
-                this._rememberResourceTiming(clip);
-                clip._applyPosition();
-                clip.track.arrangeClips();
-                this._ensureTimelineLength(clip.endTime);
-                this._refreshTimelineDuration();
-                if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
-            }
+            clip.sourceDuration = Infinity;
             this._directorKeyframes?.sync(clip);
             this._saveToWidgets();
             this._scheduleProgramPreview();
@@ -13204,6 +13191,7 @@ export class CapTimelineEditorApp {
         clip._waveformRequest = null;
         const m = this._ensureClipMeta(clip);
         this._normalizeVisualMeta(clip, m);
+        if (isDirectorTrackType(clip.track?.type) && m.referenceTimeline) clip.sourceDuration = Infinity;
         const items = this._clipItems(m);
         const first = items.find((it) => it.enabled !== false) || items[0];
         const enabledGen = this._firstEnabledGeneratedVideo(m);
@@ -13244,7 +13232,9 @@ export class CapTimelineEditorApp {
                     if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
                 }).catch(() => this._refreshClipAppearance(clip));
                 void this._fetchPeaks(url).then((r) => {
-                    clip.sourceDuration = r.duration || clip.sourceDuration;
+                    if (!isDirectorTrackType(clip.track?.type) || !m.referenceTimeline) {
+                        clip.sourceDuration = r.duration || clip.sourceDuration;
+                    }
                     clip.waveformVolume = normalizeClipVolume(this._ensureClipMeta(clip).volume);
                     clip.waveformPeaks = r.peaks[0];
                     clip.hasAudio = true;
@@ -21056,7 +21046,17 @@ export class CapTimelineEditorApp {
     _syncAiOptimizeNavButtons() {
         const open = !!(this.aiOptimizeModal && !this.aiOptimizeModal.hidden);
         const clips = open ? this._aiOptimizeEligibleClips() : [];
-        const multi = clips.length > 1 && !this._aiOptimizeKeyframe;
+        const keyframe = this._aiOptimizeKeyframe;
+        const multi = open && (keyframe
+            ? this._directorKeyframes.points(keyframe.target).filter(point => point.time >= keyframe.target.start
+                && point.time < keyframe.target.start + keyframe.target.duration).length > 1
+            : clips.length > 1);
+        for (const [button, direction] of [[this.aiOptimizePrevBtn, "prev"], [this.aiOptimizeNextBtn, "next"]]) {
+            if (!button) continue;
+            const label = T(`ai_optimize_${direction}_${keyframe ? "keyframe" : "clip"}_title`);
+            button.title = label;
+            button.setAttribute("aria-label", label);
+        }
         if (this.aiOptimizePrevBtn) this.aiOptimizePrevBtn.disabled = !multi;
         if (this.aiOptimizeNextBtn) this.aiOptimizeNextBtn.disabled = !multi;
     }
@@ -21104,7 +21104,21 @@ export class CapTimelineEditorApp {
     }
 
     async _stepAiOptimizeClip(delta) {
-        if (!this.aiOptimizeModal || this.aiOptimizeModal.hidden || this._aiOptimizeKeyframe) return;
+        if (!this.aiOptimizeModal || this.aiOptimizeModal.hidden) return;
+        const keyframe = this._aiOptimizeKeyframe;
+        if (keyframe) {
+            const {target, point} = keyframe;
+            const points = this._directorKeyframes.points(target).filter(row => row.time >= target.start
+                && row.time < target.start + target.duration).sort((a, b) => a.time - b.time);
+            const index = points.indexOf(point);
+            if (index < 0 || points.length < 2) return;
+            this._onPromptManagerSourceInput();
+            const next = points[(index + delta + points.length) % points.length];
+            this._aiOptimizeKeyframe = {target, point: next};
+            this._directorKeyframes.select(target, next);
+            await this._bindAiOptimizeToClip(target.clip, {reloadModels: false});
+            return;
+        }
         const clips = this._aiOptimizeEligibleClips();
         if (clips.length < 2) return;
         let idx = clips.findIndex((c) => c.id === this._aiOptimizeClipId);

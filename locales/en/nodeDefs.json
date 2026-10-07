@@ -769,6 +769,10 @@
         "name": "Preview sampling batch",
         "tooltip": "Number of preview candidates per Clip, generated sequentially with different seeds. Only used by Batch preview sampling; defaults to 1."
       },
+      "max_segment_seconds": {
+        "name": "Maximum segment duration (seconds)",
+        "tooltip": "Defaults to 15 seconds. Longer video-reference Clips and keyframe intervals use latent continuation. Independent of second sampling."
+      },
       "auto_prompt_config": {
         "name": "H3 Auto Prompt Config"
       }

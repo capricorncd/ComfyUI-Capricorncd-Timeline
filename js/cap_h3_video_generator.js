@@ -2,7 +2,7 @@ import { app } from "../../scripts/app.js";
 
 const INPUT_ORDER = [
     "model", "base_model", "clip", "vae", "audio_vae", "data_json", "audio_refine_config", "face_refine_config", "selflift_config", "interpolation_config",
-    "steps", "attention",
+    "steps", "attention", "max_segment_seconds",
     "second_sampling", "first_pass_megapixels", "preview_sampling_batch", "upscaler_model", "refine_sigmas",
     "motion_deblur",
     "sampling_preview", "preview_tiny_vae",
@@ -45,7 +45,7 @@ app.registerExtension({
             // LiteGraph saves widget values positionally; restore by the saved names.
             const inputWidgets = info.inputs?.filter(input => WIDGET_ORDER.includes(input.widget?.name) || ["strict_keyframes", "audio_refine", "audio_refine_steps", "normalize_audio"].includes(input.widget?.name))
                 .map(input => input.widget.name) ?? [];
-            const legacyOrder = schemaOrder.filter(name => !["preview_sampling_batch", "concat_full_videos"].includes(name))
+            const legacyOrder = schemaOrder.filter(name => !["preview_sampling_batch", "concat_full_videos", "max_segment_seconds"].includes(name))
                 .map(name => name === "chain_all_clips" ? "normalize_audio" : name);
             if (!info.properties?.cap_h3_widget_order && info.widgets_values?.length >= legacyOrder.length + 1) {
                 legacyOrder.splice(legacyOrder.indexOf("normalize_audio"), 0, "audio_refine", "audio_refine_steps");
@@ -54,7 +54,9 @@ app.registerExtension({
                 }
             }
             const savedOrder = info.properties?.cap_h3_widget_order
-                ?? (inputWidgets.length === info.widgets_values?.length ? inputWidgets : legacyOrder.slice(0, info.widgets_values?.length));
+                ?? (inputWidgets.length === info.widgets_values?.length ? inputWidgets
+                    : inputWidgets.length - 1 === info.widgets_values?.length ? inputWidgets.filter(name => name !== "max_segment_seconds")
+                        : legacyOrder.slice(0, info.widgets_values?.length));
             if (Array.isArray(info.widgets_values) && savedOrder.length === info.widgets_values.length) {
                 const values = new Map(savedOrder.map((name, i) => [name, info.widgets_values[i]]));
                 info = {...info, widgets_values: this.widgets.filter(widget => WIDGET_ORDER.includes(widget.name))

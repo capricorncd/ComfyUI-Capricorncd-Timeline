@@ -18974,7 +18974,7 @@ export class CapTimelineEditorApp {
                 const m = this._meta.get(clip.id) ?? defaultImageMeta();
                 if (m.disabled || m.visible === false) continue;
                 const drafts = this._draftPreviewMode && !onlyClip && isDirectorTrackType(track.type);
-                const refs = !drafts && !onlyClip && m.referenceTimeline && !this._clipUsesGeneratedPreview(m)
+                const refs = !drafts && !onlyClip && m.referenceTimeline?.videos?.some(row => row.enabled !== false) && !this._clipUsesGeneratedPreview(m)
                     ? referenceTimeline(this, clip) : null;
                 if (isDirectorTrackType(track.type) && (refs || drafts || onlyClip || this._clipUsesGeneratedPreview(m))) {
                     const gens = refs ? refs.videos.filter(g => g.enabled !== false)
@@ -19029,9 +19029,6 @@ export class CapTimelineEditorApp {
                 });
             }
         }
-        if (layers.some((layer) => layer.kind === "generated")) {
-            return layers.filter((layer) => layer.mediaTrack || (layer.kind !== "image" && layer.kind !== "package"));
-        }
         return layers;
     }
 
@@ -19042,7 +19039,6 @@ export class CapTimelineEditorApp {
      * `fit`: "cover" (default, crop to fill) or "contain" (letterbox). */
     _drawPreviewLayersOnce(ctx, cw, ch, t, { onVideoUsed, layers: layersOpt, fit = "cover", playing = null } = {}) {
         const layers = layersOpt || this._collectPreviewLayers(t);
-        const generatedActive = layers.some((layer) => layer.kind === "generated");
         const drawMedia = fit === "contain"
             ? (c, m, w, h) => this._drawContain(c, m, w, h)
             : (c, m, w, h) => this._drawCover(c, m, w, h);
@@ -19050,7 +19046,6 @@ export class CapTimelineEditorApp {
         let pending = false;
 
         for (const layer of layers) {
-            if (generatedActive && !layer.mediaTrack && (layer.kind === "image" || layer.kind === "package")) continue;
             if (layer.kind === "package") {
                 ctx.fillStyle = "#1a1a28";
                 ctx.fillRect(0, 0, cw, ch);

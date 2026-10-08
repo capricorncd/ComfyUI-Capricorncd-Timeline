@@ -17294,6 +17294,11 @@ export class CapTimelineEditorApp {
                                 }
                             }
                         }
+                        for (const reference of [...(meta.referenceTimeline?.videos || []), ...(meta.referenceTimeline?.audios || [])]) {
+                            if (reference.media_id !== dup.id) continue;
+                            if (reference.id === `ref_${dup.id}`) reference.id = `ref_${row.id}`;
+                            reference.media_id = row.id;
+                        }
                     }
                 }
                 this._projectResources = this._projectResources.filter((resource) => resource !== dup);
@@ -17311,6 +17316,11 @@ export class CapTimelineEditorApp {
         for (const track of this._timeline?.tracks ?? []) {
             for (const clip of track.clips) {
                 const meta = this._meta.get(clip.id);
+                for (const reference of [...(meta?.referenceTimeline?.videos || []), ...(meta?.referenceTimeline?.audios || [])]) {
+                    if (reference.media_id !== mediaId && reference.file !== oldFile) continue;
+                    reference.file = newFile;
+                    reference.location = "input";
+                }
                 const uses = track.type === "audio" || kind === "audio"
                     ? ((mediaId && meta?.mediaId === mediaId) || clip.src === oldFile)
                     : this._clipItems(meta).some((item) => (mediaId && item.id === mediaId) || item.file === oldFile);
@@ -17335,7 +17345,7 @@ export class CapTimelineEditorApp {
                     this._normalizeVisualMeta(clip, meta, { seedFromClip: false });
                     this._syncClipPrimaryAppearance(clip);
                     const first = this._clipItems(meta)[0];
-                    if (first?.kind === "video") {
+                    if (first?.kind === "video" && !isDirectorTrackType(track.type)) {
                         const url = this._videoUrl(first.file);
                         void this._probeVideoDuration(url).then((d) => {
                             if (!Number.isFinite(d) || d <= 0) return;

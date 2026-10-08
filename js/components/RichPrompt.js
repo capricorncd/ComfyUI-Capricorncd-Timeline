@@ -274,7 +274,8 @@ export function undoRichPrompt(ta, redo = false) {
 
 export function replaceRichPromptRange(ta, text, start = ta.selectionStart, end = ta.selectionEnd, allowProtected = false, inputType = "") {
     if (!allowProtected && ta._capProtectedRanges?.().some(range => start === end
-        ? start > range.start && start < range.end : start < range.end && end > range.start)) return;
+        ? start > range.start && start < range.end
+        : start < range.end && end > range.start && (start > range.start || end < range.end))) return;
     if (ta.readOnly || ta.disabled) return;
     ta.focus();
     preparePromptEdit(ta);

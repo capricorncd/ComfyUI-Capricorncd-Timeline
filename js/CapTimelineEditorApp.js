@@ -18147,12 +18147,29 @@ export class CapTimelineEditorApp {
         return this._queueClipsDownstream([clip], workflowPreview, {action});
     }
 
+    async _restoreH3DraftHistory(clip) {
+        const response = await api.fetchApi('/history?max_items=100');
+        if (!response.ok || this._destroyed || !this._isNodeOnLiveGraph()) return;
+        const history = await response.json();
+        if (this._destroyed || !this._isNodeOnLiveGraph() || this._findClipById(clip.id) !== clip) return;
+        for (const run of Object.values(history)) {
+            for (const output of Object.values(run.outputs || {})) {
+                for (const video of output.clip_videos || []) {
+                    const version = video.h3_draft;
+                    if (!version || String(version.clip_id) !== String(clip.id)) continue;
+                    const meta = this._ensureClipMeta(clip);
+                    if (meta.h3Drafts?.some(row => row.id === version.id)) continue;
+                    this._receiveH3Draft(version);
+                }
+            }
+        }
+    }
+
     _receiveH3Draft(version) {
         if (this._deletedH3DraftIds?.has(version.id)) return;
         if (this._destroyed || !this._isNodeOnLiveGraph() || !this._teNotifyBelongsHere(version.clip_id, version.source_output)) return;
         const parsed = this._parseProjectWidgetValue();
-        const target = parsed.project?.tracks?.flatMap(track => track.clips || []).find(clip => clip.id === version.clip_id);
-        if (!target || target.h3_draft_removed?.includes(version.id)) return;
+        const target = parsed.project?.tracks?.flatMap(track => track.clips || []).find(clip => String(clip.id) === String(version.clip_id));
         const clip = this._timelineReady && this._findClipById(version.clip_id);
         if (clip) {
             const meta = this._ensureClipMeta(clip);
@@ -18160,9 +18177,13 @@ export class CapTimelineEditorApp {
             meta.h3Drafts ||= [];
             if (!meta.h3Drafts.some(row => row.id === version.id)) meta.h3Drafts.unshift({...version, enabled: true});
             this._saveToWidgets();
+            if (this._historyReady) this._openedProjectJson = this._editorContentJson();
             if (this._selClip?.id === clip.id) this._setVisualSettingsEnabled(true, meta);
+            this._refreshKeyframeDrafts?.();
+            this._scheduleProgramPreview?.();
             if (this._h3DraftVersions?.dialog.open && this._h3DraftVersions.clipId === clip.id) this._h3DraftVersions.render();
         } else {
+            if (!target || target.h3_draft_removed?.includes(version.id)) return;
             target.h3_drafts ||= [];
             if (!target.h3_drafts.some(row => row.id === version.id)) target.h3_drafts.unshift({...version, enabled: true});
             this._writeProjectJson(JSON.stringify(parsed.project));

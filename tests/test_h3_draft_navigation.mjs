@@ -8,7 +8,7 @@ const audio={id:'audio',track:{type:'audio'}};
 const manager=Object.create(Manager.prototype);
 let renders=0,selected,paused=0,shown=0;
 manager.dialog={open:true,show(){shown++;this.open=true;},querySelectorAll:()=>[{pause(){paused++;}}]};
-manager.editor={_timeline:{tracks:[track,{type:'audio',clips:[audio]}],selectClip(clip){selected=clip;manager.followSelection(clip);}}};
+manager.editor={_restoreH3DraftHistory:async()=>{},_timeline:{tracks:[track,{type:'audio',clips:[audio]}],selectClip(clip){selected=clip;manager.followSelection(clip);}}};
 manager.render=()=>{manager.stop();renders++;};
 manager.open(a);manager.previewId='old-version';
 manager.step(1);
@@ -23,7 +23,7 @@ manager.followSelection(null);assert.equal(manager.clipId,'a');
 manager.dialog.open=false;manager.followSelection(b);assert.equal(manager.clipId,'a');assert.equal(shown,0);
 console.log('PASS: Clip order, timeline selection sync, boundary navigation, preview reset, playback cleanup and closed-dialog guard');
 
-const timeSource=source.slice(source.indexOf('export function draftStartTime'),source.indexOf('export class H3DraftVersions'));
+const timeSource=source.slice(source.indexOf('export function draftStartTime'),source.indexOf('export function draftGeneratedTime'));
 const time=new Function(timeSource.replace('export function','return function'))();
 assert.equal(time({keyframe_segment:{start_frame:24*65+7,fps:24}}),'01:05.07');
 assert.equal(time({keyframe_segment:{start_frame:30*60,fps:30}}),'01:00.00');

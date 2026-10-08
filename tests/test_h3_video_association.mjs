@@ -121,6 +121,41 @@ draftEditor._onTimelineVideoSaved({detail: {clip_id: 'a', file: draft.file}});
 assert.equal(files(draftEditor).length, 0, 'generic save notification excludes low-resolution previews');
 assert.deepEqual(draftEditor._collectExecutedOutputVideos({output: {video: [{filename: draft.file, type: 'output'}]}}), []);
 console.log('PASS: first-pass closed-editor persistence, disabled/deleted replay and composition isolation');
+const liveDraftEditor = editor(true);
+const liveClip = {id: 'a'};
+const liveMeta = {};
+let savedDrafts = 0, refreshedDrafts = 0;
+liveDraftEditor.project.tracks[0].clips = [];
+liveDraftEditor._findClipById = id => id === 'a' ? liveClip : null;
+liveDraftEditor._ensureClipMeta = () => liveMeta;
+liveDraftEditor._saveToWidgets = () => savedDrafts++;
+liveDraftEditor._refreshKeyframeDrafts = () => refreshedDrafts++;
+liveDraftEditor._receiveH3Draft = method('_receiveH3Draft');
+liveDraftEditor._receiveH3Draft(draft);
+assert.equal(liveMeta.h3Drafts[0].id, draft.id, 'Live Clip receives previews even when the widget snapshot is stale');
+assert.equal(savedDrafts, 1);
+assert.equal(refreshedDrafts, 1);
+liveMeta.h3DraftRemoved = ['removed'];
+liveDraftEditor._receiveH3Draft({...draft, id: 'removed'});
+assert.equal(liveMeta.h3Drafts.length, 1, 'Live removal markers still prevent resurrection');
+console.log('PASS: live preview association uses current Clip state and refreshes keyframe sampling management');
+const restoreStart = source.indexOf('    async _restoreH3DraftHistory(');
+const restoreHistory = new Function('api', `return ({${source.slice(restoreStart, source.indexOf('\n    }', restoreStart) + 6)}})._restoreH3DraftHistory`)({
+    fetchApi: async path => {
+        assert.equal(path, '/history?max_items=100');
+        return {ok: true, json: async () => ({run: {outputs: {generator: {clip_videos: [
+            {h3_draft: draft}, {h3_draft: {...draft, id: 'recovered'}},
+            {h3_draft: {...draft, id: 'removed'}}, {h3_draft: {...draft, clip_id: 'other', id: 'foreign'}},
+        ]}}}})};
+    },
+});
+await restoreHistory.call(liveDraftEditor, liveClip);
+assert.deepEqual(liveMeta.h3Drafts.map(row => row.id), ['recovered', draft.id]);
+assert.equal(savedDrafts, 2, 'History skips known previews and respects removed versions');
+liveDraftEditor._findClipById = () => null;
+await restoreHistory.call(liveDraftEditor, liveClip);
+assert.equal(savedDrafts, 2, 'History recovery stops if the Clip was deleted while loading');
+console.log('PASS: history restores missing previews without duplicates, removed versions or unrelated Clips');
 const segmentsEditor = editor(false);
 const segmentEvent = event('a', 'segment1.mp4');
 segmentEvent.detail.video.keyframe_segment = {start_frame: 0, end_frame: 240, fps: 24, output_fps: 24, trim_frames: 0, raw_frames: 243};

@@ -13191,7 +13191,7 @@ export class CapTimelineEditorApp {
         clip._waveformRequest = null;
         const m = this._ensureClipMeta(clip);
         this._normalizeVisualMeta(clip, m);
-        if (isDirectorTrackType(clip.track?.type) && m.referenceTimeline) clip.sourceDuration = Infinity;
+        if (isDirectorTrackType(clip.track?.type)) clip.sourceDuration = Infinity;
         const items = this._clipItems(m);
         const first = items.find((it) => it.enabled !== false) || items[0];
         const enabledGen = this._firstEnabledGeneratedVideo(m);
@@ -13232,7 +13232,7 @@ export class CapTimelineEditorApp {
                     if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
                 }).catch(() => this._refreshClipAppearance(clip));
                 void this._fetchPeaks(url).then((r) => {
-                    if (!isDirectorTrackType(clip.track?.type) || !m.referenceTimeline) {
+                    if (!isDirectorTrackType(clip.track?.type)) {
                         clip.sourceDuration = r.duration || clip.sourceDuration;
                     }
                     clip.waveformVolume = normalizeClipVolume(this._ensureClipMeta(clip).volume);
@@ -14700,7 +14700,7 @@ export class CapTimelineEditorApp {
             name: filename.split(/[\\/]/).pop(),
             startTime: atSec,
             duration: dur,
-            sourceDuration: dur,
+            sourceDuration: isMediaTrackType(track.type) ? dur : Infinity,
             sourceOffset: 0,
             thumbnail,
             src: filename,
@@ -14723,6 +14723,7 @@ export class CapTimelineEditorApp {
         this._timeline.setCurrentTime(atSec);
         this._decorateClip(clip);
         this._refreshTimelineDuration();
+        this._saveToWidgets();
     }
 
     async _probeVideoDuration(url) {
@@ -14879,6 +14880,7 @@ export class CapTimelineEditorApp {
             for (const clip of track.clips) {
                 if (!clip.src) continue;
                 const isAudio = track.type === "audio";
+                if (isDirectorTrackType(track.type)) continue;
                 const m = this._meta.get(clip.id);
                 const isVideo = m?.mediaKind === "video";
                 if (!isAudio && !isVideo) continue;
@@ -15756,7 +15758,7 @@ export class CapTimelineEditorApp {
                 name: c.name || first?.file?.split(/[\\/]/).pop() || DEFAULT_CLIP_NAME,
                 startTime,
                 duration: dur,
-                sourceDuration: first?.kind === "video" ? sourceDur : Infinity,
+                sourceDuration: isMediaTrackType(track.type) && first?.kind === "video" ? sourceDur : Infinity,
                 sourceOffset: first?.kind === "video" ? trimIn : 0,
                 playbackRate: isMediaTrackType(track.type) && first?.kind === "video" ? normalizePlaybackRate(c.playback_rate) : 1,
                 src: first?.file || "",
@@ -15876,6 +15878,7 @@ export class CapTimelineEditorApp {
                 visible: c.visible !== false,
                 sourceDuration: sourceDur,
                 muted: !!c.muted,
+                audioSeparated: c.audio_separated === true,
                 volume: normalizeClipVolume(c.volume),
                 autoPrompt: !!c.auto_prompt,
                 promptSkills: copyPromptSkills(c.prompt_skills),
@@ -16066,6 +16069,7 @@ export class CapTimelineEditorApp {
     }
 
     _decorateClip(clip) {
+        if (isDirectorTrackType(clip?.track?.type)) clip.sourceDuration = Infinity;
         if (!clip?.el) return;
         this._directorKeyframes?.sync(clip);
         const m = this._ensureClipMeta(clip);

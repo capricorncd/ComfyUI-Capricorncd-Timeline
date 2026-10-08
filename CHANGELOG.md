@@ -1,5 +1,23 @@
 # Release notes / 更新记录
 
+## 0.17.32 — 2026-10-09
+
+### English
+
+- Add track H3 frame alignment at project fps, with grouped Clip lists, per-Clip choices and switches, and overlap prevention.
+- Add H3 prompt completion and input help; fix replacing selected text containing asset references.
+- Preserve reference-video trims, speed, scale and Clip duration when replacing media; save new video Clips immediately and allow director Clips to extend beyond source duration.
+- Restore multi-picture timeline previews, recover missing preview sampling versions from history and show generation time; add Clip audio restoration.
+- Support keyframe prompt navigation and configurable H3 segment duration, defaulting to 15 seconds. Restart ComfyUI and refresh the browser after updating.
+
+### 简体中文
+
+- 新增按工程帧率对齐 H3 帧数，支持 Clip 分组列表、逐项选择和处理开关，执行后调整位置避免重叠。
+- 新增 H3 提示词补全和输入帮助，修复含素材引用的文本全选删除及粘贴覆盖。
+- 替换参考视频时保留裁剪、变速、缩放和 Clip 时长；新增视频 Clip 立即保存，导演 Clip 可延长至源视频时长之外。
+- 恢复多图参考的时间轴预览，从历史记录补回缺失的预览采样版本并显示生成时间；新增 Clip 还原音频。
+- 支持关键帧提示词切换及手动设置 H3 分段时长，默认 15 秒。更新后重启 ComfyUI 并刷新浏览器。
+
 ## 0.17.31 — 2026-10-06
 
 ### English

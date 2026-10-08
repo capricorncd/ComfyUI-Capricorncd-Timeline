@@ -6,6 +6,7 @@ import { cleanRunPrompts } from './editor/RunPromptCleanup.js';
 import { copyPromptSkills, enabledPromptSkills } from './components/PromptSkills.js';
 import { H3DraftVersions, draftT, draftCountLabel } from "./editor/H3DraftVersions.js";
 import { openInsertClip } from './editor/InsertClip.js';
+import {openH3TrackAlignment, alignmentT} from './editor/H3TrackAlignment.js';
 import { selectedClipProject } from './editor/SelectedClipProject.js';
 /*!
  * Copyright (c) 2026 capricorncd
@@ -2031,6 +2032,10 @@ export class CapTimelineEditorApp {
             label: T("remove_track_gaps"), icon: "scissors",
             disabled: !!track.locked || track.clips.length < 2,
             fn: () => this._removeTrackGaps(track),
+        });
+        if (isDirectorTrackType(track.type) || isMediaTrackType(track.type)) items.push({
+            label: alignmentT('title'), icon: 'timeline', disabled: track.locked || !track.clips.length,
+            fn: () => openH3TrackAlignment(this, track),
         });
         items.push({
             label: T("auto_arrange_track"), icon: track.autoArrange ? "check" : "timeline",

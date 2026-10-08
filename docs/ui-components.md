@@ -220,6 +220,8 @@ Keep listeners and value labels on the native input as usual. Reset emits `input
 
 ## Context menu
 
+Visual track hover menus provide “Align H3 frames” through `editor/H3TrackAlignment.js`. The shared dialog has Unaligned, Aligned and Disabled tabs. It lists Clip IDs and seconds.frames at project fps, with lower/upper `17n+5` choices (upper selected by default). Processing switches default on for unaligned Clips and off for disabled Clips; switching does not change timeline enable state. Aligned rows show information only. Apply processes checked rows in one undo step, shifts following Clips while preserving gaps and preventing overlap, saves and refreshes playback. Reference trims and speed are retained. Test: `tests/test_h3_track_alignment.mjs`.
+
 Use `js/components/ContextMenu.js` and `<cap-context-menu>`. Call `setItems([{ label, icon, shortcut, disabled, danger, strike }, { separator: true }])`. Icons use keys from `cap_icons.js`; shortcuts are presentation only, not new key bindings. Existing labels ending in two spaces plus `Ctrl+…` are split into the shortcut column.
 
 The component owns the menu surface, three-column layout and `cap-button` actions. `menu-select` carries the original item; the caller performs its action and removes the menu. `menu-close` requests dismissal; `detail.restoreFocus` is true for Escape. Arrow keys, Home and End navigate enabled items. The caller owns placement and outside-click dismissal. `focus()` selects the first enabled item.

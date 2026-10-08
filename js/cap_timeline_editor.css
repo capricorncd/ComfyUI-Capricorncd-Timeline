@@ -4162,6 +4162,20 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-h3-draft-row:focus-within { border-color: var(--cat-accent); }
 .cat-te-h3-draft-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .cat-te-h3-draft-detail { min-width: 0; }
+.cat-te-h3-alignment { --cap-dialog-width: 760px; --cap-dialog-min-width: 360px; --cap-dialog-min-height: 240px; }
+.cat-te-h3-alignment-body { padding: 20px 28px; }
+.cat-te-h3-alignment-body > p { color: var(--cat-muted); line-height: 1.6; }
+.cat-te-h3-alignment-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px 16px; padding: 16px 0; border-bottom: 1px solid var(--cat-border-soft); }
+.cat-te-h3-alignment-name { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
+.cat-te-h3-alignment-info { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; min-width: 0; overflow-wrap: anywhere; }
+.cat-te-h3-alignment-row small { color: var(--cat-muted); }
+.cat-te-h3-alignment-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.cat-te-h3-alignment-row > label { display: flex; align-items: center; gap: 8px; }
+.cat-te-h3-alignment-row.is-disabled > div { opacity: .5; }
+@media (max-width: 600px) {
+    .cat-te-h3-alignment-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .cat-te-h3-alignment-info { grid-column: 1 / -1; }
+}
 .cat-te-h3-draft-detail video { width: 100%; max-height: 340px; object-fit: contain; background: var(--cat-bg); }
 @media (max-width: 760px) {
     .cat-te-h3-drafts-body { padding: 16px 18px; }

@@ -10197,6 +10197,7 @@ export class CapTimelineEditorApp {
             const cd = st.clipDur ?? clipDur;
             const canSplit = t > c.startTime + 1e-3 && t < c.endTime - 1e-3 && (st.reference || t < cd - 1e-3);
             const isAudioClip = !!(st.audioMap?.get(c.id) || c.el?.dataset?.audioId || c.track?.type === "audio");
+            const audioSeparated = st.audioDraft.some(row => row.from_gen_id === gid);
             const items = isAudioClip
                 ? [{
                     label: T("delete_btn"), icon: "trash",
@@ -10205,8 +10206,8 @@ export class CapTimelineEditorApp {
                 }]
                 : [
                     {
-                        label: T("menu_separate_audio"), icon: "audio",
-                        fn: () => void this._separateGenEditClipAudio(c),
+                        label: T(audioSeparated ? "menu_restore_audio" : "menu_separate_audio"), icon: audioSeparated ? "volume" : "audio",
+                        fn: () => audioSeparated ? this._restoreGenEditClipAudio(c) : void this._separateGenEditClipAudio(c),
                     },
                     {
                         label: T("delete_btn"), icon: "trash",
@@ -10946,6 +10947,39 @@ export class CapTimelineEditorApp {
         }).filter(Boolean);
     }
 
+    _restoreGenEditClipAudio(clip) {
+        const state = this._genEditState;
+        if (!state || clip.track?.locked) return;
+        const id = state.clipMap.get(clip.id);
+        const row = state.draft.find(item => item.id === id);
+        if (!row) return;
+        this._recordUndo();
+        row.muted = false;
+        state.audioDraft = state.audioDraft.filter(item => item.from_gen_id !== id);
+        this._applyGenEditChanges();
+        this._buildGenEditTimeline();
+        this._syncGenEditInspector();
+        this._scheduleGenEditPreview();
+        if (state.timeline?._playing) void this._startGenEditAudioPlayback();
+    }
+
+    _restoreClipAudio(clip) {
+        if (!clip || clip.track?.locked) return;
+        const meta = this._ensureClipMeta(clip);
+        this._recordUndo();
+        meta.muted = false;
+        meta.audioSeparated = false;
+        if (!isDirectorTrackType(clip.track?.type)) {
+            const video = this._firstEnabledGeneratedVideo(meta);
+            if (video) video.muted = false;
+        }
+        this._decorateClip(clip);
+        this._saveToWidgets();
+        this._scheduleProgramPreview();
+        if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
+        if (this._timeline?._playing) this._startAudioPlayback();
+    }
+
     /** Extract audio from a main-timeline visual clip (generated video preferred). */
     async _separateClipAudio(clip) {
         if (!clip || clip.track?.type === "audio") return;
@@ -10969,6 +11003,8 @@ export class CapTimelineEditorApp {
                 await this._addAudioAtTime(audioFile, atSec, null, { canInsert: valid, duration: source.duration_sec });
                 if (!valid()) return;
                 this._setDirectorClipMuted(clip, true);
+                m.audioSeparated = true;
+                this._saveToWidgets();
             } catch (error) {
                 showCapAlert(T("separate_audio_failed", { msg: error instanceof Error ? error.message : String(error) }));
             }
@@ -11027,6 +11063,7 @@ export class CapTimelineEditorApp {
                 this._meta.set(clip.id, m);
                 this._decorateClip(clip);
             }
+            m.audioSeparated = true;
             this._saveToWidgets();
             this._scheduleProgramPreview();
         } catch (error) {
@@ -15775,6 +15812,7 @@ export class CapTimelineEditorApp {
                 mediaOffsetX: Math.max(-100, Math.min(100, Number(c.media_offset_x ?? 0))),
                 mediaOffsetY: Math.max(-100, Math.min(100, Number(c.media_offset_y ?? 0))),
                 muted: !!c.muted,
+                audioSeparated: c.audio_separated === true,
                 prompt: c.prompt ?? "",
                 promptMediaIds: [...(c.prompt_media_ids || [])],
                 lastFrameMediaId: c.last_frame_media_id || "",
@@ -17679,7 +17717,7 @@ export class CapTimelineEditorApp {
             editing.push({ label: T("convert_to_director_clip"), icon: "clapperboard", fn: () => this._convertMediaClipToDirector(clip) });
             if (clip.hasAudio) audio.push(
                 { icon: m.muted ? "volume" : "volumeOff", label: m.muted ? T("unmute_label") : T("mute_label"), fn: () => this._setMediaClipMuted(clip, !m.muted) },
-                { label: T("menu_separate_audio"), icon: "audio", fn: () => void this._separateClipAudio(clip) },
+                { label: T(m.audioSeparated ? "menu_restore_audio" : "menu_separate_audio"), icon: m.audioSeparated ? "volume" : "audio", fn: () => m.audioSeparated ? this._restoreClipAudio(clip) : void this._separateClipAudio(clip) },
             );
         } else if (clip.track.type !== "filter") {
             const runState = this._clipRunState(clip.id);
@@ -17695,10 +17733,15 @@ export class CapTimelineEditorApp {
             if (this._clipGeneratedVideos(m).length) media.push({ label: T("menu_trim_video"), icon: "timeline", fn: () => void this._openGenEditModal(clip) });
             media.push({ label: T("reference_timeline"), icon: "timeline", fn: () => void this._openGenEditModal(clip, {reference: true}) });
             media.push({ label: T("linked_generated_videos_title"), icon: "link", fn: () => void this._openOutputVideosPicker(clip) });
-            if (this._clipGeneratedVideos(m).length || m.genEditAudios?.length) audio.push({
+            if (clip.hasAudio || this._clipGeneratedVideos(m).length || m.genEditAudios?.length
+                || m.referenceTimeline?.audios?.some(row => row.enabled !== false)
+                || this._clipItems(m).some(item => item.kind === "audio" && item.enabled !== false)) audio.push({
                 icon: m.muted ? "volume" : "volumeOff", label: m.muted ? T("unmute_label") : T("mute_label"), fn: () => this._setDirectorClipMuted(clip, !m.muted),
             });
-            audio.push({ label: T("menu_separate_audio"), icon: "audio", fn: () => void this._separateClipAudio(clip) });
+            if (m.audioSeparated || this._clipDenoiseSources(clip, true).length) audio.push({
+                label: T(m.audioSeparated ? "menu_restore_audio" : "menu_separate_audio"), icon: m.audioSeparated ? "volume" : "audio",
+                fn: () => m.audioSeparated ? this._restoreClipAudio(clip) : void this._separateClipAudio(clip),
+            });
         }
         const denoiseSources = this._clipDenoiseSources(clip, true);
         if (denoiseSources.length) audio.push(
@@ -21662,6 +21705,7 @@ export class CapTimelineEditorApp {
                     enabled: !m.disabled,
                     visible: m.visible !== false,
                     muted: !!m.muted,
+                    audio_separated: m.audioSeparated === true,
                     start_ms: startMs,
                     duration_ms: durationMs,
                     media_ids: mediaIds,

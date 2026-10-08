@@ -3,7 +3,10 @@ import {readFileSync} from 'node:fs';
 const src=readFileSync(new URL('../js/components/PromptMentions.js',import.meta.url),'utf8');
 const inlineSource=readFileSync(new URL('../js/components/InlinePromptEditor.js',import.meta.url),'utf8');
 const assetMentionRanges=new Function('HTMLElement','customElements','makeT',inlineSource.replace(/^import .*;\r?\n/gm,'').replaceAll('export ','')+';return assetMentionRanges;')(class {},{define(){}},dict=>key=>dict.en[key]);
-const {mentionQuery,PromptMentions}=new Function('HTMLElement','customElements','makeT','iconHtml','assetMentionRanges','replaceRichPromptRange',src.replace(/^import .*;\r?\n/gm,'').replaceAll('export ','')+';return {mentionQuery,PromptMentions};')(class {},{define(){}},dict=>key=>dict.en[key],()=> '',assetMentionRanges,(ta,text,start,end)=>{ta.setRangeText(text,start,end,'end');ta.dispatchEvent(new Event('input'));});
+const h3Source = readFileSync(new URL('../js/components/H3PromptCompletion.js',import.meta.url),'utf8');
+let uiLocale = 'en';
+const {h3Query} = new Function('getLocale', 'makeT',h3Source.replace(/^import .*;\r?\n/gm,'').replaceAll('export ','')+';return {h3Query};')(() => uiLocale, dict=>key=>dict.en[key]);
+const {mentionQuery,retentionQuery,retentionOptions,PromptMentions}=new Function('HTMLElement','customElements','makeT','iconHtml','assetMentionRanges','replaceRichPromptRange','h3Query',src.replace(/^import .*;\r?\n/gm,'').replaceAll('export ','')+';return {mentionQuery,retentionQuery,retentionOptions,PromptMentions};')(class {},{define(){}},dict=>key=>dict.en[key],()=> '',assetMentionRanges,(ta,text,start,end)=>{ta.setRangeText(text,start,end,'end');ta.dispatchEvent(new Event('input'));},h3Query);
 assert.deepEqual(mentionQuery('Hello @角色',9),{start:6,end:9,query:'角色'});
 assert.equal(mentionQuery('@角色 A ',6),null);
 assert.equal(mentionQuery('normal',6),null);
@@ -59,3 +62,57 @@ assert.equal(livePicker.hidden, false, 'reconnect restores prompt input listener
 assert.equal(livePicker.results[0].id, 'hero');
 livePicker.disconnectedCallback();
 console.log('PASS: IME commit and reconnect keep @ suggestions active');
+
+for (const kind of ['Subject','Picture','Video','Audio']) {
+    const value = `retention_analysis:\n<${kind} 12>: `;
+    assert.deepEqual(retentionQuery(value, value.length), {start:value.length,end:value.length,query:'',kind});
+}
+for (const value of ['text <Subject 1>: ', '<Subject 1>:', '<Unknown 1>: ', '<Subject 1>: fully_preserved.', '<Subject 1>:\n']) assert.equal(retentionQuery(value,value.length), null);
+const annotated = 'retention_analysis:\n<Subject 1> (appears in [Shot 1]): par';
+assert.equal(retentionQuery(annotated,annotated.length)?.kind, 'Subject');
+for (const value of ['<Subject 1>: ', 'summary:\n<Subject 1>: ', 'retention_analysis:\n<Subject 1>: fully_preserved.\ndetailed_description:\n<Subject 2>: ']) assert.equal(retentionQuery(value,value.length), null);
+const middle = 'retention_analysis:\n<Subject 1>: partially_preserved.';
+const cursor = middle.indexOf('partially') + 3;
+assert.equal(retentionQuery(middle,cursor).end,middle.length-1);
+assert.deepEqual(retentionOptions('Audio').map(row=>row.name), ['fully_copy','partially_copy','reference','weak_reference']);
+assert.equal(retentionOptions('Video')[0].name,'fully_preserved');
+calls.length=0; picker.mode='retention'; picker.match={start:13,end:13};
+PromptMentions.prototype.select.call(picker,{name:'fully_preserved'});
+assert.deepEqual(calls[0],['fully_preserved',13,13,'end']);
+assert.equal(calls.length,2,'retention insertion does not emit an asset selection');
+console.log('PASS: retention triggers, visual/audio choices and plain marker insertion');
+
+const query = text => h3Query(text,text.length);
+assert.equal(query(':h3').options.length,7);
+assert(query('summary: :h3').options.every(row=>!row.name.startsWith('[')));
+assert(query('summary: ::h3').options.some(row=>row.name==='[video editing + reference generation + audio reuse]'));
+assert(!query('summary: [video editing + ::h3').options.some(row=>row.name==='video editing'));
+assert.equal(query('summary: [video editing + ::h3').options.find(row=>row.name==='audio reuse').insert,'audio reuse]');
+assert.equal(query('normal text'),null);
+assert.equal(query('summary: '),null);
+assert.equal(query('::h3').options.length,0);
+assert.equal(query('detailed_description:\n[Shot 1] action\n::h3').options[0].insert,'[Shot 2] At 00:00.000, ');
+assert.equal(query('subject_definitions:\n<Subject 1> hero\n::h3').options[0].name,'<Subject 2>');
+assert(query('non_diegetic_music: ::h3').options.some(row=>row.name==='N/A'));
+const input = 'retention_analysis:\n<Audio 1>: ::h3';
+assert.equal(retentionQuery(input,query(input).start).kind,'Audio');
+console.log('PASS: :h3 sections, ::h3 scoped children, combination deduplication and numbering');
+
+for (const [locale, language] of [['zh','Chinese'],['en','English'],['ja','Japanese']]) {
+    uiLocale = locale;
+    const match = h3Query('prefix ::d', 10);
+    assert.equal(match.options[0].insert, `<d>[${language}]</d>`);
+    assert.equal(match.options.length, 3);
+    const ta = {value:'prefix ::d suffix', focus(){},
+        setRangeText(text,start,end){this.value=this.value.slice(0,start)+text+this.value.slice(end)},
+        setSelectionRange(start,end){this.selectionStart=start;this.selectionEnd=end},
+        dispatchEvent(){picker.match=null}};
+    const picker = {textarea:ta, mode:'h3', match, close(){}};
+    PromptMentions.prototype.select.call(picker, match.options[0]);
+    assert.equal(ta.value, `prefix <d>[${language}]</d> suffix`);
+    assert.equal(ta.value.slice(ta.selectionStart), '</d> suffix');
+    assert.equal(ta.selectionStart, ta.selectionEnd);
+}
+assert.equal(h3Query('::description', 13), null);
+assert.equal(h3Query('text::d', 7), null);
+console.log('PASS: dialogue language ordering, insertion, cursor and exact trigger');

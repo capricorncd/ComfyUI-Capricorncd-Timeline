@@ -41,3 +41,29 @@ try {
     status.textContent = 'PASS: Clip / 关键帧输入法提交与重新挂载';
 } catch (error) { status.textContent = `FAIL: ${error.message}`; throw error; }
 </script>
+
+<script type="module">
+import {undoRichPrompt} from '../js/components/RichPrompt.js';
+const input = document.querySelector('textarea'), picker = document.querySelector('cap-prompt-mentions');
+const enter = text => {input.value=text;input.setSelectionRange(text.length,text.length);input.dispatchEvent(new Event('input',{bubbles:true}));};
+const status=document.createElement('pre');document.querySelector('main').append(status);
+try {
+    enter(':h3');
+    if (picker.results.length !== 7) throw new Error('Expected seven section labels');
+    picker.select(picker.results.find(row=>row.name==='summary'));
+    if (input.value !== 'summary: ') throw new Error('Section insertion failed');
+    enter('summary: ::h3');
+    picker.select(picker.results.find(row=>row.name==='[video editing + reference generation + audio reuse]'));
+    if (input.value !== 'summary: [video editing + reference generation + audio reuse] ') throw new Error('Task combination insertion failed');
+    undoRichPrompt(input,false);
+    if (input.value !== 'summary: ::h3') throw new Error('Undo failed');
+    enter('retention_analysis:\n<Audio 1>: ::h3');
+    if (picker.results[0].name !== 'fully_copy') throw new Error('Audio options missing');
+    picker.select(picker.results[0]);
+    if (input.value !== 'retention_analysis:\n<Audio 1>: fully_copy') throw new Error('Marker insertion failed');
+    enter('detailed_description:\n<Subject 1>: ');
+    if (!picker.hidden) throw new Error('Implicit trigger outside retention');
+    status.textContent='PASS: :h3 sections / ::h3 task combinations / audio markers / undo';
+    enter('summary: ::h3');
+} catch(error) {status.textContent=`FAIL: ${error.message}`;throw error;}
+</script>

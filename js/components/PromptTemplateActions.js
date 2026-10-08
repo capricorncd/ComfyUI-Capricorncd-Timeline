@@ -1,3 +1,5 @@
+import './Button.js';
+import './HelpIcon.js';
 import './DropdownButton.js';
 import './ContextMenu.js';
 import './Dialog.js';
@@ -38,6 +40,9 @@ export class PromptTemplateActions extends HTMLElement {
             button.bindMenu(() => this.openMenu(button, action));
             root.append(button);
         }
+        const help = document.createElement('cap-help-icon');
+        help.configure(t('help'), t('help_text'));
+        root.append(help);
     }
 
     bind(textarea, getAssets = () => []) {

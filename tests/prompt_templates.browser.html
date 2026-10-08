@@ -22,5 +22,16 @@
     let history = {schema_version:1,items:[]};
     document.querySelector('cap-prompt-history-actions').bind(ta,()=>history,data=>history=data,{getAssets:()=>assets});
     document.querySelector('cap-readonly-prompt').value = '只读提示词保留复制功能。';
-    document.querySelector('#result').textContent='READY';
+    const help = document.querySelector('cap-prompt-history-actions').shadowRoot.querySelector('cap-prompt-template-actions').shadowRoot.querySelector('cap-help-icon');
+    const button = help.shadowRoot.querySelector('cap-button');
+    const tip = help.shadowRoot.querySelector('[role=tooltip]');
+    button.dispatchEvent(new Event('pointerenter'));
+    if (!tip.matches(':popover-open') || !tip.textContent.includes('::d')) throw new Error('Help must open immediately on hover');
+    document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
+    if (tip.matches(':popover-open')) throw new Error('Escape must close help');
+    button.dispatchEvent(new Event('focusin'));
+    if (!tip.matches(':popover-open')) throw new Error('Focus must open help');
+    button.dispatchEvent(new Event('focusout'));
+    if (tip.matches(':popover-open')) throw new Error('Blur must close help');
+    document.querySelector('#result').textContent='PASS: help hover, focus and Escape';
 </script>

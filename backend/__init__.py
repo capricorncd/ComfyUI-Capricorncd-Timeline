@@ -21,7 +21,7 @@ import folder_paths
 from .cap_reveal_file import reveal_file
 from .cap_training_dataset import CAP_TrainingDataset, register_training_dataset_routes
 from .cap_reference_project import register_reference_project_routes
-from .cap_launcher_project import register_launcher_project_routes
+from .cap_launcher_project import register_launcher_project_routes, save_project_directory
 from .cap_h3_draft_files import register_h3_draft_file_routes
 from .cap_image_crop import crop_image_file
 from .cap_i18n import resolve_lang, t
@@ -650,6 +650,7 @@ def _register_routes():
             if workflow is not None and not isinstance(workflow, dict):
                 raise ValueError("Invalid workflow")
             directory = str(payload.get("directory") or "").strip()
+            reuse_directory = payload.get("launcher") is True and payload.get("format", "directory") == "directory" and os.path.isabs(directory)
             if not directory or not os.path.isabs(directory):
                 relative = directory.replace("\\", "/") or "output/cap_timeline_projects"
                 if relative == "output" or relative == "output/":
@@ -660,11 +661,22 @@ def _register_routes():
                 if directory is None:
                     raise ValueError("Invalid project output directory")
                 os.makedirs(directory, exist_ok=True)
-            path, missing = await asyncio.to_thread(
-                save_project_export, payload["project"], directory, payload.get("format", "directory"), workflow,
-                include_generated=payload.get("include_generated", True) is not False,
-                storyboard=payload.get("storyboard"),
-            )
+            if reuse_directory:
+                if directory.startswith(("\\\\", "//")):
+                    raise ValueError("Select a local project directory")
+                path = os.path.realpath(directory)
+                if path.startswith(("\\\\", "//")):
+                    raise ValueError("Select a local project directory")
+                missing = await asyncio.to_thread(
+                    save_project_directory, path, payload["project"], payload.get("storyboard"), False, {}, workflow,
+                    include_generated=payload.get("include_generated", True) is not False,
+                )
+            else:
+                path, missing = await asyncio.to_thread(
+                    save_project_export, payload["project"], directory, payload.get("format", "directory"), workflow,
+                    include_generated=payload.get("include_generated", True) is not False,
+                    storyboard=payload.get("storyboard"),
+                )
             token = uuid.uuid4().hex
             export_destinations[token] = os.path.join(path, "project.json") if os.path.isdir(path) else path
             while len(export_destinations) > 32:

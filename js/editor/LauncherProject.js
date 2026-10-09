@@ -56,9 +56,9 @@ export async function chooseProjectVersion(versions, host = document.body) {
 }
 
 export const launcherT = makeT({
-    zh: { reload: '加载最新版', reloadFailed: '加载工程更新失败', directory: '项目所在目录', associateConfirm: '此目录已有 project.json。关联后，保存将覆盖该文件，自动备份将更新 project.json.bak。是否关联当前工程？', save: '保存项目', folder: '打开项目目录', saved: '项目已保存', failed: '项目保存失败', backupFailed: '自动备份失败', missing: '部分素材缺失', openFailed: '无法打开项目目录' },
-    en: { reload: 'Load latest', reloadFailed: 'Could not load project update', directory: 'Project directory', associateConfirm: 'This folder already contains project.json. Saving will overwrite it, and autosave will update project.json.bak. Associate the current project?', save: 'Save project', folder: 'Open project folder', saved: 'Project saved', failed: 'Project save failed', backupFailed: 'Automatic backup failed', missing: 'Some media files are missing', openFailed: 'Cannot open project folder' },
-    ja: { reload: '最新版を読み込む', reloadFailed: '更新の読み込みに失敗しました', directory: 'プロジェクトの保存先', associateConfirm: 'このフォルダーには project.json があります。保存時に上書きし、自動保存は project.json.bak を更新します。現在のプロジェクトを関連付けますか？', save: 'プロジェクトを保存', folder: 'プロジェクトフォルダーを開く', saved: '保存しました', failed: '保存に失敗しました', backupFailed: '自動バックアップに失敗しました', missing: '一部の素材が見つかりません', openFailed: 'フォルダーを開けません' },
+    zh: { reload: '加载最新版', reloadFailed: '加载工程更新失败', save: '保存项目', folder: '打开项目目录', saved: '项目已保存', failed: '项目保存失败', backupFailed: '自动备份失败', missing: '部分素材缺失', openFailed: '无法打开项目目录' },
+    en: { reload: 'Load latest', reloadFailed: 'Could not load project update', save: 'Save project', folder: 'Open project folder', saved: 'Project saved', failed: 'Project save failed', backupFailed: 'Automatic backup failed', missing: 'Some media files are missing', openFailed: 'Cannot open project folder' },
+    ja: { reload: '最新版を読み込む', reloadFailed: '更新の読み込みに失敗しました', save: 'プロジェクトを保存', folder: 'プロジェクトフォルダーを開く', saved: '保存しました', failed: '保存に失敗しました', backupFailed: '自動バックアップに失敗しました', missing: '一部の素材が見つかりません', openFailed: 'フォルダーを開けません' },
 });
 
 // Keep desktop sessions outside graph nodes, including custom node serializers.

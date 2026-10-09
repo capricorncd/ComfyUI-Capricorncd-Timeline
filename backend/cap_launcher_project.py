@@ -100,6 +100,7 @@ def open_project_directory(directory, filename="project.json"):
     if not isinstance(project, dict) or not isinstance(project.get("tracks"), list):
         raise ValueError("Invalid project.json")
     project = migrate_project(project)
+    project.pop("project_directory", None)
     history_path = project_path(directory, "prompt_history.json")
     project["prompt_history"] = {"schema_version": 1, "items": []}
     if os.path.isfile(history_path):
@@ -129,12 +130,31 @@ def open_project_directory(directory, filename="project.json"):
     return directory, _remap_project_files(project, mapping, generated), storyboard, warnings
 
 
-def save_project_directory(directory, project, storyboard, backup, cache, workflow=None, filename="project.json"):
+def backup_project_files(directory, filename):
+    project_file = project_path(directory, filename)
+    if not os.path.isfile(project_file):
+        return
+    stamp = datetime.fromtimestamp(os.path.getmtime(project_file)).strftime("%Y%m%d-%H%M%S")
+    names = [filename, storyboard_filename(filename), "prompt_history.json", "workflow.json"]
+    index = 0
+    while True:
+        suffix = stamp if index == 0 else f"{stamp}_{index}"
+        targets = [project_path(directory, f"{os.path.splitext(name)[0]}.{suffix}.json") for name in names]
+        if not any(os.path.exists(target) for target in targets):
+            break
+        index += 1
+    for name, target in zip(names, targets):
+        source = project_path(directory, name)
+        if os.path.isfile(source):
+            shutil.copy2(source, target)
+
+
+def save_project_directory(directory, project, storyboard, backup, cache, workflow=None, filename="project.json", *, include_generated=True):
     if os.path.realpath(directory) != directory or not os.path.isdir(directory):
         raise ValueError("Project directory changed or no longer exists; open it again")
     filename = project_filename(filename)
     storyboard = parse_storyboard_document(storyboard, project.get("storyboards"))
-    exported, entries, missing = build_export_entries(project)
+    exported, entries, missing = build_export_entries(project, include_generated=include_generated)
     if workflow is not None and not isinstance(workflow, dict):
         raise ValueError("Invalid workflow")
     # Reuse package folders without replacing assets referenced by the formal save.
@@ -175,10 +195,13 @@ def save_project_directory(directory, project, storyboard, backup, cache, workfl
             mapping[(entry["kind"], entry["arcname"])] = relative
     exported = _remap_project_files(exported, mapping, generated)
     exported.pop("storyboards", None)
-    exported["project_directory"] = directory
+    exported.pop("project_directory", None)
     suffix = ".bak" if backup else ""
+    if not backup:
+        backup_project_files(directory, filename)
     if not backup and workflow is not None:
         atomic_json(project_path(directory, "workflow.json"), workflow)
+    atomic_json(project_path(directory, "prompt_history.json" + suffix), project.get("prompt_history", {"schema_version": 1, "items": []}))
     atomic_json(project_path(directory, storyboard_filename(filename) + suffix), storyboard)
     atomic_json(project_path(directory, filename + suffix), exported)
     return missing

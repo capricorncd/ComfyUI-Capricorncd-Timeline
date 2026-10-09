@@ -58,7 +58,9 @@ try {
     document.body.append(projectExport);
     projectExport.remember('D:/project-exports');
     projectExport.restore('D:/imported/project');
-    assert(projectExport.value === 'D:/project-exports', 'project export prefers its own last success');
+    assert(projectExport.value === 'D:/imported/project', 'project export defaults to the imported directory');
+    projectExport.restore();
+    assert(projectExport.value === 'D:/project-exports', 'without an imported directory use the last export');
     assert(lastExportDirectory() === 'D:/video-output', 'project export does not change video preference');
     field.remember('D:/new-video-output');
     assert(lastExportDirectory('project') === 'D:/project-exports', 'video export does not change project preference');

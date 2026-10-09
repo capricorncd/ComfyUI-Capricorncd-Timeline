@@ -65,44 +65,7 @@ function editorMethod(name, confirm = () => true) {
     const end = editorSource.indexOf('\n    }', start) + 6;
     return new Function('launcherT', 'T', 'showCapAlert', 'showCapConfirm', 'window', `return ({${editorSource.slice(start, end)}}).${name}`)(key => key, key => key, () => {}, confirm, { __COMFYUI_LAUNCHER__: { capabilities: { projectDirectory: true } } });
 }
-{
-    const widget = { name: 'project_json', value: '' };
-    const owner = { node: { widgets: [widget] }, _isNodeOnLiveGraph: () => true, _w: () => widget };
-    editorMethod('_writeProjectJson').call(owner, JSON.stringify({ name: 'Project', project_directory: 'D:/private/project' }));
-    assert.deepEqual(JSON.parse(widget.value), { name: 'Project', project_directory: 'D:/private/project' });
-    assert.equal(JSON.parse(owner.node.widgets_values[0]).project_directory, 'D:/private/project');
-    assert.equal(JSON.parse(owner.node.properties.cat_named.project_json).project_directory, 'D:/private/project');
-}
-{
-    const original = { token: 'old', directory: 'D:/old' };
-    const field = { value: 'D:/chosen', validate: async () => true, setStatus(text) { this.error = text; } };
-    const owner = { _openGen: 1, projectDirectoryField: field, _saveToWidgets() {}, _launcherProject: {
-        session: original, request: async () => ({ token: 'new', directory: 'D:/chosen', existing: true }),
-        reset(value) { this.session = value; },
-    } };
-    await editorMethod('_associateProjectDirectory', () => false).call(owner);
-    assert.equal(owner._launcherProject.session, original, 'cancel preserves old session');
-    assert.equal(field.value, 'D:/old');
-    field.value = 'D:/chosen';
-    await editorMethod('_associateProjectDirectory').call(owner);
-    assert.equal(owner._launcherProject.session.directory, 'D:/chosen');
-    assert.equal(field.disabled, false);
-    owner._launcherProject.request = async () => { throw new Error('missing'); };
-    field.value = 'D:/missing';
-    await editorMethod('_associateProjectDirectory').call(owner);
-    assert.equal(field.value, 'D:/chosen');
-    assert.equal(field.error, 'missing');
-    field.validate = async () => false;
-    let requested = false;
-    owner._launcherProject.request = async () => { requested = true; };
-    field.value = 'D:/invalid';
-    await editorMethod('_associateProjectDirectory').call(owner);
-    assert.equal(requested, false, 'invalid manual directory never associates');
-    field.value = '';
-    await editorMethod('_associateProjectDirectory').call(owner);
-    assert.equal(owner._launcherProject.session, undefined, 'clearing directory stops disk saves');
-    assert.equal(owner._projectDirectory, '');
-}
+
 {
     const writes = [];
     const owner = {

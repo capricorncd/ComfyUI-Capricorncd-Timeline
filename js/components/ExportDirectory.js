@@ -99,8 +99,8 @@ export class ExportDirectory extends HTMLElement {
     set exportKind(value) { this.setAttribute('export-kind', value); }
     restore(preferredDirectory = '') {
         this.value = this.hasAttribute('project-directory') ? preferredDirectory
-            : (this.nativePicker ? lastExportDirectory(this.exportKind) : '')
-                || (this.exportKind === 'project' ? preferredDirectory : '');
+            : (this.exportKind === 'project' ? preferredDirectory : '')
+                || (this.nativePicker ? lastExportDirectory(this.exportKind) : '');
     }
     remember(directory = this.value) {
         if (this.nativePicker && !this.hasAttribute('project-directory')) rememberExportDirectory(directory || this.defaultDir, this.exportKind);

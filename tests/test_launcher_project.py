@@ -57,7 +57,7 @@ class LauncherProjectTests(unittest.TestCase):
         self.assertEqual((self.directory / "project.json").read_bytes(), original)
         self.assertEqual((self.directory / "storyboard.json").read_bytes(), original_storyboard)
         backup = json.loads((self.directory / "project.json.bak").read_text(encoding="utf-8"))
-        self.assertEqual(backup["project_directory"], str(self.directory))
+        self.assertNotIn("project_directory", backup)
         self.assertNotIn("project_directory", self.project, "disk metadata must not mutate workflow project")
         image = self.directory / backup["media"][0]["file"]
         self.assertEqual(image.parent, self.directory / "media" / "images")
@@ -107,8 +107,10 @@ class LauncherProjectTests(unittest.TestCase):
         _, reopened, storyboard, warnings = io.open_project_directory(str(self.directory))
         self.assertEqual(warnings, [])
         self.assertNotEqual(reopened["media"][0]["file"], saved["media"][0]["file"])
-        with patch.object(io.shutil, "copyfile", side_effect=AssertionError("Unchanged media must not be copied")):
+        with patch.object(io.shutil, "copyfile", wraps=io.shutil.copyfile) as copies:
             io.save_project_directory(str(self.directory), reopened, storyboard, False, {})
+        self.assertTrue(all(not str(call.args[0]).startswith((str(self.input), str(self.output))) for call in copies.call_args_list),
+                        "Unchanged media must not be copied from input/output")
         again = json.loads((self.directory / "project.json").read_text(encoding="utf-8"))
         self.assertEqual(again["media"][0]["file"], saved["media"][0]["file"])
         self.assertEqual(again["tracks"][0]["clips"][0]["generated_videos"][0]["file"],
@@ -133,6 +135,31 @@ class LauncherProjectTests(unittest.TestCase):
         self.assertNotEqual(replacement, original)
         self.assertEqual(replacement.read_bytes(), b"image-with-metadata")
         self.assertEqual(original.read_bytes(), b"externally edited")
+
+    def test_timestamped_backup_preserves_previous_project_and_storyboard(self):
+        project = self.directory / "project.json"
+        original = project.read_bytes()
+        original_storyboard = (self.directory / "storyboard.json").read_bytes()
+        modified = 1700000000
+        os.utime(project, (modified, modified))
+        stamp = io.datetime.fromtimestamp(modified).strftime("%Y%m%d-%H%M%S")
+        self.project["project_directory"] = "obsolete-path"
+        self.save(False)
+        saved_backup = self.directory / f"project.{stamp}.json"
+        self.assertEqual(saved_backup.read_bytes(), original)
+        self.assertEqual((self.directory / f"storyboard.{stamp}.json").read_bytes(), original_storyboard)
+        current = project.read_bytes()
+        self.assertNotIn("project_directory", json.loads(current))
+        os.utime(project, (modified, modified))
+        self.save(False)
+        self.assertEqual(saved_backup.read_bytes(), original)
+        self.assertEqual((self.directory / f"project.{stamp}_1.json").read_bytes(), current)
+
+    def test_directory_export_without_generated_video(self):
+        io.save_project_directory(str(self.directory), self.project, self.storyboard, False, {}, include_generated=False)
+        saved = json.loads((self.directory / "project.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["tracks"][0]["clips"][0]["generated_videos"][0]["file"], "clip.mp4")
+        self.assertFalse(list(self.directory.rglob("*.mp4")))
 
     def test_paths_missing_files_and_invalid_storyboard(self):
         with self.assertRaises(ValueError):

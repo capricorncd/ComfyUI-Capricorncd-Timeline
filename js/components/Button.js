@@ -69,7 +69,9 @@ export class Button extends HTMLElement {
                 :host([role="radio"][indicator][aria-checked="true"]) button::before {
                     border: 4px solid var(--cat-accent);
                 }
-                :host([variant="tab"]) button { height: 38px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--cat-muted); }
+                :host([variant="tab-button"]:not([size])) button,
+                :host([variant="tab"]:not([size])) button { height: 38px; }
+                :host([variant="tab"]) button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--cat-muted); }
                 :host([variant="tab"]) button:hover { color: var(--cat-text); background: var(--cat-raised); }
                 :host([variant="tab"][aria-selected="true"]) button { color: var(--cat-text); border-bottom-color: var(--cat-accent); background: transparent; }
                 :host([variant="card"]) button { background: var(--cat-surface); border-radius: 12px; padding: 16px; box-shadow: 0 2px 6px #00000008; }

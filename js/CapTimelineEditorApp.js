@@ -3895,18 +3895,17 @@ export class CapTimelineEditorApp {
           <cap-status-message class="cat-te-launcher-status" toast closable close-label="${T("close_title")}" hidden></cap-status-message>
           <div class="cat-te-main">
             <aside class="cat-te-media">
-              <div class="cat-te-media-header">
-                <div class="cat-te-media-title">${T("media_title")}</div>
-                <div class="cat-te-media-header-actions"></div>
-              </div>
               <div class="cat-te-library-tabs" role="tablist" aria-label="${T("media_title")}">
                 ${['media','text','effects','filters','adjust'].map(id=>`<cap-tab-button variant="tab" class="cat-te-library-tab" data-library-tab="${id}" aria-selected="${id==='media'}">${T('library_'+id)}</cap-tab-button>`).join('')}
               </div>
               <div class="cat-te-media-browser">
                 <div class="cat-te-media-tabs" role="tablist" aria-orientation="vertical" aria-label="${T("library_media")}">
-                  ${MEDIA_LIBRARY_TABS.map(tab=>`<cap-tab-button variant="tab" class="cat-te-media-tab" data-kind="${tab.id}" aria-selected="${tab.id==='all'}">${tab.label}</cap-tab-button>`).join('')}
+                  ${MEDIA_LIBRARY_TABS.map(tab=>`<cap-tab-button variant="tab-button" size="small" class="cat-te-media-tab" data-kind="${tab.id}" aria-selected="${tab.id==='all'}">${tab.label}</cap-tab-button>`).join('')}
                 </div>
-                <div class="cat-te-media-grid" role="tabpanel"></div>
+                <div class="cat-te-media-content">
+                  <div class="cat-te-media-header-actions"></div>
+                  <div class="cat-te-media-grid" role="tabpanel"></div>
+                </div>
               </div>
               <div class="cat-te-media-footer">
                 <cap-button class="cat-te-media-primary-action"></cap-button>
@@ -3925,8 +3924,8 @@ export class CapTimelineEditorApp {
             <div class="cat-te-sidebar-split" role="separator" aria-orientation="vertical" aria-label="${T("sidebar_split_aria")}" title="${T("sidebar_split_title")}"></div>
             <aside class="cat-te-sidebar">
               <div class="cat-te-panel-title cat-te-sidebar-tabs" role="tablist">
-                <cap-tab-button class="cat-te-sidebar-title" aria-selected="true">${T("project_settings_title")}</cap-tab-button>
-                <cap-tab-button class="cat-te-project-videos-tab" aria-selected="false">${T("project_videos_title")}</cap-tab-button>
+                <cap-tab-button variant="tab" class="cat-te-sidebar-title" aria-selected="true">${T("project_settings_title")}</cap-tab-button>
+                <cap-tab-button variant="tab" class="cat-te-project-videos-tab" aria-selected="false">${T("project_videos_title")}</cap-tab-button>
               </div>
               <cap-project-video-list hidden></cap-project-video-list>
               <div class="cat-te-project-panel">

@@ -97,6 +97,8 @@ Editor dialogs (including dynamically built lists, track controls, font choices 
 
 `js/components/TabButton.js` defines `<cap-tab-button>`, reusing Button with native `role="tab"`. Its parent supplies `role="tablist"`; callers retain panel switching and arrow-key handling, and set `aria-selected`, `aria-controls` and `tabIndex` as appropriate. Use `aria-pressed` for toggle buttons instead of page-specific selected styles. Button forwards accessibility attributes, title and tab index to its native control; `focusable` lets legacy modal focus traps include enabled components without creating a second tab stop on the host.
 
+Use `variant="tab-button"` for tabs with the shared rounded button border and background; `aria-selected="true"` adds the shared accent border and selected fill. `variant="tab"` retains the underline style for horizontal tabs. Both default to 38 px tall and accept the shared `size` attribute: `small` (22 px), `regular` (36 px), `large` (44 px), or `content` (automatic height). The media library's vertical All/Image/Video/Audio tabs use `variant="tab-button" size="small"`.
+
 Run `node tests/test_dialog_buttons.mjs` for migration coverage, and open `tests/dialog_buttons.browser.html` for actual dialog markup, focus, disabled actions, tab/toggle states, watermark targets, dynamic font/confirmation actions and long-label layout checks.
 
 ## Storyboards

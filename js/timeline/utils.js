@@ -24,14 +24,19 @@ export const normalizePlaybackRate = value => Number.isFinite(Number(value)) && 
  */
 export const formatTime = (secs, fps = null) => {
   const s = Math.abs(secs);
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
   if (fps != null && fps > 0) {
-    const frame = Math.floor((s - Math.floor(s)) * fps + 1e-9);
+    const totalFrames = Math.round(s * fps);
+    const totalSeconds = Math.floor(totalFrames / fps);
+    const m = Math.floor(totalSeconds / 60);
+    const sec = totalSeconds % 60;
+    const frame = totalFrames % fps;
     const pad = String(fps - 1).length; // 24fps→2 digits, 120fps→3 digits
     return `${m}:${String(sec).padStart(2, '0')}.${String(frame).padStart(pad, '0')}`;
   }
-  const ms = Math.round((s % 1) * 1000);
+  const totalMs = Math.round(s * 1000);
+  const m = Math.floor(totalMs / 60000);
+  const sec = Math.floor(totalMs / 1000) % 60;
+  const ms = totalMs % 1000;
   return `${m}:${String(sec).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
 };
 

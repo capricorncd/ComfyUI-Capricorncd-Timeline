@@ -11547,7 +11547,18 @@ export class CapTimelineEditorApp {
                     ...point, time: (point.time - target.start) / target.rate,
                 }))};
             }
+            const remainingIds = new Set([...videos, ...audios].map(row => row.media_id));
+            const previousIds = new Set(m.referenceTimeline
+                ? [...m.referenceTimeline.videos, ...m.referenceTimeline.audios].map(row => row.media_id)
+                : this._clipItems(m).filter(item => item.kind === "video" || item.kind === "audio").map(item => item.id));
+            const removedIds = new Set([...previousIds].filter(id => id && !remainingIds.has(id)));
             m.referenceTimeline = next;
+            if (removedIds.size) {
+                m.items = this._clipItems(m).filter(item => !removedIds.has(item.id));
+                m.mediaIds = m.items.map(item => item.id).filter(Boolean);
+                this._syncClipPrimaryAppearance(clip);
+                this._refreshClipResourceViews(clip);
+            }
             clip.sourceDuration = Infinity;
             this._directorKeyframes?.sync(clip);
             this._saveToWidgets();

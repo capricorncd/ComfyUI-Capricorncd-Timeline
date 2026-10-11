@@ -26,6 +26,7 @@ export class TimeRuler {
 
     if (viewWidth <= 0) return;
 
+    this.canvas.style.width = `${viewWidth}px`;
     this.canvas.width = viewWidth;
     const ctx = this.canvas.getContext('2d');
     const W = viewWidth, H = this.height;
@@ -42,18 +43,19 @@ export class TimeRuler {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    const { major, minor } = getRulerInterval(pps);
+    const fps = tl.timeFormat === 'frames' ? tl.fps : null;
+    const { major, minor, majorFrames, minorFrames } = getRulerInterval(pps, fps);
     const startTime = scrollLeft / pps;
     const endTime = (scrollLeft + viewWidth) / pps;
 
-    // Minor ticks
-    const minorStart = Math.floor(startTime / minor) * minor;
-    for (let t = minorStart; t <= endTime + minor; t = +(t + minor).toFixed(10)) {
-      if (t < 0) continue;
+    // Use integer tick indices so fractional seconds cannot accumulate drift.
+    const firstTick = Math.max(0, Math.floor(startTime / minor));
+    const lastTick = Math.ceil(endTime / minor);
+    const majorEvery = majorFrames ? majorFrames / minorFrames : Math.round(major / minor);
+    for (let tick = firstTick; tick <= lastTick; tick++) {
+      const t = minorFrames ? tick * minorFrames / fps : tick * minor;
       const x = Math.round(t * pps - scrollLeft) + 0.5;
-      const isMajor = Math.round(t / major) * major === Math.round(t * 1e6) / 1e6
-        || Math.abs(t % major) < minor * 0.01
-        || Math.abs(t % major - major) < minor * 0.01;
+      const isMajor = tick % majorEvery === 0;
 
       ctx.strokeStyle = isMajor ? muted : border;
       ctx.lineWidth = 1;

@@ -71,7 +71,21 @@ export function trackTypeLabel(type) {
  * Returns major/minor tick intervals (seconds) for the given pixels-per-second.
  * Aims for ~100px between major ticks.
  */
-export function getRulerInterval(pps) {
+export function getRulerInterval(pps, fps = null) {
+  if (Number.isFinite(fps) && fps > 0) {
+    const rate = Math.max(1, Math.round(fps));
+    // Sub-second intervals divide a second evenly; never subdivide a frame.
+    const frameSteps = [];
+    for (let frames = 1; frames <= rate; frames++) {
+      if (rate % frames === 0) frameSteps.push(frames);
+    }
+    frameSteps.push(...[2, 5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600].map(s => s * rate));
+    const majorFrames = frameSteps.find(frames => frames / fps * pps >= 100) ?? frameSteps.at(-1);
+    let divisions = Math.min(5, majorFrames);
+    while (majorFrames % divisions !== 0) divisions--;
+    const minorFrames = majorFrames / divisions;
+    return { major: majorFrames / fps, minor: minorFrames / fps, majorFrames, minorFrames };
+  }
   const NICE = [
     0.001, 0.002, 0.005,
     0.01, 0.02, 0.05,

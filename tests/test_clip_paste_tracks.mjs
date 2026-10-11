@@ -52,7 +52,7 @@ function fixture() {
         _recordUndo() {}, _ensureTimelineLength() {}, _decorateClip() {},
         _updatePromptPanel() {}, _refreshTimelineDuration() {}, _scheduleProgramPreview() {}, _saveToWidgets() {},
     };
-    for (const name of ['_snapshotClip', '_copySelectedClips', '_resolvePasteTrack', '_createPasteTrack', '_trackHasRoom', '_pasteGroupFitsAt', '_pasteClips']) app[name] = method(name);
+    for (const name of ['_snapshotClip', '_copySelectedClips', '_pasteTrackCandidates', '_resolvePasteTrack', '_createPasteTrack', '_trackHasRoom', '_pasteGroupFitsAt', '_pasteClips']) app[name] = method(name);
     const copy = type => {
         const track = addTrack(type);
         const clip = tl.addClip(track.id, {name:'source', src:'video.mp4', startTime:2, duration:5,
@@ -133,3 +133,34 @@ for (const reason of ['removed', 'locked', 'hidden']) {
     assert.equal(second.startTime, 12);
 }
 console.log('Clip copy/paste: track types, timing, metadata, subtitle collisions and repeated paste passed');
+
+for (const type of ['image', 'video', 'audio', 'text', 'voiceover', 'filter']) {
+    const {app, tl, tracks, addTrack, copy} = fixture();
+    const original = copy(type);
+    tl.currentTime = original.startTime;
+    const locked = addTrack(type); locked.locked = true;
+    const hidden = addTrack(type); hidden.visible = false;
+    const empty = addTrack(type);
+    const count = tracks.length;
+    assert(app._pasteClips());
+    assert.equal(tracks.length, count, `${type}: reuse existing empty track`);
+    assert.equal(tl.getSelectedClips()[0].track, empty);
+}
+{
+    const {app, tl, tracks, addTrack, copy} = fixture();
+    const first = copy('image');
+    const second = tl.addClip(first.track.id, {name:'second', startTime:10, duration:3});
+    app._meta.set(second.id, {clipType:'image'});
+    tl.selectClip(first); tl.selectClip(second, {additive:true});
+    app._copySelectedClips();
+    tl.currentTime = 2;
+    const partial = addTrack('image');
+    tl.addClip(partial.id, {startTime:10, duration:3});
+    const empty = addTrack('image');
+    const count = tracks.length;
+    assert(app._pasteClips());
+    assert.equal(tracks.length, count);
+    assert(tl.getSelectedClips().every(c => c.track === empty), 'whole group must fit, not only its first clip');
+    assert.deepEqual(tl.getSelectedClips().map(c => c.startTime), [2,10]);
+}
+console.log('Paste reuses compatible free tracks, skips locked/hidden tracks, and checks whole groups.');

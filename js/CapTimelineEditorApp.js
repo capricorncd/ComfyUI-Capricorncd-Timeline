@@ -17853,7 +17853,7 @@ export class CapTimelineEditorApp {
         return {
             trackId: clip.track.id,
             groupId: clip.groupId,
-            trackType: isAudio
+            trackType: clip.track?.type === "filter" ? "filter" : isAudio
                 ? "audio"
                 : isVoiceover
                     ? "voiceover"
@@ -17896,47 +17896,26 @@ export class CapTimelineEditorApp {
         return true;
     }
 
-    _resolvePasteTrack(snap) {
+    _pasteTrackCandidates(snap) {
         const tl = this._timeline;
-        if (!tl || !snap) return null;
-        const wantAudio = snap.trackType === "audio";
-        const wantVoiceover = isVoiceoverTrackType(snap.trackType);
-        const wantSub = isSubtitleTrackType(snap.trackType);
-        const wantMedia = isMediaTrackType(snap.trackType);
-        if(snap.trackType==='filter')return tl.tracks.find(t=>t.id===snap.trackId && t.type==='filter' && !t.locked)
-            ?? tl.tracks.find(t=>t.type==='filter' && !t.locked && t.visible) ?? this._addUserTrack('filter');
-        const orig = tl.getTrack(snap.trackId);
-        if (orig && !orig.locked && orig.visible !== false) {
-            const ok = wantAudio
-                ? orig.type === "audio"
-                : wantVoiceover
-                    ? isVoiceoverTrackType(orig.type)
-                    : wantSub
-                        ? isSubtitleTrackType(orig.type)
-                        : wantMedia
-                            ? isMediaTrackType(orig.type)
-                            : isDirectorTrackType(orig.type);
-            if (ok) return orig;
-        }
-        if (wantAudio) {
-            return this._allAudioTracks().find(t => !t.locked && t.visible !== false)
-                ?? this._createInsertTrack("audio");
-        }
-        if (wantVoiceover) {
-            return this._allVoiceoverTracks().find(t => !t.locked && t.visible !== false)
-                ?? this._addUserTrack("voiceover")
-                ?? this._createInsertTrack("voiceover");
-        }
-        if (wantSub) {
-            return this._allTextTracks().find(t => !t.locked && t.visible !== false)
-                ?? this._addUserTrack("text");
-        }
-        if (wantMedia) {
-            return this._allMediaTracks().find(t => !t.locked && t.visible !== false)
-                ?? this._createInsertTrack("video");
-        }
-        return this._allImageTracks().find(t => !t.locked && t.visible !== false)
-            ?? this._createInsertTrack("image");
+        if (!tl || !snap) return [];
+        const compatible = track => {
+            if (track.locked || track.visible === false) return false;
+            if (snap.trackType === "filter") return track.type === "filter";
+            if (snap.trackType === "audio") return track.type === "audio";
+            if (isVoiceoverTrackType(snap.trackType)) return isVoiceoverTrackType(track.type);
+            if (isSubtitleTrackType(snap.trackType)) return isSubtitleTrackType(track.type);
+            if (isMediaTrackType(snap.trackType)) return isMediaTrackType(track.type);
+            return isDirectorTrackType(track.type);
+        };
+        const tracks = tl.tracks.filter(compatible);
+        const original = tracks.find(track => track.id === snap.trackId);
+        return original ? [original, ...tracks.filter(track => track !== original)] : tracks;
+    }
+
+    _resolvePasteTrack(snap) {
+        if (!this._timeline || !snap) return null;
+        return this._pasteTrackCandidates(snap)[0] ?? this._createPasteTrack(snap);
     }
 
     _createPasteTrack(snap) {
@@ -18012,9 +17991,15 @@ export class CapTimelineEditorApp {
                     candidates.map(i => snaps[i]), candidates.map(i => tracks[i]), minStart, pasteBase,
                 );
                 if (!fits) {
-                    const newTrack = this._createPasteTrack(snaps[indices[0]]);
-                    if (!newTrack) return false;
-                    for (const i of indices) tracks[i] = newTrack;
+                    const group = new Set(indices);
+                    const reusable = this._pasteTrackCandidates(snaps[indices[0]]).find(track =>
+                        this._pasteGroupFitsAt(
+                            candidates.map(i => snaps[i]),
+                            candidates.map(i => group.has(i) ? track : tracks[i]), minStart, pasteBase,
+                        ));
+                    const target = reusable ?? this._createPasteTrack(snaps[indices[0]]);
+                    if (!target) return false;
+                    for (const i of indices) tracks[i] = target;
                 }
                 assigned.push(...indices);
             }
@@ -18030,7 +18015,8 @@ export class CapTimelineEditorApp {
             let track = tracks[i];
             const start = pasteBase + (snap.startTime - minStart);
             if (!this._trackHasRoom(track, start, snap.duration)) {
-                track = this._createPasteTrack(snap);
+                track = this._pasteTrackCandidates(snap).find(candidate => this._trackHasRoom(candidate, start, snap.duration))
+                    ?? this._createPasteTrack(snap);
                 if (!track) return false;
             }
             this._ensureTimelineLength(start + snap.duration);

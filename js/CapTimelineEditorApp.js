@@ -21900,23 +21900,35 @@ export class CapTimelineEditorApp {
         if (!this._isNodeOnLiveGraph()) return;
 
         const projectW = this._w("project_json");
-        if (projectW) projectW.value = json;
+        const changed = projectW?.value !== json
+            || (node.widgets || []).some(w => w?.name && w.serialize !== false
+                && node.properties?.cat_named?.[w.name] !== (w.name === "project_json" ? json : w.value));
+        // Canvas redraw alone does not update ComfyUI's workflow change tracker.
+        // Pair notifications so asynchronous generation results are captured too.
+        const graph = node.graph;
+        const notify = changed && typeof graph?.beforeChange === "function" && typeof graph?.afterChange === "function";
+        if (notify) graph.beforeChange();
+        try {
+            if (projectW) projectW.value = json;
 
-        if (Array.isArray(node.widgets)) {
-            const values = [];
-            for (const w of node.widgets) {
-                if (w.serialize === false) continue;
-                values.push(w.name === "project_json" ? json : w.value);
-            }
-            node.widgets_values = values;
+            if (Array.isArray(node.widgets)) {
+                const values = [];
+                for (const w of node.widgets) {
+                    if (w.serialize === false) continue;
+                    values.push(w.name === "project_json" ? json : w.value);
+                }
+                node.widgets_values = values;
 
-            if (!node.properties) node.properties = {};
-            const named = { ...(node.properties.cat_named || {}) };
-            for (const w of node.widgets) {
-                if (!w?.name || w.serialize === false) continue;
-                named[w.name] = w.name === "project_json" ? json : w.value;
+                if (!node.properties) node.properties = {};
+                const named = { ...(node.properties.cat_named || {}) };
+                for (const w of node.widgets) {
+                    if (!w?.name || w.serialize === false) continue;
+                    named[w.name] = w.name === "project_json" ? json : w.value;
+                }
+                node.properties.cat_named = named;
             }
-            node.properties.cat_named = named;
+        } finally {
+            if (notify) graph.afterChange();
         }
 
         node.setDirtyCanvas?.(true, true);

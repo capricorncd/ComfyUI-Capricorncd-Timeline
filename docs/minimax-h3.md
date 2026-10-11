@@ -1,6 +1,6 @@
 # MiniMaxH3
 
-Optional `strict_keyframes` defaults to false (existing multimodal reference mode). True uses native first/last-frame conditioning: one image = first, two ordered images = first/last; rejects video/audio references and Motion Context. Use a compatible FL model/LoRA. For the new compact generation node and limitations, see [MiniMax H3 Video Generator](h3-video-generator.md).
+Optional `strict_keyframes` defaults to false (existing multimodal reference mode). True uses native first/last-frame conditioning: one image = first, two ordered images = first/last; supports designated last-frame anchors plus prompt-only character/prop image references; rejects video/audio references and Motion Context. Use a compatible FL model/LoRA. For the new compact generation node and limitations, see [MiniMax H3 Video Generator](h3-video-generator.md).
 
 ## Continuous-shot context replacement
 

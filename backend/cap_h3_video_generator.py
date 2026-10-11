@@ -162,7 +162,7 @@ class CAP_H3VideoGenerator:
         "after external LoRA loading, CLIP, video VAE and audio VAE. Audio repair uses optional base_model "
         "when connected, otherwise the incoming LoRA model. Select a matching 4/8-step LoRA externally. Project dimensions "
         "must be multiples of 32. Clip seed -1 is resolved once for all passes. "
-        "Clips with the first_last role use strict frames: one image = first; two = first/last; no AV references or Motion Context. "
+        "Clips with the first_last role use strict frames: one image = first; two = first/last; prompt-only images are additional references; no AV references or Motion Context. "
         "Digital Human clips lock timeline audio through both sampling passes and save the source track. "
         "Audio repair, motion deblur and face refinement are skipped for Digital Human clips to protect lip sync. "
         "Reference mode also permits FL models but does not force endpoints. "

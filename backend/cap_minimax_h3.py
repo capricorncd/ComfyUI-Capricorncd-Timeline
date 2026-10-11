@@ -11,7 +11,7 @@ import comfy.nested_tensor
 
 import nodes
 from comfy_api.latest._input_impl.video_types import VideoFromFile
-from comfy_extras.nodes_minimax_h3 import FPS as H3_FPS, MiniMaxH3ImageToVideo, MiniMaxH3ReferenceToVideo, align_frame_count
+from comfy_extras.nodes_minimax_h3 import FPS as H3_FPS, MiniMaxH3AddGuide, MiniMaxH3ImageToVideo, MiniMaxH3ReferenceToVideo, align_frame_count
 
 from .cap_data_json_parser import CAP_DataJsonClipParser
 from .cap_timeline_project_io import _resolve_output_file
@@ -270,7 +270,7 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 }),
                 "strict_keyframes": ("BOOLEAN", {
                     "default": False,
-                    "tooltip": "False: text / image / video / audio reference generation. True: native first/last-frame conditioning; use one image for the first frame or two ordered images for first and last. No video/audio references or Motion Context. Select a compatible FL model and LoRA yourself; keyframes are model constraints, not a pixel-exact guarantee.",
+                    "tooltip": "False: text / image / video / audio reference generation. True: native first/last-frame conditioning; use one image for the first frame or two ordered images for first and last. Prompt-only images are extra references; designated timeline images remain frame anchors. No video/audio references or Motion Context. Select a compatible FL model and LoRA yourself; keyframes are model constraints, not a pixel-exact guarantee.",
                 }),
             },
         }
@@ -549,7 +549,18 @@ class CAP_MiniMaxH3ReferenceToVideo:
         video_frames = []
         prompt_references = []
 
-        for ref in self._visual_refs(clip_row, parser):
+        visual_refs = self._visual_refs(clip_row, parser)
+        # Runtime rows distinguish timeline frame anchors from prompt-only assets.
+        anchor_ids = clip_row.get("anchor_image_ids")
+        prompt_ids = set(clip_row.get("prompt_media_ids") or [])
+        def is_anchor(ref):
+            mid = parser._ref_id(ref)
+            if anchor_ids is not None:
+                return mid in anchor_ids
+            return mid == last_frame_id or mid not in prompt_ids
+        mixed_keyframes = strict_keyframes and any(not is_anchor(ref) for ref in visual_refs)
+        anchor_count = 0
+        for ref in visual_refs:
             path, row = self._material_for_ref(ref, materials, parser)
             prompt_references.append((row, None))
             if not path or not os.path.isfile(path):
@@ -557,7 +568,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
                     raise ValueError("Strict first/last frame image is missing or unreadable.")
                 continue
             kind = _kind_of(row, path)
-            if strict_keyframes and (kind != "image" or len(image_frames) >= 2):
+            anchor = strict_keyframes and is_anchor(ref)
+            if strict_keyframes and (kind != "image" or (anchor and anchor_count >= 2)):
                 raise ValueError("Strict first/last frames requires one or two ordered images only. Use reference mode for other materials.")
             if kind == "video":
                 if len(ref_videos) >= MAX_REF_VIDEOS:
@@ -573,6 +585,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 if soundtrack is not None:
                     ref_video_audios[f"ref_video_audio_{n}"] = soundtrack
                 continue
+            if strict_keyframes and len(ref_images) >= MAX_REF_IMAGES:
+                raise ValueError(f"First/last frames with references supports at most {MAX_REF_IMAGES} images including anchors.")
             if kind != "image" or len(ref_images) >= MAX_REF_IMAGES:
                 continue
             img = parser._load_image(path)
@@ -582,15 +596,16 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 continue
             n = len(ref_images) + 1
             ref_images[f"ref_image_{n}"] = img
-            is_last = parser._ref_id(ref) == last_frame_id if last_frame_id else n == 2
-            if strict_keyframes:
+            is_last = parser._ref_id(ref) == last_frame_id if last_frame_id else anchor_count == 1
+            if anchor:
+                anchor_count += 1
                 if is_last:
                     last_frame = img
                 elif first_frame is None:
                     first_frame = img
                 else:
                     raise ValueError("Only one first frame is allowed alongside the designated last frame.")
-            tag = ("the subject in the last frame" if is_last else "the subject in the first frame") if strict_keyframes else f"<Picture {n}>"
+            tag = ("the subject in the last frame" if is_last else "the subject in the first frame") if strict_keyframes and not mixed_keyframes else f"<Picture {n}>"
             prompt_references[-1] = (row, tag)
             image_frames.append(img)
 
@@ -642,7 +657,9 @@ class CAP_MiniMaxH3ReferenceToVideo:
         images_out = self._stack_frames(image_frames, blank)
         videos_out = self._stack_frames(video_frames, blank)
 
-        if strict_keyframes:
+        if strict_keyframes and first_frame is None and last_frame is None:
+            raise ValueError("First/last frames requires an enabled frame anchor, not only prompt references.")
+        if strict_keyframes and not mixed_keyframes:
             if not image_frames:
                 raise ValueError("Strict first/last frames needs at least one image. Disable strict_keyframes for text-to-video.")
             out = MiniMaxH3ImageToVideo.execute(
@@ -660,6 +677,14 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 ref_audios=ref_audios or None,
             )
         positive, latent = out.args
+        if mixed_keyframes:
+            # Reference conditioning keeps Picture labels; guides pin only the anchors.
+            for frame_idx, frame in ((0, first_frame), (-1, last_frame)):
+                if frame is not None:
+                    positive, = MiniMaxH3AddGuide.execute(
+                        positive=positive, latent=latent, frame_idx=frame_idx,
+                        vae=vae, image=frame,
+                    ).args
         trim_frames = 0
 
         if use_context and mc_cls is not None:

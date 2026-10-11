@@ -785,6 +785,8 @@ class CAP_TimelineEditor:
                         reference_audios.append(ref)
                     else:
                         entries.append(dict(row=ref, id=ref["id"], enabled=True, use_prompt=False))
+            anchor_image_ids = [entry["id"] for entry in entries
+                                if entry.get("enabled") and entry["row"].get("kind", "image") == "image"]
             prompt_refs = prompt_reference_rows(project, clip)
             if clip.get("reference_timeline"):
                 prompt_refs = [ref for ref in prompt_refs if ref.get("kind") not in ("video", "audio")]
@@ -819,6 +821,7 @@ class CAP_TimelineEditor:
                 "clip_type": str(clip.get("type") or "image"),
                 "clip_role": clip_role,
                 "last_frame_media_id": str(clip.get("last_frame_media_id") or ""),
+                "anchor_image_ids": anchor_image_ids,
                 "clip_role_custom": clip_role_custom,
                 "use_audio_track_audio": use_audio_track_audio,
                 "agent": agent,

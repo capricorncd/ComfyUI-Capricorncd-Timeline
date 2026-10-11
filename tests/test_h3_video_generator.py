@@ -1029,10 +1029,12 @@ class StrictKeyframeTests(unittest.TestCase):
         tree.body = [n for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef)) and n.name in ("CAP_MiniMaxH3ReferenceToVideo", "_snap_h3_grid", "_h3_audio_clip")]
         self.native = Mock(return_value=SimpleNamespace(args=("positive", "latent")))
         self.reference = Mock(return_value=SimpleNamespace(args=("positive", "latent")))
+        self.guide = Mock(return_value=SimpleNamespace(args=("guided",)))
         self.scope = dict(compile_h3_mentions=mentions.compile_h3_mentions, playback_rate=lambda value: float(value or 1), nodes=SimpleNamespace(MAX_RESOLUTION=16384), H3_FPS=24, align_frame_count=lambda x: x,
                           os=SimpleNamespace(path=SimpleNamespace(isfile=lambda p: True)),
                           CAP_DataJsonClipParser=object, torch=SimpleNamespace(Tensor=object, zeros=lambda *a: "blank"), MAX_REF_IMAGES=9, MAX_REF_VIDEOS=3, MAX_REF_AUDIOS=3,
                           _kind_of=lambda row, path: row.get("kind", "image"),
+                          MiniMaxH3AddGuide=SimpleNamespace(execute=self.guide),
                           MiniMaxH3ImageToVideo=SimpleNamespace(execute=self.native),
                           MiniMaxH3ReferenceToVideo=SimpleNamespace(execute=self.reference))
         exec(compile(tree, str(path), "exec"), self.scope)
@@ -1071,6 +1073,31 @@ class StrictKeyframeTests(unittest.TestCase):
             self.prepare(refs, last_frame_media_id="end")
             self.assertEqual(self.native.call_args.kwargs, {"first_frame": "first", "last_frame": "last"})
             self.assertEqual(self.native.call_args.args[2], "the subject in the first frame reaches the subject in the last frame")
+
+    def test_last_frame_with_character_and_prop_references(self):
+        self.parser._compose_prompt = lambda *a, **kw: "@Hero uses @Prop, ending at @End"
+        images = [{"id": "hero", "file": "hero", "name": "Hero"},
+                  {"id": "end", "file": "last", "name": "End"},
+                  {"id": "prop", "file": "prop", "name": "Prop"}]
+        result = self.prepare(images, last_frame_media_id="end", anchor_image_ids=["end"])
+        self.native.assert_not_called()
+        self.assertEqual(self.reference.call_args.kwargs["prompt"],
+                         "<Picture 1> uses <Picture 3>, ending at <Picture 2>")
+        self.assertEqual(list(self.reference.call_args.kwargs["ref_images"].values()), ["hero", "last", "prop"])
+        self.guide.assert_called_once_with(positive="positive", latent="latent", frame_idx=-1, vae="vae", image="last")
+        self.assertEqual(result[0], "guided")
+
+    def test_first_last_with_extra_reference_pins_both_endpoints(self):
+        self.prepare([{"id": "start", "file": "first"}, {"id": "hero", "file": "hero"},
+                      {"id": "end", "file": "last"}],
+                     last_frame_media_id="end", anchor_image_ids=["start", "end"])
+        self.assertEqual([(c.kwargs["frame_idx"], c.kwargs["image"]) for c in self.guide.call_args_list],
+                         [(0, "first"), (-1, "last")])
+
+    def test_prompt_only_images_cannot_replace_missing_anchor(self):
+        with self.assertRaisesRegex(ValueError, "enabled frame anchor"):
+            self.prepare([{"id": "hero", "file": "hero"}], anchor_image_ids=[])
+        self.reference.assert_not_called()
 
     def test_assigned_last_frame_only(self):
         self.prepare([{"id": "end", "file": "last"}], last_frame_media_id="end")

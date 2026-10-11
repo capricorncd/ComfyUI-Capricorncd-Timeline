@@ -97,7 +97,16 @@ Connect the **sampling MODEL after external LoRA loading**, CLIP text encoder, v
 
 The generator selects conditioning per Clip from `clip_role`; there is no node-level `strict_keyframes` switch. Roles other than `first_last` use multimodal reference generation, including text-only, images, video and audio. Supplying an FL model does **not** change references into endpoint constraints.
 
-`clip_role=first_last`: use native `MiniMaxH3ImageToVideo` keyframe conditioning. One enabled image supplies the first frame; two supply first and last in reference order. Rejects empty/more-than-two images, video/audio references and Motion Context. Select a compatible FL model and LoRA yourself. This is model conditioning, not a pixel-exact replacement of rendered endpoint frames. Two-pass strict mode re-encodes anchors at the final resolution.
+`clip_role=first_last`: native `MiniMaxH3ImageToVideo` handles pure endpoint inputs. One enabled image defaults to the first frame; two default to first/last in order. An explicitly designated last frame also supports last-frame-only generation.
+
+### First/last frames with character and prop references
+
+Put only the frame anchors in the Clip media list and designate the last frame. Keep character/prop images in the media library and select them via `@asset name` in the prompt. Describe their identity/appearance and the desired ending composition. For a last-frame-only shot, keep only the ending image as Clip media; additional prompt references do not become a first frame.
+
+Mixed mode uses `MiniMaxH3ReferenceToVideo` with `MiniMaxH3AddGuide` at frame 0 and/or -1. All images receive `<Picture N>` labels in actual load order; only the anchors receive temporal constraints. Two-pass generation rebuilds these conditions at the final resolution. Pure endpoint mode retains its existing first/last-subject mention labels.
+
+At most two anchors and nine images total are supported. Missing enabled anchors, video/audio references and Motion Context are rejected. Use a compatible model/LoRA; constraints do not guarantee pixel-identical endpoints or reference fidelity. Routing is covered by automated tests; mixed-mode GPU output quality has not been validated. Rerun Timeline Editor in old workflows to populate `anchor_image_ids` in runtime data. See the [Chinese usage example](zh/h3-video-generator.md).
+
 
 The existing **Cap MiniMaxH3** conditioning node also exposes the same optional toggle, default off; old connections and outputs remain unchanged.
 

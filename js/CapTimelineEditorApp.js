@@ -10542,15 +10542,19 @@ export class CapTimelineEditorApp {
         this._pullGenEditDraftFromTimeline();
         st.timeline.pause();
         const project = this._buildProject();
-        const audio = st.audioDraft.find(row => row.id === st.audioMap.get(clip.id));
-        const video = st.draft.find(row => row.id === st.clipMap.get(clip.id));
-        if (!audio && !video) return;
-        const row = { id: clip.id, name: clip.name, start_ms: 0, duration_ms: Math.round(clip.duration * 1000) };
-        if (audio) Object.assign(row, { source: { file: audio.file, in_ms: Math.round(audio.source_offset * 1000) },
-            volume: audio.volume, volume_points: audio.volume_points, muted: audio.muted });
-        else row.generated_videos = [{ ...video, enabled: true, edit_start_sec: 0 }];
-        project.tracks = [{ type: audio ? "audio" : "director", clips: [row] }];
-        this._clipExport.open(project, clip.id, this._launcherProject?.session?.directory);
+        const selected = st.timeline.getSelectedClips?.() || [];
+        const clips = selected.some(item => item.id === clip.id) ? selected : [clip];
+        project.tracks = clips.flatMap(item => {
+            const audio = st.audioDraft.find(row => row.id === st.audioMap.get(item.id));
+            const video = st.draft.find(row => row.id === st.clipMap.get(item.id));
+            if (!audio && !video) return [];
+            const row = {id: item.id, name: item.name, start_ms: Math.round((item.startTime || 0) * 1000), duration_ms: Math.round(item.duration * 1000)};
+            if (audio) Object.assign(row, {source: {file: audio.file, in_ms: Math.round(audio.source_offset * 1000)},
+                volume: audio.volume, volume_points: audio.volume_points, muted: audio.muted});
+            else row.generated_videos = [{...video, enabled: true, edit_start_sec: 0}];
+            return [{type: audio ? "audio" : "director", clips: [row]}];
+        });
+        this._clipExport.open(project, clips.map(item => item.id), this._launcherProject?.session?.directory);
     }
 
     _copyGenEditClips() {
@@ -17706,7 +17710,8 @@ export class CapTimelineEditorApp {
         );
         if (canExport) media.push({ label: T("clip_export_title"), icon: "save", fn: () => {
             this._timeline.pause();
-            this._clipExport.open(this._buildProject(), clip.id, this._launcherProject?.session?.directory);
+            const selected = this._timeline.getSelectedClips();
+            this._clipExport.open(this._buildProject(), selected.some(item => item.id === clip.id) ? selected.map(item => item.id) : [clip.id], this._launcherProject?.session?.directory);
         } });
         if (clip.track.type !== "filter" && !isAudio && !isVoiceover && !isSubtitle && !isMedia) media.push(
             { label: T("clear_clip_video_links"), icon: "close", danger: true, disabled: !this._clipGeneratedVideos(m).length,

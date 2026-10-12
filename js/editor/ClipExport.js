@@ -1,6 +1,7 @@
 import { api } from '../../../scripts/api.js';
 import { t as T } from '../i18n/timeline_editor.js';
 import '../components/Dialog.js';
+import '../components/RadioButton.js';
 import '../components/FormControls.js';
 import '../components/StatusMessage.js';
 import '../components/ExportDirectory.js';
@@ -27,6 +28,26 @@ export function clipExportProject(project, clipId) {
     } };
 }
 
+export function clipExportSelections(project, clipIds) {
+    const ids = new Set(Array.isArray(clipIds) ? clipIds : [clipIds]);
+    return project.tracks.flatMap(track => track.clips).filter(clip => ids.has(clip.id))
+        .sort((a, b) => (a.start_ms || 0) - (b.start_ms || 0))
+        .map(clip => clipExportProject(project, clip.id)).filter(Boolean);
+}
+
+export function mergeClipExports(selections) {
+    let durationMs = 0;
+    const tracks = selections.map((selection, index) => {
+        const track = structuredClone(selection.project.tracks[0]);
+        track.id = `export_${index}`;
+        track.clips[0].start_ms = durationMs;
+        durationMs += track.clips[0].duration_ms;
+        return track;
+    });
+    return {audio: selections.every(row => row.audio), duration: durationMs / 1000,
+        project: {...selections[0].project, tracks}};
+}
+
 export class ClipExport {
     constructor(host) {
         this.dialog = document.createElement('cap-dialog');
@@ -37,12 +58,16 @@ export class ClipExport {
 
     open(project, clipId, projectDirectory = '') {
         if (this.busy) return;
-        const selected = clipExportProject(project, clipId);
-        if (!selected) return;
+        const selections = clipExportSelections(project, clipId);
+        if (!selections.length) return;
+        const selected = mergeClipExports(selections);
         const dialog = this.dialog;
         dialog.innerHTML = `<span slot="title">${T('clip_export_title')}</span>
             <div class="cat-te-modal-body">
-                <p data-summary></p>
+                <label>${T('clip_export_mode')}<cap-radio-group data-mode value="merged">
+                    <cap-radio-button value="merged" indicator>${T('clip_export_merged')}</cap-radio-button>
+                    <cap-radio-button value="separate" indicator>${T('clip_export_separate')}</cap-radio-button>
+                </cap-radio-group></label>
                 <label>${T('filename_label')}<cap-input><input data-filename /></cap-input></label>
                 <cap-export-directory default-dir="output/cap_clip_exports/"></cap-export-directory>
                 <label data-fps-option>${T('compose_fps_label')}<cap-input><input data-fps type="number" required min="1" max="120" step="0.001" /></cap-input></label>
@@ -55,7 +80,7 @@ export class ClipExport {
                 <cap-button data-close>${T('close_title')}</cap-button>
                 <cap-button data-export variant="primary">${T('export_title')}</cap-button>
             </div></div>`;
-        dialog.querySelector('[data-summary]').textContent = T('clip_export_summary', { name: selected.project.name, duration: selected.duration.toFixed(3) });
+        const mode = dialog.querySelector('[data-mode]');
         const filename = dialog.querySelector('[data-filename]');
         const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
         filename.value = `${selected.project.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')}_${stamp}`;
@@ -92,20 +117,30 @@ export class ClipExport {
             reveal.hidden = true;
             status.setStatus(T('composing_please_wait'));
             const outputDirectory = directory.value;
+            const separate = mode.value === 'separate' && selections.length > 1;
+            const jobs = separate ? selections : [selected];
+            const baseName = filename.value.replace(/\.(mp4|wav|mp3)$/i, '');
+            const exportSettings = {...directory.exportSettings};
+            const wantVideo = video.checked, wantAudio = audio.checked, audioFormat = format.value, outputFps = Number(fps.value);
+            const outputs = [];
             try {
-                const response = await api.fetchApi('/audio_keyframe_timeline/compose_video', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ project: selected.project, filename: filename.value,
-                        ...directory.exportSettings,
-                        export_video: video.checked, export_audio: audio.checked, audio_format: format.value,
-                        output_resolution: 'project', export_quality: 'maximum', output_fps: video.checked ? Number(fps.value) : null,
-                        export_range: { start_frame: 0, end_frame: Math.max(1, Math.round(selected.duration * selected.project.settings.fps)) },
-                    }),
-                });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.error || T('compose_failed_http', { status: response.status }));
+                let result;
+                for (const [index, job] of jobs.entries()) {
+                    const response = await api.fetchApi('/audio_keyframe_timeline/compose_video', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ project: job.project, filename: separate ? `${baseName}_${index + 1}` : baseName,
+                            ...exportSettings,
+                            export_video: wantVideo, export_audio: wantAudio, audio_format: audioFormat,
+                            output_resolution: 'project', export_quality: 'maximum', output_fps: wantVideo ? outputFps : null,
+                            export_range: { start_frame: 0, end_frame: Math.max(1, Math.round(job.duration * job.project.settings.fps)) },
+                        }),
+                    });
+                    result = await response.json();
+                    if (!response.ok) throw new Error(result.error || T('compose_failed_http', { status: response.status }));
+                    outputs.push(...result.outputs);
+                }
                 directory.remember(outputDirectory);
-                status.setStatus(T('export_saved_path', { path: result.outputs.map(row => row.path || [row.subfolder, row.filename].filter(Boolean).join('/')).join('\n') }), 'success');
+                status.setStatus(T('export_saved_path', { path: outputs.map(row => row.path || [row.subfolder, row.filename].filter(Boolean).join('/')).join('\n') }), 'success');
                 reveal.hidden = false;
                 reveal.onclick = async () => {
                     try {
@@ -117,7 +152,7 @@ export class ClipExport {
                         if (!response.ok) throw new Error(data.error || T('open_folder_prepare_failed'));
                     } catch (error) { status.setStatus(error.message, 'error'); }
                 };
-            } catch (error) { status.setStatus(error.message, 'error'); }
+            } catch (error) { status.setStatus([error.message, ...outputs.map(row => row.path || [row.subfolder, row.filename].filter(Boolean).join('/'))].join('\n'), 'error'); }
             finally { this.busy = false; directory.disabled = false; dialog.closeDisabled = close.disabled = false; change(); }
         };
         dialog.showModal();

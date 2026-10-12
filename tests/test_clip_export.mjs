@@ -99,10 +99,35 @@ let trimResult;
 const app = { _genEditState: { timeline: { pause() {} }, audioMap: new Map([['trim-audio', 'row']]), clipMap: new Map(),
     audioDraft: [{ id: 'row', file: 'audio.wav', source_offset: 2, duration: 1, volume: 0.7, volume_points: [] }], draft: [] },
     _pullGenEditDraftFromTimeline() {}, _buildProject: () => structuredClone(project),
-    _clipExport: { open(project, id) { trimResult = clipExportProject(project, id); } } };
+    _clipExport: { open(project, id) { trimResult = clipExportProject(project, Array.isArray(id) ? id[0] : id); } } };
 exportTrim.call(app, { id: 'trim-audio', duration: 1, name: 'Trim audio' });
 assert.equal(trimResult.audio, true);
 assert.equal(trimResult.duration, 1);
 assert.equal(trimResult.project.tracks[0].clips[0].source.in_ms, 2000);
 assert.equal(trimResult.project.tracks[0].clips[0].volume, 0.7);
 console.log('Trim-window audio exports only its own source range');
+
+fail = false;
+const multi = structuredClone(project);
+multi.tracks[2].clips[0].start_ms = 40000;
+ui.open(multi, ['video', 'director']);
+field('[data-mode]').value = 'separate';
+field('[data-filename]').value = 'selected.mp4';
+requests.length = 0;
+await field('[data-export]').onclick();
+assert.deepEqual(requests.map(r => r[1].filename), ['selected_1', 'selected_2']);
+assert.deepEqual(requests.map(r => r[1].project.tracks[0].clips[0].id), ['director','video']);
+assert(requests.every(r => r[1].project.tracks[0].clips[0].start_ms === 0));
+assert.deepEqual(requests.map(r => r[1].export_range.end_frame), [72,120]);
+ui.open(multi, ['video', 'director']);
+field('[data-mode]').value = 'merged';
+field('[data-filename]').value = 'merged';
+requests.length = 0;
+await field('[data-export]').onclick();
+assert.equal(requests.length, 1);
+assert.deepEqual(requests[0][1].project.tracks.map(t => t.clips[0].start_ms), [0,3000]);
+assert.equal(requests[0][1].export_range.end_frame, 192);
+assert.equal(requests[0][1].filename,'merged');
+assert(!source.includes('data-summary'));
+assert.equal(multi.tracks[2].clips[0].start_ms,40000);
+console.log('Multi-clip export: ordered numbered files, merged duration/positions and original project unchanged.');

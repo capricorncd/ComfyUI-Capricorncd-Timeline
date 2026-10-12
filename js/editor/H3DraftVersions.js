@@ -1,5 +1,6 @@
 import { showCapAlert } from "../cap_ui.js";
 import '../components/Dialog.js';
+import '../components/DropdownButton.js';
 import '../components/FormControls.js';
 import '../components/StatusMessage.js';
 import '../components/ExportDirectory.js';
@@ -10,6 +11,7 @@ import { t as T } from '../i18n/timeline_editor.js';
 
 export const draftT = makeT({
     en: {
+        batch: 'Batch actions', unlink: 'Unlink (keep files)', unlink_all: 'Unlink all',
         associate: 'Associate existing folder', no_match: 'No preview versions belonging to this Clip were found.', hd: 'Generate HD', segment: 'Keyframe {interval} · part {part}/{parts}', start: 'Clip start {time}',
         previous_clip: 'Previous Clip', next_clip: 'Next Clip', disable_all: 'Disable all previews', generated: 'Generated {time}', unknown_time: 'Unknown',
         playback_mode: "Preview versions", playback_hint: "Play preview versions along the timeline (latest enabled version per Clip)", playback_exit: "Exit preview version playback",
@@ -22,8 +24,9 @@ export const draftT = makeT({
         failed: 'Could not run: {message}', prompt: 'Preview sampling prompt', delete_failed: 'Could not delete: {message}', removed: 'Move this version’s video, latent and metadata files to the system recycle bin? Ctrl+Z cannot restore them. Restore all files manually from the recycle bin, then use Associate existing folder to link the version again.',
     },
     zh: {
+        batch: '批量操作', unlink: '解绑（保留磁盘文件）', unlink_all: '全部解绑',
         associate: '关联已有文件夹', no_match: '此文件夹没有属于当前 Clip 的预览版本。', hd: '生成高清版', segment: '关键帧区间 {interval} · 第 {part}/{parts} 段', start: 'Clip 内开始 {time}',
-        previous_clip: '上一个 Clip', next_clip: '下一个 Clip', disable_all: '一键全部禁用预览采样', generated: '生成时间 {time}', unknown_time: '未知',
+        previous_clip: '上一个 Clip', next_clip: '下一个 Clip', disable_all: '全部禁用', generated: '生成时间 {time}', unknown_time: '未知',
         playback_mode: "预览版模式", playback_hint: "沿时间轴播放各 Clip 最新启用的预览版", playback_exit: "退出预览版播放模式",
         generate_all: "全部片段批量预览采样", generate_selected: "选中片段批量预览采样",
         title: '预览采样管理', generate: '批量预览采样',
@@ -34,6 +37,7 @@ export const draftT = makeT({
         failed: '运行失败：{message}', prompt: '预览采样提示词', delete_failed: '删除失败：{message}', removed: '删除此版本并将视频、latent 和版本信息文件移入系统回收站？此操作不支持 Ctrl+Z。需要手动从回收站还原全部文件，再使用「关联已有文件夹」重新关联。',
     },
     ja: {
+        batch: '一括操作', unlink: '関連付け解除（ファイルを保持）', unlink_all: 'すべての関連付けを解除',
         associate: '既存フォルダーを関連付け', no_match: 'この Clip のプレビューが見つかりません。', hd: '高解像度版を生成', segment: 'キーフレーム {interval} · {part}/{parts}', start: 'Clip 内開始 {time}',
         previous_clip: '前の Clip', next_clip: '次の Clip', disable_all: '全プレビューを無効にする', generated: '生成日時 {time}', unknown_time: '不明',
         playback_mode: "プレビュー版モード", playback_hint: "各 Clip の最新の有効なプレビューをタイムラインで再生", playback_exit: "プレビュー版モードを終了",
@@ -138,6 +142,22 @@ export class H3DraftVersions {
         this.editor._scheduleProgramPreview();
         if (this.editor._timeline?._playing) this.editor._startAudioPlayback();
         if (this.dialog.open) this.render();
+    }
+
+    unlink(clip, ids) {
+        if (!clip || clip.track?.locked) return;
+        const selected = new Set(ids);
+        const rows = this.editor._ensureClipMeta(clip).h3Drafts || [];
+        const removed = rows.filter(row => selected.has(row.id)).map(row => row.id);
+        if (!removed.length) return;
+        this.change(meta => {
+            // Clip-local tombstones prevent history replay from restoring links.
+            // Do not touch global deletion state: copied Clips may share these files.
+            meta.h3DraftRemoved = [...new Set([...(meta.h3DraftRemoved || []), ...removed])];
+            meta.h3Drafts = meta.h3Drafts.filter(row => !selected.has(row.id));
+        }, clip.id);
+        this.editor._scheduleProgramPreview();
+        if (this.editor._timeline?._playing) this.editor._startAudioPlayback();
     }
 
     associate(clip) {
@@ -251,6 +271,14 @@ export class H3DraftVersions {
             view.addEventListener('click', () => { this.previewId = row.id; this.render(); });
             const actions = document.createElement('div');
             actions.className = 'cat-te-h3-draft-actions';
+            const unlink = document.createElement('cap-button');
+            unlink.setAttribute('size', 'small');
+            unlink.setAttribute('shape', 'square');
+            unlink.title = draftT('unlink');
+            unlink.setAttribute('aria-label', unlink.title);
+            unlink.innerHTML = iconHtml('unlink', 16);
+            unlink.disabled = !!clip.track?.locked;
+            unlink.addEventListener('click', () => this.unlink(clip, [row.id]));
             const remove = document.createElement('cap-button');
             remove.setAttribute('size', 'small');
             remove.setAttribute('variant', 'danger');
@@ -316,7 +344,7 @@ export class H3DraftVersions {
                 } catch (error) { showCapAlert(draftT('failed', {message: error.message})); }
                 finally { if (hd.isConnected) hd.disabled = !!clip.track?.locked; }
             });
-            actions.append(details, hd, folder, remove);
+            actions.append(hd, details, folder, unlink, remove);
             const timing = document.createElement('div');
             const part = row.keyframe_segment;
             timing.textContent = (part ? draftT('segment', part) + ' · ' : '') + draftT('start', {time: draftStartTime(row)});
@@ -353,12 +381,18 @@ export class H3DraftVersions {
         const footer = document.createElement('div');
         footer.slot = 'footer';
         footer.className = 'cat-te-h3-draft-actions';
-        const disable = document.createElement('cap-button');
-        disable.textContent = draftT('disable_all');
-        disable.setAttribute('variant', 'danger');
-        disable.disabled = !!clip.track?.locked || !rows.some(row => row.enabled !== false);
-        disable.addEventListener('click', () => this.disableAll([clip], this.interval));
-        footer.append(disable);
+        const batch = document.createElement('cap-dropdown-button');
+        batch.textContent = draftT('batch');
+        batch.disabled = !!clip.track?.locked || !rows.length;
+        batch.bindMenu(() => {
+            const rect = batch.getBoundingClientRect();
+            return this.editor._buildCtxMenu([
+                {label: draftT('unlink_all'), icon: 'unlink', fn: () => this.unlink(clip, rows.map(row => row.id))},
+                {label: draftT('disable_all'), icon: 'eyeOff', disabled: !rows.some(row => row.enabled !== false),
+                    fn: () => this.disableAll([clip], this.interval)},
+            ], rect.left, rect.bottom + 4, {ignoreNextClick: false});
+        });
+        footer.append(batch);
         if (current?.prompt) {
             const restore = document.createElement('cap-button');
             const update = {id: String(clip.id), text: current.prompt, segment: current.keyframe_segment};

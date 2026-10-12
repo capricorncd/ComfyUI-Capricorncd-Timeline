@@ -91,6 +91,27 @@ class SharedPromptTests(unittest.TestCase):
         self.run_prompt(self.clip, json.dumps(self.data), tail_name='installed_tail.safetensors', video_frame_count=16)
         self.assertEqual(self.material_calls[-1][-3], 16)
 
+    def test_text_only_skips_attachment_reader_and_keeps_skills(self):
+        self.data['clips'][0].update(images=[{'id': 'missing-image'}], videos=[{'id': 'missing-video'}],
+                                     audios=[{'id': 'missing-audio'}], prompt_skills=[{'text': 'clip rules'}])
+        self.run_prompt(self.clip, json.dumps(self.data), tail_name='installed_tail.safetensors',
+                        send_attachments=False, skill='custom rules')
+        self.assertEqual(self.material_calls, [])
+        call = self.calls[0]
+        self.assertIsNone(call['image'])
+        self.assertIn('draft', call['prompt'])
+        self.assertNotIn('Inspection mapping:', call['prompt'])
+        self.assertIn('custom rules\n\nclip rules', call['system_prompt'])
+        self.assertIn('No attachments or asset descriptions', call['system_prompt'])
+        self.assertEqual(self.data['clips'][0]['images'], [{'id': 'missing-image'}])
+
+    def test_older_config_still_reads_attachments(self):
+        config, = self.node.configure(tail_name='installed_tail.safetensors')
+        self.assertTrue(self.node.INPUT_TYPES()['optional']['send_attachments'][1]['default'])
+        config.pop('send_attachments')
+        self.generate(self.clip, self.data, config)
+        self.assertEqual(len(self.material_calls), 1)
+
     def test_video_sampling_respects_count_and_trim(self):
         import numpy as np
         import torch

@@ -1021,6 +1021,10 @@
   },
   "CAP_H3AutoPromptConfig": {
     "inputs": {
+      "send_attachments": {
+        "name": "Send attachments to prompt model",
+        "tooltip": "On by default. Off: rewrite the original text or generate from Skills without reading attachments or their descriptions. Video generation still uses the original references. Audio is not transcribed in either mode."
+      },
       "skill_preset": {
         "name": "Skill preset",
         "tooltip": "Same local presets as Prompt Management. Select none to omit a preset; add custom instructions below."

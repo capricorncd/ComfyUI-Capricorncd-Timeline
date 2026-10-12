@@ -12,6 +12,8 @@ The generator combines enabled prompt sections, Skills, image descriptions and v
 
 Older workflows using H3 Shared Model Prompt Generator must replace it with this config and restore the direct Timeline Editor → Video Generator connection. The bundled `MiniMaxH3_Shared_AutoPrompt.json` still contains the removed node; migrate it using the connections above.
 
+`send_attachments` defaults to true. Disable it to skip image reading, video frame extraction and attachment descriptions when writing prompts. The model only rewrites the enabled original prompt sections or generates from the selected Skills; existing reference names and tags are preserved. H3 video conditioning still uses the original reference media. Neither mode transcribes audio.
+
 ## Asset references and Subject labels
 
 Ordinary reference mode resolves `@asset name` before submission to H3: images → `<Picture N>`, videos → `<Video N>`, audio → `<Audio N>`. Each category starts at 1 and follows the references actually loaded for this run, rather than library order. This applies even with automatic prompting disabled; name replacement does not create Subject definitions. Use the exact asset name followed by whitespace or punctuation. Existing numbered tags are left unchanged; check handwritten indices after reordering references.

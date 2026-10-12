@@ -1091,6 +1091,10 @@
   },
   "CAP_H3AutoPromptConfig": {
     "inputs": {
+      "send_attachments": {
+        "name": "将附件交给提示词模型",
+        "tooltip": "默认开启。关闭后不读取附件及其描述，仅优化原提示词或按 Skill 生成提示词。视频生成仍使用原参考素材。两种模式均不转写音频。"
+      },
       "skill_preset": {
         "name": "Skill 预设",
         "tooltip": "与提示词管理共用本地预设。none 表示不选；可在下方文本框补充要求。"

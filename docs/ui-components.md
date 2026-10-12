@@ -392,3 +392,5 @@ Catalog source: MiniMax-AI/MiniMax-H3 `skills/h3-prompt-writing/references/{ref,
 `::d` opens Chinese/English/Japanese dialogue language choices with the UI language first. Selecting inserts `<d>[Language]</d>` and positions the caret inside. The prompt template/reference toolbar includes a help icon with localized hover instructions for `@`, `:h3`, `::h3`, `::d` and keyboard selection.
 
 `cap-help-icon` (`HelpIcon.js`) uses the shared help SVG and button. Call `configure(label, text)` with localized plain text. Hover, focus or click opens a top-layer tooltip immediately; moving into the tooltip keeps it readable. Escape, leaving, outside clicks and resize dismiss it. It constrains placement to the viewport and avoids native title delays. Prompt input help uses this component.
+
+`cap-inline-prompt` exposes `part="editor"` for a containing prompt field to own its border and background. Prompt toolbar containers show a single focus outline around the full field, including the toolbar; global prepend/append fields use flex sizing so the editable area fills the available height.

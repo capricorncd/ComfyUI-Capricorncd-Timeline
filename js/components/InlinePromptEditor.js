@@ -42,7 +42,7 @@ export class InlinePromptEditor extends HTMLElement {
                 color: var(--cat-text); background: var(--cat-surface); box-shadow: 0 8px 24px #0005; pointer-events: none;}
             .preview img, .preview video {display: block; width: 100%; height: 200px; object-fit: contain;}
             .preview p {margin: 6px 0 0; overflow-wrap: anywhere; font: inherit;}
-        </style><div class="editor" contenteditable="true" role="textbox" aria-multiline="true"></div><div class="preview" popover="manual"></div>`;
+        </style><div class="editor" part="editor" contenteditable="true" role="textbox" aria-multiline="true"></div><div class="preview" popover="manual"></div>`;
         this.editor = this.shadowRoot.querySelector('.editor');
         this.editor.addEventListener('focus', () => this.textarea?.dispatchEvent(new Event('focus')));
         this.editor.addEventListener('blur', () => { this.hidePreview(); this.textarea?.dispatchEvent(new Event('blur')); this.textarea?.dispatchEvent(new Event('change', {bubbles: true})); });

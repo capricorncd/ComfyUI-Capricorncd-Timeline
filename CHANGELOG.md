@@ -1,5 +1,23 @@
 # Release notes / 更新记录
 
+## 0.17.33 — 2026-10-12
+
+### English
+
+- Add independent keyframe generation settings and continuation from the previous interval; across Clips, use the previous keyframe group's final interval.
+- Add preview sampling unlink and batch unlink/disable actions without deleting files when unlinking.
+- Support merged or separate multi-Clip exports with numbered filenames.
+- Fix global prompt field height and focus borders, frame-aligned timeline ticks, and reuse of available tracks when pasting Clips.
+- Notify ComfyUI of timeline data changes; support first/last frames with additional image references. Restart ComfyUI and refresh the browser after updating.
+
+### 简体中文
+
+- 新增关键帧独立生成设置，支持衔接上一关键帧区间；跨 Clip 时使用上一关键帧组的最后一个区间。
+- 预览采样新增解绑、批量解绑和全部禁用，解绑保留磁盘文件。
+- 多片段支持合并或分别导出，分别导出时自动添加编号后缀。
+- 修复全局提示词输入框高度与焦点边框、时间轴整帧刻度对齐，以及粘贴 Clip 时空闲轨道的复用。
+- 时间轴数据变化时通知 ComfyUI 工作流；支持首尾帧结合额外参考图片。更新后重启 ComfyUI 并刷新浏览器。
+
 ## 0.17.32 — 2026-10-09
 
 ### English

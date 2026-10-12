@@ -24,13 +24,13 @@ export function parseIntervalSelection(value, count) {
 
 export function keyframeIntervals(duration, fps, points = []) {
     const end = Math.round(duration * fps);
-    const starts = new Map([[0, '']]);
+    const starts = new Map([[0, {description: ''}]]);
     for (const point of points) {
         const frame = Math.round(point.time * fps);
-        if (frame >= 0 && frame < end) starts.set(frame, point.description || '');
+        if (frame >= 0 && frame < end) starts.set(frame, point);
     }
     const frames = [...starts.keys()].sort((a, b) => a - b);
-    return frames.map((start, i) => ({start_frame: start, end_frame: frames[i + 1] ?? end, prompt: starts.get(start)}));
+    return frames.map((start, i) => ({start_frame: start, end_frame: frames[i + 1] ?? end, prompt: starts.get(start).description || '', ...(starts.get(start).generation ? {generation: {...starts.get(start).generation}} : {})}));
 }
 
 function clipKeyframeRun(editor, clip) {
@@ -42,11 +42,33 @@ function clipKeyframeRun(editor, clip) {
     if (target.local && !saved.length) return null;
     const fps = editor.getFps();
     const points = saved.map(point => ({
-        time: (point.time - target.start) / target.rate, description: point.description,
+        time: (point.time - target.start) / target.rate, description: point.description, generation: point.generation,
     }));
+    const intervals = keyframeIntervals(clip.duration, fps, points);
+    for (const [index, interval] of intervals.entries()) {
+        interval.generation = {useAudioTrackAudio: false, autoPrompt: false, saveLatent: false,
+            referencePrevious: false, seed: -1, ...interval.generation};
+        if (!interval.generation.referencePrevious) continue;
+        let previousClip = clip, previousEnd = interval.start_frame;
+        if (index === 0) {
+            previousClip = [...clip.track.clips].filter(row => row !== clip && row.endTime <= clip.startTime + 1 / fps)
+                .sort((a, b) => b.endTime - a.endTime)[0];
+            if (!previousClip) continue;
+            previousEnd = Math.round(previousClip.duration * fps);
+        }
+        interval.previous_clip_id = String(previousClip.id);
+        interval.previous_end_frame = previousEnd;
+        const previousMeta = editor._ensureClipMeta(previousClip);
+        const versions = [...(previousMeta.generatedVideos || []), ...(previousMeta.h3Drafts || [])];
+        const previousTarget = editor._directorKeyframes.target(previousClip);
+        const hasKeyframes = previousTarget && editor._directorKeyframes.points(previousTarget).length > 0;
+        const match = versions.find(row => row.enabled !== false && row.file &&
+            (row.keyframe_segment ? row.keyframe_segment.fps === fps && row.keyframe_segment.end_frame === previousEnd
+                : previousClip !== clip && !hasKeyframes));
+        if (match) interval.previous_output_video = match.file;
+    }
     return {clip_id: String(clip.id), clip_start_ms: Math.round(clip.startTime * 1000), fps,
-        ...(!target.local ? {reference: {id: target.media.id, start: target.start, rate: target.rate}} : {}),
-        intervals: keyframeIntervals(clip.duration, fps, points)};
+        ...(!target.local ? {reference: {id: target.media.id, start: target.start, rate: target.rate}} : {}), intervals};
 }
 
 export function selectedKeyframeRun(editor, selected = null) {

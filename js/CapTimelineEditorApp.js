@@ -5616,7 +5616,7 @@ export class CapTimelineEditorApp {
         this.useAudioTrackAudioCb?.addEventListener("change", () => {
             if (!this._selClip || this.useAudioTrackAudioCb.disabled) return;
             this._recordUndo();
-            this._ensureClipMeta(this._selClip).useAudioTrackAudio = this.useAudioTrackAudioCb.checked;
+            this._generationSettingsMeta(true).useAudioTrackAudio = this.useAudioTrackAudioCb.checked;
             this._saveToWidgets();
         });
         this.clipRoleSelect?.addEventListener("change", () => this._onClipRoleChange());
@@ -19899,6 +19899,7 @@ export class CapTimelineEditorApp {
 
     _setVisualSettingsEnabled(enabled, m = null) {
         const disabled = !enabled;
+        const generation = this._generationSettingsMeta() || m;
         const draftsButton = this._overlay?.querySelector(".cat-te-h3-drafts-open");
         if (draftsButton) {
             draftsButton.disabled = disabled;
@@ -19907,23 +19908,23 @@ export class CapTimelineEditorApp {
         this._refreshKeyframeDrafts();
         if (this.useAudioTrackAudioCb) {
             this.useAudioTrackAudioCb.disabled = disabled;
-            this.useAudioTrackAudioCb.checked = enabled && !!m?.useAudioTrackAudio;
+            this.useAudioTrackAudioCb.checked = enabled && !!generation?.useAudioTrackAudio;
         }
         if (this.autoPromptCb) {
             this.autoPromptCb.disabled = disabled;
-            this.autoPromptCb.checked = enabled && !!m?.autoPrompt;
+            this.autoPromptCb.checked = enabled && !!generation?.autoPrompt;
         }
         if (this.saveLatentCb) {
             this.saveLatentCb.disabled = disabled;
-            this.saveLatentCb.checked = enabled && !!m?.saveLatent;
+            this.saveLatentCb.checked = enabled && !!generation?.saveLatent;
         }
         if (this.referencePreviousCb) {
             this.referencePreviousCb.disabled = disabled;
-            this.referencePreviousCb.checked = enabled && !!m?.referencePrevious;
+            this.referencePreviousCb.checked = enabled && !!generation?.referencePrevious;
         }
         if (this.clipSeedInput) {
             this.clipSeedInput.disabled = disabled;
-            this.clipSeedInput.value = enabled ? String(this._normalizeClipSeed(m?.seed)) : "-1";
+            this.clipSeedInput.value = enabled ? String(this._normalizeClipSeed(generation?.seed)) : "-1";
         }
         if (this.clipSeedRandomBtn) this.clipSeedRandomBtn.disabled = disabled;
         if (this.clipRoleSelect) {
@@ -21486,24 +21487,35 @@ export class CapTimelineEditorApp {
         this._meta.set(this._selClip.id, m);
     }
 
+    _generationSettingsMeta(create = false) {
+        const target = this._directorKeyframes?.selectedTarget();
+        if (target?.clip === this._selClip) {
+            const point = this._directorKeyframes.selection.point;
+            const defaults = {useAudioTrackAudio: false, autoPrompt: false, saveLatent: false, referencePrevious: false, seed: -1};
+            if (create) return point.generation ||= {...defaults};
+            return {...defaults, ...point.generation};
+        }
+        return this._selClip ? this._ensureClipMeta(this._selClip) : null;
+    }
+
     _onAutoPromptChange() {
         if (!this._selClip || this.autoPromptCb?.disabled) return;
         this._recordUndo();
-        this._ensureClipMeta(this._selClip).autoPrompt = !!this.autoPromptCb?.checked;
+        this._generationSettingsMeta(true).autoPrompt = !!this.autoPromptCb?.checked;
         this._saveToWidgets();
     }
 
     _onSaveLatentChange() {
         if (!this._selClip || this.saveLatentCb?.disabled) return;
         this._recordUndo();
-        this._ensureClipMeta(this._selClip).saveLatent = !!this.saveLatentCb.checked;
+        this._generationSettingsMeta(true).saveLatent = !!this.saveLatentCb.checked;
         this._saveToWidgets();
     }
 
     _onReferencePreviousChange() {
         if (!this._selClip || this.referencePreviousCb?.disabled) return;
         this._recordUndo();
-        const m = this._ensureClipMeta(this._selClip);
+        const m = this._generationSettingsMeta(true);
         m.referencePrevious = !!this.referencePreviousCb.checked;
         m.h3MotionContextLength = m.referencePrevious ? 22 : 0;
         this._saveToWidgets();
@@ -21529,19 +21541,17 @@ export class CapTimelineEditorApp {
     _onClipSeedChange() {
         if (!this._selClip || this.clipSeedInput?.disabled) return;
         this._recordUndo();
-        const m = this._meta.get(this._selClip.id) ?? defaultImageMeta();
+        const m = this._generationSettingsMeta(true);
         m.seed = this._normalizeClipSeed(this.clipSeedInput.value);
         this.clipSeedInput.value = String(m.seed);
-        this._meta.set(this._selClip.id, m);
         this._saveToWidgets();
     }
 
     _randomizeClipSeed() {
         if (!this._selClip || this.clipSeedRandomBtn?.disabled) return;
         this._recordUndo();
-        const m = this._meta.get(this._selClip.id) ?? defaultImageMeta();
+        const m = this._generationSettingsMeta(true);
         m.seed = this._randomClipSeed();
-        this._meta.set(this._selClip.id, m);
         if (this.clipSeedInput) this.clipSeedInput.value = String(m.seed);
         this._saveToWidgets();
     }

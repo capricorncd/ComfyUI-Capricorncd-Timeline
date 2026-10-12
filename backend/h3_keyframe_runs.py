@@ -17,6 +17,7 @@ def expand_keyframe_runs(data, max_segment_seconds=15):
         if request is None and (clip.get("clip_role") != "video_ref" or duration_frames <= max_segment_seconds * fps):
             expanded.append(clip)
             continue
+        explicit = request is not None
         request = request or {"fps": fps, "clip_start_ms": start_ms,
                               "intervals": [{"start_frame": 0, "end_frame": duration_frames, "prompt": ""}]}
         if abs(float(request["fps"]) - fps) > 1e-6:
@@ -37,20 +38,39 @@ def expand_keyframe_runs(data, max_segment_seconds=15):
             count = math.ceil((last - first) / max(1, math.floor(max_segment_seconds * fps)))
             keyframe_prompt = interval.get("prompt") or ""
             prompt = keyframe_prompt if keyframe_prompt.strip() else clip.get("prompt", "")
-            previous_id = None
-            carry = 0
+            generation = interval.get("generation") or {}
+            reference_previous = explicit and bool(generation.get("referencePrevious"))
+            previous_row = next((r for r in reversed(expanded) if
+                (r.get("keyframe_segment") or {}).get("clip_id") == interval.get("previous_clip_id", parent) and
+                (r.get("keyframe_segment") or {}).get("end_frame") == interval.get("previous_end_frame", first)), None) if reference_previous else None
+            previous_video = interval.get("previous_output_video", "") if reference_previous else ""
+            if reference_previous and previous_row is None and not previous_video:
+                raise ValueError(f"关键帧区间 {interval_number}：上一片段没有可用生成结果，请先生成上一片段。")
+            previous_id = previous_row["source_clip_id"] if previous_row else (f"{parent}__previous_{first}" if previous_video else None)
+            carry = previous_row["h3_timing"]["tail_frames"] if previous_row else 0
+            if previous_row:
+                previous_row["save_latent"] = True
+                previous_row["h3_timing"]["save_latent"] = True
             for part in range(count):
                 begin = first + round((last - first) * part / count)
                 end = first + round((last - first) * (part + 1) / count)
                 row = copy.deepcopy(clip)
                 cid = f"{parent}__kf{interval_number}_{part + 1}"
                 row.update(id=cid, source_clip_id=cid, start_ms=origin + round(begin * 1000 / fps),
-                           end_ms=origin + round(end * 1000 / fps), h3_drafts=copy.deepcopy(clip.get("h3_drafts", [])), save_latent=part + 1 < count,
+                           end_ms=origin + round(end * 1000 / fps), h3_drafts=copy.deepcopy(clip.get("h3_drafts", [])), save_latent=part + 1 < count or bool(generation.get("saveLatent") if explicit else clip.get("save_latent")),
                            h3_motion_context_length=22 if part else 0)
                 row["preview_start_ms"], row["preview_end_ms"] = row["start_ms"], row["end_ms"]
                 row.pop("playback_spans", None)
                 row.pop("previous_output_video", None)
-                context = 22 if part else 0
+                if explicit:
+                    row.pop("previous_reference_video", None)
+                    row.update(auto_prompt=bool(generation.get("autoPrompt")),
+                               use_audio_track_audio=bool(generation.get("useAudioTrackAudio")),
+                               seed=generation.get("seed", -1), reference_previous=reference_previous)
+                if not part and previous_video:
+                    row["previous_output_video"] = previous_video
+                context = 22 if previous_id else 0
+                row["h3_motion_context_length"] = context
                 frames = end - begin
                 raw = max(5, frames + context - carry)
                 raw += (5 - raw) % 17
@@ -66,7 +86,12 @@ def expand_keyframe_runs(data, max_segment_seconds=15):
                 offset_start = row["start_ms"] - start_ms
                 offset_end = row["end_ms"] - start_ms
                 row["audios"] = []
-                for audio in clip.get("audios", []):
+                audios = clip.get("audios", [])
+                if explicit and "keyframe_track_audios" in clip:
+                    audios = clip.get("keyframe_reference_audios", []) + (clip["keyframe_track_audios"] if generation.get("useAudioTrackAudio") else [])
+                row.pop("keyframe_track_audios", None)
+                row.pop("keyframe_reference_audios", None)
+                for audio in audios:
                     source_start = int(audio.get("source_start_ms", 0))
                     audio_start = int(audio.get("clip_offset_ms", 0))
                     audio_rate = float(audio.get("playback_rate", 1))

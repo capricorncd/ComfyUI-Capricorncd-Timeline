@@ -30,6 +30,50 @@ class KeyframeRunTests(unittest.TestCase):
             self.assertLessEqual(timing['play_frames'], 360)
             self.assertEqual(timing['raw_frames'] - timing['context_frames'] + timing['context_carry_frames'] - timing['tail_frames'], timing['play_frames'])
 
+    def test_independent_settings_audio_and_saved_tail(self):
+        data = self.data()
+        clip = data['clips'][0]
+        clip.update(auto_prompt=True, save_latent=True, seed=999, use_audio_track_audio=True,
+                    keyframe_track_audios=[dict(id='track', source_end_ms=25000)],
+                    keyframe_reference_audios=[dict(id='ref-audio', source_end_ms=25000)])
+        data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24,
+            intervals=[dict(start_frame=0, end_frame=120), dict(start_frame=120, end_frame=240,
+            generation=dict(saveLatent=True, autoPrompt=True, useAudioTrackAudio=True, seed=123))])])
+        module.expand_keyframe_runs(data)
+        first, last = data['clips']
+        self.assertFalse(first['auto_prompt'])
+        self.assertFalse(first['save_latent'])
+        self.assertEqual(first['seed'], -1)
+        self.assertEqual([a['id'] for a in first['audios']], ['ref-audio'])
+        self.assertTrue(last['save_latent'])
+        self.assertTrue(last['auto_prompt'])
+        self.assertEqual(last['seed'], 123)
+        self.assertEqual([a['id'] for a in last['audios']], ['ref-audio', 'track'])
+        self.assertEqual(last['audios'][1]['source_start_ms'], 5000)
+
+    def test_previous_interval_and_external_result(self):
+        for external in (False, True):
+            data = self.data()
+            intervals = [] if external else [dict(start_frame=0, end_frame=120)]
+            intervals.append(dict(start_frame=120, end_frame=240, generation=dict(referencePrevious=True),
+                                  previous_output_video='previous.mp4' if external else ''))
+            data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24, intervals=intervals)])
+            module.expand_keyframe_runs(data)
+            last = data['clips'][-1]
+            self.assertEqual(last['h3_timing']['context_frames'], 22)
+            if external:
+                self.assertEqual(last['previous_output_video'], 'previous.mp4')
+            else:
+                self.assertTrue(data['clips'][0]['save_latent'])
+                self.assertEqual(last['h3_timing']['previous_source_clip_id'], data['clips'][0]['source_clip_id'])
+
+    def test_missing_previous_does_not_fall_back(self):
+        data = self.data()
+        data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24,
+            intervals=[dict(start_frame=120, end_frame=240, generation=dict(referencePrevious=True))])])
+        with self.assertRaisesRegex(ValueError, '上一片段'):
+            module.expand_keyframe_runs(data)
+
     def test_manual_segment_limit(self):
         data = self.data()
         module.expand_keyframe_runs(data, 10)
@@ -74,7 +118,7 @@ class KeyframeRunTests(unittest.TestCase):
                                 prompt_includes=['clip'], use_prepend_prompt=True, use_append_prompt=False)
         original = copy.deepcopy(data['clips'][0])
         data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24,
-            intervals=[dict(start_frame=0, end_frame=120, prompt='keyframe text'),
+            intervals=[dict(start_frame=0, end_frame=120, prompt='keyframe text', generation=dict(autoPrompt=True)),
                        dict(start_frame=120, end_frame=240, prompt=' \n ')])])
         module.expand_keyframe_runs(data)
         tree = ast.parse((Path(__file__).resolve().parents[1] / 'backend/cap_data_json_parser.py').read_text(encoding='utf-8'))
@@ -89,7 +133,7 @@ class KeyframeRunTests(unittest.TestCase):
                                  _ref_list=lambda value: [],
                                  _timeline_prompt_includes=lambda row: scope['_timeline_prompt_includes'](None, row))
         for row, expected in zip(data['clips'], ['keyframe text', 'base']):
-            self.assertTrue(row['auto_prompt'])
+            self.assertEqual(row['auto_prompt'], expected == 'keyframe text')
             self.assertNotIn('h3_generated_prompt', row)
             compose = lambda: scope['_compose_prompt'](parser, row, '', prepend_prompt='selected global', append_prompt='unselected global')
             self.assertEqual(compose(), 'selected global\n\n' + expected)

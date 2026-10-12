@@ -396,3 +396,9 @@ Catalog source: MiniMax-AI/MiniMax-H3 `skills/h3-prompt-writing/references/{ref,
 `cap-inline-prompt` exposes `part="editor"` for a containing prompt field to own its border and background. Prompt toolbar containers show a single focus outline around the full field, including the toolbar; global prepend/append fields use flex sizing so the editable area fills the available height.
 
 Clip export supports “Merge into one file” and “Export separate files” through the shared radio group. Main and trim timelines pass their selected Clips. Exports follow timeline start order; merge concatenates without gaps, while separate export resets each Clip to zero and adds `_1` … `_N` to the requested basename. Single-Clip exports keep the basename. Trim, speed and volume data are retained. Completed output paths remain visible if a later file fails.
+
+## 关键帧独立生成设置
+
+选中关键帧时，使用音频轨音频、自动生成提示词、保存 latent、衔接上一片段及种子编辑该关键帧的独立设置，随工程保存；取消关键帧选择后恢复编辑 Clip 设置。关键帧开关默认关闭，种子默认为 -1，不继承 Clip 的设置。
+
+衔接优先使用同一 Clip 中紧邻的上一关键帧区间。第一个区间跨 Clip 衔接同轨道上一 Clip：若上一 Clip 有关键帧组，只使用其最后一个区间的可用生成结果。没有可用结果时停止并提示，不自动重跑上一段。批量运行中已选择的相邻区间可以连续衔接；分段运行会保留中间 latent，最后一段是否保存由关键帧设置决定。

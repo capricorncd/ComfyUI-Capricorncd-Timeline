@@ -31,7 +31,7 @@ let request=selectedKeyframeRun(editor);
 assert.equal(request.action,'normal');
 assert.equal(request.keyframe_runs.length,1);
 assert.equal(request.keyframe_runs[0].clip_start_ms,20000);
-assert.deepEqual(request.keyframe_runs[0].intervals,[{start_frame:96,end_frame:216,prompt:'middle'}]);
+assert.deepEqual(request.keyframe_runs[0].intervals,[{start_frame:96,end_frame:216,prompt:'middle',generation:{useAudioTrackAudio:false,autoPrompt:false,saveLatent:false,referencePrevious:false,seed:-1}}]);
 editor._directorKeyframes.selection.point=points[2];
 assert.equal(selectedKeyframeRun(editor).keyframe_runs[0].intervals[0].end_frame,288);
 clip.track.locked=true; assert.equal(selectedKeyframeRun(editor),null); clip.track.locked=false;
@@ -41,7 +41,7 @@ target={clip,local:false,start:10,rate:2,media:{id:'source'}};
 points.splice(0,points.length,{time:10,description:'first'},{time:18,description:'middle'},{time:28,description:'last'});
 editor._directorKeyframes.selection.point=points[1];
 request=selectedKeyframeRun(editor);
-assert.deepEqual(request.keyframe_runs[0].intervals,[{start_frame:96,end_frame:216,prompt:'middle'}]);
+assert.deepEqual(request.keyframe_runs[0].intervals,[{start_frame:96,end_frame:216,prompt:'middle',generation:{useAudioTrackAudio:false,autoPrompt:false,saveLatent:false,referencePrevious:false,seed:-1}}]);
 assert.deepEqual(request.keyframe_runs[0].reference,{id:'source',start:10,rate:2});
 const appSource=readFileSync(new URL('../js/CapTimelineEditorApp.js',import.meta.url),'utf8');
 const start=appSource.indexOf('    async _runSelectedKeyframeDownstream() {');
@@ -76,3 +76,35 @@ assert.deepEqual(draft.generation,{...request,action:'draft'});
 clip.track.locked = true;
 assert.equal(await method('_runClipDownstream').call(editor,clip,preview),undefined);
 console.log('Keyframe prompt dialog: captured interval used for normal/draft runs, preview association and lock guard passed');
+
+// Cross-Clip continuation must choose the last interval, never an earlier take.
+const prev={id:'previous',startTime:0,endTime:20,duration:20};
+clip.track.clips=[prev,clip];
+const lastSegment={fps:24,start_frame:240,end_frame:480};
+const prevMeta={generatedVideos:[{file:'first.mp4',keyframe_segment:{fps:24,end_frame:240}},
+    {file:'last-disabled.mp4',enabled:false,keyframe_segment:lastSegment},
+    {file:'last.mp4',keyframe_segment:lastSegment}]};
+points[0].generation={referencePrevious:true,saveLatent:true,seed:123};
+clip.track.locked=false;
+editor._directorKeyframes.selection={point:points[0]};
+editor._directorKeyframes.selectedTarget=()=>target;
+editor._ensureClipMeta=c=>c===prev?prevMeta:meta;
+meta.saveLatent=false; meta.seed=999;
+let firstRun=selectedKeyframeRun(editor).keyframe_runs[0].intervals[0];
+assert.equal(firstRun.previous_output_video,'last.mp4');
+assert.equal(firstRun.generation.saveLatent,true);
+assert.equal(firstRun.generation.seed,123);
+assert.equal(meta.seed,999);
+prevMeta.generatedVideos.pop();
+assert.equal(selectedKeyframeRun(editor).keyframe_runs[0].intervals[0].previous_output_video,undefined);
+console.log('Independent keyframe settings and previous Clip final interval selection passed.');
+
+const settingsStart=appSource.indexOf('    _generationSettingsMeta(create = false) {');
+const settingsMethod=new Function('return ({'+appSource.slice(settingsStart,appSource.indexOf('\n    }',settingsStart)+6)+'})._generationSettingsMeta;')();
+editor._selClip=clip;
+assert.equal(settingsMethod.call(editor,true),points[0].generation);
+settingsMethod.call(editor,true).autoPrompt=true;
+assert.equal(meta.autoPrompt,undefined);
+editor._directorKeyframes.selectedTarget=()=>null;
+assert.equal(settingsMethod.call(editor,true),meta);
+console.log('Settings editing switches between independent keyframe and Clip owners.');

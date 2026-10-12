@@ -357,6 +357,8 @@ class CAP_H3VideoGenerator:
             previous = _context_source(row, earlier)
             if stage != "refine" and index not in previews and previous and not any(_clip_id(p) == previous and p.get("save_latent") for p in earlier):
                 if not _prev_clip_output_video_path(json.dumps(data), index, row.get("previous_output_video", "")):
+                    if row.get("keyframe_segment") and row.get("reference_previous"):
+                        raise ValueError("上一关键帧区间的生成视频不可用，请先生成上一片段或重新关联视频。")
                     warnings.append(dict(code="missing_context", clip_id=_clip_id(row), previous_clip_id=previous))
                     row.pop("previous_output_video", None)
                     # Replan this chain so independent generation does not retain context trims.

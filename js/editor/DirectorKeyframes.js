@@ -103,14 +103,17 @@ export class DirectorKeyframes {
                 title: T('shot_control'), description: T('shot_description'), hint: T('shot_hint'),
                 delete: T('shot_delete'), insert: T('shot_insert'),
         });
-        this.app._refreshKeyframeDrafts?.();
+        this.app._setVisualSettingsEnabled?.(true, this.app._ensureClipMeta(target.clip));
     }
     clearSelection() {
         const clip = this.selection && this.app._findClipById(this.selection.clipId);
         this.selection = null;
         this.editing = false;
         this.panel.hidden = true;
-        if (clip) this.sync(clip);
+        if (clip) {
+            this.sync(clip);
+            this.app._setVisualSettingsEnabled?.(true, this.app._ensureClipMeta(clip));
+        }
     }
     select(target, point) {
         if (!point || target.clip.track.locked) return;

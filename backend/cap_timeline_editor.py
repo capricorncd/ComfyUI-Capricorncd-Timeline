@@ -766,6 +766,7 @@ class CAP_TimelineEditor:
 
         runtime_clips = []
         generated_outputs = {}
+        continuation_outputs = {}
         reference_outputs = {}
         materials = []
         seen_materials = set()
@@ -808,8 +809,16 @@ class CAP_TimelineEditor:
             use_audio_track_audio = bool(clip.get("use_audio_track_audio", clip_role == "digital_human"))
             agent, agent_custom = _clip_agent_fields(clip)
             source_clip_id = str(clip.get("id", ""))
-            generated_outputs[source_clip_id] = next((str(video["file"]) for video in clip.get("generated_videos", [])
+            generated_versions = clip.get("generated_videos", [])
+            has_keyframe_results = any(video.get("keyframe_segment") for video in generated_versions)
+            final_frame = round((end - start) * fps / 1000)
+            generated_outputs[source_clip_id] = next((str(video["file"]) for video in generated_versions
                 if video.get("enabled", True) and video.get("file") and not video.get("h3_context_from")), "")
+            continuation_outputs[source_clip_id] = next((str(video["file"]) for video in generated_versions
+                if video.get("enabled", True) and video.get("file") and not video.get("h3_context_from")
+                and (not has_keyframe_results or
+                     ((video.get("keyframe_segment") or {}).get("end_frame") == final_frame and
+                      (video.get("keyframe_segment") or {}).get("fps") == fps))), "")
             reference_outputs[source_clip_id] = next((resolve_media_path(
                 entry["row"].get("file", ""), assets_dir="", location=entry["row"].get("location", "input"))
                 for entry in entries if entry.get("enabled") and entry["row"].get("kind") == "video"), "")
@@ -846,6 +855,12 @@ class CAP_TimelineEditor:
                     ext_start, ext_end, audio_clips, resolve_media, project, materials, seen_materials,
                 ) if use_audio_track_audio else [],
             }
+            keyframe_request = any(str(run.get("clip_id")) == source_clip_id for run in
+                (settings.get("h3_generation") or {}).get("keyframe_runs", []))
+            track_audio_count = len(runtime_row["audios"])
+            if keyframe_request:
+                runtime_row["keyframe_track_audios"] = runtime_row["audios"][:] if use_audio_track_audio else self._audio_slices(
+                    ext_start, ext_end, audio_clips, resolve_media, project, materials, seen_materials)
             audio_ids = {row.get("id") for row in runtime_row["audios"]}
             for ref in reference_audios:
                 mid = _add_material(materials, seen_materials, ref, resolve_media)
@@ -855,6 +870,8 @@ class CAP_TimelineEditor:
                     mid = _add_material(materials, seen_materials, ref, resolve_media)
                     runtime_row["audios"].append({"id": mid, "source_start_ms": 0,
                         "source_end_ms": ext_end - ext_start, "clip_offset_ms": 0})
+            if keyframe_request:
+                runtime_row["keyframe_reference_audios"] = runtime_row["audios"][track_audio_count:]
             if use_clip_video_name:
                 clip_id_safe = _safe_filename_part(source_clip_id, "clip")
                 runtime_row["output_video"] = (
@@ -867,8 +884,8 @@ class CAP_TimelineEditor:
         plan_h3_clips(runtime_clips, fps)
         for row in runtime_clips:
             previous = (row.get("h3_timing") or {}).get("previous_source_clip_id")
-            if previous and generated_outputs.get(previous):
-                row["previous_output_video"] = generated_outputs[previous]
+            if previous and continuation_outputs.get(previous):
+                row["previous_output_video"] = continuation_outputs[previous]
             if previous and reference_outputs.get(previous):
                 row["previous_reference_video"] = reference_outputs[previous]
         composition_clips = [{**row, "output_video": generated_outputs.get(row["source_clip_id"], "")}

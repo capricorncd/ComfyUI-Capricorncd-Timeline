@@ -7,7 +7,7 @@ Saves a batch of images to disk and returns the save directory and a comma-separ
 ---
 
 <!-- AUTO:API:begin -->
-Save a batch of images to disk. Relative filename_prefix is under ComfyUI output (last segment = file prefix). Absolute filename_prefix is the save directory anywhere on disk (file prefix defaults to CSI). Supports strftime. filename supports {prefix} and {index} (zero-padded to 5 digits). When save_as_zip is true, also pack the saved images into a zip next to the folder. When save_sidecar is true, write {prefix}.json in the save directory with prompts, models, and sampler settings.
+Save a batch of images to disk. Relative filename_prefix is under ComfyUI output (last segment = file prefix). Absolute filename_prefix is the save directory anywhere on disk (file prefix defaults to CSI). Supports strftime. filename supports {prefix} and {index} (zero-padded to 5 digits). PNG, JPEG, WebP and TIFF embed generation parameters, the ComfyUI prompt graph and workflow. When save_as_zip is true, also pack the saved images into a zip next to the folder. When save_sidecar is true, write {prefix}.json in the save directory with prompts, models, and sampler settings.
 
 #### Inputs
 
@@ -16,11 +16,11 @@ Save a batch of images to disk. Relative filename_prefix is under ComfyUI output
 | `images` | IMAGE | — | Batch of images to save |
 | `filename_prefix` | STRING | `temp/cap-save-images/%Y%m%d_%H%M%S/CSI` | Relative to ComfyUI output: earlier segments are subfolders, last segment is the file prefix. An absolute path is the save directory anywhere on disk (prefix defaults to CSI). Supports strftime. |
 | `filename` | STRING | `{prefix}_{index}.png` | File name template with {prefix} and {index} (zero-padded to 5 digits) |
-| `quality` | INT | `80` | JPEG quality (1–100); for PNG mapped to zlib compression |
-| `dpi` | INT | `300` | DPI metadata written to the image file |
+| `quality` | INT | `100` | JPEG quality (1–100); for PNG mapped to zlib compression |
+| `dpi` | INT | `72` | DPI metadata written to the image file |
 | `save_as_zip` | BOOLEAN | false | Also pack saved images into a zip next to the folder |
-| `save_sidecar` | BOOLEAN | true | Write a JSON next to the sequence (named after the file prefix) with prompts, models, and sampler settings |
-| `metadata` *(optional)* | STRING | `""` | String written to the image comment and the sidecar note field |
+| `save_sidecar` | BOOLEAN | false | Also write a JSON next to the sequence. Generation parameters are embedded in each image regardless of this option. |
+| `metadata` *(optional)* | STRING | `""` | Note embedded in image metadata and included in the optional JSON |
 
 #### Outputs
 
@@ -38,4 +38,5 @@ Save a batch of images to disk. Relative filename_prefix is under ComfyUI output
 - Relative `filename_prefix`: last segment is the file prefix; earlier segments are subfolders under ComfyUI `output` (must stay under `output`).
 - Absolute `filename_prefix`: the whole path is the save directory anywhere on disk; file prefix defaults to `CSI`.
 - When `save_as_zip` is enabled, a zip of the saved images is written next to the folder.
-- When `save_sidecar` is on (default), `{prefix}.json` is written in the save directory with prompts, models, and sampler settings. The file is also packed into the zip.
+- `save_sidecar` defaults to off. PNG, JPEG, WebP and TIFF embed prompts, models, sampler settings, notes, quality/DPI and the ComfyUI prompt graph/workflow. PNG uses UTF-8 text metadata; JPEG/WebP/TIFF use XMP. Unsupported formats report a warning; oversized JPEG metadata requires PNG, WebP or TIFF.
+- Enable `save_sidecar` to also write `{prefix}.json` in the save directory and include it in the zip.

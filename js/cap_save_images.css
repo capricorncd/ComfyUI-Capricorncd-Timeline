@@ -1,0 +1,45 @@
+.cap-saved-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    align-content: start;
+    gap: 10px;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: auto;
+}
+
+.cap-saved-image {
+    position: relative;
+    min-width: 0;
+}
+
+.cap-saved-image > img {
+    display: block;
+    width: 100%;
+    height: 220px;
+    object-fit: contain;
+}
+
+.cap-saved-image > cap-status-message {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    z-index: 1;
+}
+
+.cap-saved-image-folder {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    z-index: 2;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.cap-saved-image:hover > .cap-saved-image-folder,
+.cap-saved-image:focus-within > .cap-saved-image-folder {
+    opacity: 1;
+    pointer-events: auto;
+}

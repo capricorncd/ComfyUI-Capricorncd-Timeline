@@ -55,6 +55,7 @@ from .cap_timeline_editor import (
 from .cap_save_images import (
     NODE_CLASS_MAPPINGS as _CSI_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _CSI_NAMES,
+    register_save_image_routes,
 )
 from .cap_image_batch import (
     NODE_CLASS_MAPPINGS as _CIB_CLASS,
@@ -272,6 +273,7 @@ def _register_routes():
     _soft_patch_h3_motion_context_load_latent()
 
     register_metadata_routes(routes)
+    register_save_image_routes(routes)
     register_training_dataset_routes(routes, folder_paths.get_input_directory(), folder_paths.get_output_directory())
     register_local_audio_routes(routes)
     register_reference_project_routes(routes)

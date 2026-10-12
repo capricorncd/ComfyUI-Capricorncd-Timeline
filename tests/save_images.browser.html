@@ -1,0 +1,45 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Saved images hover actions</title>
+<link rel="stylesheet" href="../js/cap_save_images.css">
+<script type="importmap">{"imports":{
+    "/scripts/app.js":"data:text/javascript,export const app={registerExtension:e=>window.extension=e,extensionManager:{setting:{get:()=> 'zh'}}};",
+    "/scripts/api.js":"data:text/javascript,export const api={apiURL:()=>window.picture,fetchApi:async(url)=>{window.requests.push(url);document.getElementById('result').textContent='Selected: '+url;return {ok:true}}};",
+    "/js/cap_ui.js":"data:text/javascript,export const loadExtensionCss=()=>{};"
+}}</script>
+<style>
+    body { margin: 32px; background: #202020; color: #eee; font: 14px system-ui; }
+    #node { width: 320px; border: 1px solid #666; border-radius: 8px; padding: 10px; }
+    #node h2 { font-size: 16px; margin: 4px 0 14px; }
+    #node .cap-saved-images { height: 260px; }
+    #result { white-space: pre-wrap; }
+</style>
+<div id="node"><h2>Capricorncd 保存图像</h2></div>
+<pre id="result">Loading…</pre>
+<script type="module">
+import '../js/cap_save_images.js';
+window.requests = [];
+window.picture = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400"><rect width="640" height="400" fill="#193c47"/><circle cx="320" cy="180" r="95" fill="#75a799"/><path d="M0 360 L170 190 L320 320 L480 240 L640 380 V400 H0Z" fill="#3e747b"/></svg>');
+class Node {
+    size = [320, 200];
+    widgets = [];
+    graph = {setDirtyCanvas() {}};
+    addDOMWidget(name, type, root, options) {
+        document.querySelector('#node').append(root);
+        const widget = {name, type, root, options};
+        this.widgets.push(widget);
+        return widget;
+    }
+    computeSize() { return [320, 460]; }
+    setSize(size) { this.size = size; }
+}
+window.extension.beforeRegisterNodeDef(Node, {name: 'CAP_SaveImages'});
+window.node = new Node();
+window.node.onExecuted({cap_saved_images: [
+    {filename: '测试图片 01.png', token: 'batch', index: 0},
+    {filename: '测试图片 02.png', token: 'batch', index: 1},
+]});
+const button = document.querySelector('.cap-saved-image-folder');
+if (getComputedStyle(button).opacity !== '0') throw Error('Folder button should start hidden');
+document.querySelector('#result').textContent = 'PASS: preview rendered; hover an image or press Tab to reveal its folder button.';
+</script>

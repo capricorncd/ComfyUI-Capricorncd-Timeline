@@ -410,6 +410,9 @@ class CAP_ComposeClipVideos:
         frames = round((end - start) * fps / 1000)
         if frames <= 0:
             raise ValueError("Compose Clip Videos: clip duration must be positive.")
+        # Opt-in on the generator's composition copy only; timeline trim semantics stay unchanged.
+        if clip.get("compose_keyframe_tail_only"):
+            return 0.0, frames / fps
         context = max(0, int(clip.get("h3_motion_context_length", 0) or 0))
         context = (context - 5) // 17 * 17 + 5 if context >= 5 else 0
         if not previous_clip or not previous_clip.get("save_latent", False):

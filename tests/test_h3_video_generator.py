@@ -259,6 +259,18 @@ class GeneratorTests(unittest.TestCase):
             segment = video["keyframe_segment"]
             self.assertGreaterEqual(segment["raw_frames"] - segment["trim_frames"], segment["end_frame"] - segment["start_frame"])
 
+    def test_keyframe_composition_uses_tail_only_without_changing_run_data(self):
+        request = dict(keyframe_runs=[dict(clip_id="a", fps=24, clip_start_ms=0,
+            intervals=[dict(start_frame=0, end_frame=120), dict(start_frame=120, end_frame=240)])])
+        result = self.run_node([dict(id="a", start_ms=0, end_ms=10000)], h3_generation=request)
+        self.assertEqual(result["result"][2], "compose/final.mp4")
+        data, options = self.composed[0]
+        self.assertTrue(options["trim_extends"])
+        self.assertTrue(options["keep_final_tail"])
+        self.assertEqual(len(data["clips"]), 2)
+        self.assertTrue(all(r["compose_keyframe_tail_only"] for r in data["clips"]))
+        self.assertTrue(all("compose_keyframe_tail_only" not in r for r in json.loads(result["result"][1])["clips"]))
+
     def test_manual_segment_duration_is_used(self):
         result = self.run_node([dict(id="a", clip_role="video_ref", start_ms=0, end_ms=25000)],
                                max_segment_seconds=10)

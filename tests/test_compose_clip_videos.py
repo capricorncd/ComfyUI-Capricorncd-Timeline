@@ -163,6 +163,13 @@ class CompositionTailTests(unittest.TestCase):
 
 
 class TrimTests(unittest.TestCase):
+    def test_keyframe_composition_preserves_head_and_trims_only_tail(self):
+        clip = dict(start_ms=5000, end_ms=10000, compose_keyframe_tail_only=True,
+                    h3_timing=dict(context_frames=22, head_frames=0, raw_frames=158, play_frames=120))
+        self.assertEqual(scope["_trim_plan"](None, clip, "test.mp4", True, 24), (0.0, 5.0))
+        self.assertEqual(scope["_trim_plan"](None, clip, "test.mp4", True, 48), (0.0, 5.0))
+        self.assertEqual(scope["_trim_plan"](None, clip, "test.mp4", False, 24), (None, None))
+
     def plan(self, count, previous=True, context=39, save=False, **extra):
         scope["subprocess"].run.return_value = Mock(returncode=0, stdout=json.dumps({
             "streams": [{"nb_frames": str(count), "r_frame_rate": "24/1"}],

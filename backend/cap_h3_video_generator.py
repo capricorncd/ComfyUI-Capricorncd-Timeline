@@ -241,7 +241,8 @@ class CAP_H3VideoGenerator:
         if chain_all_clips and stage != "refine":
             plan_h3_clips(data["clips"], fps, chain_all=True)
             _validate(data)
-        if segmented and not concat_full_videos:
+        keyframe_composition = bool(segmented and request.get("keyframe_runs"))
+        if segmented and not keyframe_composition and not concat_full_videos:
             compose_final = False
         previews = {i: latest_draft(data, row) for i, row in enumerate(data["clips"]) if row.get("h3_drafts")} if stage == "normal" and not chain_all_clips else {}
         previews = {i: value for i, value in previews.items() if value is not None}
@@ -504,7 +505,7 @@ class CAP_H3VideoGenerator:
                 row["h3_drafts"] = [item["h3_draft"] for item in videos if item["clip_id"] == (row.get("keyframe_segment") or {}).get("clip_id", _clip_id(row))]
             data = source_data
         preview = videos[-1]
-        composition_clips, missing = _composition_clips(data) if compose_final else (data["clips"], [])
+        composition_clips, missing = _composition_clips(data) if compose_final and not keyframe_composition else (data["clips"], [])
         if missing:
             warnings.append(dict(code="missing_composition_video", clip_ids=missing))
         composed_video = paths[0] if compose_final and len(paths) == 1 else ""
@@ -515,6 +516,11 @@ class CAP_H3VideoGenerator:
             progress("compose")
             # This list is the explicit run scope, including individually requested disabled clips.
             compose_data = {**data, "clips": [{**row, "enabled": True} for row in composition_clips]}
+            if keyframe_composition and not concat_full_videos:
+                for row in compose_data["clips"]:
+                    if row.get("keyframe_segment"):
+                        row["compose_keyframe_tail_only"] = True
+                        row.pop("playback_spans", None)
             composed = CAP_ComposeClipVideos().execute(
                 json.dumps(compose_data, ensure_ascii=False),
                 filename_prefix=f"capricorncd-timeline/compose/{run_token}",

@@ -78,6 +78,31 @@ def _clip_id(row):
     return str(row.get("source_clip_id") or row.get("id") or "")
 
 
+def _keyframe_composition_rows(rows, fps):
+    """Keep each source head and move its outgoing cut to the next context start."""
+    result = copy.deepcopy(rows)
+    for index, row in enumerate(result):
+        if not row.get("keyframe_segment"):
+            continue
+        timing = row.get("h3_timing") or {}
+        play = int(timing.get("play_frames", round((row["end_ms"] - row["start_ms"]) * fps / 1000)))
+        head = max(0, int(timing.get("context_frames", 0)) - int(timing.get("context_carry_frames", 0)))
+        next_head = 0
+        if index + 1 < len(result):
+            following = result[index + 1]
+            next_timing = following.get("h3_timing") or {}
+            contiguous = abs(following.get("preview_start_ms", following["start_ms"]) - row.get("preview_end_ms", row["end_ms"])) <= 1
+            if following.get("keyframe_segment") and contiguous and str(next_timing.get("previous_source_clip_id") or "") == _clip_id(row):
+                next_head = max(0, int(next_timing.get("context_frames", 0)) - int(next_timing.get("context_carry_frames", 0)))
+        frames = play + head - next_head
+        if frames <= 0 or (timing.get("raw_frames") is not None and frames > int(timing["raw_frames"])):
+            raise ValueError("关键帧合成区间不足以容纳衔接上下文，请调整关键帧间隔。")
+        row["compose_keyframe_tail_only"] = True
+        row["compose_keyframe_frames"] = frames
+        row.pop("playback_spans", None)
+    return result
+
+
 def _composition_clips(data):
     generated = {_clip_id(row): row for row in data["clips"]}
     catalog = data.get("composition_clips") or []
@@ -517,10 +542,7 @@ class CAP_H3VideoGenerator:
             # This list is the explicit run scope, including individually requested disabled clips.
             compose_data = {**data, "clips": [{**row, "enabled": True} for row in composition_clips]}
             if keyframe_composition and not concat_full_videos:
-                for row in compose_data["clips"]:
-                    if row.get("keyframe_segment"):
-                        row["compose_keyframe_tail_only"] = True
-                        row.pop("playback_spans", None)
+                compose_data["clips"] = _keyframe_composition_rows(compose_data["clips"], float(data["fps"]))
             composed = CAP_ComposeClipVideos().execute(
                 json.dumps(compose_data, ensure_ascii=False),
                 filename_prefix=f"capricorncd-timeline/compose/{run_token}",

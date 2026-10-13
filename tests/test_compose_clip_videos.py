@@ -169,6 +169,8 @@ class TrimTests(unittest.TestCase):
         self.assertEqual(scope["_trim_plan"](None, clip, "test.mp4", True, 24), (0.0, 5.0))
         self.assertEqual(scope["_trim_plan"](None, clip, "test.mp4", True, 48), (0.0, 5.0))
         self.assertEqual(scope["_trim_plan"](None, clip, "test.mp4", False, 24), (None, None))
+        clip["compose_keyframe_frames"] = 136
+        self.assertEqual(scope["_trim_plan"](None, clip, "test.mp4", True, 24), (0.0, 136 / 24))
 
     def plan(self, count, previous=True, context=39, save=False, **extra):
         scope["subprocess"].run.return_value = Mock(returncode=0, stdout=json.dumps({

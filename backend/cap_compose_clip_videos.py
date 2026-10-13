@@ -412,7 +412,10 @@ class CAP_ComposeClipVideos:
             raise ValueError("Compose Clip Videos: clip duration must be positive.")
         # Opt-in on the generator's composition copy only; timeline trim semantics stay unchanged.
         if clip.get("compose_keyframe_tail_only"):
-            return 0.0, frames / fps
+            count = int(clip.get("compose_keyframe_frames", frames))
+            if count <= 0:
+                raise ValueError("Compose Clip Videos: keyframe composition must retain at least one frame.")
+            return 0.0, count / fps
         context = max(0, int(clip.get("h3_motion_context_length", 0) or 0))
         context = (context - 5) // 17 * 17 + 5 if context >= 5 else 0
         if not previous_clip or not previous_clip.get("save_latent", False):
@@ -652,7 +655,7 @@ class CAP_ComposeClipVideos:
                 ss, dur = self._trim_plan(clip, src, bool(trim_extends), fps, previous_clip)
                 if keep_tail:
                     dur = None
-                elif trim_extends:
+                elif trim_extends and not clip.get("compose_keyframe_tail_only"):
                     start = float(clip.get("preview_start_ms", clip.get("start_ms", 0)))
                     end = float(clip.get("preview_end_ms", clip["end_ms"]))
                     limit = (round(end * fps / 1000) - round(start * fps / 1000)) / fps

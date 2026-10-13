@@ -271,6 +271,32 @@ class GeneratorTests(unittest.TestCase):
         self.assertTrue(all(r["compose_keyframe_tail_only"] for r in data["clips"]))
         self.assertTrue(all("compose_keyframe_tail_only" not in r for r in json.loads(result["result"][1])["clips"]))
 
+    def test_keyframe_cuts_follow_next_context_start(self):
+        plays = [78, 74, 131, 59, 96, 88]
+        tails = [12, 6, 11, 3, 9, 6]
+        raws = [90, 90, 158, 73, 124, 107]
+        rows, start = [], 0
+        for i, play in enumerate(plays):
+            rows.append(dict(id=str(i), start_ms=round(start * 1000 / 24), end_ms=round((start + play) * 1000 / 24),
+                keyframe_segment=dict(start_frame=start, end_frame=start + play),
+                h3_timing=dict(play_frames=play, context_frames=22 if i else 0, context_carry_frames=tails[i-1] if i else 0,
+                               raw_frames=raws[i], previous_source_clip_id=str(i-1) if i else None)))
+            start += play
+        original = copy.deepcopy(rows)
+        result = self.scope["_keyframe_composition_rows"](rows, 24)
+        self.assertEqual([r['compose_keyframe_frames'] for r in result], [68, 68, 136, 51, 102, 101])
+        self.assertEqual(sum(r['compose_keyframe_frames'] for r in result[:-1]) + raws[-1], 532)
+        self.assertEqual(rows, original)
+        # No overlap removal when the next result is not a continuation of this row.
+        rows[1]['h3_timing']['previous_source_clip_id'] = 'different'
+        self.assertEqual(self.scope['_keyframe_composition_rows'](rows, 24)[0]['compose_keyframe_frames'], 78)
+        # Interpolated output uses the same boundaries expressed in output frames.
+        for row in original:
+            for key in ('play_frames', 'context_frames', 'context_carry_frames', 'raw_frames'):
+                row['h3_timing'][key] *= 2
+        self.assertEqual([r['compose_keyframe_frames'] for r in self.scope['_keyframe_composition_rows'](original, 48)],
+                         [136, 136, 272, 102, 204, 202])
+
     def test_manual_segment_duration_is_used(self):
         result = self.run_node([dict(id="a", clip_role="video_ref", start_ms=0, end_ms=25000)],
                                max_segment_seconds=10)

@@ -875,7 +875,7 @@ class CAP_TimelineEditor:
             if use_clip_video_name:
                 clip_id_safe = _safe_filename_part(source_clip_id, "clip")
                 runtime_row["output_video"] = (
-                    f"CapTimelineEditor/{project_name_safe}/{gen_video_stamp}_{clip_id_safe}.mp4"
+                    f"CapTimelineEditor/{project_name_safe}/{gen_video_stamp}_{clip_id_safe}_kf0.mp4"
                 )
             if "reference_previous" in clip:
                 runtime_row["reference_previous"] = bool(clip["reference_previous"])

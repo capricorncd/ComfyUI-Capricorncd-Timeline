@@ -106,7 +106,7 @@ console.log('PASS: immediate H3 Clip association, completion fallback, closed ed
 
 const draftEditor = editor(false);
 draftEditor._receiveH3Draft = method('_receiveH3Draft');
-const draft = {id: 'a'.repeat(32), clip_id: 'a', file: 'capricorncd-timeline/h3_drafts/a/preview.mp4', seed: 42};
+const draft = {id: 'a'.repeat(32), clip_id: 'a', file: 'capricorncd-timeline/h3_drafts/a/preview.mp4', source_output: 'CapTimelineEditor/old-project/20261016-155406_a_kf0.mp4', seed: 42};
 draftEditor._onH3ClipVideoReady({detail: {video: {clip_id: 'a', type: 'output', h3_draft: draft}}});
 assert.equal(draftEditor.project.tracks[0].clips[0].h3_drafts.length, 1);
 assert.equal(files(draftEditor).length, 0, 'candidate never becomes a finished take');
@@ -121,6 +121,14 @@ draftEditor._onTimelineVideoSaved({detail: {clip_id: 'a', file: draft.file}});
 assert.equal(files(draftEditor).length, 0, 'generic save notification excludes low-resolution previews');
 assert.deepEqual(draftEditor._collectExecutedOutputVideos({output: {video: [{filename: draft.file, type: 'output'}]}}), []);
 console.log('PASS: first-pass closed-editor persistence, disabled/deleted replay and composition isolation');
+const renamedEditor = editor(false);
+renamedEditor.project.name = 'renamed-project';
+renamedEditor._receiveH3Draft = method('_receiveH3Draft');
+renamedEditor._receiveH3Draft(draft);
+assert.equal(renamedEditor.project.tracks[0].clips[0].h3_drafts[0].id, draft.id, 'Project renaming must not reject the explicit draft Clip ID');
+renamedEditor._receiveH3Draft({...draft, id: 'foreign', clip_id: 'missing'});
+assert.equal(renamedEditor.project.tracks[0].clips[0].h3_drafts.length, 1, 'Unknown Clip never gets attached to a different Clip');
+
 const liveDraftEditor = editor(true);
 const liveClip = {id: 'a'};
 const liveMeta = {};

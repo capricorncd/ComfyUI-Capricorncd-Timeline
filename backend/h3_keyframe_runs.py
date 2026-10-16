@@ -45,7 +45,7 @@ def expand_keyframe_runs(data, max_segment_seconds=15):
                 (r.get("keyframe_segment") or {}).get("end_frame") == interval.get("previous_end_frame", first)), None) if reference_previous else None
             previous_video = interval.get("previous_output_video", "") if reference_previous else ""
             if reference_previous and previous_row is None and not previous_video:
-                raise ValueError(f"关键帧区间 {interval_number}：上一片段没有可用生成结果，请先生成上一片段。")
+                reference_previous = False
             previous_id = previous_row["source_clip_id"] if previous_row else (f"{parent}__previous_{first}" if previous_video else None)
             carry = previous_row["h3_timing"]["tail_frames"] if previous_row else 0
             if previous_row:
@@ -78,7 +78,11 @@ def expand_keyframe_runs(data, max_segment_seconds=15):
                     head_frames=0, tail_frames=raw - context + carry - frames, play_frames=frames,
                     save_latent=row["save_latent"], previous_source_clip_id=previous_id)
                 stem, extension = clip["output_video"].rsplit(".", 1)
-                row["output_video"] = f"{stem}__kf{interval_number}_{part + 1}.{extension}"
+                if stem.endswith("_kf0"):
+                    stem = stem[:-4]
+                number = interval_number if explicit else 0
+                suffix = f"_part{part + 1}" if count > 1 else ""
+                row["output_video"] = f"{stem}_kf{number}{suffix}.{extension}"
                 row["prompt"] = prompt
                 row.pop("h3_generated_prompt", None)
                 row["keyframe_segment"] = dict(clip_id=parent, start_frame=begin, end_frame=end, fps=fps,

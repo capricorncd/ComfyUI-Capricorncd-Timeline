@@ -2653,7 +2653,7 @@ export class CapTimelineEditorApp {
         const name = this._safeProjectFilename();
         const id = String(clipId || "clip").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").slice(0, 80) || "clip";
         const st = String(stamp || this._makeGenVideoStamp());
-        return `CapTimelineEditor/${name}/${st}_${id}.mp4`;
+        return `CapTimelineEditor/${name}/${st}_${id}_kf0.mp4`;
     }
 
     /** Parse clip id from CapTimelineEditor/{project}/{YYYYMMDD-HHMMSS}_{clipId}.mp4 */
@@ -2661,7 +2661,7 @@ export class CapTimelineEditorApp {
         const n = normalizeOutputVideoPath(file);
         if (!n) return null;
         const m = stripH3Timing(n).match(/^CapTimelineEditor\/[^/]+\/(\d{8}-\d{6})_(.+)\.mp4$/i);
-        return m ? String(m[2]).trim().replace(/__kf\d+_\d+$/i, "") || null : null;
+        return m ? String(m[2]).trim().replace(/(?:__kf\d+_\d+|_kf\d+(?:_part\d+)?)$/i, "") || null : null;
     }
 
     _teNotifyBelongsHere(clipId, file) {
@@ -7952,6 +7952,12 @@ export class CapTimelineEditorApp {
         const file = normalizeOutputVideoPath([video.subfolder, video.filename].filter(Boolean).join('/'));
         const clipId = String(video.clip_id);
         if (!file || !this._teNotifyBelongsHere(clipId, file)) return;
+        const session = this._workflowPreview;
+        if (session?.active && session.clipId === clipId) {
+            session.savedFile = file;
+            session.entry = {url: this._outputVideoUrl(file), mime: "video/mp4", clipId, final: true};
+            this._showWorkflowPreview();
+        }
         const clip = this._findClipById(clipId);
         if (clip && this._timelineReady) {
             if (this._genEditState?.clipId === clip.id) this._pullGenEditDraftFromTimeline();
@@ -8009,7 +8015,8 @@ export class CapTimelineEditorApp {
             clipId = job?.clipId ? String(job.clipId) : "";
         }
         if (!clipId || !this._teNotifyBelongsHere(clipId, file)) return;
-        const marker = stripH3Timing(file).match(/__kf(\d+)_(\d+)\.mp4$/i);
+        const marker = stripH3Timing(file).match(/__kf(\d+)_(\d+)\.mp4$/i)
+            || stripH3Timing(file).match(/_kf(\d+)(?:_part(\d+))?\.mp4$/i);
         const pending = this._pendingGeneratedJobs.find(job => String(job.clipId) === clipId);
         const run = pending?.keyframeRun;
         const timing = h3TimingFromFilename(file);
@@ -8018,7 +8025,7 @@ export class CapTimelineEditorApp {
             const interval = run.intervals.find((row, index) => (row.number ?? index + 1) === intervalIndex + 1);
             if (interval) {
                 const count = Math.ceil((interval.end_frame - interval.start_frame) / Math.max(1, Math.floor(15 * run.fps)));
-                const part = Number(marker[2]);
+                const part = Number(marker[2] || 1);
                 if (part >= 1 && part <= count) {
                     const frames = interval.end_frame - interval.start_frame;
                     this._receiveKeyframeVideo({clip_id: clipId, filename: file, keyframe_segment: {
@@ -18095,7 +18102,8 @@ export class CapTimelineEditorApp {
 
     _receiveH3Draft(version) {
         if (this._deletedH3DraftIds?.has(version.id)) return;
-        if (this._destroyed || !this._isNodeOnLiveGraph() || !this._teNotifyBelongsHere(version.clip_id, version.source_output)) return;
+        // Draft manifests carry the owning Clip ID; source_output may use a previous project name.
+        if (this._destroyed || !this._isNodeOnLiveGraph() || !this._teNotifyBelongsHere(version.clip_id, version.file)) return;
         const parsed = this._parseProjectWidgetValue();
         const target = parsed.project?.tracks?.flatMap(track => track.clips || []).find(clip => String(clip.id) === String(version.clip_id));
         const clip = this._timelineReady && this._findClipById(version.clip_id);

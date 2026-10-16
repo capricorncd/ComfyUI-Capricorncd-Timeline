@@ -383,8 +383,6 @@ class CAP_H3VideoGenerator:
             previous = _context_source(row, earlier)
             if stage != "refine" and index not in previews and previous and not any(_clip_id(p) == previous and p.get("save_latent") for p in earlier):
                 if not _prev_clip_output_video_path(json.dumps(data), index, row.get("previous_output_video", "")):
-                    if row.get("keyframe_segment") and row.get("reference_previous"):
-                        raise ValueError("上一关键帧区间的生成视频不可用，请先生成上一片段或重新关联视频。")
                     warnings.append(dict(code="missing_context", clip_id=_clip_id(row), previous_clip_id=previous))
                     row.pop("previous_output_video", None)
                     # Replan this chain so independent generation does not retain context trims.
@@ -598,7 +596,7 @@ class CAP_H3VideoGenerator:
                 model, 1024, 80, True, frame_count, max(1, min(60, round(fps))),
                 tiny_vae=preview_tiny_vae, unique_id=preview_id)
             notify_timeline("cat_h3_preview_started", node_id=preview_id.split("::h3:")[0],
-                            workflow_id=(extra_pnginfo or {}).get("workflow", {}).get("id"), preview_id=preview_id, clip_id=cid)
+                            workflow_id=(extra_pnginfo or {}).get("workflow", {}).get("id"), preview_id=preview_id, clip_id=(row.get("keyframe_segment") or {}).get("clip_id", cid))
         records["h3_clip_prompt"] = {"class_type": "MiniMaxH3ImageToVideo" if strict_keyframes else "MiniMaxH3ReferenceToVideo",
                                    "inputs": {"prompt": composed_prompt, "width": low_width, "height": low_height, "length": frame_count}}
         sampler, = _call("KSamplerSelect", records, sampler_name="euler")
@@ -625,7 +623,8 @@ class CAP_H3VideoGenerator:
         candidate = None
         if stage == "draft":
             candidate = save_draft(low_result, data, index, low_width, low_height, frame_count, composed_prompt, steps)
-            row["output_video"] = f"{DRAFT_ROOT}/{candidate['id']}/preview.mp4"
+            filename = row["output_video"].replace("\\", "/").rsplit("/", 1)[-1]
+            row["output_video"] = f"{DRAFT_ROOT}/{candidate['id']}/{filename}"
         context_prefix = row["output_video"].strip().rsplit(".", 1)[0]
         low_prefix = context_prefix + ("_low" if second_sampling else "")
         low_path = high_path = ""

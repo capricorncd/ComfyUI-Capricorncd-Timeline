@@ -13,3 +13,8 @@ assert.equal(parse(prefix + '__kf3_2__h3v2_c22_r124_h0_t3_f24000_s0_n0.mp4'), 'c
 assert.equal(parse(prefix + '__kf_note.mp4'), 'clip_1_abc__kf_note');
 assert.equal(parse('unrelated.mp4'), null);
 console.log('Keyframe filenames resolve to the original Clip, with and without H3 timing.');
+
+for (const suffix of ['_kf0', '_kf1', '_kf3_part2']) {
+    assert.equal(parse(prefix + suffix + '.mp4'), 'clip_1_abc');
+    assert.equal(parse(prefix + suffix + '__h3v2_c22_r124_h0_t3_f24000_s0_n0.mp4'), 'clip_1_abc');
+}

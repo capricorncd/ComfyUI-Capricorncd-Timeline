@@ -67,12 +67,32 @@ class KeyframeRunTests(unittest.TestCase):
                 self.assertTrue(data['clips'][0]['save_latent'])
                 self.assertEqual(last['h3_timing']['previous_source_clip_id'], data['clips'][0]['source_clip_id'])
 
-    def test_missing_previous_does_not_fall_back(self):
+    def test_missing_previous_generates_independently(self):
         data = self.data()
         data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24,
             intervals=[dict(start_frame=120, end_frame=240, generation=dict(referencePrevious=True))])])
-        with self.assertRaisesRegex(ValueError, '上一片段'):
-            module.expand_keyframe_runs(data)
+        module.expand_keyframe_runs(data)
+        row = data['clips'][0]
+        self.assertFalse(row['reference_previous'])
+        self.assertEqual(row['h3_timing']['context_frames'], 0)
+        self.assertEqual(row['h3_timing']['play_frames'], 120)
+        self.assertIsNone(row['h3_timing']['previous_source_clip_id'])
+        self.assertNotIn('previous_output_video', row)
+        self.assertTrue(data['h3_generation']['keyframe_runs'][0]['intervals'][0]['generation']['referencePrevious'])
+
+    def test_output_names_use_zero_for_clip_and_one_based_keyframes(self):
+        data = self.data()
+        data['clips'][0]['output_video'] = 'folder/stamp_a_kf0.mp4'
+        module.expand_keyframe_runs(data)
+        self.assertEqual([r['output_video'] for r in data['clips']],
+                         ['folder/stamp_a_kf0_part1.mp4', 'folder/stamp_a_kf0_part2.mp4'])
+        data = self.data()
+        data['clips'][0]['output_video'] = 'folder/stamp_a_kf0.mp4'
+        data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24,
+            intervals=[dict(start_frame=0, end_frame=120, number=1), dict(start_frame=120, end_frame=600, number=2)])])
+        module.expand_keyframe_runs(data)
+        self.assertEqual([r['output_video'] for r in data['clips']],
+                         ['folder/stamp_a_kf1.mp4', 'folder/stamp_a_kf2_part1.mp4', 'folder/stamp_a_kf2_part2.mp4'])
 
     def test_manual_segment_limit(self):
         data = self.data()

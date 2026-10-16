@@ -895,6 +895,16 @@ class GeneratorTests(unittest.TestCase):
         self.assertTrue(all(data["warnings"] == [dict(code="missing_context", clip_id="b", previous_clip_id="a")]
                             for data in updates))
 
+    def test_missing_keyframe_context_file_generates_independently(self):
+        self.run_node([dict(id='b', reference_previous=True, start_ms=5000, end_ms=10000,
+            previous_output_video='missing.mp4', keyframe_segment=dict(clip_id='parent', start_frame=120, end_frame=240, fps=24),
+            h3_timing=dict(context_frames=22, previous_source_clip_id='a'))])
+        row = self.prepared[0][2]
+        self.assertEqual(row['h3_timing']['context_frames'], 0)
+        self.assertEqual(row['h3_timing']['play_frames'], 120)
+        self.assertNotIn('previous_output_video', row)
+        self.assertTrue(self.saved)
+
     def test_missing_context_replans_following_chain(self):
         self.run_node([{"id": "b", "reference_previous": True, "start_ms": 5000, "end_ms": 10000, "save_latent": True,
                         "h3_timing": {"context_frames": 22, "previous_source_clip_id": "a"}},

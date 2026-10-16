@@ -489,6 +489,23 @@ def _register_routes():
             counter += 1
         return destination
 
+    @routes.post("/audio_keyframe_timeline/project_identity")
+    async def api_project_identity(request: web.Request) -> web.Response:
+        from .cap_timeline_project_io import ensure_project_identity
+        from server import PromptServer
+        body = await request.json()
+        project = body.get("project")
+        if not isinstance(project, dict):
+            return web.json_response({"error": "Invalid project"}, status=400)
+        workflow = str(body.get("workflow_path") or "").replace("\\", "/")
+        source = None
+        if workflow and not workflow.startswith("/") and ".." not in workflow.split("/") and ":" not in workflow:
+            if not workflow.startswith("workflows/"):
+                workflow = "workflows/" + workflow
+            source = PromptServer.instance.user_manager.get_request_user_filepath(request, workflow, create_dir=False)
+        ensure_project_identity(project, source)
+        return web.json_response({key: project[key] for key in ("id", "created_at", "created_at_source") if key in project})
+
     @routes.get("/audio_keyframe_timeline/asset_status")
     async def api_asset_status(request: web.Request) -> web.Response:
         import folder_paths as _fp

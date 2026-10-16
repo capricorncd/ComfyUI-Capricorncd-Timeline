@@ -99,7 +99,7 @@ def open_project_directory(directory, filename="project.json"):
         project = json.load(stream)
     if not isinstance(project, dict) or not isinstance(project.get("tracks"), list):
         raise ValueError("Invalid project.json")
-    project = migrate_project(project)
+    project = migrate_project(project, source_path=project_path(directory, project_filename(filename)))
     project.pop("project_directory", None)
     history_path = project_path(directory, "prompt_history.json")
     project["prompt_history"] = {"schema_version": 1, "items": []}

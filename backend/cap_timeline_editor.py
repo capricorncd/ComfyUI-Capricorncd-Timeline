@@ -700,7 +700,7 @@ class CAP_TimelineEditor:
         gen_video_stamp = str(settings.get("gen_video_stamp") or "").strip()
         if not gen_video_stamp:
             gen_video_stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        project_name_safe = _safe_filename_part(project.get("name"), "Untitled")
+        project_id_safe = _safe_filename_part(project.get("id"), "project")
         only_raw = settings.get("runtime_only_clip_ids")
         only_ids = None
         if isinstance(only_raw, list) and only_raw:
@@ -878,7 +878,7 @@ class CAP_TimelineEditor:
             if use_clip_video_name:
                 clip_id_safe = _safe_filename_part(source_clip_id, "clip")
                 runtime_row["output_video"] = (
-                    f"CapTimelineEditor/{project_name_safe}/{gen_video_stamp}_{clip_id_safe}_kf0.mp4"
+                    f"CapTimelineEditor/{project_id_safe}/{gen_video_stamp}_{clip_id_safe}_kf0.mp4"
                 )
             if "reference_previous" in clip:
                 runtime_row["reference_previous"] = bool(clip["reference_previous"])

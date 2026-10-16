@@ -38,7 +38,7 @@ class TimelineOutputsTests(unittest.TestCase):
             _visual_segments=lambda clips: [(first, 0, 5000, 0), (second, 5000, 10000, 0)],
             _audio_slices=lambda *a: [], _concat_runtime_clips_audio=lambda *a, **kw: None,
             _prepare_frame_seq_dir=lambda: 'frame-dir')
-        project = dict(settings=dict(runtime_only_clip_ids=['b']), tracks=[])
+        project = dict(id='20261016-1234abcd', name='Original', settings=dict(runtime_only_clip_ids=['b'], gen_video_stamp='20261016-100000'), tracks=[])
         result = namespace['execute'](instance, 24, 864, 480, 'test', json.dumps(project))
         catalog = json.loads(result[3])['composition_clips']
         self.assertEqual([row['source_clip_id'] for row in catalog], ['a', 'b'])
@@ -46,6 +46,10 @@ class TimelineOutputsTests(unittest.TestCase):
         rows = json.loads(result[3])['clips']
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['source_clip_id'], 'b')
+        self.assertEqual(h3.H3_SUFFIX.sub('', rows[0]['output_video']), 'CapTimelineEditor/20261016-1234abcd/20261016-100000_b_kf0.mp4')
+        project['name'] = 'Renamed'
+        renamed = json.loads(namespace['execute'](instance, 24, 864, 480, 'test', json.dumps(project))[3])
+        self.assertEqual(renamed['clips'][0]['output_video'], rows[0]['output_video'])
         self.assertEqual(rows[0]['last_frame_media_id'], 'tail-image')
         self.assertEqual(rows[0]['h3_drafts'], second['h3_drafts'])
         self.assertEqual(rows[0]['previous_output_video'], 'existing.mp4')

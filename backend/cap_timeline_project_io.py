@@ -182,10 +182,27 @@ def resolve_clip_media(project: dict, clip: dict) -> list[dict]:
     return rows
 
 
-def migrate_project(project: dict) -> dict:
+def ensure_project_identity(project: dict, source_path=None) -> dict:
+    """Keep identity across renames; use filesystem birth time only when available."""
+    if not project.get("created_at"):
+        created = None
+        if source_path and os.path.isfile(source_path):
+            stat = os.stat(source_path)
+            created = getattr(stat, "st_birthtime", stat.st_ctime if os.name == "nt" else None)
+        project["created_at"] = datetime.fromtimestamp(created).astimezone().isoformat() if created is not None else datetime.now().astimezone().isoformat()
+        project["created_at_source"] = "file_creation" if created is not None else "first_seen"
+    project.setdefault("created_at_source", "existing")
+    if not project.get("id"):
+        date = datetime.fromisoformat(project["created_at"].replace("Z", "+00:00")).strftime("%Y%m%d")
+        digest = hashlib.sha256(json.dumps(project, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:8]
+        project["id"] = f"{date}-{digest}"
+    return project
+
+
+def migrate_project(project: dict, *, source_path=None) -> dict:
     """Normalize a project document to SCHEMA_VERSION, converting legacy shapes."""
     if not isinstance(project, dict):
-        return {
+        project = {
             "schema_version": SCHEMA_VERSION,
             "name": "Untitled Project",
             "media": [],
@@ -203,7 +220,7 @@ def migrate_project(project: dict) -> dict:
     _normalize_media_catalog(out)
     _ensure_clip_media_ids(out)
     out["schema_version"] = SCHEMA_VERSION
-    return out
+    return ensure_project_identity(out, source_path)
 
 
 def _join_prompt_parts(*values) -> str:

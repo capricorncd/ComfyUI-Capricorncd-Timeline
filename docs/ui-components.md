@@ -401,4 +401,14 @@ Clip export supports “Merge into one file” and “Export separate files” t
 
 选中关键帧时，使用音频轨音频、自动生成提示词、保存 latent、衔接上一片段及种子编辑该关键帧的独立设置，随工程保存；取消关键帧选择后恢复编辑 Clip 设置。关键帧开关默认关闭，种子默认为 -1，不继承 Clip 的设置。
 
-衔接优先使用同一 Clip 中紧邻的上一关键帧区间。第一个区间跨 Clip 衔接同轨道上一 Clip：若上一 Clip 有关键帧组，只使用其最后一个区间的可用生成结果。没有可用结果时停止并提示，不自动重跑上一段。批量运行中已选择的相邻区间可以连续衔接；分段运行会保留中间 latent，最后一段是否保存由关键帧设置决定。
+衔接优先使用同一 Clip 中紧邻的上一关键帧区间。第一个区间跨 Clip 衔接同轨道上一 Clip：若上一 Clip 有关键帧组，只使用其最后一个区间的可用生成结果。没有可用结果或结果文件已失效时，忽略本次衔接并独立生成当前关键帧，不自动重跑上一段，也不改变已保存的衔接开关。批量运行中已选择的相邻区间可以连续衔接；分段运行会保留中间 latent，最后一段是否保存由关键帧设置决定。
+
+Project Name has two shared text buttons aligned right in its heading, above the full-width name input. Sync copies the active ComfyUI workflow filename (without `.json`) into the project name, with undo and project persistence. Update renames the active workflow in its current folder using the input and saves the latest editor contents through ComfyUI's workflow store. Existing names are not overwritten; save errors and success appear inline. An unavailable workflow leaves the current value intact.
+
+Reference trim uses a primary Update Clip Duration button with an adjacent Sync keyframes switch, off each time the editor opens. When enabled, clicking Update Clip Duration scales Clip-local keyframe times by new duration / old duration, snapped to project frames, and immediately refreshes main timeline markers. Reference edits alone never retime keyframes; the order of speed edits and enabling the switch does not matter. With sync disabled, times stay unchanged. Repeating the update with the same duration does not move points again. Clip duration still updates only through its explicit button.
+
+
+生成视频使用 `时间戳_ClipID_kf0.mp4`（整段 Clip）及 `时间戳_ClipID_kf1.mp4` 起的关键帧区间编号。超过单段上限时追加 `_part1`、`_part2`，保留 H3 时序后缀；预览采样在独立候选目录内沿用生成文件名。旧 `__kfN_P` 名称继续支持关联，不重命名磁盘历史文件。关键帧提示词弹窗的实时预览事件按原 Clip ID 关联，分段视频保存后更新预览播放器。
+
+
+工程顶层保存 `id`（`yyyyMMdd-8位小写十六进制`）、`created_at`（含时区 ISO 时间）和 `created_at_source`。新建记录创建时间；旧工作流加载、排队及打开项目时自动补齐，能够读取本地文件时使用创建时间，否则标记首次补齐时间 `first_seen`。新生成视频目录为 `CapTimelineEditor/<id>/`，工程改名不改变 ID 或目录。历史文件路径保留，旧目录仍可关联；工程 ID 随导入、导出及撤销快照保留。

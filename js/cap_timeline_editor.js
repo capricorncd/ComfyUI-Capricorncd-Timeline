@@ -114,8 +114,11 @@ function hookQueuePrompt() {
     const wrap = (target, key) => {
         if (!target || typeof target[key] !== "function" || target[key]._capTeHooked) return;
         const orig = target[key];
-        target[key] = function (...args) {
+        target[key] = async function (...args) {
             flushOpenTimelineEditors();
+            for (const node of app.graph?._nodes || []) {
+                if (node.comfyClass === NODE_CLASS) await ensureTimelineApp(node)._ensureProjectIdentityForWidgets();
+            }
             return orig.apply(this, args);
         };
         target[key]._capTeHooked = true;
@@ -532,6 +535,9 @@ app.registerExtension({
 
     async afterConfigureGraph() {
         CapTimelineEditorApp.scrubGlobalUi();
+        for (const node of app.graph?._nodes || []) {
+            if (node.comfyClass === NODE_CLASS) await ensureTimelineApp(node)._ensureProjectIdentityForWidgets();
+        }
     },
 
     async beforeRegisterNodeDef(nodeType, nodeData) {

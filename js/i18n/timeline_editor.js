@@ -8,6 +8,9 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        project_identity_restart_required: "The project ID service is not loaded. Restart ComfyUI, then refresh this page and reopen the timeline.",
+        project_identity_request_failed: "Project ID request failed (HTTP {status}).",
+        project_identity_invalid_response: "The project ID service returned invalid data. The original project was retained.",
         filter_track: "Filter / effect track",
         filter_fair: "Fair skin",
         filter_bright: "Bright skin",
@@ -958,6 +961,9 @@ export const DICT = {
         apply_skill_failed: "Failed to apply Skill: {msg}",
     },
     zh: {
+        project_identity_restart_required: "工程 ID 接口尚未加载。请重启 ComfyUI，再刷新页面并重新打开时间轴。",
+        project_identity_request_failed: "获取工程 ID 失败（HTTP {status}）。",
+        project_identity_invalid_response: "工程 ID 接口返回数据异常，已保留原工程。",
         filter_track: "滤镜特效轨道",
         filter_fair: "白皙",
         filter_bright: "亮肤",
@@ -1900,6 +1906,9 @@ export const DICT = {
         apply_skill_failed: "应用 Skill 失败：{msg}",
     },
     ja: {
+        project_identity_restart_required: "プロジェクト ID のサービスが読み込まれていません。ComfyUI を再起動し、ページを更新してタイムラインを開き直してください。",
+        project_identity_request_failed: "プロジェクト ID の取得に失敗しました（HTTP {status}）。",
+        project_identity_invalid_response: "プロジェクト ID の応答が不正です。元のプロジェクトは保持されています。",
         filter_track: "フィルター・エフェクトトラック",
         filter_fair: "美白",
         filter_bright: "明るい肌",

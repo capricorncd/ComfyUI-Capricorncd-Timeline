@@ -1,3 +1,4 @@
+import {createProjectIdentity} from '../js/editor/ProjectIdentity.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
@@ -7,10 +8,10 @@ let answer = true, asks = [];
 const method = name => {
     const start = source.search(new RegExp('    (?:async )?' + name + '\\('));
     assert(start >= 0);
-    return new Function('showCapConfirm', 'T', 'PY_SCALAR_DEFAULTS', 'SETTING_PROMPT_KEYS',
+    return new Function('showCapConfirm', 'T', 'PY_SCALAR_DEFAULTS', 'SETTING_PROMPT_KEYS', 'createProjectIdentity',
         'return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '}).' + name)(
         async (...args) => { asks.push(args); return typeof answer === 'function' ? answer() : answer; },
-        key => key, defaults, ['prepend_prompt', 'append_prompt']);
+        key => key, defaults, ['prepend_prompt', 'append_prompt'], createProjectIdentity);
 };
 function fixture() {
     asks = []; answer = true;

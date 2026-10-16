@@ -1,3 +1,4 @@
+import {createProjectIdentity, projectIdentity} from './editor/ProjectIdentity.js';
 import { FILTER_PRESETS, PortraitFilterRenderer, activePortraitFilters } from "./editor/PortraitFilters.js";
 import "./components/ImageCompare.js";
 import "./components/SkillPicker.js";
@@ -1743,6 +1744,7 @@ export class CapTimelineEditorApp {
             || openGen !== this._openGen || !this._isNodeOnLiveGraph()) return;
 
         const project = {
+            ...createProjectIdentity(),
             project_version: this._currentVersion(),
             schema_version: this._currentSchemaVersion(),
             name: T("untitled_project"),
@@ -2635,6 +2637,42 @@ export class CapTimelineEditorApp {
         }
     }
 
+    async _readProjectIdentityResponse(response) {
+        if (response.status === 404 || response.status === 405) {
+            throw new Error(T('project_identity_restart_required'));
+        }
+        const identity = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(identity?.error || T('project_identity_request_failed', {status: response.status}));
+        }
+        if (!identity || typeof identity.id !== 'string' || !identity.id
+            || typeof identity.created_at !== 'string' || !identity.created_at) {
+            throw new Error(T('project_identity_invalid_response'));
+        }
+        return projectIdentity(identity);
+    }
+
+    async _ensureProjectIdentityForWidgets() {
+        const widget = this._w('project_json');
+        if (!widget) return;
+        const {project, error} = this._parseProjectWidgetValue();
+        if (error || !project) return;
+        if (project.id && project.created_at) {
+            this._projectIdentity = projectIdentity(project);
+            return;
+        }
+        const before = widget.value;
+        const workflow = app.extensionManager?.workflow?.activeWorkflow;
+        const response = await api.fetchApi('/audio_keyframe_timeline/project_identity', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({project, workflow_path: workflow?.isTemporary ? '' : workflow?.path || ''}),
+        });
+        const identity = await this._readProjectIdentityResponse(response);
+        if (this._destroyed || widget.value !== before) return;
+        this._projectIdentity = identity;
+        this._writeProjectJson(JSON.stringify({...project, ...identity}));
+    }
+
     _safeProjectFilename(fallback = T("untitled_project")) {
         const projectName = String(this.projectNameInput?.value || fallback).trim() || fallback;
         return projectName
@@ -2650,7 +2688,8 @@ export class CapTimelineEditorApp {
     }
 
     _clipSpecifiedVideoPath(clipId, stamp = this._genVideoStamp) {
-        const name = this._safeProjectFilename();
+        const name = this._projectIdentity?.id || this._parseProjectWidgetValue().project?.id;
+        if (!name) throw new Error("Project ID is not initialized");
         const id = String(clipId || "clip").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").slice(0, 80) || "clip";
         const st = String(stamp || this._makeGenVideoStamp());
         return `CapTimelineEditor/${name}/${st}_${id}_kf0.mp4`;
@@ -2668,7 +2707,8 @@ export class CapTimelineEditorApp {
         const n = normalizeOutputVideoPath(file);
         const project = this._parseProjectWidgetValue().project;
         const sourceProject = n?.match(/^CapTimelineEditor\/([^/]+)\//i)?.[1];
-        if (sourceProject && sourceProject !== this._safeProjectFilename(project?.name || T("untitled_project"))) {
+        const projectId = this._projectIdentity?.id || project?.id;
+        if (sourceProject && sourceProject !== projectId && sourceProject !== this._safeProjectFilename(project?.name || T("untitled_project"))) {
             return false;
         }
         const id = String(clipId || "").trim();
@@ -15305,6 +15345,19 @@ export class CapTimelineEditorApp {
             };
         }
         project = this._migrateProjectDocument(project);
+        if (!project.id || !project.created_at) {
+            const workflow = !projectOverride ? app.extensionManager?.workflow?.activeWorkflow : null;
+            const response = await api.fetchApi('/audio_keyframe_timeline/project_identity', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({project, workflow_path: workflow?.isTemporary ? '' : workflow?.path || ''}),
+            });
+            const identity = await this._readProjectIdentityResponse(response);
+            if (loadSeq !== this._loadSeq) return;
+            Object.assign(project, identity);
+        }
+        this._projectIdentity = projectIdentity(project);
+        // Persist the ID before any output filename is calculated.
+        this._w('project_json').value = JSON.stringify(project);
         this._projectVideos = (project.composed_videos || []).filter(row => row && normalizeOutputVideoPath(row.file));
         this._renderProjectVideos();
         this._storyboardLoadError = null;
@@ -21875,6 +21928,7 @@ export class CapTimelineEditorApp {
         });
         applyContinuationSettings(tracks);
         return {
+            ...this._projectIdentity,
             project_version: this._currentVersion(),
             schema_version: this._currentSchemaVersion(),
             name: String(this.projectNameInput?.value || T("untitled_project")).trim() || T("untitled_project"),
@@ -22116,6 +22170,7 @@ export class CapTimelineEditorApp {
         this._audioTrack = null;
 
         let project = this._migrateProjectDocument(snapshot.project || {});
+        if (project.id) this._projectIdentity = projectIdentity(project);
         this._projectVideos = (project.composed_videos || []).filter(row => row && normalizeOutputVideoPath(row.file));
         this._renderProjectVideos();
         for (const track of project.tracks || []) for (const clip of track.clips || []) {

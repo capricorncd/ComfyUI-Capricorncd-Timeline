@@ -35,7 +35,7 @@ class LauncherProjectTests(unittest.TestCase):
         folders.get_output_directory = lambda: str(self.output)
         folders.exists_annotated_filepath = lambda name: (self.input / name).is_file()
         folders.get_annotated_filepath = lambda name: str(self.input / name)
-        self.project = {"schema_version": 4, "name": "Test", "media": [
+        self.project = {"schema_version": 4, "id": "20261016-1234abcd", "created_at": "2026-10-16T10:00:00+09:00", "name": "Test", "media": [
             {"id": "i", "kind": "image", "file": "sample.png", "location": "input"},
         ], "tracks": [{"id": "t", "type": "director", "clips": [
             {"id": "c", "media_ids": ["i"], "generated_videos": [{"file": "clip.mp4"}]},

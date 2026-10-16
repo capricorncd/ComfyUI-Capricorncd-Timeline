@@ -330,7 +330,7 @@ The timeline preview mode dropdown opens on hover. Its `bindMenu` uses `primaryA
 
 Preview sampling management follows selected director Clips while open. Header arrows navigate director tracks in timeline order, select the target Clip, stop previous playback and reset the version selection. Boundary arrows are disabled; Clips without previews show the empty state. Non-director selections do not retarget it. Tests: `test_h3_draft_navigation.mjs`, `h3_drafts.browser.html`.
 
-Keyframe preview versions carry their parent Clip ID and `keyframe_segment` range/trim metadata. The manager sorts them by Clip-relative start time and displays interval, part and `mm:ss.ff`; Generate HD queues the current Clip through keyframe interval confirmation. Normal generation matches preview latents by segment range and fps. Preview playback uses the latest enabled take for each non-overlapping segment and trims continuation frames. Preview batches retain separate continuation chains. Tests: `test_h3_drafts.py`, `test_h3_keyframe_runs.py`, `test_h3_video_generator.py`, `test_draft_playback.mjs`.
+Keyframe preview versions carry their parent Clip ID and `keyframe_segment` range/trim metadata. The manager lists previews by generation time, newest first, with unknown times last, and displays interval, part and `mm:ss.ff`; Generate HD queues the current Clip through keyframe interval confirmation. Normal generation matches preview latents by segment range and fps. Preview playback uses the latest enabled take for each non-overlapping segment and trims continuation frames. Preview batches retain separate continuation chains. Tests: `test_h3_drafts.py`, `test_h3_keyframe_runs.py`, `test_h3_video_generator.py`, `test_draft_playback.mjs`.
 
 
 ### Skill picker

@@ -209,7 +209,7 @@ export class H3DraftVersions {
     render() {
         const clip = this.editor._findClipById(this.clipId);
         if (!clip) { this.dialog.close(); return; }
-        const rows = [...this.rows(clip)].sort((a, b) => (a.keyframe_segment?.start_frame || 0) / (a.keyframe_segment?.fps || a.fps || 24) - (b.keyframe_segment?.start_frame || 0) / (b.keyframe_segment?.fps || b.fps || 24));
+        const rows = [...this.rows(clip)].sort((a, b) => draftGeneratedTime(b).localeCompare(draftGeneratedTime(a)));
         const current = rows.find(row => row.id === this.previewId) || rows[0];
         const listScroll = this.dialog.querySelector(".cat-te-h3-drafts-list")?.scrollTop || 0;
         this.stop();

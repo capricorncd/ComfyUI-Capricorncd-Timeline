@@ -50,3 +50,25 @@ manager.editor._ensureClipMeta = () => ({h3Drafts: versions});
 assert.deepEqual(manager.rows(a, {fps: 24, start_frame: 120, end_frame: 360}).map(row => row.id), ['part1', 'part2']);
 assert.equal(manager.rows(a, null).length, versions.length, 'Clip manager still lists all previews');
 console.log('PASS: keyframe manager includes its continuation parts and excludes other intervals, ranges and fps');
+
+const generatedTime = new Function(source.slice(source.indexOf('export function draftGeneratedTime'),
+    source.indexOf('export class H3DraftVersions')).replace('export function', 'return function'))();
+const renderStart = source.indexOf('    render() {');
+const sorted = new Function('draftGeneratedTime', 'clip',
+    source.slice(source.indexOf('        const rows =', renderStart), source.indexOf('        const listScroll =', renderStart))
+    + 'return {rows, current};');
+const unsorted = [
+    {id: 'unknown'},
+    {id: 'old', source_output: 'CapTimelineEditor/project/20261015-235959_clip_kf1.mp4'},
+    {id: 'new', source_output: 'CapTimelineEditor/project/20261016-142540_clip_kf2.mp4', keyframe_segment: {start_frame: 240, fps: 24}},
+    {id: 'middle', source_output: 'CapTimelineEditor/project/20261016-134755_clip_kf1.mp4'},
+    {id: 'same-time', source_output: 'CapTimelineEditor\\project\\20261016-142540_clip_kf1.mp4'},
+];
+const owner = {rows: () => unsorted, previewId: null};
+let result = sorted.call(owner, generatedTime, a);
+assert.deepEqual(result.rows.map(row => row.id), ['new', 'same-time', 'middle', 'old', 'unknown']);
+assert.equal(result.current.id, 'new', 'opening defaults to the newest generated preview');
+assert.deepEqual(unsorted.map(row => row.id), ['unknown', 'old', 'new', 'middle', 'same-time'], 'display sorting does not mutate saved versions');
+owner.previewId = 'old';
+assert.equal(sorted.call(owner, generatedTime, a).current.id, 'old', 'refresh preserves the selected preview');
+console.log('PASS: previews sort newest first across dates and keyframes, unknown times last, stable ties and selection');

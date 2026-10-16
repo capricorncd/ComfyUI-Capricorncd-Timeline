@@ -77,6 +77,8 @@ export function referenceTimelineControls(app) {
     tools.hidden = !st.reference;
     const existingReset = app.genEditModal.querySelector('.cat-te-reference-reset-duration');
     if (existingReset) existingReset.hidden = !st.reference;
+    const existingActions = app.genEditModal.querySelector('.cat-te-reference-time-actions');
+    if (existingActions) existingActions.hidden = !st.reference;
     if (!st.reference) return;
     const assets = app._projectResources.filter(row => ['video', 'audio'].includes(row.kind));
     const addMedia = async media => {
@@ -122,9 +124,29 @@ export function referenceTimelineControls(app) {
     if (!reset) {
         reset = document.createElement('cap-button');
         reset.className = 'cat-te-reference-reset-duration';
-        app.genEditModal.querySelector('.cat-te-gen-edit-actions').append(reset);
+        const actions = document.createElement('div');
+        actions.className = 'cat-te-reference-time-actions';
+        actions.append(reset);
+        app.genEditModal.querySelector('.cat-te-gen-edit-actions').append(actions);
     }
     reset.hidden = false;
+    reset.setAttribute('variant', 'primary');
+    reset.setAttribute('size', 'regular');
+    const actions = reset.parentElement;
+    actions.querySelector('.cat-te-reference-sync-keyframes')?.remove();
+    const syncLabel = document.createElement('label');
+    syncLabel.className = 'cat-te-reference-sync-keyframes';
+    const syncControl = document.createElement('cap-switch');
+    const syncInput = document.createElement('input');
+    syncInput.type = 'checkbox'; syncInput.checked = st.syncKeyframes === true;
+    syncInput.disabled = app._findClipById(st.clipId)?.track.locked;
+    syncInput.addEventListener('change', () => {
+        if (app._genEditState !== st || st.merging || app._findClipById(st.clipId)?.track.locked) return;
+        st.syncKeyframes = syncInput.checked;
+    });
+    syncControl.append(syncInput);
+    syncLabel.append(syncControl, document.createTextNode(T('reference_sync_keyframes')));
+    actions.append(syncLabel);
     reset.textContent = T('reference_reset_clip_time');
     reset.disabled = app._findClipById(st.clipId)?.track.locked;
     reset.onclick = () => {
@@ -138,15 +160,32 @@ export function referenceTimelineControls(app) {
         const duration = Math.max(0, ...ends);
         if (!(duration > 0)) return;
         app._recordUndo();
+        app._applyGenEditChanges();
+        if (st.syncKeyframes) {
+            const meta = app._ensureClipMeta(clip);
+            syncReferenceKeyframes(meta.video_shots?.points || [], clip.duration, duration, app.getFps());
+        }
         clip.duration = duration;
         app._rememberResourceTiming(clip);
         clip._applyPosition();
         clip.track.arrangeClips();
         app._ensureTimelineLength(clip.endTime);
         app._refreshTimelineDuration();
+        // Marker percentages depend on parent duration, including newly visible points.
+        app._directorKeyframes?.sync(clip);
+        app._directorKeyframes?.refreshPanel();
         app._saveToWidgets();
         app._syncSelectedClip();
         app._buildGenEditTimeline();
         app._scheduleGenEditPreview();
     };
+}
+
+// Scale Clip-local times only when explicitly updating the parent duration.
+export function syncReferenceKeyframes(points, oldDuration, newDuration, fps) {
+    if (!(oldDuration > 0) || !(newDuration > 0) || oldDuration === newDuration) return;
+    const ratio = newDuration / oldDuration;
+    for (const point of points) {
+        point.time = Math.max(0, Math.round(point.time * ratio * fps) / fps);
+    }
 }

@@ -9841,6 +9841,7 @@ export class CapTimelineEditorApp {
         this._genEditState = {
             clipId: clip.id,
             reference, perTrack: refs?.per_track === true,
+            syncKeyframes: false,
             draft,
             audioDraft: this._normalizeGenEditAudioDraft(refs ? refs.audios : m.genEditAudios),
             undoRecorded: false,
@@ -11505,6 +11506,7 @@ export class CapTimelineEditorApp {
             }
             clip.sourceDuration = Infinity;
             this._directorKeyframes?.sync(clip);
+            this._directorKeyframes?.refreshPanel();
             this._saveToWidgets();
             this._scheduleProgramPreview();
             return;

@@ -4211,6 +4211,9 @@ body.cat-te-media-dnd-over-tl {
 @media (max-width: 600px) { .cat-te-keyframe-run-body { padding: 16px 18px; } }
 
 .cat-te-gen-edit-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     flex-shrink: 0;
     padding: 12px 18px;
     border-top: 1px solid var(--cat-border-soft);
@@ -4223,7 +4226,7 @@ body.cat-te-media-dnd-over-tl {
 }
 .cat-te-gen-edit-status:not([hidden]) {
     display: block;
-    margin-bottom: 10px;
+    margin-bottom: 0;
 }
 
 .cat-te-h3-drafts-title { flex: 1; min-width: 0; }
@@ -4233,6 +4236,12 @@ cap-dialog.cat-te-add-material-modal > .cat-te-add-material-preview { flex: 1; m
 .cat-te-add-material-actions > label { margin-right: auto; }
 
 .cat-te-reference-timeline-tools:not([hidden]) { display: flex; flex-direction: column; gap: 12px; }
-.cat-te-reference-reset-duration { margin-left: auto; }
+.cat-te-reference-reset-duration { flex-shrink: 0; }
 .cat-te-reference-timeline-tools cap-select { min-width: 0; flex: 1; }
 .cat-te-reference-timeline-tools label { display: flex; align-items: center; gap: 8px; }
+
+
+.cat-te-reference-time-actions, .cat-te-reference-sync-keyframes { display: flex; align-items: center; gap: 10px; }
+.cat-te-reference-time-actions { flex-wrap: wrap; }
+.cat-te-reference-time-actions[hidden] { display: none; }
+.cat-te-reference-sync-keyframes { margin: 0; flex-shrink: 0; }

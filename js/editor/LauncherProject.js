@@ -4,9 +4,9 @@ import '../components/Dialog.js';
 import '../components/FormControls.js';
 
 const versionT = makeT({
-    zh: {title: '选择工程版本', load: '加载所选版本', cancel: '取消', updated: '目录中的工程文件已更新，是否加载最新版？当前编辑内容会先另存为带时间戳的工程版本及对应分镜文件。'},
-    en: {title: 'Choose project version', load: 'Load selected version', cancel: 'Cancel', updated: 'The project files have changed. Load the latest version? Current edits will first be saved as a separate timestamped project and matching storyboard.'},
-    ja: {title: 'プロジェクトのバージョンを選択', load: '選択したバージョンを読み込む', cancel: 'キャンセル', updated: 'プロジェクトが更新されました。最新版を読み込みますか？現在の編集内容と絵コンテは先に日時付きの別ファイルに保存します。'},
+    zh: {title: '选择工程版本', load: '加载所选版本', cancel: '取消'},
+    en: {title: 'Choose project version', load: 'Load selected version', cancel: 'Cancel'},
+    ja: {title: 'プロジェクトのバージョンを選択', load: '選択したバージョンを読み込む', cancel: 'キャンセル'},
 });
 
 function projectDialog(content, heading, confirmLabel, host) {
@@ -33,12 +33,6 @@ function projectDialog(content, heading, confirmLabel, host) {
     });
 }
 
-export function confirmProjectUpdate(host) {
-    const message = document.createElement('p');
-    message.textContent = versionT('updated');
-    return projectDialog(message, launcherT('reload'), launcherT('reload'), host);
-}
-
 export function confirmProjectImport(host, messageText, label) {
     const message = document.createElement('p');
     message.textContent = messageText;
@@ -56,9 +50,9 @@ export async function chooseProjectVersion(versions, host = document.body) {
 }
 
 export const launcherT = makeT({
-    zh: { reload: '加载最新版', reloadFailed: '加载工程更新失败', save: '保存项目', folder: '打开项目目录', saved: '项目已保存', failed: '项目保存失败', backupFailed: '自动备份失败', missing: '部分素材缺失', openFailed: '无法打开项目目录' },
-    en: { reload: 'Load latest', reloadFailed: 'Could not load project update', save: 'Save project', folder: 'Open project folder', saved: 'Project saved', failed: 'Project save failed', backupFailed: 'Automatic backup failed', missing: 'Some media files are missing', openFailed: 'Cannot open project folder' },
-    ja: { reload: '最新版を読み込む', reloadFailed: '更新の読み込みに失敗しました', save: 'プロジェクトを保存', folder: 'プロジェクトフォルダーを開く', saved: '保存しました', failed: '保存に失敗しました', backupFailed: '自動バックアップに失敗しました', missing: '一部の素材が見つかりません', openFailed: 'フォルダーを開けません' },
+    zh: { save: '保存项目', folder: '打开项目目录', saved: '项目已保存', failed: '项目保存失败', backupFailed: '自动备份失败', missing: '部分素材缺失', openFailed: '无法打开项目目录' },
+    en: { save: 'Save project', folder: 'Open project folder', saved: 'Project saved', failed: 'Project save failed', backupFailed: 'Automatic backup failed', missing: 'Some media files are missing', openFailed: 'Cannot open project folder' },
+    ja: { save: 'プロジェクトを保存', folder: 'プロジェクトフォルダーを開く', saved: '保存しました', failed: '保存に失敗しました', backupFailed: '自動バックアップに失敗しました', missing: '一部の素材が見つかりません', openFailed: 'フォルダーを開けません' },
 });
 
 // Keep desktop sessions outside graph nodes, including custom node serializers.

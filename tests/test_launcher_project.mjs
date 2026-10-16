@@ -63,7 +63,7 @@ const editorSource = readFileSync(new URL('../js/CapTimelineEditorApp.js', impor
 function editorMethod(name, confirm = () => true) {
     const start = editorSource.search(new RegExp(`    (async )?${name}\\(`));
     const end = editorSource.indexOf('\n    }', start) + 6;
-    return new Function('launcherT', 'T', 'showCapAlert', 'showCapConfirm', 'window', `return ({${editorSource.slice(start, end)}}).${name}`)(key => key, key => key, () => {}, confirm, { __COMFYUI_LAUNCHER__: { capabilities: { projectDirectory: true } } });
+    return new Function('launcherT', 'T', 'showCapAlert', 'showCapConfirm', 'window', 'app', `return ({${editorSource.slice(start, end)}}).${name}`)(key => key, key => key, () => {}, confirm, { __COMFYUI_LAUNCHER__: { capabilities: { projectDirectory: true } } }, { extensionManager: { command: { execute: async () => {} } } });
 }
 
 {
@@ -75,6 +75,7 @@ function editorMethod(name, confirm = () => true) {
         _saveToWidgets() {}, _exportWorkflowSnapshot: () => ({ nodes: [{ id: 7 }] }), _hasUnsavedChanges: () => false,
         _launcherStatus: { setStatus() {} },
         _saveLauncherProject: editorMethod('_saveLauncherProject'),
+        _saveTimelineAndWorkflow: editorMethod('_saveTimelineAndWorkflow'),
     };
     editorMethod('_autoSaveIfDirty').call(owner);
     await Promise.resolve();
@@ -96,7 +97,7 @@ function editorMethod(name, confirm = () => true) {
     const owner = {
         _openGen: 1, _confirmOverwriteImport: () => true,
         _launcherProject: { session: binding, open: async () => null, reset(value) { this.session = value; } },
-        async _applyImportedProject() { applied++; },
+        async _applyImportedProject() { applied++; this._launcherProject.reset(null); },
     };
     const open = editorMethod('_importFromDirectory').bind(owner);
     await open();
@@ -105,7 +106,7 @@ function editorMethod(name, confirm = () => true) {
     owner._launcherProject.open = async () => ({ project: {}, token: 'new', directory: 'selected' });
     await open();
     assert.equal(applied, 1);
-    assert.equal(owner._launcherProject.session.token, 'new');
+    assert.equal(owner._launcherProject.session, null, 'import must not rebind the source directory');
     owner._launcherProject.open = async () => { owner._openGen++; return { token: 'stale' }; };
     await open();
     assert.equal(applied, 1, 'closing editor while picker/import is pending ignores stale completion');

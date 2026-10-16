@@ -37,7 +37,7 @@ import { FontCatalog } from "./editor/FontCatalog.js";
 import { previewSeedValue, workflowPreviewSeed } from "./editor/PreviewSeed.js";
 import { TimelineHistory } from "./editor/TimelineHistory.js";
 import { ReferenceProject, referenceT } from "./editor/ReferenceProject.js";
-import { launcherProjectFor, launcherT, chooseProjectVersion, confirmProjectUpdate, confirmProjectImport } from "./editor/LauncherProject.js";
+import { launcherProjectFor, launcherT, chooseProjectVersion, confirmProjectImport } from "./editor/LauncherProject.js";
 import { StoryboardPage, normalizeStoryboards, storyboardT } from "./editor/StoryboardPage.js";
 import { parseStoryboardDocument, buildStoryboardDocument } from "./editor/StoryboardDocument.js";
 import { FontPicker } from "./editor/FontPicker.js";
@@ -1149,11 +1149,11 @@ export class CapTimelineEditorApp {
      */
     handleShortcutKey(e) {
         if (!this._overlay?.classList.contains("open")) return false;
-        if (this._launcherProject && this._launcherProject.session && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && this._shortcutModKey(e) === "s") {
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && this._shortcutModKey(e) === "s") {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation?.();
-            if (!e.repeat) void this._saveLauncherProject(false);
+            if (!e.repeat) void this._saveTimelineAndWorkflow();
             return true;
         }
         if (this._storyboardMode && e.target?.closest?.(".cat-te-storyboard, .cat-te-storyboard-settings")
@@ -1362,49 +1362,6 @@ export class CapTimelineEditorApp {
         this._scheduleProgramPreview();
     }
 
-    async _checkProjectDirectoryUpdate() {
-        const session = this._launcherProject?.session;
-        if (!session || this._projectWatchBusy || document.hidden
-            || !this._overlay?.classList.contains("open") || !this._canCreateProject()) return;
-        const openGen = this._openGen;
-        const current = () => !this._destroyed && this._openGen === openGen && this._launcherProject.session === session;
-        this._projectWatchBusy = true;
-        let reloading = false;
-        let revision;
-        try {
-            const status = await this._launcherProject.request('status', {token: session.token});
-            revision = status.revision;
-            if (!current() || !status.changed || !status.exists || session.seenRevision === status.revision) return;
-            if (!this._canCreateProject()) return;
-            const confirmed = await confirmProjectUpdate(this._overlay);
-            if (!current()) return;
-            if (!confirmed) { session.seenRevision = status.revision; return; }
-            if (!this._canCreateProject()) return;
-            reloading = true;
-            await this._launcherProject.pending;
-            if (!current()) return;
-            const backup = await this._launcherProject.request('snapshot', {
-                token: session.token, project: this._buildProject(), storyboard: this._buildStoryboardDocument(),
-            });
-            if (!current()) return;
-            if (backup?.missing?.length) throw new Error(launcherT('missing'));
-            const opened = await this._launcherProject.request('open', {directory: session.directory, filename: session.filename || 'project.json'});
-            if (!current()) return;
-            await this._applyImportedProject(opened.project, opened.warnings, opened.storyboard);
-            if (this._destroyed || this._openGen !== openGen) return;
-            this._launcherProject.reset({token: opened.token, directory: opened.directory, filename: opened.filename});
-            this._saveToWidgets();
-            this._openedProjectJson = this._editorContentJson();
-        } catch (error) {
-            if (!this._destroyed && this._openGen === openGen && reloading) {
-                session.seenRevision = revision;
-                this._launcherStatus?.setStatus(`${launcherT('reloadFailed')}: ${error.message}`, 'error');
-            }
-        } finally {
-            this._projectWatchBusy = false;
-        }
-    }
-
     _getAutosaveIntervalSec() {
         const n = parseInt(localStorage.getItem(STORAGE_AUTOSAVE_INTERVAL) ?? String(DEFAULT_AUTOSAVE_INTERVAL_SEC), 10);
         if (!Number.isFinite(n)) return DEFAULT_AUTOSAVE_INTERVAL_SEC;
@@ -1418,12 +1375,9 @@ export class CapTimelineEditorApp {
             this._autoSaveTimer = setTimeout(tick, this._getAutosaveIntervalSec() * 1000);
         };
         this._autoSaveTimer = setTimeout(tick, this._getAutosaveIntervalSec() * 1000);
-        this._projectWatchTimer = setInterval(() => void this._checkProjectDirectoryUpdate(), 5000);
     }
 
     _stopAutoSave() {
-        clearInterval(this._projectWatchTimer);
-        this._projectWatchTimer = null;
         if (this._autoSaveTimer) {
             clearTimeout(this._autoSaveTimer);
             this._autoSaveTimer = null;
@@ -1445,6 +1399,24 @@ export class CapTimelineEditorApp {
 
     _editorContentJson() {
         return JSON.stringify({ project: this._buildProject(), storyboard: this._buildStoryboardDocument() });
+    }
+
+    async _saveTimelineAndWorkflow() {
+        if (this._workflowSaveBusy || !this._timelineReady || !this._historyReady || this._projectExportBusy) return;
+        this._workflowSaveBusy = true;
+        try {
+            this._saveToWidgets();
+            await Promise.all([
+                this._launcherProject?.session ? this._saveLauncherProject(false) : null,
+                app.extensionManager.command.execute("Comfy.SaveWorkflow", {
+                    errorHandler: error => { throw error; },
+                }),
+            ]);
+        } catch (error) {
+            showCapAlert(T("workflow_save_failed", { msg: error instanceof Error ? error.message : String(error) }));
+        } finally {
+            this._workflowSaveBusy = false;
+        }
     }
 
     async _saveLauncherProject(backup) {
@@ -3686,7 +3658,6 @@ export class CapTimelineEditorApp {
                 const opened = await this._launcherProject.open();
                 if (!opened || this._destroyed || this._openGen !== openGen) return;
                 await this._applyImportedProject(opened.project, opened.warnings, opened.storyboard);
-                this._launcherProject.reset({ token: opened.token, directory: opened.directory, filename: opened.filename });
                 this._launcherStatus?.setStatus("");
                 return;
             }
@@ -3880,10 +3851,17 @@ export class CapTimelineEditorApp {
               <cap-project-video-list hidden></cap-project-video-list>
               <div class="cat-te-project-panel">
                 <div class="cat-te-project-body">
-                  <label class="cat-te-project-name-row">
-                    <span>${T("project_name_label")}</span>
+                  <div class="cat-te-project-name-row">
+                    <div class="cat-te-project-name-heading">
+                      <span>${T("project_name_label")}</span>
+                      <div class="cat-te-project-name-actions">
+                        <cap-button class="cat-te-project-name-sync" variant="ghost" size="small" title="${T("project_name_sync")}">${T("project_name_sync")}</cap-button>
+                        <cap-button class="cat-te-project-name-update" variant="ghost" size="small" title="${T("project_name_update")}">${T("project_name_update")}</cap-button>
+                      </div>
+                    </div>
                     <input class="cat-te-title" type="text" value="${T("untitled_project")}" aria-label="${T("project_name_label")}" />
-                  </label>
+                    <cap-status-message class="cat-te-project-name-status" hidden></cap-status-message>
+                  </div>
                   <div class="cat-te-settings-prompts">
                     <div class="cat-te-prompt-wrap cat-te-settings-prompt-wrap" data-setting-prompt="prepend_prompt">
                       <div class="cat-te-prompt-label-row">
@@ -5462,6 +5440,8 @@ export class CapTimelineEditorApp {
             e.stopPropagation();
             this._stepMediaPreview(-1);
         });
+        el.querySelector(".cat-te-project-name-sync").addEventListener("click", () => this._syncProjectNameFromWorkflow());
+        el.querySelector(".cat-te-project-name-update").addEventListener("click", (e) => { void this._updateWorkflowName(e.currentTarget); });
         this.projectNameInput.addEventListener("focus", () => { this._projectNameUndoArmed = false; });
         this.projectNameInput.addEventListener("beforeinput", () => {
             if (!this._projectNameUndoArmed) {
@@ -20390,6 +20370,55 @@ export class CapTimelineEditorApp {
         } else {
             this._syncSettingPromptInputs();
             this._syncProjectScalarDisplay();
+        }
+    }
+
+    _syncProjectNameFromWorkflow() {
+        const workflow = app.extensionManager?.workflow?.activeWorkflow;
+        const raw = workflow?.filename || workflow?.path || "";
+        const name = String(raw).replaceAll("\\", "/").split("/").pop().replace(/\.json$/i, "").trim();
+        if (!name) { showCapAlert(T("project_name_sync_unavailable")); return; }
+        if (!this.projectNameInput || this.projectNameInput.value === name) return;
+        this._recordUndo();
+        this.projectNameInput.value = name;
+        this._projectNameUndoArmed = false;
+        this._syncBrandProjectName();
+        this._saveToWidgets();
+    }
+
+    async _updateWorkflowName(button) {
+        if (button.disabled) return;
+        const status = this._overlay.querySelector(".cat-te-project-name-status");
+        const workflows = app.extensionManager?.workflow;
+        const workflow = workflows?.activeWorkflow;
+        if (!workflow) { status.setStatus(T("project_name_sync_unavailable"), "error"); return; }
+        const name = this.projectNameInput.value.trim() || T("untitled_project");
+        if (/[<>:"/\\|?*\x00-\x1f]/.test(name) || /[. ]$/.test(name)) {
+            status.setStatus(T("project_name_update_invalid"), "error");
+            return;
+        }
+        const suffix = workflow.path.endsWith(".app.json") ? ".app.json" : ".json";
+        const filename = name.toLowerCase().endsWith(suffix) ? name : `${name}${suffix}`;
+        const path = `${workflow.directory}/${filename}`;
+        const existing = workflows.getWorkflowByPath(path);
+        if (existing && existing.path !== workflow.path) {
+            status.setStatus(T("project_name_update_exists"), "error");
+            return;
+        }
+        button.disabled = true;
+        status.setStatus("");
+        try {
+            this.projectNameInput.value = name;
+            this._syncBrandProjectName();
+            this._saveToWidgets();
+            if (path !== workflow.path) await workflows.renameWorkflow(workflow, path);
+            workflow.changeTracker.prepareForSave();
+            await workflows.saveWorkflow(workflow);
+            status.setStatus(T("project_name_update_saved"), "success");
+        } catch (error) {
+            status.setStatus(T("project_name_update_failed", { msg: error instanceof Error ? error.message : String(error) }), "error");
+        } finally {
+            button.disabled = false;
         }
     }
 

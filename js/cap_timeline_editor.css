@@ -4240,6 +4240,9 @@ cap-dialog.cat-te-add-material-modal > .cat-te-add-material-preview { flex: 1; m
 .cat-te-reference-timeline-tools cap-select { min-width: 0; flex: 1; }
 .cat-te-reference-timeline-tools label { display: flex; align-items: center; gap: 8px; }
 
+.cat-te-project-name-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cat-te-project-name-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; min-width: 0; }
+.cat-te-project-name-heading > span, .cat-te-project-name-actions cap-button { flex-shrink: 0; }
 
 .cat-te-reference-time-actions, .cat-te-reference-sync-keyframes { display: flex; align-items: center; gap: 10px; }
 .cat-te-reference-time-actions { flex-wrap: wrap; }

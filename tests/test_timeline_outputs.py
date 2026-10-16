@@ -98,6 +98,55 @@ class TimelineOutputsTests(unittest.TestCase):
                 self.assertEqual(row['audios'], audio_rows if expected else [])
                 self.assertEqual(len(calls), int(expected), 'disabled clips must not collect or mix track audio')
 
+    def test_reference_composition_respects_selected_clips_and_dependencies(self):
+        from test_h3_timing import h3
+        calls = []
+        def compose(project, clip, resolve):
+            calls.append(clip['id'])
+            if clip['id'] == 'unrelated':
+                raise FileNotFoundError('unrelated missing reference.mp4')
+            return [dict(id='ref_' + clip['id'], kind='video', file=clip['id'] + '.mp4')]
+        namespace = dict(prompt_reference_rows=lambda *a: [], json=json, datetime=datetime,
+            PROJECT_VERSION='test', SCHEMA_VERSION=4, clear_clip_prompt_vl=lambda: None,
+            _setting_prompt=lambda s, k: s.get(k, ''), _safe_filename_part=lambda n, d: n or d,
+            plan_h3_clips=h3.plan_h3_clips, _is_subtitle_clip=lambda c: False,
+            _clip_visual_entries=lambda *a: [], _strip_comment_lines=lambda s: s,
+            _clip_role_fields=lambda c: ('multi_ref', ''), _clip_agent_fields=lambda c: ('MiniMaxH3', ''),
+            _timeline_prompt_includes=lambda c: ['clip'], _clip_seed=lambda c: 1,
+            _h3_motion_context_length=lambda c: c.get('h3_motion_context_length', 0),
+            _clip_image_refs=lambda e: [], compose_reference_timeline=compose,
+            _add_material=lambda materials, seen, row, resolve: row['id'],
+            resolve_media_path=lambda name, **kw: name)
+        exec(compile(ast.Module(body=[execute], type_ignores=[]), '<timeline execute>', 'exec'), namespace)
+        unrelated = dict(id='unrelated', prompt='Old clip', reference_timeline={'videos': [{}]})
+        previous = dict(id='previous', prompt='Previous', reference_timeline={'videos': [{}]},
+                        generated_videos=[dict(file='existing.mp4')])
+        selected = dict(id='selected', prompt='Run', reference_timeline={'videos': [{}]}, reference_previous=False)
+        instance = SimpleNamespace(_project=json.loads,
+            _visual_segments=lambda clips: [(unrelated, 0, 5000, 0), (previous, 5000, 10000, 0), (selected, 10000, 15000, 0)],
+            _audio_slices=lambda *a: [], _concat_runtime_clips_audio=lambda *a, **kw: None,
+            _prepare_frame_seq_dir=lambda: 'frame-dir')
+        project = dict(settings=dict(runtime_only_clip_ids=['selected']), tracks=[])
+        def run():
+            return json.loads(namespace['execute'](instance, 24, 864, 480, 'test', json.dumps(project))[3])
+        data = run()
+        self.assertEqual(calls, ['selected'])
+        self.assertEqual([c['source_clip_id'] for c in data['clips']], ['selected'])
+        self.assertEqual(len(data['composition_clips']), 3)
+        calls.clear()
+        selected['reference_previous'] = True
+        selected['h3_motion_context_length'] = 22
+        data = run()
+        self.assertEqual(calls, ['selected', 'previous'])
+        self.assertEqual(data['clips'][0]['previous_reference_video'], 'previous.mp4')
+        self.assertEqual(data['clips'][0]['previous_output_video'], 'existing.mp4')
+        project['settings']['runtime_only_clip_ids'] = ['unrelated']
+        with self.assertRaises(FileNotFoundError):
+            run()
+        project['settings'].pop('runtime_only_clip_ids')
+        with self.assertRaises(FileNotFoundError):
+            run()
+
     def test_execution_matches_output_contract_and_preserves_prompt_data(self):
         namespace = dict(json=json, datetime=datetime, PROJECT_VERSION='test', SCHEMA_VERSION=4,
                          clear_clip_prompt_vl=lambda: None, _setting_prompt=lambda s, k: s.get(k, ''),

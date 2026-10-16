@@ -771,13 +771,16 @@ class CAP_TimelineEditor:
         materials = []
         seen_materials = set()
         reference_materials = {}
+        deferred_references = {}
         for clip, start, end, z_index in segments:
             if _is_subtitle_clip(clip):
                 continue
             entries = _clip_visual_entries(project, clip)
             reference_audios = []
-            if clip.get("reference_timeline"):
-                cid = str(clip["id"])
+            cid = str(clip["id"])
+            if clip.get("reference_timeline") and only_ids is not None and cid not in only_ids:
+                deferred_references[cid] = clip
+            if clip.get("reference_timeline") and (only_ids is None or cid in only_ids):
                 if cid not in reference_materials:
                     reference_materials[cid] = compose_reference_timeline(project, clip, resolve_media)
                 entries = [entry for entry in entries if entry["row"].get("kind") not in ("video", "audio")]
@@ -886,6 +889,11 @@ class CAP_TimelineEditor:
             previous = (row.get("h3_timing") or {}).get("previous_source_clip_id")
             if previous and continuation_outputs.get(previous):
                 row["previous_output_video"] = continuation_outputs[previous]
+            if previous in deferred_references and (only_ids is None or row["source_clip_id"] in only_ids):
+                if previous not in reference_materials:
+                    reference_materials[previous] = compose_reference_timeline(project, deferred_references[previous], resolve_media)
+                reference_outputs[previous] = next((ref["file"] for ref in reference_materials[previous]
+                                                    if ref["kind"] == "video"), "")
             if previous and reference_outputs.get(previous):
                 row["previous_reference_video"] = reference_outputs[previous]
         composition_clips = [{**row, "output_video": generated_outputs.get(row["source_clip_id"], "")}

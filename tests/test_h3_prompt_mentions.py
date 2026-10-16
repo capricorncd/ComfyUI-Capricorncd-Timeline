@@ -13,6 +13,14 @@ h3 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(h3)
 
 class MentionTests(unittest.TestCase):
+    def test_final_model_prompt_removes_comments_before_resolving_mentions(self):
+        text = "// @missing disabled\r\n  // hidden\rAction @hero\nhttps://example.com\ntext // inline"
+        refs = [({'name': 'hero'}, '<Picture 1>'), ({'name': 'missing'}, None)]
+        self.assertEqual(h3.compile_h3_mentions(text, refs),
+                         "Action <Picture 1>\nhttps://example.com\ntext // inline")
+        self.assertEqual(h3.compile_h3_mentions("// hidden\nAction", []), "Action")
+        self.assertEqual(h3.compile_h3_mentions("// hidden", []), "")
+
     def test_composed_video_retains_source_filename_mention(self):
         name = '20261004-232525_clip_1_muse9kgj__kf1_1__h3v2_c0_r124_h0_t3_f24000_s0_n0.mp4'
         refs = [({'name': 'Reference timeline', 'prompt_aliases': [name]}, '<Video 1>')]

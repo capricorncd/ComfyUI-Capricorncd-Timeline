@@ -1,4 +1,5 @@
 import ast
+import importlib.util
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -6,6 +7,11 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location("prompt_text", ROOT / "backend/prompt_text.py")
+prompt_text = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(prompt_text)
+strip_comment_lines = prompt_text.strip_comment_lines
+
 
 
 class SharedPromptTests(unittest.TestCase):
@@ -31,7 +37,7 @@ class SharedPromptTests(unittest.TestCase):
             def select_tail(self, tail_name):
                 return ({"tail_name": tail_name},)
 
-        scope = dict(json=json, nodes=SimpleNamespace(NODE_CLASS_MAPPINGS={"H3QwenVLGenerateText": Generator, "H3QwenVLGenerationTailLoader": TailLoader}),
+        scope = dict(strip_comment_lines=strip_comment_lines, json=json, nodes=SimpleNamespace(NODE_CLASS_MAPPINGS={"H3QwenVLGenerateText": Generator, "H3QwenVLGenerationTailLoader": TailLoader}),
             prompt_skill_presets=lambda: {'Camera [official__camera]': 'official__camera'},
             load_skill_text=lambda skill_id: 'camera preset rules' if skill_id == 'official__camera' else None,
             latest_draft=lambda data, row: ({}, {}) if row['id'] in self.valid_previews else None,
@@ -251,11 +257,15 @@ class SharedPromptTests(unittest.TestCase):
         tree = ast.parse((ROOT / "backend/cap_data_json_parser.py").read_text(encoding="utf-8"))
         cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "CAP_DataJsonClipParser")
         method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "_compose_prompt")
-        scope = {}
+        scope = {"strip_comment_lines": strip_comment_lines}
         exec(compile(ast.Module(body=[method], type_ignores=[]), "parser", "exec"), scope)
         self.assertEqual(scope["_compose_prompt"](None,
             {"auto_prompt": True, "prompt": "draft", "h3_generated_prompt": "final"}, "global",
             prepend_prompt="before", append_prompt="after"), "final")
+        row = {"auto_prompt": True, "h3_generated_prompt": "// hidden\r\nAction\n  // disabled"}
+        self.assertEqual(scope["_compose_prompt"](None, row, ""), "Action")
+        self.assertIn("// hidden", row["h3_generated_prompt"])
+
 
 
 if __name__ == "__main__":

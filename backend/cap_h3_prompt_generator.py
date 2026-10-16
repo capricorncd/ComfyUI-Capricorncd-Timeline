@@ -18,6 +18,7 @@ from .cap_h3_drafts import latest_draft
 from .cap_h3_skills import list_h3_skills, load_skill_text
 from .h3_prompt_mentions import asset_name, h3_prompt_skill
 from .h3_prompt_frames import select_prompt_frames
+from .prompt_text import strip_comment_lines
 
 
 def prompt_materials(data, row, parser, video_frame_count=0, video_frame_mode="uniform", video_frame_numbers=""):
@@ -213,7 +214,7 @@ def generate_h3_prompts(clip, data, config, progress=None):
             top_k=20, top_p=0.8, min_p=0.0, repetition_penalty=1.05, presence_penalty=0.0,
             seed=seed, thinking=False, image_batch_mode="all images from start",
             max_images=len(images) if images is not None else 1, clean_output=True, image=images)
-        generated = str(output[0]).strip()
+        generated = strip_comment_lines(output[0]).strip()
         if not generated:
             raise ValueError(f"Empty generated prompt for Clip {row['id']}.")
         row["h3_generated_prompt"] = generated

@@ -39,3 +39,5 @@ editor._syncAiPromptTargetControls = () => {};
 method.call(editor, 'new', 'renamed');
 assert.equal(editor.aiSrcText.value, '@renamed walks', 'Open prompt manager refreshes after asset renaming');
 console.log('PASS: current prompts and keyframes update; asset IDs and generation history remain intact');
+
+assert.equal(rename('参考图@路人甲球员 。', '路人甲球员', '新角色'), '参考图@新角色 。');

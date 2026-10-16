@@ -243,7 +243,7 @@ class CAP_DataJsonClipParser:
                         negative_prompt: str = "", prompt_concat_order=None,
                         prepend_prompt: str | None = None, append_prompt: str | None = None) -> str:
         if clip.get("auto_prompt") and clip.get("h3_generated_prompt"):
-            return str(clip["h3_generated_prompt"])
+            return strip_comment_lines(clip["h3_generated_prompt"]).strip()
         includes = set(self._clip_prompt_includes(clip))
         order = self._normalize_prompt_concat_order(prompt_concat_order)
         materials = materials if isinstance(materials, dict) else {}

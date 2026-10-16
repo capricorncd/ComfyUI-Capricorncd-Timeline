@@ -9,6 +9,7 @@ def asset_name(row):
 
 
 def compile_h3_mentions(prompt, references):
+    prompt = strip_comment_lines(prompt)
     aliases = {}
     for row, tag in references:
         for name in [asset_name(row), *(row.get('prompt_aliases') or [])]:

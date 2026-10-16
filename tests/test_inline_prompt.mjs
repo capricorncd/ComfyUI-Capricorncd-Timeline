@@ -38,3 +38,8 @@ meta.prompt='No mention';meta.video_shots={points:[{description:'@角色 A'}]};
 unlink.call(app,{track:{}},assets[0]);assert.deepEqual(meta.promptMediaIds,['hero']);
 meta.video_shots.points=[];unlink.call(app,{track:{}},assets[0]);assert.deepEqual(meta.promptMediaIds,[]);
 console.log('PASS: remaining prompt/keyframe mentions retain binding, final deletion unbinds');
+
+const adjacentAssets=[{id:'person',name:'路人甲球员'},{id:'hero',name:'若曦v1'}];
+assert.deepEqual(assetMentionRanges('参考图@路人甲球员 。角色@若曦v1 ，',adjacentAssets).map(r=>r.assets[0].id),['person','hero']);
+assert.equal(assetMentionRanges('name@若曦v1 @@若曦v1 @若曦v12',adjacentAssets).length,0);
+console.log('PASS: Chinese-adjacent references render as tags; email-like and partial names remain plain text');

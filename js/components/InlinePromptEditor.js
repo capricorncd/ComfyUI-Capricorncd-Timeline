@@ -14,7 +14,7 @@ export function assetMentionRanges(value, assets) {
     const names = [...new Set(assets.map(asset => asset.name).filter(Boolean))].sort((a, b) => b.length - a.length);
     if (!names.length) return [];
     const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const pattern = new RegExp('(?<![\\p{L}\\p{N}_@])@(' + names.map(escape).join('|') + ')(?![\\p{L}\\p{N}_])', 'gu');
+    const pattern = new RegExp('(?<![A-Za-z0-9_@])@(' + names.map(escape).join('|') + ')(?![\\p{L}\\p{N}_])', 'gu');
     return [...value.matchAll(pattern)].map(match => ({start: match.index, end: match.index + match[0].length,
         assets: assets.filter(asset => asset.name === match[1])}));
 }

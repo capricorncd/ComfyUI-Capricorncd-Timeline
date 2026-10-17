@@ -1,5 +1,25 @@
 # Release notes / 更新记录
 
+## 0.17.34 — 2026-10-18
+
+### English
+
+- Add stable project IDs for generated-video directories, migrate older projects, and clarify restart requirements when the new endpoint is unavailable.
+- Improve workflow saving and name controls; remember imported directories as export defaults without restoring source-directory watching.
+- Add non-modal prompt batch replacement with selection prefill, current/all prompt scope and shared input styling; fix comment filtering and Chinese-adjacent asset references.
+- Sync keyframes by the old/new Clip duration ratio; unify keyframe output filenames, fix preview association and sort previews newest first.
+- Generate independently when a previous keyframe result is unavailable; avoid unrelated missing reference media blocking selected Clips, and improve keyframe composition alignment.
+- Refresh descriptions and file metadata after media replacement. Restart ComfyUI and refresh the browser after updating.
+
+### 简体中文
+
+- 新增固定工程 ID，用于生成视频目录；兼容旧工程补齐，并在新接口尚未加载时明确提示重启。
+- 完善工作流保存和名称获取、设置；导出默认使用导入目录，不恢复对源目录的监听。
+- 新增非模态提示词批量替换，支持选中文字预填、当前或全部提示词替换及统一输入框样式；修复行注释过滤和中文相邻素材引用。
+- 按新旧 Clip 时长比例同步关键帧；统一关键帧视频文件名，修复预览关联，并按生成时间倒序显示预览。
+- 上一关键帧无可用结果时独立生成；避免无关片段的缺失素材阻止选中片段生成，并优化关键帧合成对齐。
+- 素材替换后更新描述及文件信息。更新后重启 ComfyUI 并刷新浏览器。
+
 ## 0.17.33 — 2026-10-12
 
 ### English

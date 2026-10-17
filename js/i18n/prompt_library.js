@@ -2,6 +2,11 @@ import { makeT } from "../cap_i18n.js";
 
 export const DICT = {
     en: {
+        batch_replace: "Replace all",
+        replace_find: "Find text",
+        replace_new: "New text",
+        replace_all_prompts: "Replace all project prompts",
+        replace_confirm: "Confirm",
         history_imported: "Imported {n} prompts; duplicates skipped",
         cat_all: "All",
         cat_gu_feng_female: "Ancient-Style Female",
@@ -56,6 +61,11 @@ export const DICT = {
         save_current_prompt_to_history_title: "Save current prompt to history",
     },
     zh: {
+        batch_replace: "批量替换",
+        replace_find: "被替换的内容",
+        replace_new: "新内容",
+        replace_all_prompts: "替换所有提示词",
+        replace_confirm: "确定",
         history_imported: "已导入 {n} 条提示词，重复内容已跳过",
         cat_all: "全部",
         cat_gu_feng_female: "古风女",
@@ -110,6 +120,11 @@ export const DICT = {
         save_current_prompt_to_history_title: "保存当前提示词到历史记录",
     },
     ja: {
+        batch_replace: "一括置換",
+        replace_find: "置換する文字列",
+        replace_new: "新しい内容",
+        replace_all_prompts: "すべてのプロンプトを置換",
+        replace_confirm: "確定",
         history_imported: "{n} 件のプロンプトを読み込みました（重複はスキップ）",
         cat_all: "すべて",
         cat_gu_feng_female: "古風女性",

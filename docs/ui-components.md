@@ -412,3 +412,5 @@ Reference trim uses a primary Update Clip Duration button with an adjacent Sync 
 
 
 工程顶层保存 `id`（`yyyyMMdd-8位小写十六进制`）、`created_at`（含时区 ISO 时间）和 `created_at_source`。新建记录创建时间；旧工作流加载、排队及打开项目时自动补齐，能够读取本地文件时使用创建时间，否则标记首次补齐时间 `first_seen`。新生成视频目录为 `CapTimelineEditor/<id>/`，工程改名不改变 ID 或目录。历史文件路径保留，旧目录仍可关联；工程 ID 随导入、导出及撤销快照保留。
+
+Prompt history actions accept `replacePrompts(find, replacement, all)` to show the shared Replace All icon. Its non-modal `cap-dialog.show()` keeps underlying prompts interactive, pre-fills selected text, defaults the All prompts switch on, and rejects an empty search (an empty replacement deletes matches). Timeline replacement uses literal, case-sensitive text across current Clip/keyframe, global, media and storyboard prompts, with one project undo step; generation results and prompt history remain unchanged. ShotControl forwards the same callback through `bindPromptHistory`.

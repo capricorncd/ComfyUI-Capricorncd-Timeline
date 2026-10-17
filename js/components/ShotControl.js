@@ -67,9 +67,10 @@ export class ShotControl extends HTMLElement {
         }
         this.mentions.bind(this.description, getAssets);
     }
-    bindPromptHistory(read, write) {
+    bindPromptHistory(read, write, replacePrompts = null) {
         const actions = document.createElement('cap-prompt-history-actions');
-        actions.bind(this.description, read, write, {getAssets: () => this.getMentionAssets?.() || []});
+        actions.bind(this.description, read, write, {getAssets: () => this.getMentionAssets?.() || [],
+            replacePrompts: replacePrompts && ((find, replacement, all) => replacePrompts(this.description, find, replacement, all))});
         this.shadowRoot.querySelector('.prompt-field').append(actions);
     }
     configure(point, time, fps, locked, labels) {

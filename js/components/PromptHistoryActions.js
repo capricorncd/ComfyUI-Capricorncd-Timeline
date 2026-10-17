@@ -1,6 +1,7 @@
 import './Button.js';
 import './Dialog.js';
 import './StatusMessage.js';
+import './FormControls.js';
 import './PromptTemplateActions.js';
 import { iconHtml } from '../cap_icons.js';
 import { t } from '../i18n/prompt_library.js';
@@ -17,23 +18,72 @@ export class PromptHistoryActions extends HTMLElement {
         </style>`;
         this.templates = document.createElement('cap-prompt-template-actions');
         this.shadowRoot.append(this.templates);
-        for (const [action, icon, label] of [['history','history','tab_history'],['save','save','save_current_prompt_to_history_title'],['copy','copy','copy_prompt_title']]) {
+        for (const [action, icon, label] of [['replace','replaceAll','batch_replace'],['history','history','tab_history'],['save','save','save_current_prompt_to_history_title'],['copy','copy','copy_prompt_title']]) {
             const button = document.createElement('cap-button');
             button.dataset.action = action;
             button.setAttribute('size','small'); button.setAttribute('shape','square');
             button.title = t(label); button.setAttribute('aria-label',t(label));
             button.innerHTML = iconHtml(icon,12);
+            button.addEventListener('pointerdown', event => { if (action === 'replace') event.preventDefault(); });
             button.addEventListener('click', () => this[action](button));
             this.shadowRoot.append(button);
         }
     }
-    bind(textarea, read, write, {copyOnly = false, getAssets = () => []} = {}) {
-        this.textarea=textarea; this.read=read; this.write=write;
+    bind(textarea, read, write, {copyOnly = false, getAssets = () => [], replacePrompts = null} = {}) {
+        this.textarea=textarea; this.read=read; this.write=write; this.replacePrompts=replacePrompts;
         this.templates.hidden = copyOnly;
         this.templates.bind(textarea, getAssets);
         for (const button of this.shadowRoot.querySelectorAll('cap-button')) {
-            button.hidden = copyOnly && button.dataset.action !== 'copy';
+            button.hidden = (copyOnly && button.dataset.action !== 'copy')
+                || (button.dataset.action === 'replace' && !replacePrompts);
         }
+    }
+    replace() {
+        const textarea = this.textarea;
+        if (textarea.disabled || textarea.readOnly || !this.replacePrompts) return;
+        if (this.replaceDialog?.open) return;
+        const dialog = document.createElement('cap-dialog');
+        this.replaceDialog = dialog;
+        dialog.width = 480; dialog.height = 400;
+        dialog.minWidth = 320; dialog.minHeight = 300;
+        const title = document.createElement('span');
+        title.slot = 'title'; title.textContent = t('batch_replace');
+        const body = document.createElement('div');
+        body.style.cssText = 'padding:20px 28px;display:grid;gap:16px';
+        const field = key => {
+            const label = document.createElement('label');
+            label.style.cssText = 'display:grid;gap:8px';
+            const caption = document.createElement('span'); caption.textContent = t(key);
+            const control = document.createElement('cap-textarea');
+            const input = document.createElement('textarea'); input.rows = 3;
+            control.append(input);
+            label.append(caption, control); body.append(label); return input;
+        };
+        const find = field('replace_find');
+        find.value = textarea.value.slice(textarea.selectionStart, textarea.selectionEnd);
+        const replacement = field('replace_new');
+        const label = document.createElement('label');
+        label.style.cssText = 'display:flex;align-items:center;gap:10px';
+        const all = document.createElement('cap-switch');
+        const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = true;
+        checkbox.setAttribute('aria-label', t('replace_all_prompts')); all.append(checkbox);
+        const caption = document.createElement('span'); caption.textContent = t('replace_all_prompts');
+        label.append(all, caption); body.append(label);
+        const footer = document.createElement('div'); footer.slot = 'footer';
+        const cancel = document.createElement('cap-button'); cancel.textContent = t('cancel_btn');
+        cancel.onclick = () => dialog.close();
+        const confirm = document.createElement('cap-button'); confirm.textContent = t('replace_confirm');
+        confirm.setAttribute('variant', 'primary'); confirm.disabled = !find.value;
+        find.addEventListener('input', () => { confirm.disabled = !find.value; });
+        confirm.onclick = () => {
+            if (!find.value || !textarea.isConnected || textarea.disabled || textarea.readOnly) return;
+            this.replacePrompts(find.value, replacement.value, all.checked);
+            dialog.close();
+        };
+        footer.append(cancel, confirm); dialog.append(title, body, footer);
+        dialog.addEventListener('close', () => { dialog.remove(); this.replaceDialog = null; }, {once:true});
+        this.shadowRoot.append(dialog);
+        dialog.show();
     }
     save(button) {
         const text = this.textarea.value;

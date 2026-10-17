@@ -16,7 +16,8 @@ export class DirectorKeyframes {
         this.isDirector = isDirector;
         this.selection = null;
         panel.setMentionSource(() => app._promptMentionAssets());
-        panel.bindPromptHistory(() => app._promptHistoryDocument(), data => app._savePromptHistory(data));
+        panel.bindPromptHistory(() => app._promptHistoryDocument(), data => app._savePromptHistory(data),
+            (textarea, find, replacement, all) => app._replacePromptText(textarea, find, replacement, all));
         panel.addEventListener('asset-mention', event => app._linkPromptMention(this.selectedTarget()?.clip, event.detail));
         panel.addEventListener('asset-mention-remove', event => {
             const clip = this.selectedTarget()?.clip;

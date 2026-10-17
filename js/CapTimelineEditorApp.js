@@ -11681,9 +11681,53 @@ export class CapTimelineEditorApp {
             actions.bind(ta, () => this._promptHistoryDocument(), data => this._savePromptHistory(data), {
                 copyOnly: ta.classList.contains("cat-te-final-prompt"),
                 getAssets: () => this._promptMentionAssets(),
+                replacePrompts: (find, replacement, all) => this._replacePromptText(ta, find, replacement, all),
             });
             host.append(actions);
         }
+    }
+
+    _replacePromptText(textarea, find, replacement, all) {
+        if (!find || textarea.disabled || textarea.readOnly) return;
+        const replace = text => typeof text === 'string' ? text.split(find).join(replacement) : text;
+        const updates = [];
+        const field = (object, key) => {
+            const before = object[key], after = replace(before);
+            if (after !== before) updates.push(() => { object[key] = after; });
+        };
+        if (all) {
+            for (const meta of this._meta.values()) {
+                for (const key of ['prompt', 'stylePrompt', 'speechPrompt']) field(meta, key);
+                for (const skill of meta.promptSkills || []) field(skill, 'text');
+                for (const point of meta.video_shots?.points || []) field(point, 'description');
+            }
+            for (const row of this._projectResources || []) {
+                for (const key of ['prompt', 'setting_description', 'generation_prompt']) field(row, key);
+                for (const point of row.video_shots?.points || []) field(point, 'description');
+            }
+            for (const shot of this._storyboards || []) field(shot, 'description');
+        }
+        const inputs = all ? new Set([textarea, ...this._overlay.querySelectorAll('textarea[data-prompt-copy-attached]')]) : [textarea];
+        for (const input of inputs) {
+            if (input.disabled || input.readOnly || input.classList.contains('cat-te-final-prompt')) continue;
+            const after = replace(input.value);
+            if (after === input.value) continue;
+            updates.push(() => {
+                setRichPromptValue(input, after, true);
+                input.dispatchEvent(new Event('input', {bubbles:true}));
+                input.dispatchEvent(new Event('change', {bubbles:true}));
+            });
+        }
+        if (!updates.length) return;
+        this._recordUndo();
+        const historyReady = this._historyReady;
+        this._historyReady = false;
+        try { for (const update of updates) update(); }
+        finally { this._historyReady = historyReady; }
+        this._syncScalarsToProjectJson();
+        this._saveToWidgets();
+        this._updatePromptPanel();
+        this._directorKeyframes?.refreshPanel();
     }
 
     _promptHistoryDocument() {

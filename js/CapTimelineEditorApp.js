@@ -3901,7 +3901,7 @@ export class CapTimelineEditorApp {
                       <span>${T("project_name_label")}</span>
                       <div class="cat-te-project-name-actions">
                         <cap-button class="cat-te-project-name-sync" variant="ghost" size="small" title="${T("project_name_sync")}">${T("project_name_sync")}</cap-button>
-                        <cap-button class="cat-te-project-name-update" variant="ghost" size="small" title="${T("project_name_update")}">${T("project_name_update")}</cap-button>
+                        <cap-button class="cat-te-project-name-update" variant="primary" size="small" title="${T("project_name_update")}">${T("project_name_update")}</cap-button>
                       </div>
                     </div>
                     <input class="cat-te-title" type="text" value="${T("untitled_project")}" aria-label="${T("project_name_label")}" />

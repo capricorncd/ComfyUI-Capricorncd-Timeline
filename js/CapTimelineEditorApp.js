@@ -16578,7 +16578,9 @@ export class CapTimelineEditorApp {
         this._mediaInfoRequest = null;
         this._mediaRawRequest = null;
         this.mediaInfoPanel.replaceChildren();
+        if (this.rawMetaText) this.rawMetaText.textContent = "";
         if (!this.mediaInfoPanel.hidden) void this._loadMediaFileInfo();
+        if (this.rawMetaModal && !this.rawMetaModal.hidden) void this._loadMediaFileInfo(true);
         this._updateMediaPreviewNav();
         this._syncClipPanelFromMediaPreview(index);
 
@@ -17368,6 +17370,8 @@ export class CapTimelineEditorApp {
             row.location = "input";
             row.generation_prompt = String(metadata.generation_prompt || "");
             row.setting_description = String(metadata.setting_description || "");
+            // Legacy descriptions must not restore the replaced asset's text on reload.
+            row.prompt = row.setting_description;
             if (dup && dup !== row) {
                 for (const track of this._timeline?.tracks ?? []) {
                     for (const clip of track.clips) {
@@ -17402,6 +17406,7 @@ export class CapTimelineEditorApp {
             this._ensureMedia(kind, newFile, {
                 generation_prompt: String(metadata.generation_prompt || ""),
                 setting_description: String(metadata.setting_description || ""),
+                prompt: String(metadata.setting_description || ""),
             });
         }
         const mediaId = (row || this._findMedia(kind, newFile))?.id;

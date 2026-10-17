@@ -4,7 +4,7 @@ const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta
 const start = source.indexOf('    _replaceMediaReference(');
 const replace = new Function('isDirectorTrackType', `return ({${source.slice(start, source.indexOf('\n    }', start) + 6)}})._replaceMediaReference`)(type => type === 'image');
 for (const type of ['image', 'video']) {
-    const media = {id: 'media', kind: 'video', file: 'old.mp4'};
+    const media = {id: 'media', kind: 'video', file: 'old.mp4', prompt: 'Old description', setting_description: 'Old description', generation_prompt: 'Old prompt'};
     const duplicate = {id: 'duplicate', kind: 'video', file: 'new.mp4'};
     const clip = {id: 'clip', duration: 12, sourceOffset: 0, playbackRate: 1, _applyPosition() {}};
     const edits = {edit_start_sec: 2, trim_in_sec: 3, trim_out_sec: 9, playback_rate: 0.5,
@@ -20,9 +20,12 @@ for (const type of ['image', 'video']) {
         _normalizeVisualMeta() {}, _syncClipPrimaryAppearance() {}, _videoUrl: file => file,
         async _probeVideoDuration() {probes++; return 5;}, _refreshTimelineDuration() {},
         _swapMediaListEntry() {}, _writeMediaMeta() {}, _getMediaMeta: () => ({})};
-    replace.call(app, 'old.mp4', 'new.mp4', 'video');
+    replace.call(app, 'old.mp4', 'new.mp4', 'video', true, {setting_description: type === 'image' ? 'New description' : '', generation_prompt: 'New prompt'});
     await Promise.resolve();
     assert.equal(media.file, 'new.mp4');
+    assert.equal(media.setting_description, type === 'image' ? 'New description' : '');
+    assert.equal(media.prompt, media.setting_description, 'legacy description cannot restore old content');
+    assert.equal(media.generation_prompt, 'New prompt');
     assert.equal(clip.duration, type === 'image' ? 12 : 5);
     assert.equal(probes, type === 'image' ? 0 : 1);
     assert.equal(app._projectResources.length, 1);

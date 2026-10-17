@@ -1645,7 +1645,9 @@ export class CapTimelineEditorApp {
 
     _openExportDialog() {
         if (!this._projectExportBusy) {
-            this.exportDialog.querySelector(".cat-te-export-directory").restore(this._launcherProject?.session?.directory);
+            this.exportDialog.querySelector(".cat-te-export-directory").restore(
+                this._launcherProject?.session?.directory || this._launcherProject?.importDirectory,
+            );
         }
         if (!this._projectExportBusy) this._resetProjectExport();
         this.exportDialog.showModal();
@@ -3698,6 +3700,9 @@ export class CapTimelineEditorApp {
                 const opened = await this._launcherProject.open();
                 if (!opened || this._destroyed || this._openGen !== openGen) return;
                 await this._applyImportedProject(opened.project, opened.warnings, opened.storyboard);
+                if (this._destroyed || this._openGen !== openGen) return;
+                // Remember only the export default; importing must not rebind autosave.
+                this._launcherProject.importDirectory = opened.directory || "";
                 this._launcherStatus?.setStatus("");
                 return;
             }

@@ -67,6 +67,7 @@ export class LauncherProject {
     constructor(apiURL) {
         this.apiURL = apiURL;
         this.session = null;
+        this.importDirectory = "";
         this.pending = Promise.resolve();
         this.lastBackup = null;
         this.queuedBackup = null;
@@ -83,6 +84,7 @@ export class LauncherProject {
 
     reset(session = null) {
         this.session = session;
+        this.importDirectory = "";
         this.lastBackup = null;
         this.queuedBackup = null;
     }

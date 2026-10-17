@@ -26,7 +26,7 @@ const editor = {
     _timelineReady: true, _historyReady: true,
     _launcherProject: {
         session: {token: 'old', directory: 'previous-export'},
-        reset(session = null) { this.session = session; },
+        reset(session = null) { this.session = session; this.importDirectory = ""; },
         async open() {
             reads++;
             return {project: structuredClone(diskProject), storyboard, token: 'source', directory: 'import-source'};
@@ -65,3 +65,20 @@ assert.equal(editor._openedProjectJson, editor.workflowProject);
 editor._stopAutoSave();
 assert.equal(timers.size, 0);
 console.log('PASS: directory import detaches source, workflow owns later edits, no directory reads/polling/writes');
+
+assert.equal(editor._launcherProject.importDirectory, 'import-source');
+let preferred;
+editor.exportDialog = {querySelector: () => ({restore: value => { preferred = value; }}), showModal() {}};
+editor._resetProjectExport = () => {};
+method('_openExportDialog').call(editor);
+assert.equal(preferred, 'import-source', 'import directory wins over global export history');
+editor._launcherProject.open = async () => null;
+await method('_importFromDirectory').call(editor);
+assert.equal(editor._launcherProject.importDirectory, 'import-source', 'cancel preserves the import directory');
+editor._launcherProject.session = {directory: 'chosen-export'};
+method('_openExportDialog').call(editor);
+assert.equal(preferred, 'chosen-export', 'successful explicit export becomes the new default');
+editor._launcherProject.reset();
+method('_openExportDialog').call(editor);
+assert.equal(preferred, '', 'reset clears the previous project import directory');
+console.log('PASS: imported export default, detached autosave, cancellation, explicit export and reset');

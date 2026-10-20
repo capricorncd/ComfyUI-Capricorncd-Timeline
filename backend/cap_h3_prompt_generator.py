@@ -207,6 +207,10 @@ def generate_h3_prompts(clip, data, config, progress=None):
         prompt = build_user_prompt(payload).replace(_AUDIO_MODE_INSTRUCTIONS["none"], "")
         if mapping:
             prompt += "\nInspection mapping:\n" + "\n".join(mapping)
+        if send_attachments and source.get("refmods"):
+            descriptions = [f"@{ref['path']}: {ref.get('description', '')}" for ref in source["refmods"]
+                            if ref.get("enabled") is not False and ref.get("path")]
+            prompt += "\nSaved RefMod references (descriptive metadata only; not visually inspected):\n" + "\n".join(descriptions)
         if progress:
             progress("prompt_generate", index + 1, len(selected))
         output = generator().generate_text(clip=clip, tail_clip=tail_clip, system_prompt=system,

@@ -3,6 +3,7 @@ import { iconHtml } from '../cap_icons.js';
 import { makeT } from '../cap_i18n.js';
 import { replaceRichPromptRange, undoRichPrompt, toggleComment } from './RichPrompt.js';
 import { isPromptComment } from '../prompt_text.js';
+import { refModPlaybackRate } from '../editor/RefMods.js';
 
 const T = makeT({
     zh: {title: '提示词', remove: '删除素材引用', unavailable: '素材预览不可用'},
@@ -118,7 +119,7 @@ export class InlinePromptEditor extends HTMLElement {
             else { media.muted = true; media.loop = true; media.playsInline = true; }
             media.addEventListener('error', () => { caption.textContent = T('unavailable'); });
             preview.append(media);
-            if (asset.kind === 'video') void media.play().catch(() => {});
+            if (asset.kind === 'video') {media.playbackRate = asset.refmod ? refModPlaybackRate() : 1; void media.play().catch(() => {});}
         } else caption.textContent = `${asset.name} — ${asset.file || T('unavailable')}`;
         preview.append(caption);
         preview.showPopover();

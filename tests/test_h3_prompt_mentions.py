@@ -13,6 +13,11 @@ h3 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(h3)
 
 class MentionTests(unittest.TestCase):
+    def test_commented_refmods_do_not_load_but_explicit_bindings_remain(self):
+        refs = [{'path':'短剧/半身'}, {'path':'打斗/回旋踢'}]
+        self.assertEqual(h3.refmod_reference_rows(refs, '// @短剧/半身\n动作 @打斗/回旋踢'), refs[1:])
+        self.assertEqual(h3.refmod_reference_rows(refs, '// @短剧/半身\n保留 @短剧/半身'), refs)
+        self.assertEqual(h3.refmod_reference_rows(refs, 'Action without named references'), refs)
     def test_final_model_prompt_removes_comments_before_resolving_mentions(self):
         text = "// @missing disabled\r\n  // hidden\rAction @hero\nhttps://example.com\ntext // inline"
         refs = [({'name': 'hero'}, '<Picture 1>'), ({'name': 'missing'}, None)]

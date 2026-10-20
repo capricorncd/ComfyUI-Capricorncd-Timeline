@@ -17,7 +17,8 @@ from .cap_data_json_parser import CAP_DataJsonClipParser
 from .cap_timeline_project_io import _resolve_output_file
 from .timecode import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
 from .media_speed import playback_rate
-from .h3_prompt_mentions import compile_h3_mentions
+from .h3_prompt_mentions import compile_h3_mentions, refmod_reference_rows
+from .cap_refmods import load_refmods, RefModPromptClip, refmod_file_state
 
 MAX_REF_IMAGES = 9
 MAX_REF_VIDEOS = 3
@@ -305,7 +306,10 @@ class CAP_MiniMaxH3ReferenceToVideo:
     @classmethod
     def IS_CHANGED(cls, clip, vae, audio_vae, width, height, ref_image_size,
                    data_json, index, clip_json="", context_latent=None, strict_keyframes=False):
-        return (data_json, index, clip_json, width, height, ref_image_size, strict_keyframes)
+        parser = cls()
+        _, row, _, _ = parser._parse_clip_json(clip_json) if str(clip_json or "").strip() else parser._parse_clip(data_json, index)
+        return (data_json, index, clip_json, width, height, ref_image_size, strict_keyframes,
+                refmod_file_state(row.get("refmods") or []))
 
     def _parse_clip(self, data_json: str, index: int):
         try:
@@ -558,7 +562,7 @@ class CAP_MiniMaxH3ReferenceToVideo:
             if anchor_ids is not None:
                 return mid in anchor_ids
             return mid == last_frame_id or mid not in prompt_ids
-        mixed_keyframes = strict_keyframes and any(not is_anchor(ref) for ref in visual_refs)
+        mixed_keyframes = strict_keyframes and (bool(clip_row.get("refmods")) or any(not is_anchor(ref) for ref in visual_refs))
         anchor_count = 0
         for ref in visual_refs:
             path, row = self._material_for_ref(ref, materials, parser)
@@ -637,6 +641,14 @@ class CAP_MiniMaxH3ReferenceToVideo:
             append_prompt=data.get("append_prompt", "") if fixed_prompts else None,
         )
 
+        rows = refmod_reference_rows(clip_row["refmods"], prompt) if clip_row.get("refmods") else []
+        refmods, refmod_references = load_refmods(rows,
+            {"image": len(ref_images), "video": len(ref_videos), "audio": len(ref_audios) + len(ref_video_audios)}) if rows else ([], [])
+        mixed_keyframes = strict_keyframes and (bool(refmods) or any(not is_anchor(ref) for ref in visual_refs))
+        prompt_references.extend(refmod_references)
+        refmod_clip = RefModPromptClip(clip, refmods, vae) if refmods else None
+        if refmod_clip is not None:
+            clip = refmod_clip
         prompt = compile_h3_mentions(prompt, prompt_references)
 
         if parser._uses_master_audio(data, clip_row):
@@ -726,6 +738,9 @@ class CAP_MiniMaxH3ReferenceToVideo:
 
         if clip_row.get("clip_role") == "digital_human":
             latent, audio_out, _ = _digital_human_audio(latent, audio_out, audio_vae, length, trim_frames)
+
+        if refmod_clip is not None:
+            positive = refmod_clip.attach(positive)
 
         output_video = str(clip_row.get("output_video") or "").strip().replace("\\", "/")
         save_latent = bool(clip_row.get("save_latent", False))

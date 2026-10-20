@@ -2,6 +2,9 @@ import {createProjectIdentity, projectIdentity} from './editor/ProjectIdentity.j
 import { FILTER_PRESETS, PortraitFilterRenderer, activePortraitFilters } from "./editor/PortraitFilters.js";
 import "./components/ImageCompare.js";
 import "./components/SkillPicker.js";
+import './components/RefModBrowser.js';
+import { refModT } from './components/RefModBrowser.js';
+import { refModAssets, refModPlaybackRate, REFMOD_PREVIEW_RATE_KEY } from './editor/RefMods.js';
 import { renameAssetMentions } from './prompt_asset_rename.js';
 import { cleanRunPrompts } from './editor/RunPromptCleanup.js';
 import { copyPromptSkills, enabledPromptSkills } from './components/PromptSkills.js';
@@ -61,7 +64,7 @@ import { normalizeVolumePoints, migrateAudioFades, volumeAt } from "./timeline/A
 import { parseTimecode, formatTimecode, frameIndexFromSecs, encodeClipTimingMs, decodeClipTimingSecs } from "./timecode.js";
 import "./components/Tag.js";
 import { stripPromptComments } from "./prompt_text.js";
-import { undoRichPrompt, attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror } from "./components/RichPrompt.js";
+import { undoRichPrompt, attachRichPromptHandler, setRichPromptValue, resolvePromptTextarea, updateRichPromptMirror, replaceRichPromptRange } from "./components/RichPrompt.js";
 import { loadExtensionCss, showCapConfirm, showCapAlert } from "./cap_ui.js";
 import { iconHtml } from "./cap_icons.js";
 import { bindCanvasWheelPassthrough } from "./cap_canvas_wheel.js";
@@ -1553,6 +1556,7 @@ export class CapTimelineEditorApp {
         this._setSettingsCategory("general");
         this.autosaveIntervalInput.value = String(this._getAutosaveIntervalSec());
         if (this.promptFontSizeInput) this.promptFontSizeInput.value = String(this._getPromptFontSize());
+        if (this.refModPreviewRateInput) this.refModPreviewRateInput.value = String(refModPlaybackRate());
         if (this.useClipVideoFilenameCb) {
             this.useClipVideoFilenameCb.checked = this._useClipSpecifiedVideoFilename !== false;
         }
@@ -4764,6 +4768,7 @@ export class CapTimelineEditorApp {
                     </div>
                   </div>
                   <cap-prompt-skills class="cat-te-ai-skills"></cap-prompt-skills>
+                  <div class="cat-te-ai-skill-head"><span>RefMod</span><cap-button class="cat-te-refmod-pick-btn">${refModT('title')}</cap-button></div>
                   </div>
                   <div class="cat-te-ai-right-pane cat-te-ai-right-preview" data-right-pane="preview" hidden>
                   <label><cap-form-row>
@@ -4947,6 +4952,7 @@ export class CapTimelineEditorApp {
                 <div class="cat-te-settings-content">
                 <div class="cat-te-settings-panel" data-settings-panel="general">
                 <cap-theme-picker></cap-theme-picker>
+                <label><cap-form-row><span>${refModT('rate')}</span><cap-select><select class="cat-te-refmod-preview-rate"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option></select></cap-select></cap-form-row></label>
                 <label><cap-form-row>
                   <span>${T("autosave_interval_label")}</span>
                   <cap-input size="small"><input class="cat-te-autosave-interval" type="number" min="1" max="300" step="1" /></cap-input>
@@ -5086,6 +5092,8 @@ export class CapTimelineEditorApp {
         this.aiOptimizeBtn = el.querySelector(".cat-te-ai-optimize-btn");
         this._attachPromptCopyButtons(el);
         this._attachPromptMentions(el);
+        el.addEventListener('refmod-library', ({detail}) => {this._refMods = detail.rows;});
+        void this._refreshRefMods();
         for (const key of SETTING_PROMPT_KEYS) {
             const input = this._settingPromptInputs[key];
             if (input) attachRichPromptHandler(input, { mode: "widget" });
@@ -5361,6 +5369,10 @@ export class CapTimelineEditorApp {
         this.shortcutsDialog = el.querySelector(".cat-te-shortcuts-dialog");
         this.autosaveIntervalInput = el.querySelector(".cat-te-autosave-interval");
         this.promptFontSizeInput = el.querySelector(".cat-te-prompt-font-size");
+        this.refModPreviewRateInput = el.querySelector('.cat-te-refmod-preview-rate');
+        this.refModPreviewRateInput?.addEventListener('change', () => {
+            localStorage.setItem(REFMOD_PREVIEW_RATE_KEY, this.refModPreviewRateInput.value);
+        });
         this.useClipVideoFilenameCb = el.querySelector(".cat-te-use-clip-video-filename");
         this.modelPreviewSeedInput = el.querySelector(".cat-te-model-preview-seed");
         this.modelPreviewSeedUseBtn = el.querySelector(".cat-te-model-preview-seed-use");
@@ -5891,6 +5903,7 @@ export class CapTimelineEditorApp {
             this._ensureClipMeta(clip).promptSkills = copyPromptSkills(event.detail.rows);
             this._saveToWidgets();
         });
+        el.querySelector('.cat-te-refmod-pick-btn')?.addEventListener('click', () => void this._openRefModPicker());
         this.skillPickBtn?.addEventListener("click", (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -11590,17 +11603,24 @@ export class CapTimelineEditorApp {
     }
 
     _promptMentionAssets() {
-        return this._projectResources.map(row => ({
+        return [...this._projectResources.map(row => ({
             id: row.id, name: row.name || row.file.split(/[\\/]/).pop(), file: row.file,
             kind: row.kind, category: MEDIA_ASSET_TYPES.some(type => type.id === row.media_type) ? row.media_type : "other",
             description: row.setting_description || row.prompt || row.generation_prompt || '',
             preview: row.kind === "image" ? this._imgUrl(row.file) : row.kind === "video" ? this._videoUrl(row.file) : "",
-        }));
+        })), ...refModAssets(this._refMods || [], path => api.apiURL(path))];
     }
 
     _linkPromptMention(clip, asset) {
         if (!clip || clip.track?.locked || !isDirectorTrackType(clip.track?.type)) return;
         const meta = this._ensureClipMeta(clip);
+        if (asset.refmod) {
+            if ((meta.refMods || []).some(row => row.path === asset.path)) return;
+            this._recordUndo();
+            meta.refMods = [...(meta.refMods || []), {path:asset.path, description:asset.description || '', strength:1, enabled:true}];
+            this._saveToWidgets();
+            return;
+        }
         if (meta.promptMediaIds?.includes(asset.id)) return;
         this._recordUndo();
         meta.promptMediaIds = [...(meta.promptMediaIds || []), asset.id];
@@ -11610,6 +11630,13 @@ export class CapTimelineEditorApp {
     _unlinkPromptMention(clip, asset) {
         if (!clip || clip.track?.locked) return;
         const meta = this._ensureClipMeta(clip);
+        if (asset.refmod) {
+            const texts = [meta.prompt, ...(meta.video_shots?.points || []).map(point => point.description)];
+            if (texts.some(text => assetMentionRanges(String(text || ''), [asset]).length)) return;
+            meta.refMods = (meta.refMods || []).filter(row => row.path !== asset.path);
+            this._saveToWidgets();
+            return;
+        }
         if (!meta.promptMediaIds?.includes(asset.id)) return;
         const texts = [meta.prompt, ...(meta.video_shots?.points || []).map(point => point.description)];
         if (texts.some(text => assetMentionRanges(String(text || ""), [asset]).length)) return;
@@ -11681,6 +11708,7 @@ export class CapTimelineEditorApp {
             actions.bind(ta, () => this._promptHistoryDocument(), data => this._savePromptHistory(data), {
                 copyOnly: ta.classList.contains("cat-te-final-prompt"),
                 getAssets: () => this._promptMentionAssets(),
+                apiURL: path => api.apiURL(path),
                 replacePrompts: (find, replacement, all) => this._replacePromptText(ta, find, replacement, all),
             });
             host.append(actions);
@@ -15865,6 +15893,7 @@ export class CapTimelineEditorApp {
                 audioSeparated: c.audio_separated === true,
                 prompt: c.prompt ?? "",
                 promptMediaIds: [...(c.prompt_media_ids || [])],
+                refMods: structuredClone(c.refmods || []),
                 lastFrameMediaId: c.last_frame_media_id || "",
                 promptIncludes,
                 usePrependPrompt: c.use_prepend_prompt !== false,
@@ -15957,6 +15986,7 @@ export class CapTimelineEditorApp {
                 agentCustom: c.agent_custom ?? "",
                 prompt: c.prompt ?? "",
                 promptMediaIds: [...(c.prompt_media_ids || [])],
+                refMods: structuredClone(c.refmods || []),
                 lastFrameMediaId: c.last_frame_media_id || "",
                 endImage: c.end_image ?? null,
                 promptIncludes,
@@ -16027,6 +16057,7 @@ export class CapTimelineEditorApp {
             agentCustom: c.agent_custom ?? "",
             prompt: c.prompt ?? "",
             promptMediaIds: [...(c.prompt_media_ids || [])],
+            refMods: structuredClone(c.refmods || []),
                 lastFrameMediaId: c.last_frame_media_id || "",
             endImage: c.end_image ?? null,
             promptIncludes,
@@ -21544,6 +21575,55 @@ export class CapTimelineEditorApp {
         this._h3Skills = this.skillPickerModal.skills;
     }
 
+    async _refreshRefMods() {
+        const response = await fetch(api.apiURL('/refmods/library'), {cache:'no-store'}).catch(() => null);
+        if (response?.ok) this._refMods = await response.json();
+    }
+
+    async _openRefModPicker() {
+        const clip = this._findClipById(this._aiOptimizeClipId);
+        if (!clip || clip.track?.locked || this._aiOptimizeBusy || this.aiSrcText?.readOnly || this.aiSrcText?.disabled) return;
+        this._refModDialog?.close();
+        const dialog = this._refModDialog = document.createElement('cap-dialog');
+        dialog.width = 960; dialog.height = 760; dialog.minWidth = 320; dialog.minHeight = 280;
+        const title = document.createElement('span'); title.slot = 'title'; title.textContent = refModT('title');
+        const browser = document.createElement('cap-refmod-browser');
+        browser.setBindings(this._ensureClipMeta(clip).refMods || []);
+        browser.addEventListener('refmod-select', ({detail}) => {
+            if (this._findClipById(clip.id) !== clip || clip.track?.locked) return;
+            this._linkPromptMention(clip, detail.asset);
+            const text = this.aiSrcText;
+            if (!assetMentionRanges(text.value, [detail.asset]).length) {
+                replaceRichPromptRange(text, `@${detail.asset.name} `, text.selectionStart, text.selectionEnd);
+                text.dispatchEvent(new Event('change', {bubbles:true}));
+            }
+            browser.setBindings(this._ensureClipMeta(clip).refMods || []);
+        });
+        browser.addEventListener('refmod-change', ({detail}) => {
+            if (this._findClipById(clip.id) !== clip || clip.track?.locked) return;
+            this._recordUndo();
+            const meta = this._ensureClipMeta(clip);
+            const removed = (meta.refMods || []).filter(row => !detail.rows.some(next => next.path === row.path)).map(row => ({name:row.path}));
+            const unmention = text => {
+                let value = String(text || '');
+                for (const range of assetMentionRanges(value, removed).reverse()) value = value.slice(0, range.start) + value.slice(range.start + 1);
+                return value;
+            };
+            meta.refMods = detail.rows;
+            meta.prompt = unmention(meta.prompt);
+            for (const point of meta.video_shots?.points || []) point.description = unmention(point.description);
+            if (removed.length) {
+                setRichPromptValue(this.aiSrcText, unmention(this.aiSrcText.value), true);
+                this.aiSrcText.dispatchEvent(new Event('change', {bubbles:true}));
+            }
+            this._saveToWidgets();
+        });
+        dialog.append(title, browser); this._overlay.append(dialog);
+        dialog.addEventListener('close', () => {browser.stop(); dialog.remove();}, {once:true});
+        dialog.showModal();
+        await browser.load(path => api.apiURL(path));
+    }
+
     async _applyH3Skill(skillId) {
         const id = String(skillId || "").trim();
         const clip = this._findClipById(this._aiOptimizeClipId);
@@ -21827,6 +21907,7 @@ export class CapTimelineEditorApp {
                     duration_ms: durationMs,
                     media_ids: mediaIds,
                     prompt_media_ids: [...(m.promptMediaIds || [])],
+                    refmods: structuredClone(m.refMods || []),
                     ...(m.lastFrameMediaId ? { last_frame_media_id: m.lastFrameMediaId } : {}),
                     ...(this._canChangeClipSpeed(clip) ? { playback_rate: clip.playbackRate || 1 } : {}),
                     volume: normalizeClipVolume(m.volume),

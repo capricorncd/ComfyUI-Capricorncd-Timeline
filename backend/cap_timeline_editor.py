@@ -11,7 +11,7 @@ import shutil
 
 import torch
 import folder_paths
-from .h3_prompt_mentions import prompt_reference_rows
+from .h3_prompt_mentions import prompt_reference_rows, refmod_reference_rows
 from .audio_envelope import apply_volume_points, normalize_volume_points
 from .media_speed import playback_rate
 from .h3_timing import plan_h3_clips, source_clip_timing
@@ -845,6 +845,7 @@ class CAP_TimelineEditor:
                 "second_sample": False,
                 "auto_prompt": bool(clip.get("auto_prompt", False)),
                 "prompt_skills": clip.get("prompt_skills", []),
+                "refmods": refmod_reference_rows(clip["refmods"], clip.get("prompt") or "") if clip.get("refmods") else [],
                 "h3_motion_context_length": _h3_motion_context_length(clip),
                 "save_latent": bool(clip.get("save_latent", False)),
                 "seed": _clip_seed(clip),

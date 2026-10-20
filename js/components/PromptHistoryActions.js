@@ -29,10 +29,10 @@ export class PromptHistoryActions extends HTMLElement {
             this.shadowRoot.append(button);
         }
     }
-    bind(textarea, read, write, {copyOnly = false, getAssets = () => [], replacePrompts = null} = {}) {
+    bind(textarea, read, write, {copyOnly = false, getAssets = () => [], replacePrompts = null, apiURL = path => path} = {}) {
         this.textarea=textarea; this.read=read; this.write=write; this.replacePrompts=replacePrompts;
         this.templates.hidden = copyOnly;
-        this.templates.bind(textarea, getAssets);
+        this.templates.bind(textarea, getAssets, {apiURL});
         for (const button of this.shadowRoot.querySelectorAll('cap-button')) {
             button.hidden = (copyOnly && button.dataset.action !== 'copy')
                 || (button.dataset.action === 'replace' && !replacePrompts);

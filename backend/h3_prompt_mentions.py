@@ -29,6 +29,18 @@ def compile_h3_mentions(prompt, references):
     return pattern.sub(replace, prompt)
 
 
+def refmod_reference_rows(rows, prompt):
+    clean = strip_comment_lines(prompt)
+    result = []
+    for row in rows:
+        name = str(row.get('path') or '')
+        pattern = r'(?<![A-Za-z0-9_@])@' + re.escape(name) + r'(?![\w])'
+        if name and re.search(pattern, prompt) and not re.search(pattern, clean):
+            continue
+        result.append(row)
+    return result
+
+
 def prompt_reference_rows(project, clip):
     catalog = [row for row in project.get('media', []) if isinstance(row, dict)]
     selected = set(clip.get('prompt_media_ids') or [])

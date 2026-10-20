@@ -45,6 +45,7 @@ globalThis.document = Object.assign(new EventTarget(),{createElement:()=>Object.
 globalThis.window = new EventTarget();
 const textarea = Object.assign(new EventTarget(), {value:'@', selectionStart:1, selectionEnd:1,after(){}});
 const livePicker = Object.assign(Object.create(PromptMentions.prototype), {
+    root:{querySelectorAll:()=>[]},
     search:{value:''}, render(){this.results=this.assets;}, place(){}, onKey(){}, hidden:true,
 });
 livePicker.bind(textarea, () => [{id:'hero', name:'角色'}]);

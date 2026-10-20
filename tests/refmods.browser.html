@@ -1,0 +1,36 @@
+<!doctype html><meta charset="utf-8"><title>RefMod library interaction test</title>
+<script type="importmap">{"imports":{"/scripts/app.js":"data:text/javascript,export const app={extensionManager:{setting:{get:()=> 'zh'}}};"}}</script>
+<style>
+body {font:14px system-ui;background:#10191d;color:#e4edeb;--cat-font-size:14px;--cat-text:#e4edeb;--cat-muted:#a3b5b8;--cat-bg:#10191d;--cat-surface:#192226;--cat-raised:#202c31;--cat-input:#10191d;--cat-border:#34464b;--cat-border-soft:#34464b;--cat-accent:#6ac9a8;--cat-danger:#ee7777;}
+main{max-width:1000px;margin:28px auto}textarea{width:100%;height:180px} .field{position:relative;padding-bottom:40px;border:1px solid var(--cat-border-soft)} h1{font-size:20px} #status{white-space:pre-wrap}
+body.light{background:#fafafa;color:#202020;--cat-text:#202020;--cat-muted:#555;--cat-bg:#fafafa;--cat-surface:#fff;--cat-raised:#eee;--cat-input:#fff;--cat-border:#ccc;--cat-border-soft:#ddd;}
+</style>
+<main><h1>RefMod 参考库</h1><cap-button id="theme">切换浅色/深色</cap-button><cap-button id="dialog">打开选择窗口</cap-button><label>预览倍速 <select id="rate"><option>1</option><option selected>2</option><option>4</option></select></label>
+<div class="field"><textarea aria-label="提示词"></textarea><cap-prompt-history-actions></cap-prompt-history-actions><cap-prompt-mentions></cap-prompt-mentions></div><pre id="status"></pre><cap-refmod-browser></cap-refmod-browser></main>
+<script type="module">
+import '../js/components/RefModBrowser.js';
+import '../js/components/PromptHistoryActions.js';
+import '../js/components/PromptMentions.js';
+import '../js/components/Dialog.js';
+import {attachRichPromptHandler,replaceRichPromptRange} from '../js/components/RichPrompt.js';
+import {refModAssets,REFMOD_PREVIEW_RATE_KEY,refModPlaybackRate} from '../js/editor/RefMods.js';
+const browser=document.querySelector('cap-refmod-browser'), textarea=document.querySelector('textarea'), status=document.querySelector('#status');
+let assets=[];
+document.addEventListener('refmod-library',({detail})=>{assets=refModAssets(detail.rows,path=>path)});
+const mentions=document.querySelector('cap-prompt-mentions');mentions.bind(textarea,()=>assets);
+attachRichPromptHandler(textarea,{mode:'widget'});
+document.querySelector('cap-prompt-history-actions').bind(textarea,()=>({schema_version:1,items:[]}),()=>{}, {getAssets:()=>assets});
+document.addEventListener('refmod-select',({detail})=>{replaceRichPromptRange(textarea,`@${detail.asset.name} `,textarea.selectionStart,textarea.selectionEnd);status.textContent=textarea.value});
+mentions.addEventListener('asset-mention',({detail})=>{status.textContent=`已关联 ${detail.path}`});
+document.querySelector('#theme').onclick=()=>document.body.classList.toggle('light');
+document.querySelector('#rate').value=String(refModPlaybackRate());
+document.querySelector('#rate').onchange=event=>localStorage.setItem(REFMOD_PREVIEW_RATE_KEY,event.target.value);
+document.querySelector('#dialog').onclick=()=>{
+ const dialog=document.createElement('cap-dialog');dialog.width=960;dialog.height=700;dialog.minWidth=320;dialog.minHeight=280;
+ const title=document.createElement('span');title.slot='title';title.textContent='选择 RefMod';
+ const list=document.createElement('cap-refmod-browser');list.setBindings([{path:'短剧A/角色/女主_上半身',strength:.8,enabled:true}]);
+ list.addEventListener('refmod-change',event=>{status.textContent=JSON.stringify(event.detail.rows)});
+ dialog.append(title,list);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();void list.load(path=>path);
+};
+await browser.load(path=>path);
+</script>

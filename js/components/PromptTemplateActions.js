@@ -4,6 +4,8 @@ import './DropdownButton.js';
 import './ContextMenu.js';
 import './Dialog.js';
 import './StatusMessage.js';
+import './RefModBrowser.js';
+import { refModT } from './RefModBrowser.js';
 import { iconHtml } from '../cap_icons.js';
 import { t } from '../i18n/prompt_templates.js';
 import { replaceRichPromptRange } from './RichPrompt.js';
@@ -31,12 +33,13 @@ export class PromptTemplateActions extends HTMLElement {
             .rating {display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
             .rating .delete {margin-left:auto;}
         </style>`;
-        for (const [action, icon] of [['templates', 'listCollapse'], ['references', 'insert']]) {
+        for (const [action, icon] of [['templates', 'listCollapse'], ['references', 'insert'], ['refmods', 'insert']]) {
             const button = document.createElement('cap-dropdown-button');
             button.setAttribute('size', 'small');
             button.setAttribute('hide-caret', '');
-            button.title = t(action); button.setAttribute('aria-label', t(action));
+            button.title = action === 'refmods' ? refModT('insert') : t(action); button.setAttribute('aria-label', button.title);
             button.innerHTML = iconHtml(icon, 12);
+            if (action === 'refmods') button.append(' RefMod');
             button.bindMenu(() => this.openMenu(button, action));
             root.append(button);
         }
@@ -45,19 +48,33 @@ export class PromptTemplateActions extends HTMLElement {
         root.append(help);
     }
 
-    bind(textarea, getAssets = () => []) {
+    bind(textarea, getAssets = () => [], {apiURL = path => path} = {}) {
         this.textarea = textarea;
         this.getAssets = getAssets;
+        this.apiURL = apiURL;
     }
 
     openMenu(button, action) {
         const ta = this.textarea;
+        if (!ta || ta.disabled || ta.readOnly) return null;
         const selection = [ta.selectionStart, ta.selectionEnd];
         const insert = text => {
             if (ta.disabled || ta.readOnly) return;
             replaceRichPromptRange(ta, text, ...selection);
             ta.dispatchEvent(new Event('change', {bubbles: true}));
         };
+        if (action === 'refmods') {
+            const browser = document.createElement('cap-refmod-browser'); browser.setAttribute('compact','');
+            browser.style.cssText = 'position:fixed;z-index:100110;width:min(540px,calc(100vw - 24px));max-height:440px;overflow:auto;background:var(--cat-surface);border:1px solid var(--cat-border-soft);border-radius:8px;box-shadow:0 8px 24px #0005';
+            browser.addEventListener('refmod-select', ({detail}) => {insert(`@${detail.asset.name} `); browser.remove();});
+            this.shadowRoot.append(browser);
+            const rect = button.getBoundingClientRect();
+            browser.style.left = `${Math.max(12, Math.min(rect.left, innerWidth - browser.offsetWidth - 12))}px`;
+            browser.style.top = `${Math.max(12, rect.top - Math.min(440, innerHeight - 24) - 4)}px`;
+            browser.addEventListener('keydown', event => {if (event.key === 'Escape') {event.stopPropagation(); browser.remove(); button.focus();}});
+            void browser.load(this.apiURL);
+            return browser;
+        }
         const menu = document.createElement('cap-context-menu');
         let items;
         if (action === 'templates') {

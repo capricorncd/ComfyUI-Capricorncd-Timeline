@@ -12371,16 +12371,24 @@ export class CapTimelineEditorApp {
         return this._openOutputMediaPicker(clip, "audio");
     }
 
-    async _openOutputMediaPicker(clip, kind = "video") {
+    async _openOutputMediaPicker(clip, kind = "video", source = null) {
         if (!this.outputVideosModal || !this._isOutputPickerClip(clip, kind)) return;
         const alreadyOpen = this.outputVideosModal.open;
-        const kindChanged = this._outputPickerKind !== kind;
+        const kindChanged = this._outputPickerKind !== kind || this._outputPickerSource !== source;
+        if (alreadyOpen && this._outputPickerKind !== kind) {
+            await new Promise(resolve => {
+                this.outputVideosModal.addEventListener("close", resolve, {once: true});
+                this.outputVideosModal.close();
+            });
+        }
+        this._outputPickerSource = source;
+        if (source) this.outputVideosModal.style.setProperty("--cap-dialog-z-index", "100020");
+        else this.outputVideosModal.style.removeProperty("--cap-dialog-z-index");
         this._outputPickerKind = kind;
         this._outputVideosClipId = clip.id;
         this._syncOutputPickerChrome();
         this._syncOutputVideosPickerTitle(clip);
         if (!alreadyOpen || kindChanged) {
-            if (alreadyOpen) this.outputVideosModal.close();
             if (kind === "audio") this.outputVideosModal.showModal();
             else this.outputVideosModal.show();
             if (this.outputVideosFilter) this.outputVideosFilter.value = "";
@@ -12396,11 +12404,18 @@ export class CapTimelineEditorApp {
                 ? "/audio_keyframe_timeline/output_audios"
                 : "/audio_keyframe_timeline/output_videos";
             try {
-                const response = await fetch(api.apiURL(endpoint));
-                const data = await response.json();
+                const data = source ? {files: await source.load()} : await (await fetch(api.apiURL(endpoint))).json();
+                if (this._outputPickerSource !== source || !this.outputVideosModal.open) return;
                 this._outputVideosCache = Array.isArray(data.files) ? data.files : [];
-            } catch {
+            } catch (error) {
+                if (this._outputPickerSource !== source || !this.outputVideosModal.open) return;
                 this._outputVideosCache = [];
+                if (source) {
+                    const status = document.createElement("cap-status-message");
+                    status.setStatus(error.message, "error");
+                    this.outputVideosBody.replaceChildren(status);
+                    return;
+                }
             }
         }
         // Drop stale target if the open request finished after a newer selection.
@@ -12409,7 +12424,7 @@ export class CapTimelineEditorApp {
     }
 
     _retargetOutputVideosPickerFromSelection() {
-        if (!this.outputVideosModal?.open) return;
+        if (!this.outputVideosModal?.open || this._outputPickerSource) return;
         const clip = this._selClip;
         if (!this._isOutputPickerClip(clip)) return;
         if (this._outputVideosClipId === clip.id) {
@@ -12423,8 +12438,9 @@ export class CapTimelineEditorApp {
 
     _syncOutputPickerChrome() {
         const isAudio = this._outputPickerKind === "audio";
-        if (this.outputVideosSelectFileBtn) this.outputVideosSelectFileBtn.hidden = isAudio;
+        if (this.outputVideosSelectFileBtn) this.outputVideosSelectFileBtn.hidden = isAudio || !!this._outputPickerSource;
         if (this.outputVideosAutoLinkBtn) {
+            this.outputVideosAutoLinkBtn.hidden = !!this._outputPickerSource;
             this.outputVideosAutoLinkBtn.textContent = isAudio
                 ? T("auto_associate_audios_btn")
                 : T("auto_associate_videos_btn");
@@ -12474,9 +12490,9 @@ export class CapTimelineEditorApp {
         if (!this.outputVideosTitle) return;
         const target = clip || this._findClipById(this._outputVideosClipId);
         const name = String(target?.name || "").trim();
-        const base = this._outputPickerKind === "audio"
+        const base = this._outputPickerSource?.title || (this._outputPickerKind === "audio"
             ? T("linked_generated_audios_title")
-            : T("linked_generated_videos_title");
+            : T("linked_generated_videos_title"));
         this.outputVideosTitle.textContent = name ? `${base} · ${name}` : base;
         if (this.outputVideosClipDuration) {
             this.outputVideosClipDuration.textContent = formatTimecode((Number(target?.duration) || 0) * 1000, this._timeline?.fps || 24);
@@ -12572,6 +12588,8 @@ export class CapTimelineEditorApp {
     _closeOutputVideosPicker() {
         this._hideOutputVideoHoverPreview();
         this._outputVideosClipId = null;
+        this._outputPickerSource = null;
+        this.outputVideosModal?.style.removeProperty("--cap-dialog-z-index");
         this._outputPickerKind = "video";
         this._outputVideosThumbIo?.disconnect();
         this._outputVideosThumbIo = null;
@@ -13052,14 +13070,15 @@ export class CapTimelineEditorApp {
         const isAudio = this._outputPickerKind === "audio";
         const clip = this._findClipById(this._outputVideosClipId);
         this._syncOutputVideosPickerTitle(clip);
+        const source = this._outputPickerSource;
         const current = new Set(
-            (isAudio
+            (source ? source.linked() : isAudio
                 ? this._clipGeneratedAudios(clip ? this._ensureClipMeta(clip) : null)
                 : this._clipGeneratedVideos(clip ? this._ensureClipMeta(clip) : null))
                 .map((row) => normalizeOutputVideoPath(row.file) || row.file),
         );
         const have = new Set(current);
-        if (!isAudio) {
+        if (!isAudio && !source) {
             for (const track of this._timeline?.tracks || []) {
                 for (const other of track.clips) {
                     for (const row of this._clipGeneratedVideos(this._meta.get(other.id))) {
@@ -13185,7 +13204,8 @@ export class CapTimelineEditorApp {
                 const add = () => {
                     const target = this._findClipById(this._outputVideosClipId);
                     if (!this._isOutputPickerClip(target, isAudio ? "audio" : "video")) return;
-                    const ok = isAudio
+                    if (source !== this._outputPickerSource) return;
+                    const ok = source ? source.add(row) : isAudio
                         ? this._addGeneratedAudiosToClip(target, [file])
                         : this._addGeneratedVideosToClip(target, [file]);
                     if (!ok) return;

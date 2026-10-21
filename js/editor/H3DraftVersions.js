@@ -3,7 +3,6 @@ import '../components/Dialog.js';
 import '../components/DropdownButton.js';
 import '../components/FormControls.js';
 import '../components/StatusMessage.js';
-import '../components/ExportDirectory.js';
 import '../components/PromptHistoryActions.js';
 import { iconHtml } from '../cap_icons.js';
 import { makeT } from '../cap_i18n.js';
@@ -14,7 +13,7 @@ export const draftT = makeT({
         generate_selected_keyframe: "Preview sampling — selected keyframe",
         delete_all: 'Delete all', removed_all: 'Move all listed preview versions and their video, latent and metadata files to the system recycle bin? Ctrl+Z cannot restore them.',
         batch: 'Batch actions', unlink: 'Unlink (keep files)', unlink_all: 'Unlink all',
-        associate: 'Associate existing folder', no_match: 'No preview versions belonging to this Clip were found.', hd: 'Generate HD', segment: 'Keyframe {interval} · part {part}/{parts}', start: 'Clip start {time}',
+        associate: 'Associate existing previews', no_match: 'No previews matching this Clip or keyframe interval were found.', hd: 'Generate HD', segment: 'Keyframe {interval} · part {part}/{parts}', start: 'Clip start {time}',
         previous_clip: 'Previous Clip', next_clip: 'Next Clip', disable_all: 'Disable all previews', generated: 'Generated {time}', unknown_time: 'Unknown',
         playback_mode: "Preview versions", playback_hint: "Play preview versions along the timeline (latest enabled version per Clip)", playback_exit: "Exit preview version playback",
         generate_all: "Preview sampling — all clips", generate_selected: "Preview sampling — selected clips",
@@ -23,13 +22,13 @@ export const draftT = makeT({
         hint: 'Run automatically refines the latest valid preview latent. Disabled versions remain available for preview. Deleting moves video, latent and metadata to the recycle bin and cannot be undone with Ctrl+Z.',
         enabled: 'Enabled', disabled: 'Disabled', remove: 'Remove version', close: 'Close',
         no_video: 'Preview video is unavailable.', unavailable: 'Connect H3 Video Generator to this Timeline Editor first.',
-        failed: 'Could not run: {message}', prompt: 'Preview sampling prompt', delete_failed: 'Could not delete: {message}', removed: 'Move this version’s video, latent and metadata files to the system recycle bin? Ctrl+Z cannot restore them. Restore all files manually from the recycle bin, then use Associate existing folder to link the version again.',
+        failed: 'Could not run: {message}', prompt: 'Preview sampling prompt', delete_failed: 'Could not delete: {message}', removed: 'Move this version’s video, latent and metadata files to the system recycle bin? Ctrl+Z cannot restore them. Restore all files manually from the recycle bin, then use Associate existing previews to link the version again.',
     },
     zh: {
         generate_selected_keyframe: "选中关键帧预览采样",
         delete_all: '全部删除', removed_all: '删除当前列表的全部预览版本，并将视频、latent 和版本信息文件移入系统回收站？此操作不支持 Ctrl+Z。',
         batch: '批量操作', unlink: '解绑（保留磁盘文件）', unlink_all: '全部解绑',
-        associate: '关联已有文件夹', no_match: '此文件夹没有属于当前 Clip 的预览版本。', hd: '生成高清版', segment: '关键帧区间 {interval} · 第 {part}/{parts} 段', start: 'Clip 内开始 {time}',
+        associate: '关联已有预览', no_match: '没有找到属于当前 Clip 或关键帧区间的预览版本。', hd: '生成高清版', segment: '关键帧区间 {interval} · 第 {part}/{parts} 段', start: 'Clip 内开始 {time}',
         previous_clip: '上一个 Clip', next_clip: '下一个 Clip', disable_all: '全部禁用', generated: '生成时间 {time}', unknown_time: '未知',
         playback_mode: "预览版模式", playback_hint: "沿时间轴播放各 Clip 最新启用的预览版", playback_exit: "退出预览版播放模式",
         generate_all: "全部片段预览采样", generate_selected: "选中片段预览采样",
@@ -44,7 +43,7 @@ export const draftT = makeT({
         generate_selected_keyframe: "選択キーフレームのプレビューサンプリング",
         delete_all: 'すべて削除', removed_all: '一覧のすべてのプレビューと動画・latent・バージョン情報をごみ箱に移動しますか？Ctrl+Z では復元できません。',
         batch: '一括操作', unlink: '関連付け解除（ファイルを保持）', unlink_all: 'すべての関連付けを解除',
-        associate: '既存フォルダーを関連付け', no_match: 'この Clip のプレビューが見つかりません。', hd: '高解像度版を生成', segment: 'キーフレーム {interval} · {part}/{parts}', start: 'Clip 内開始 {time}',
+        associate: '既存プレビューを関連付け', no_match: 'この Clip のプレビューが見つかりません。', hd: '高解像度版を生成', segment: 'キーフレーム {interval} · {part}/{parts}', start: 'Clip 内開始 {time}',
         previous_clip: '前の Clip', next_clip: '次の Clip', disable_all: '全プレビューを無効にする', generated: '生成日時 {time}', unknown_time: '不明',
         playback_mode: "プレビュー版モード", playback_hint: "各 Clip の最新の有効なプレビューをタイムラインで再生", playback_exit: "プレビュー版モードを終了",
         generate_all: "全クリップのプレビューバッチ生成", generate_selected: "選択クリップのプレビューバッチ生成",
@@ -53,7 +52,7 @@ export const draftT = makeT({
         hint: '実行時は最新の有効なプレビュー latent から二次生成します。無効な候補も再生できます。削除すると動画・latent・バージョン情報をごみ箱に移動します。Ctrl+Z では復元できません。',
         enabled: '有効', disabled: '無効', remove: '候補を削除', close: '閉じる',
         no_video: 'プレビュー動画がありません。', unavailable: 'H3 Video Generator をこのタイムラインに接続してください。',
-        failed: '実行失敗：{message}', prompt: 'プレビューのプロンプト', delete_failed: '削除失敗：{message}', removed: '動画・latent・バージョン情報をごみ箱に移動しますか？Ctrl+Z は使えません。すべてのファイルをごみ箱から手動で復元し、「既存フォルダーを関連付け」で再登録してください。',
+        failed: '実行失敗：{message}', prompt: 'プレビューのプロンプト', delete_failed: '削除失敗：{message}', removed: '動画・latent・バージョン情報をごみ箱に移動しますか？Ctrl+Z は使えません。すべてのファイルをごみ箱から手動で復元し、「既存プレビューを関連付け」で再登録してください。',
     },
 });
 
@@ -194,40 +193,36 @@ export class H3DraftVersions {
     }
 
     associate(clip) {
-        const dialog = document.createElement('cap-dialog');
-        const title = document.createElement('span'); title.slot = 'title'; title.textContent = draftT('associate');
-        const body = document.createElement('div'); body.className = 'cat-te-h3-drafts-body';
-        const directory = document.createElement('cap-export-directory');
-        directory.setAttribute('project-directory', '');
-        directory.setAttribute('label', draftT('associate'));
-        directory.setAttribute('default-dir', 'capricorncd-timeline/h3_drafts');
-        const status = document.createElement('cap-status-message');
-        body.append(directory, status);
-        const footer = document.createElement('div'); footer.slot = 'footer';
-        const button = document.createElement('cap-button'); button.textContent = draftT('associate');
-        button.setAttribute('variant', 'primary'); footer.append(button);
-        const openGen = this.editor._openGen;
-        button.onclick = async () => {
-            button.disabled = true;
-            dialog.closeDisabled = true;
-            try {
-                const result = await this.editor._requestH3DraftFiles('associate', {directory: directory.directory, clip_id: clip.id});
-                if (this.editor._openGen !== openGen || this.editor._findClipById(clip.id) !== clip || clip.track?.locked) return;
-                if (!result.versions.length) { status.setStatus(draftT('no_match'), 'warning'); return; }
+        this.stop();
+        const editor = this.editor;
+        const openGen = editor._openGen;
+        const interval = this.interval ? {...this.interval} : null;
+        const linked = () => editor._ensureClipMeta(clip).h3Drafts || [];
+        return editor._openOutputMediaPicker(clip, 'video', {
+            title: draftT('associate'),
+            linked,
+            load: async () => {
+                const result = await editor._requestH3DraftFiles('associate', {
+                    directory: 'capricorncd-timeline/h3_drafts', clip_id: clip.id,
+                });
+                return result.versions.filter(row => {
+                    const part = row.keyframe_segment;
+                    return !interval || (part && part.fps === interval.fps
+                        && part.start_frame >= interval.start_frame && part.end_frame <= interval.end_frame);
+                }).map(row => ({...row, mtime: Date.parse(draftGeneratedTime(row).replace(' ', 'T')) / 1000 || 0}));
+            },
+            add: row => {
+                if (editor._openGen !== openGen || editor._findClipById(clip.id) !== clip
+                    || clip.track?.locked || linked().some(item => item.id === row.id)) return false;
+                const {mtime, durationPromise, duration_sec, ...version} = row;
                 this.change(meta => {
-                    const ids = new Set(result.versions.map(row => row.id));
-                    for (const id of ids) this.editor._deletedH3DraftIds?.delete(id);
-                    meta.h3DraftRemoved = (meta.h3DraftRemoved || []).filter(id => !ids.has(id));
-                    meta.h3Drafts = [...result.versions.map(row => ({...row, enabled: true})), ...(meta.h3Drafts || []).filter(row => !ids.has(row.id))];
+                    editor._deletedH3DraftIds?.delete(row.id);
+                    meta.h3DraftRemoved = (meta.h3DraftRemoved || []).filter(id => id !== row.id);
+                    meta.h3Drafts = [{...version, enabled: true}, ...(meta.h3Drafts || [])];
                 }, clip.id);
-                dialog.close();
-            } catch (error) { status.setStatus(error.message, 'error'); }
-            finally { button.disabled = false; dialog.closeDisabled = false; }
-        };
-        dialog.append(title, body, footer);
-        this.editor._overlay.append(dialog);
-        dialog.addEventListener('close', () => dialog.remove(), {once: true});
-        dialog.showModal();
+                return true;
+            },
+        });
     }
 
     rows(clip, interval = this.interval) {

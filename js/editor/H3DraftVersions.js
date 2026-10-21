@@ -1,4 +1,4 @@
-import { showCapAlert } from "../cap_ui.js";
+import { showCapAlert, showCapConfirm } from "../cap_ui.js";
 import '../components/Dialog.js';
 import '../components/DropdownButton.js';
 import '../components/FormControls.js';
@@ -11,6 +11,7 @@ import { t as T } from '../i18n/timeline_editor.js';
 
 export const draftT = makeT({
     en: {
+        delete_all: 'Delete all', removed_all: 'Move all listed preview versions and their video, latent and metadata files to the system recycle bin? Ctrl+Z cannot restore them.',
         batch: 'Batch actions', unlink: 'Unlink (keep files)', unlink_all: 'Unlink all',
         associate: 'Associate existing folder', no_match: 'No preview versions belonging to this Clip were found.', hd: 'Generate HD', segment: 'Keyframe {interval} · part {part}/{parts}', start: 'Clip start {time}',
         previous_clip: 'Previous Clip', next_clip: 'Next Clip', disable_all: 'Disable all previews', generated: 'Generated {time}', unknown_time: 'Unknown',
@@ -24,6 +25,7 @@ export const draftT = makeT({
         failed: 'Could not run: {message}', prompt: 'Preview sampling prompt', delete_failed: 'Could not delete: {message}', removed: 'Move this version’s video, latent and metadata files to the system recycle bin? Ctrl+Z cannot restore them. Restore all files manually from the recycle bin, then use Associate existing folder to link the version again.',
     },
     zh: {
+        delete_all: '全部删除', removed_all: '删除当前列表的全部预览版本，并将视频、latent 和版本信息文件移入系统回收站？此操作不支持 Ctrl+Z。',
         batch: '批量操作', unlink: '解绑（保留磁盘文件）', unlink_all: '全部解绑',
         associate: '关联已有文件夹', no_match: '此文件夹没有属于当前 Clip 的预览版本。', hd: '生成高清版', segment: '关键帧区间 {interval} · 第 {part}/{parts} 段', start: 'Clip 内开始 {time}',
         previous_clip: '上一个 Clip', next_clip: '下一个 Clip', disable_all: '全部禁用', generated: '生成时间 {time}', unknown_time: '未知',
@@ -37,6 +39,7 @@ export const draftT = makeT({
         failed: '运行失败：{message}', prompt: '预览采样提示词', delete_failed: '删除失败：{message}', removed: '删除此版本并将视频、latent 和版本信息文件移入系统回收站？此操作不支持 Ctrl+Z。需要手动从回收站还原全部文件，再使用「关联已有文件夹」重新关联。',
     },
     ja: {
+        delete_all: 'すべて削除', removed_all: '一覧のすべてのプレビューと動画・latent・バージョン情報をごみ箱に移動しますか？Ctrl+Z では復元できません。',
         batch: '一括操作', unlink: '関連付け解除（ファイルを保持）', unlink_all: 'すべての関連付けを解除',
         associate: '既存フォルダーを関連付け', no_match: 'この Clip のプレビューが見つかりません。', hd: '高解像度版を生成', segment: 'キーフレーム {interval} · {part}/{parts}', start: 'Clip 内開始 {time}',
         previous_clip: '前の Clip', next_clip: '次の Clip', disable_all: '全プレビューを無効にする', generated: '生成日時 {time}', unknown_time: '不明',
@@ -158,6 +161,33 @@ export class H3DraftVersions {
         }, clip.id);
         this.editor._scheduleProgramPreview();
         if (this.editor._timeline?._playing) this.editor._startAudioPlayback();
+    }
+
+    async deleteVersions(clip, rows) {
+        if (!rows.length || clip.track?.locked) return;
+        const openGen = this.editor._openGen;
+        try {
+            const confirmed = rows.length === 1 ? await this.editor._confirmDraftRemoval()
+                : await showCapConfirm(draftT('removed_all'), {title: draftT('delete_all'),
+                    confirmLabel: T('delete_btn'), cancelLabel: T('cancel_btn')});
+            if (!confirmed) return;
+            this.stop();
+            for (const row of rows) {
+                if (this.editor._openGen !== openGen || this.editor._findClipById(clip.id) !== clip || clip.track?.locked) return;
+                await this.editor._requestH3DraftFiles('delete', {id: row.id});
+                if (this.editor._openGen !== openGen || this.editor._findClipById(clip.id) !== clip) return;
+                this.editor._deletedH3DraftIds ||= new Set();
+                this.editor._deletedH3DraftIds.add(row.id);
+                this.change(meta => {
+                    meta.h3DraftRemoved = [...(meta.h3DraftRemoved || []), row.id];
+                    meta.h3Drafts = meta.h3Drafts.filter(item => item.id !== row.id);
+                }, clip.id, false);
+            }
+        } catch (error) {
+            showCapAlert(draftT('delete_failed', {message: error.message}));
+        } finally {
+            this.render();
+        }
     }
 
     associate(clip) {
@@ -289,22 +319,8 @@ export class H3DraftVersions {
             remove.disabled = !!clip.track?.locked;
             remove.addEventListener('click', async () => {
                 remove.disabled = true;
-                try {
-                    if (!await this.editor._confirmDraftRemoval()) return;
-                    if (this.editor._findClipById(clip.id) !== clip || clip.track?.locked) return;
-                    this.stop();
-                    await this.editor._requestH3DraftFiles('delete', {id: row.id});
-                    this.editor._deletedH3DraftIds ||= new Set();
-                    this.editor._deletedH3DraftIds.add(row.id);
-                    this.change(m => {
-                        m.h3DraftRemoved = [...(m.h3DraftRemoved || []), row.id];
-                        m.h3Drafts = m.h3Drafts.filter(item => item.id !== row.id);
-                    }, clip.id, false);
-                } catch (error) {
-                    showCapAlert(draftT('delete_failed', {message: error.message}));
-                } finally {
-                    this.render();
-                }
+                try { await this.deleteVersions(clip, [row]); }
+                finally { if (remove.isConnected) remove.disabled = !!clip.track?.locked; }
             });
             const folder = document.createElement('cap-button');
             folder.setAttribute('size', 'small');
@@ -390,6 +406,7 @@ export class H3DraftVersions {
                 {label: draftT('unlink_all'), icon: 'unlink', fn: () => this.unlink(clip, rows.map(row => row.id))},
                 {label: draftT('disable_all'), icon: 'eyeOff', disabled: !rows.some(row => row.enabled !== false),
                     fn: () => this.disableAll([clip], this.interval)},
+                {label: draftT('delete_all'), icon: 'trash', danger: true, fn: () => this.deleteVersions(clip, rows)},
             ], rect.left, rect.bottom + 4, {ignoreNextClick: false});
         });
         footer.append(batch);

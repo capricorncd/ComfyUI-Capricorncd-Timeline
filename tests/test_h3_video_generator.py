@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
 from test_h3_timing import h3
+from test_h3_context_media import media
 
 BACKEND = Path(__file__).resolve().parents[1] / "backend"
 
@@ -59,9 +60,10 @@ class GeneratorTests(unittest.TestCase):
 
         scope = dict(copy=copy, json=json, math=math, secrets=secrets,
                      os=SimpleNamespace(path=os.path, replace=Mock()),
-                     expand_keyframe_runs=load_definitions("h3_keyframe_runs.py", dict(copy=copy, math=math))["expand_keyframe_runs"],
+                     expand_keyframe_runs=load_definitions("h3_keyframe_runs.py", dict(copy=copy, math=math, reference_context_media=media.reference_context_media))["expand_keyframe_runs"],
                      plan_h3_clips=h3.plan_h3_clips,
                      _prev_clip_output_video_path=Mock(return_value=""),
+                     _previous_reference_media=Mock(return_value=dict(videos=[], audios=[], duration_ms=0)),
                      folder_paths=SimpleNamespace(get_full_path_or_raise=lambda *a: "valid"),
                      nodes=SimpleNamespace(), comfy=SimpleNamespace(model_management=SimpleNamespace(throw_exception_if_processing_interrupted=lambda: None)),
                      CAP_MiniMaxH3ReferenceToVideo=Prepare, CAP_SeqToVideo=Save, CAP_ComposeClipVideos=Compose,
@@ -924,6 +926,25 @@ class GeneratorTests(unittest.TestCase):
         self.assertTrue(all(r["previous_output_video"] == "previous.mp4" for _, _, r, _ in self.prepared))
         self.assertFalse(any(n == "MiniMaxH3MotionContextLoadLatent" for n, _ in self.calls))
         self.assertTrue(self.saved)
+
+    def test_missing_generated_video_uses_reference_video_without_disabling_context(self):
+        self.scope['_previous_reference_media'].return_value = dict(videos=[dict(file='reference.mp4', start=7, duration=10, rate=2)], audios=[], duration_ms=5000)
+        self.run_node([dict(id='b', reference_previous=True, start_ms=5000, end_ms=10000,
+            h3_timing=dict(context_frames=22, previous_source_clip_id='a'))])
+        row = self.prepared[0][2]
+        self.assertEqual(row['h3_timing']['context_frames'], 22)
+        self.assertEqual(row['previous_reference_media']['videos'][0]['start'], 7)
+        self.assertFalse(any(data.get('warnings') for name, data, _ in self.events))
+
+    def test_audio_only_fallback_preserves_reference_and_removes_video_context_trim(self):
+        self.scope['_previous_reference_media'].return_value = dict(videos=[], audios=[dict(file='voice.wav', source_start_ms=0, source_end_ms=5000)], duration_ms=5000)
+        self.run_node([dict(id='b', reference_previous=True, start_ms=5000, end_ms=10000,
+            h3_timing=dict(context_frames=22, previous_source_clip_id='a'))])
+        row = self.prepared[0][2]
+        self.assertEqual(row['h3_timing']['context_frames'], 0)
+        self.assertEqual(row['h3_timing']['context_carry_frames'], 0)
+        self.assertEqual(row['previous_reference_media']['audios'][0]['file'], 'voice.wav')
+        self.assertFalse(any(data.get('warnings') for name, data, _ in self.events))
 
     def test_strict_second_pass_reencodes_high_resolution_anchors(self):
         self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "clip_role": "first_last"}],

@@ -56,6 +56,7 @@ def plan_h3_clips(clips, fps, *, chain_all=False):
             clip.pop("h3_timing", None)
             clip.pop("playback_spans", None)
             clip.pop("previous_output_video", None)
+            clip.pop("previous_reference_media", None)
     # Resolve dependencies before planning any clip, including single-clip runs.
     previous_by_track = {}
     for clip in clips:
@@ -66,6 +67,7 @@ def plan_h3_clips(clips, fps, *, chain_all=False):
             clip.pop("playback_spans", None)
             clip.pop("previous_output_video", None)
             clip.pop("previous_reference_video", None)
+            clip.pop("previous_reference_media", None)
         if (clip.get("reference_previous") and previous
                 and clip.get("agent", "MiniMaxH3") == previous.get("agent", "MiniMaxH3") == "MiniMaxH3"
                 and (chain_all or abs(previous["preview_end_ms"] - clip["preview_start_ms"]) <= 1)):

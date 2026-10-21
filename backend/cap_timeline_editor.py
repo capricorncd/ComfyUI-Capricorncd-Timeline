@@ -15,6 +15,7 @@ from .h3_prompt_mentions import prompt_reference_rows, refmod_reference_rows
 from .audio_envelope import apply_volume_points, normalize_volume_points
 from .media_speed import playback_rate
 from .h3_timing import plan_h3_clips, source_clip_timing
+from .h3_context_media import previous_context_media
 
 from .prompt_text import strip_comment_lines as _strip_comment_lines
 from .cap_clip_prompt_vl import clear_clip_prompt_vl
@@ -772,6 +773,10 @@ class CAP_TimelineEditor:
         seen_materials = set()
         reference_materials = {}
         deferred_references = {}
+        keyframe_previous_ids = {str(interval.get("previous_clip_id"))
+            for run in (settings.get("h3_generation") or {}).get("keyframe_runs", [])
+            for interval in run.get("intervals", [])
+            if (interval.get("generation") or {}).get("referencePrevious")}
         for clip, start, end, z_index in segments:
             if _is_subtitle_clip(clip):
                 continue
@@ -780,7 +785,7 @@ class CAP_TimelineEditor:
             cid = str(clip["id"])
             if clip.get("reference_timeline") and only_ids is not None and cid not in only_ids:
                 deferred_references[cid] = clip
-            if clip.get("reference_timeline") and (only_ids is None or cid in only_ids):
+            if clip.get("reference_timeline") and (only_ids is None or cid in only_ids or cid in keyframe_previous_ids):
                 if cid not in reference_materials:
                     reference_materials[cid] = compose_reference_timeline(project, clip, resolve_media)
                 entries = [entry for entry in entries if entry["row"].get("kind") not in ("video", "audio")]
@@ -885,8 +890,15 @@ class CAP_TimelineEditor:
                 runtime_row["reference_previous"] = bool(clip["reference_previous"])
             runtime_clips.append(runtime_row)
 
+        media_by_id = {row.get("id"): row for row in project.get("media", [])}
+        for material in materials:
+            trim = material.get("video_trim")
+            if trim:
+                original = media_by_id.get(trim.get("source_id"))
+                if original:
+                    trim["file"] = resolve_media(original["file"])
         plan_h3_clips(runtime_clips, fps)
-        for row in runtime_clips:
+        for row_index, row in enumerate(runtime_clips):
             previous = (row.get("h3_timing") or {}).get("previous_source_clip_id")
             if previous and continuation_outputs.get(previous):
                 row["previous_output_video"] = continuation_outputs[previous]
@@ -897,6 +909,9 @@ class CAP_TimelineEditor:
                                                     if ref["kind"] == "video"), "")
             if previous and reference_outputs.get(previous):
                 row["previous_reference_video"] = reference_outputs[previous]
+            if previous:
+                row["previous_reference_media"] = previous_context_media(
+                    {"clips": runtime_clips, "materials": materials}, row_index)
         composition_clips = [{**row, "output_video": generated_outputs.get(row["source_clip_id"], "")}
                              for row in runtime_clips] if only_ids is not None else []
         if only_ids is not None:
@@ -905,13 +920,6 @@ class CAP_TimelineEditor:
             int(round((clip["end_ms"] - clip["start_ms"]) * fps / 1000))
             for clip in runtime_clips
         ))
-        media_by_id = {row.get("id"): row for row in project.get("media", [])}
-        for material in materials:
-            trim = material.get("video_trim")
-            if trim:
-                original = media_by_id.get(trim.get("source_id"))
-                if original:
-                    trim["file"] = resolve_media(original["file"])
         # Concatenate audio for each visual runtime segment (no gap filler),
         # matching the frame sequence / total_frame_count timeline.
         clips_audio_out = self._concat_runtime_clips_audio(runtime_clips, materials=materials)

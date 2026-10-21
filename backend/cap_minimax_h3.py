@@ -19,6 +19,8 @@ from .timecode import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
 from .media_speed import playback_rate
 from .h3_prompt_mentions import compile_h3_mentions, refmod_reference_rows
 from .cap_refmods import load_refmods, RefModPromptClip, refmod_file_state
+from .h3_context_media import previous_context_media
+from .h3_timing import plan_h3_clips
 
 MAX_REF_IMAGES = 9
 MAX_REF_VIDEOS = 3
@@ -181,7 +183,7 @@ def _prev_clip_output_video_path(data_json: str, index: int, previous_output_vid
     prev = next((row for row in reversed(clips[:index])
                  if str(row.get("source_clip_id") or row.get("id")) == str(owner)), None) if owner else (clips[index - 1] if index else None)
     candidates = [(prev or {}).get("output_video"), previous_output_video,
-                  current.get("previous_output_video"), current.get("previous_reference_video")]
+                  current.get("previous_output_video")]
     for candidate in candidates:
         rel = str(candidate or "").strip().replace("\\", "/")
         if not rel:
@@ -194,7 +196,26 @@ def _prev_clip_output_video_path(data_json: str, index: int, previous_output_vid
     return ""
 
 
-def _load_motion_context_from_video(path: str, pin_frames: int):
+def _previous_reference_media(data, index, current=None):
+    current = current if current is not None else data["clips"][index]
+    media = previous_context_media(data, index, current)
+    parser = CAP_DataJsonClipParser()
+    resolved = dict(media, videos=[], audios=[])
+    for key in ("videos", "audios"):
+        for source in media[key]:
+            path = source.get("file", "")
+            if not os.path.isfile(path):
+                path = parser._resolve_file_path(path, source.get("location", "input"))
+            if path and os.path.isfile(path):
+                resolved[key].append(dict(source, file=path))
+    if not resolved["videos"] and current.get("previous_reference_video"):
+        path = current["previous_reference_video"]
+        if os.path.isfile(path):
+            resolved["videos"].append(dict(file=path))
+    return resolved
+
+
+def _load_motion_context_from_video(path: str, pin_frames: int, trim=None):
     """Load last pin_frames (at H3 fps) + matching audio from a decoded mp4.
 
     Returns (frames_IMAGE, audio_or_None) or (None, None).
@@ -204,8 +225,11 @@ def _load_motion_context_from_video(path: str, pin_frames: int):
         return None, None
     # Slightly more than the pin so resampling still has enough samples.
     tail_sec = max(0.5, pin_frames / float(H3_FPS) + 0.35)
+    rate = float(trim.get("rate", 1)) if trim else 1.0
+    duration = min(float(trim["duration"]), tail_sec * rate) if trim else tail_sec
+    start = float(trim["start"]) + float(trim["duration"]) - duration if trim else -tail_sec
     try:
-        video = VideoFromFile(path, start_time=-tail_sec, duration=tail_sec)
+        video = VideoFromFile(path, start_time=start, duration=duration)
         components = video.get_components()
     except Exception as exc:
         _LOG.warning("Cap MiniMaxH3: failed reading context video %s (%s)", path, exc)
@@ -214,7 +238,9 @@ def _load_motion_context_from_video(path: str, pin_frames: int):
     if frames is None or not isinstance(frames, torch.Tensor) or frames.ndim != 4 or frames.shape[0] < 1:
         return None, None
     src_fps = float(components.frame_rate) if components.frame_rate else float(H3_FPS)
-    frames = _frames_at_fps(frames, src_fps, float(H3_FPS))
+    frames = _frames_at_fps(frames, src_fps * rate, float(H3_FPS))
+    if trim and int(frames.shape[0]) < pin_frames:
+        frames = torch.cat([frames[:1].repeat(pin_frames - int(frames.shape[0]), 1, 1, 1), frames], dim=0)
     if int(frames.shape[0]) < pin_frames:
         _LOG.warning(
             "Cap MiniMaxH3: context video has %d frames after resample, need %d; skipping.",
@@ -228,6 +254,9 @@ def _load_motion_context_from_video(path: str, pin_frames: int):
     elif int(audio["waveform"].shape[-1]) < 1:
         audio = None
     else:
+        if rate != 1:
+            audio = dict(audio, waveform=torchaudio.functional.resample(
+                audio["waveform"], round(audio["sample_rate"] * rate), audio["sample_rate"]))
         samples = max(1, round(pin_frames / float(H3_FPS) * audio["sample_rate"]))
         audio = dict(audio, waveform=audio["waveform"][..., -samples:].clone())
     return frames, audio
@@ -511,8 +540,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
         context_audio = None
         use_latent_ctx = False
         mc_cls = None
+        reference_media = clip_row.get("previous_reference_media") if pin == 0 else None
         if pin > 0:
-            mc_cls = _motion_context_cls()
             if context_latent is not None and _context_latent_usable(context_latent, width, height):
                 use_context = True
                 use_latent_ctx = True
@@ -527,8 +556,14 @@ class CAP_MiniMaxH3ReferenceToVideo:
                             "previous output_video %s (pin=%d).",
                             prev_path, pin,
                         )
-                if not use_context and timing:
-                    raise ValueError("Cap MiniMaxH3: planned continuation needs a same-resolution latent or the previous output video. Run the preceding clip with video output enabled; for clip_json workflows, run Data Json Clip Parser again to include the previous video path.")
+                if not use_context:
+                    reference_media = _previous_reference_media(data, int(index), clip_row)
+                    for source in reference_media["videos"]:
+                        context_frames, context_audio = _load_motion_context_from_video(
+                            source["file"], pin, source if "duration" in source else None)
+                        if context_frames is not None:
+                            use_context = True
+                            break
                 if not use_context:
                     _LOG.info(
                         "Cap MiniMaxH3: h3_motion_context_length=%d (pin=%d) but no usable "
@@ -536,7 +571,14 @@ class CAP_MiniMaxH3ReferenceToVideo:
                         "generating without motion context.",
                         req_ctx, pin,
                     )
-                    mc_cls = None
+                    if timing:
+                        clip_row.setdefault("preview_start_ms", start_ms)
+                        clip_row.setdefault("preview_end_ms", end_ms)
+                        plan_h3_clips([clip_row], fps)
+                        timing = clip_row["h3_timing"]
+                    pin = 0
+            if use_context:
+                mc_cls = _motion_context_cls()
 
         length = align_frame_count(clip_frames + pin) if use_context else clip_frames
         if timing:
@@ -626,6 +668,22 @@ class CAP_MiniMaxH3ReferenceToVideo:
             n = len(ref_audios) + 1
             ref_audios[f"ref_audio_{n}"] = audio
             prompt_references[-1] = (material, f"<Audio {len(ref_video_audios) + n}>")
+
+        if reference_media and reference_media["audios"]:
+            context_end = reference_media["duration_ms"]
+            context_start = max(0, context_end - max(5, req_ctx or 22) / H3_FPS * 1000)
+            for row in reference_media["audios"]:
+                rate = playback_rate(row.get("playback_rate"))
+                start, end = int(row.get("source_start_ms", 0)), int(row["source_end_ms"])
+                offset = int(row.get("clip_offset_ms", 0))
+                left, right = max(context_start, offset), min(context_end, offset + (end - start) / rate)
+                if right <= left:
+                    continue
+                tail = dict(row, id="", source_start_ms=start + round((left - offset) * rate),
+                            source_end_ms=start + round((right - offset) * rate))
+                audio = self._load_audio_ref(tail, {}, parser)
+                if audio is not None:
+                    ref_audios[f"ref_audio_{len(ref_audios) + 1}"] = audio
 
         if clip_row.get("auto_prompt") and not clip_row.get("h3_generated_prompt"):
             raise ValueError("Auto prompt is enabled. Use H3 Video Generator with H3 Auto Prompt Config.")

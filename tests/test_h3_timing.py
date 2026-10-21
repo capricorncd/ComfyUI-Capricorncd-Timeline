@@ -51,7 +51,8 @@ class H3TimingTests(unittest.TestCase):
                 if enabled is not None:
                     row["reference_previous"] = enabled
             rows[1].update(h3_timing={"context_frames": 22, "previous_source_clip_id": "clip_0"},
-                           previous_output_video="missing.mp4", previous_reference_video="missing-ref.mp4")
+                           previous_output_video="missing.mp4", previous_reference_video="missing-ref.mp4",
+                           previous_reference_media=dict(videos=[dict(file='stale.mp4')], audios=[]))
             h3.plan_h3_clips(rows, 24)
             self.assertTrue(rows[0]["save_latent"])
             self.assertEqual(rows[1]["h3_motion_context_length"], 0)
@@ -59,6 +60,7 @@ class H3TimingTests(unittest.TestCase):
             self.assertIsNone(rows[1]["h3_timing"]["previous_source_clip_id"])
             self.assertNotIn("previous_output_video", rows[1])
             self.assertNotIn("previous_reference_video", rows[1])
+            self.assertNotIn("previous_reference_media", rows[1])
 
     def test_context_chooses_grid_value_inside_visible_interval(self):
         short = dict(raw_frames=22, context_frames=0, head_frames=17, tail_frames=0)

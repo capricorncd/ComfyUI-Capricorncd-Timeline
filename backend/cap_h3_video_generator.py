@@ -17,7 +17,7 @@ import comfy_aimdo.model_vbar
 from comfy.patcher_extension import WrappersMP
 from comfy_api.latest import io
 
-from .cap_minimax_h3 import CAP_MiniMaxH3ReferenceToVideo, CAP_H3MotionContextRefine, _lock_audio, _prev_clip_output_video_path
+from .cap_minimax_h3 import CAP_MiniMaxH3ReferenceToVideo, CAP_H3MotionContextRefine, _lock_audio, _prev_clip_output_video_path, _previous_reference_media
 from .cap_seq_to_video import CAP_SeqToVideo
 from .cap_compose_clip_videos import CAP_ComposeClipVideos
 from .cap_model_preview import CAP_ModelPreviewOverride
@@ -383,7 +383,13 @@ class CAP_H3VideoGenerator:
             previous = _context_source(row, earlier)
             if stage != "refine" and index not in previews and previous and not any(_clip_id(p) == previous and p.get("save_latent") for p in earlier):
                 if not _prev_clip_output_video_path(json.dumps(data), index, row.get("previous_output_video", "")):
-                    warnings.append(dict(code="missing_context", clip_id=_clip_id(row), previous_clip_id=previous))
+                    media = _previous_reference_media(data, index)
+                    row["previous_reference_media"] = media
+                    if media["videos"]:
+                        earlier.append(row)
+                        continue
+                    if not media["audios"]:
+                        warnings.append(dict(code="missing_context", clip_id=_clip_id(row), previous_clip_id=previous))
                     row.pop("previous_output_video", None)
                     # Replan this chain so independent generation does not retain context trims.
                     chain = [row]

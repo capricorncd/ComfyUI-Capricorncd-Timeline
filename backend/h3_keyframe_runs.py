@@ -1,12 +1,15 @@
 """Expand selected timeline intervals into bounded H3 continuation passes."""
 import copy
 import math
+from .h3_context_media import reference_context_media
 
 
 def expand_keyframe_runs(data, max_segment_seconds=15):
     requests = {str(run["clip_id"]): run for run in (data.get("h3_generation") or {}).get("keyframe_runs", [])}
     materials = {str(row["id"]): row for row in data.get("materials", [])}
     expanded = []
+    source_clips = {str(row.get("source_clip_id") or row["id"]): row
+                    for row in data.get("composition_clips", []) + data["clips"]}
     for clip in data["clips"]:
         parent = str(clip.get("source_clip_id") or clip["id"])
         fps = float(data["fps"])
@@ -39,15 +42,25 @@ def expand_keyframe_runs(data, max_segment_seconds=15):
             keyframe_prompt = interval.get("prompt") or ""
             prompt = keyframe_prompt if keyframe_prompt.strip() else clip.get("prompt", "")
             generation = interval.get("generation") or {}
-            reference_previous = explicit and bool(generation.get("referencePrevious"))
+            reference_previous = bool(generation.get("referencePrevious")) if explicit else bool(clip.get("reference_previous"))
+            previous_parent = interval.get("previous_clip_id", parent) if explicit else (clip.get("h3_timing") or {}).get("previous_source_clip_id")
             previous_row = next((r for r in reversed(expanded) if
-                (r.get("keyframe_segment") or {}).get("clip_id") == interval.get("previous_clip_id", parent) and
-                (r.get("keyframe_segment") or {}).get("end_frame") == interval.get("previous_end_frame", first)), None) if reference_previous else None
-            previous_video = interval.get("previous_output_video", "") if reference_previous else ""
-            if reference_previous and previous_row is None and not previous_video:
+                ((r.get("keyframe_segment") or {}).get("clip_id") == previous_parent and
+                 (not explicit or (r.get("keyframe_segment") or {}).get("end_frame") == interval.get("previous_end_frame", first))) or
+                (not explicit and r.get("source_clip_id") == previous_parent)), None) if reference_previous else None
+            previous_video = (interval.get("previous_output_video", "") if explicit else clip.get("previous_output_video", "")) if reference_previous else ""
+            previous_media = clip.get("previous_reference_media", {}) if reference_previous and not explicit else {}
+            if reference_previous:
+                source = source_clips.get(str(previous_parent))
+                source_end_frame = interval.get("previous_end_frame", first) if explicit else (
+                    round((source["end_ms"] - source["start_ms"]) * fps / 1000) if source else 0)
+                if source and source_end_frame > 0:
+                    previous_media = reference_context_media(source, materials, round(source_end_frame * 1000 / fps))
+            if reference_previous and previous_row is None and not previous_video and not (previous_media.get("videos") or previous_media.get("audios")):
                 reference_previous = False
-            previous_id = previous_row["source_clip_id"] if previous_row else (f"{parent}__previous_{first}" if previous_video else None)
-            carry = previous_row["h3_timing"]["tail_frames"] if previous_row else 0
+            previous_id = previous_row["source_clip_id"] if previous_row else (f"{parent}__previous_{first}" if reference_previous else None)
+            carry = previous_row["h3_timing"]["tail_frames"] if previous_row else (
+                int((clip.get("h3_timing") or {}).get("context_carry_frames", 0)) if previous_video and not explicit else 0)
             if previous_row:
                 previous_row["save_latent"] = True
                 previous_row["h3_timing"]["save_latent"] = True
@@ -62,6 +75,7 @@ def expand_keyframe_runs(data, max_segment_seconds=15):
                 row["preview_start_ms"], row["preview_end_ms"] = row["start_ms"], row["end_ms"]
                 row.pop("playback_spans", None)
                 row.pop("previous_output_video", None)
+                row.pop("previous_reference_media", None)
                 if explicit:
                     row.pop("previous_reference_video", None)
                     row.update(auto_prompt=bool(generation.get("autoPrompt")),
@@ -69,6 +83,8 @@ def expand_keyframe_runs(data, max_segment_seconds=15):
                                seed=generation.get("seed", -1), reference_previous=reference_previous)
                 if not part and previous_video:
                     row["previous_output_video"] = previous_video
+                if not part and previous_media:
+                    row["previous_reference_media"] = previous_media
                 context = 22 if previous_id else 0
                 row["h3_motion_context_length"] = context
                 frames = end - begin

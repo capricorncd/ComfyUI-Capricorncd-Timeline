@@ -1,6 +1,8 @@
 import ast
+import logging
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 import unittest
 import torch
 
@@ -11,6 +13,68 @@ cls = next(n for n in TREE.body if isinstance(n, ast.ClassDef) and n.name == 'CA
 load = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == '_load_video_ref')
 
 class H3ReferenceTrimTests(unittest.TestCase):
+    def test_context_tail_ends_at_selected_reference_trim_and_respects_speed(self):
+        calls = []
+        def video(path, start_time, duration):
+            calls.append((path, start_time, duration))
+            return SimpleNamespace(get_components=lambda: SimpleNamespace(
+                images=torch.arange(round(duration * 24)).float().reshape(-1, 1, 1, 1), frame_rate=24, audio=None))
+        names = {'_frames_at_fps', '_load_motion_context_from_video'}
+        definitions = [node for node in TREE.body if isinstance(node, ast.FunctionDef) and node.name in names]
+        scope = dict(torch=torch, H3_FPS=24, REF_VIDEO_FPS=24, REF_VIDEO_MAX_SEC=15, VideoFromFile=video,
+                     os=SimpleNamespace(path=SimpleNamespace(isfile=lambda _:True)), _LOG=logging.getLogger(__name__))
+        exec(compile(ast.Module(body=definitions, type_ignores=[]), '<context tail>', 'exec'), scope)
+        frames, _ = scope['_load_motion_context_from_video']('original.mp4', 22,
+            dict(start=7, duration=10, rate=2))
+        path, start, duration = calls[0]
+        self.assertEqual(path, 'original.mp4')
+        self.assertAlmostEqual(start + duration, 17)
+        self.assertAlmostEqual(duration, (22 / 24 + .35) * 2)
+        self.assertEqual(len(frames), 22)
+
+    def test_context_fallback_precedence_and_audio_only_reference(self):
+        execute = next(node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name == 'execute')
+        for source in ('latent', 'generated', 'reference', 'audio', 'none'):
+            with self.subTest(source=source):
+                row = dict(id='current', source_clip_id='current', start_ms=5000, end_ms=10000,
+                    preview_start_ms=5000, preview_end_ms=10000, reference_previous=True, h3_motion_context_length=22,
+                    h3_timing=dict(fps=24, context_frames=22, context_carry_frames=0, raw_frames=158,
+                                   head_frames=0, tail_frames=16, play_frames=120, previous_source_clip_id='previous'))
+                parser = SimpleNamespace(_compose_prompt=lambda *args, **kwargs:'current prompt',
+                    _uses_master_audio=lambda *args:False, _clip_audio_from_audios=lambda *args, **kwargs:None)
+                av = dict(videos=[dict(file='reference.mp4', start=7, duration=10, rate=2)] if source == 'reference' else [],
+                          audios=[dict(file='voice.wav', source_start_ms=0, source_end_ms=5000)] if source == 'audio' else [], duration_ms=5000)
+                native = Mock(return_value=SimpleNamespace(args=([], {'samples':'AV'})))
+                motion = Mock(return_value=([], 22))
+                from test_h3_timing import h3
+                scope = dict(torch=torch, H3_FPS=24, align_frame_count=lambda n:n+(5-n)%17,
+                    _snap_h3_grid=lambda n:22, _context_latent_usable=lambda *args:source=='latent',
+                    _prev_clip_output_video_path=Mock(return_value='generated.mp4' if source=='generated' else ''),
+                    _previous_reference_media=Mock(return_value=av),
+                    _load_motion_context_from_video=Mock(return_value=(torch.ones(22,1,1,3), None)),
+                    _motion_context_cls=lambda:lambda:SimpleNamespace(apply=motion),
+                    _h3_audio_clip=lambda clip, duration:clip, plan_h3_clips=h3.plan_h3_clips,
+                    MAX_REF_IMAGES=9, MAX_REF_VIDEOS=3, MAX_REF_AUDIOS=3,
+                    MiniMaxH3ReferenceToVideo=SimpleNamespace(execute=native),
+                    playback_rate=lambda rate:float(rate or 1), compile_h3_mentions=lambda prompt, refs:prompt,
+                    _LOG=logging.getLogger(__name__))
+                exec(compile(ast.Module(body=[execute], type_ignores=[]), '<reference execute>', 'exec'), scope)
+                audio_load = Mock(return_value=dict(waveform=torch.ones(1,1,22), sample_rate=24))
+                node = SimpleNamespace(_parse_clip=lambda *args:({'fps':24},row,{},parser), _visual_refs=lambda *args:[],
+                    _stack_frames=lambda *args:None, _load_audio_ref=audio_load)
+                out = scope['execute'](node, 'clip', 'vae', 'audio_vae', 768, 512, 'match', '{}', 0,
+                                       context_latent={} if source=='latent' else None)
+                self.assertEqual(out[8], 22 if source in ('latent','generated','reference') else 0)
+                self.assertEqual(out[2], 158 if out[8] else 124)
+                self.assertEqual(audio_load.call_count, int(source=='audio'))
+                if source=='audio':
+                    self.assertTrue(native.call_args.kwargs['ref_audios'])
+                    self.assertGreater(audio_load.call_args.args[0]['source_start_ms'], 4000)
+                if source in ('latent','generated'):
+                    scope['_previous_reference_media'].assert_not_called()
+                if source=='none':
+                    self.assertIsNone(native.call_args.kwargs['ref_audios'])
+
     def test_reference_calls_match_installed_comfyui_signature(self):
         upstream = ast.parse((ROOT.parents[1] / 'comfy_extras/nodes_minimax_h3.py').read_text(encoding='utf-8'))
         node = next(n for n in upstream.body if isinstance(n, ast.ClassDef) and n.name == 'MiniMaxH3ReferenceToVideo')

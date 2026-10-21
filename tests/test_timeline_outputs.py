@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from test_h3_prompt_mentions import h3 as mentions
+from test_h3_context_media import media
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +22,7 @@ class TimelineOutputsTests(unittest.TestCase):
         namespace = dict(prompt_reference_rows=mentions.prompt_reference_rows, json=json, datetime=datetime, PROJECT_VERSION='test', SCHEMA_VERSION=4,
                          clear_clip_prompt_vl=lambda: None, _setting_prompt=lambda s, k: s.get(k, ''),
                          _safe_filename_part=lambda name, default: name or default,
-                         plan_h3_clips=h3.plan_h3_clips, _is_subtitle_clip=lambda c: False,
+                         plan_h3_clips=h3.plan_h3_clips, previous_context_media=media.previous_context_media, _is_subtitle_clip=lambda c: False,
                          _clip_visual_entries=lambda *a: [], _strip_comment_lines=lambda s: s,
                          _clip_role_fields=lambda c: (c.get('clip_role', 'multi_ref'), ''), _clip_agent_fields=lambda c: ('MiniMaxH3', ''),
                          _timeline_prompt_includes=lambda c: ['clip'], _clip_seed=lambda c: 1,
@@ -113,7 +114,7 @@ class TimelineOutputsTests(unittest.TestCase):
         namespace = dict(prompt_reference_rows=lambda *a: [], json=json, datetime=datetime,
             PROJECT_VERSION='test', SCHEMA_VERSION=4, clear_clip_prompt_vl=lambda: None,
             _setting_prompt=lambda s, k: s.get(k, ''), _safe_filename_part=lambda n, d: n or d,
-            plan_h3_clips=h3.plan_h3_clips, _is_subtitle_clip=lambda c: False,
+            plan_h3_clips=h3.plan_h3_clips, previous_context_media=media.previous_context_media, _is_subtitle_clip=lambda c: False,
             _clip_visual_entries=lambda *a: [], _strip_comment_lines=lambda s: s,
             _clip_role_fields=lambda c: ('multi_ref', ''), _clip_agent_fields=lambda c: ('MiniMaxH3', ''),
             _timeline_prompt_includes=lambda c: ['clip'], _clip_seed=lambda c: 1,
@@ -144,6 +145,12 @@ class TimelineOutputsTests(unittest.TestCase):
         self.assertEqual(calls, ['selected', 'previous'])
         self.assertEqual(data['clips'][0]['previous_reference_video'], 'previous.mp4')
         self.assertEqual(data['clips'][0]['previous_output_video'], 'existing.mp4')
+        calls.clear()
+        selected['reference_previous'] = False
+        project['settings']['h3_generation'] = dict(keyframe_runs=[dict(clip_id='selected',
+            intervals=[dict(generation=dict(referencePrevious=True), previous_clip_id='previous')])])
+        run()
+        self.assertEqual(calls, ['previous', 'selected'], 'keyframe-only continuation composes its previous reference timeline')
         project['settings']['runtime_only_clip_ids'] = ['unrelated']
         with self.assertRaises(FileNotFoundError):
             run()

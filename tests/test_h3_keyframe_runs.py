@@ -4,10 +4,14 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from test_h3_context_media import media
 
 spec = importlib.util.spec_from_file_location('h3_keyframe_runs', Path(__file__).resolve().parents[1] / 'backend/h3_keyframe_runs.py')
 module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
+tree = ast.parse(Path(spec.origin).read_text(encoding='utf-8'))
+tree.body = [node for node in tree.body if not isinstance(node, ast.ImportFrom)]
+module.reference_context_media = media.reference_context_media
+exec(compile(tree, spec.origin, 'exec'), module.__dict__)
 
 
 class KeyframeRunTests(unittest.TestCase):
@@ -69,6 +73,7 @@ class KeyframeRunTests(unittest.TestCase):
 
     def test_missing_previous_generates_independently(self):
         data = self.data()
+        data['clips'][0]['images'] = []
         data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24,
             intervals=[dict(start_frame=120, end_frame=240, generation=dict(referencePrevious=True))])])
         module.expand_keyframe_runs(data)
@@ -79,6 +84,51 @@ class KeyframeRunTests(unittest.TestCase):
         self.assertIsNone(row['h3_timing']['previous_source_clip_id'])
         self.assertNotIn('previous_output_video', row)
         self.assertTrue(data['h3_generation']['keyframe_runs'][0]['intervals'][0]['generation']['referencePrevious'])
+
+    def test_selected_keyframe_falls_back_to_previous_reference_interval(self):
+        data = self.data()
+        data['materials'][0]['video_trim'].update(start=7, rate=2, duration=50)
+        data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24,
+            intervals=[dict(start_frame=120, end_frame=240, previous_clip_id='a', previous_end_frame=120,
+                            generation=dict(referencePrevious=True))])])
+        module.expand_keyframe_runs(data)
+        row = data['clips'][0]
+        self.assertTrue(row['reference_previous'])
+        self.assertEqual(row['h3_timing']['context_frames'], 22)
+        self.assertEqual(row['previous_reference_media']['videos'][0]['start'], 7)
+        self.assertEqual(row['previous_reference_media']['videos'][0]['duration'], 10)
+
+    def test_first_keyframe_uses_previous_clip_reference_audio(self):
+        data = self.data()
+        data['composition_clips'] = [dict(source_clip_id='previous', start_ms=0, end_ms=1000,
+            audios=[dict(file='voice.wav', source_start_ms=4000, source_end_ms=5000)])]
+        data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24,
+            intervals=[dict(start_frame=0, end_frame=120, previous_clip_id='previous', previous_end_frame=24,
+                            generation=dict(referencePrevious=True))])])
+        module.expand_keyframe_runs(data)
+        self.assertEqual(data['clips'][0]['previous_reference_media']['audios'][0]['file'], 'voice.wav')
+
+    def test_long_clip_first_pass_retains_incoming_reference_context(self):
+        data = self.data()
+        data['clips'][0].update(reference_previous=True,
+            h3_timing=dict(context_frames=22, previous_source_clip_id='previous'),
+            previous_reference_media=dict(videos=[dict(file='prior.mp4', start=3, duration=5, rate=1)], audios=[]))
+        module.expand_keyframe_runs(data)
+        first, following = data['clips']
+        self.assertEqual(first['h3_timing']['context_frames'], 22)
+        self.assertEqual(first['previous_reference_media']['videos'][0]['file'], 'prior.mp4')
+        self.assertEqual(following['h3_timing']['previous_source_clip_id'], first['source_clip_id'])
+        self.assertNotIn('previous_reference_media', following)
+
+    def test_previous_clip_length_does_not_change_current_interval_order(self):
+        data = self.data()
+        data['composition_clips'] = [dict(source_clip_id='previous', start_ms=0, end_ms=30000,
+            audios=[dict(file='voice.wav', source_start_ms=0, source_end_ms=30000)])]
+        data['h3_generation'] = dict(keyframe_runs=[dict(clip_id='a', clip_start_ms=1000, fps=24,
+            intervals=[dict(start_frame=0, end_frame=120, previous_clip_id='previous', previous_end_frame=720,
+                            generation=dict(referencePrevious=True)), dict(start_frame=120, end_frame=240)])])
+        module.expand_keyframe_runs(data)
+        self.assertEqual(len(data['clips']), 2)
 
     def test_output_names_use_zero_for_clip_and_one_based_keyframes(self):
         data = self.data()

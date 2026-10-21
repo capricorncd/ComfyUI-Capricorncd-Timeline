@@ -3,8 +3,10 @@ import json
 import os
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 from test_h3_timing import h3, clips
+from test_h3_context_media import media
 
 
 class ContinuationTests(unittest.TestCase):
@@ -46,16 +48,22 @@ class ContinuationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             directory=Path(temp)
             for name in ('new.mp4','old.mp4','ref.mp4'): (directory/name).write_bytes(b'test')
-            scope=dict(json=json,os=os,_resolve_output_file=lambda name: str(directory/name) if (directory/name).is_file() else '')
-            exec(compile(ast.Module(body=[fn],type_ignores=[]),str(path),'exec'),scope)
+            scope=dict(json=json,os=os,_resolve_output_file=lambda name: str(directory/name) if (directory/name).is_file() else '',
+                previous_context_media=media.previous_context_media,
+                CAP_DataJsonClipParser=lambda:SimpleNamespace(_resolve_file_path=lambda path, location:path))
+            reference_fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='_previous_reference_media')
+            exec(compile(ast.Module(body=[fn, reference_fn],type_ignores=[]),str(path),'exec'),scope)
             resolve=scope[fn.name]
             rows=[dict(source_clip_id='a',output_video='new.mp4'),dict(previous_output_video='old.mp4',previous_reference_video=str(directory/'ref.mp4'),h3_timing=dict(previous_source_clip_id='a'))]
             self.assertEqual(Path(resolve(json.dumps(dict(clips=rows)),1)).name,'new.mp4')
             (directory/'new.mp4').unlink()
             self.assertEqual(Path(resolve(json.dumps(dict(clips=rows)),1)).name,'old.mp4')
             (directory/'old.mp4').unlink()
-            self.assertEqual(Path(resolve(json.dumps(dict(clips=rows)),1)).name,'ref.mp4')
+            self.assertEqual(resolve(json.dumps(dict(clips=rows)),1),'')
+            refs=scope['_previous_reference_media'](dict(clips=rows),1)
+            self.assertEqual(Path(refs['videos'][0]['file']).name,'ref.mp4')
             (directory/'ref.mp4').unlink()
             self.assertEqual(resolve(json.dumps(dict(clips=rows)),1),'')
+            self.assertEqual(scope['_previous_reference_media'](dict(clips=rows),1)['videos'],[])
 
 if __name__=='__main__': unittest.main()

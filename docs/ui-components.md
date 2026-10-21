@@ -30,6 +30,10 @@ The `@` asset picker lists project-managed materials only; catalog RefMods are s
 
 Run `node tests/test_refmods.mjs` and `python -m unittest discover -s tests -p test_refmods.py`. `tests/refmods.browser.html` covers search, insertion, themes, long names and playback against `tests/refmods_fixture_server.py` on loopback port 8768.
 
+## Previous-segment continuation
+
+Clip and keyframe continuation prefer the preceding generated latent, then its generated video. If neither is available, use the preceding segment's selected reference video/audio, preserving trim boundaries, playback speed and keyframe interval ends. Reference video supplies the pinned tail; audio-only fallback supplies an audio reference without video context trims. With no usable media, generate independently and replan timing so no context frames are removed. The same rule applies to the first pass of a long Clip.
+
 ## Project video list
 
 The asset library uses shared `cap-tab-button` controls for Media, Text, Effects, Filters and Adjust. Media has vertical All/Image/Video/Audio tabs and defaults to All; mixed imports keep All selected. Text opens the existing subtitle insertion dialog. Filters offers Fair, Bright and Natural portrait presets. Clicking adds a filter Clip at the playhead on a separate filter/effect track, one third of a normal track's height. Select it to change preset or strength (0–100%, default 70%); drag, trim, split, copy, disable and undo work as for other Clips. Track visibility disables its filters. Filters affect the composed picture for their time range, before subtitles, and stack from lower to upper tracks. Preview and final export share a local RGB LUT with trilinear interpolation; active filters require re-encoding. These are approximate skin-color adjustments, not face detection or proprietary CapCut presets. Effects and Adjust retain empty states. Horizontal and vertical tab sets support their matching arrow keys and Home/End.

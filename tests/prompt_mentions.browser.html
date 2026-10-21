@@ -48,6 +48,16 @@ const input = document.querySelector('textarea'), picker = document.querySelecto
 const enter = text => {input.value=text;input.setSelectionRange(text.length,text.length);input.dispatchEvent(new Event('input',{bubbles:true}));};
 const status=document.createElement('pre');document.querySelector('main').append(status);
 try {
+    enter('@'); input.focus();
+    const category = picker.shadowRoot.querySelector('[data-category="scene"]');
+    category.focus(); category.click();
+    if (picker.hidden) throw new Error('Category click closed the asset picker');
+    if (picker.results.length !== 1 || picker.results[0].id !== 'c') throw new Error('Scene filter did not update results');
+    picker.search.focus();
+    if (picker.hidden) throw new Error('Focusing search closed the asset picker');
+    picker.select(picker.results[0]);
+    if (input.value !== '@雨夜街道 ' || !picker.hidden) throw new Error('Filtered asset selection failed');
+    picker.category = 'all';
     enter(':h3');
     if (picker.results.length !== 7) throw new Error('Expected seven section labels');
     picker.select(picker.results.find(row=>row.name==='summary'));

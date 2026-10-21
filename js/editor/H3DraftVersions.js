@@ -11,12 +11,13 @@ import { t as T } from '../i18n/timeline_editor.js';
 
 export const draftT = makeT({
     en: {
+        generate_selected_keyframe: "Preview sampling — selected keyframe",
         delete_all: 'Delete all', removed_all: 'Move all listed preview versions and their video, latent and metadata files to the system recycle bin? Ctrl+Z cannot restore them.',
         batch: 'Batch actions', unlink: 'Unlink (keep files)', unlink_all: 'Unlink all',
         associate: 'Associate existing folder', no_match: 'No preview versions belonging to this Clip were found.', hd: 'Generate HD', segment: 'Keyframe {interval} · part {part}/{parts}', start: 'Clip start {time}',
         previous_clip: 'Previous Clip', next_clip: 'Next Clip', disable_all: 'Disable all previews', generated: 'Generated {time}', unknown_time: 'Unknown',
         playback_mode: "Preview versions", playback_hint: "Play preview versions along the timeline (latest enabled version per Clip)", playback_exit: "Exit preview version playback",
-        generate_all: "Batch preview sampling — all clips", generate_selected: "Batch preview sampling — selected clips",
+        generate_all: "Preview sampling — all clips", generate_selected: "Preview sampling — selected clips",
         title: 'Preview sampling manager', generate: 'Batch preview sampling',
         empty: 'No first-pass versions. Generate candidates to save low-resolution previews and their latents.',
         hint: 'Run automatically refines the latest valid preview latent. Disabled versions remain available for preview. Deleting moves video, latent and metadata to the recycle bin and cannot be undone with Ctrl+Z.',
@@ -25,12 +26,13 @@ export const draftT = makeT({
         failed: 'Could not run: {message}', prompt: 'Preview sampling prompt', delete_failed: 'Could not delete: {message}', removed: 'Move this version’s video, latent and metadata files to the system recycle bin? Ctrl+Z cannot restore them. Restore all files manually from the recycle bin, then use Associate existing folder to link the version again.',
     },
     zh: {
+        generate_selected_keyframe: "选中关键帧预览采样",
         delete_all: '全部删除', removed_all: '删除当前列表的全部预览版本，并将视频、latent 和版本信息文件移入系统回收站？此操作不支持 Ctrl+Z。',
         batch: '批量操作', unlink: '解绑（保留磁盘文件）', unlink_all: '全部解绑',
         associate: '关联已有文件夹', no_match: '此文件夹没有属于当前 Clip 的预览版本。', hd: '生成高清版', segment: '关键帧区间 {interval} · 第 {part}/{parts} 段', start: 'Clip 内开始 {time}',
         previous_clip: '上一个 Clip', next_clip: '下一个 Clip', disable_all: '全部禁用', generated: '生成时间 {time}', unknown_time: '未知',
         playback_mode: "预览版模式", playback_hint: "沿时间轴播放各 Clip 最新启用的预览版", playback_exit: "退出预览版播放模式",
-        generate_all: "全部片段批量预览采样", generate_selected: "选中片段批量预览采样",
+        generate_all: "全部片段预览采样", generate_selected: "选中片段预览采样",
         title: '预览采样管理', generate: '批量预览采样',
         empty: '暂无预览采样。批量预览采样后，这里会保存低清预览与对应的 latent。',
         hint: '运行时自动使用最新有效预览的 latent 进行二次采样。禁用后仍可预览；删除会将视频、latent 和版本信息移入回收站，不支持 Ctrl+Z。',
@@ -39,6 +41,7 @@ export const draftT = makeT({
         failed: '运行失败：{message}', prompt: '预览采样提示词', delete_failed: '删除失败：{message}', removed: '删除此版本并将视频、latent 和版本信息文件移入系统回收站？此操作不支持 Ctrl+Z。需要手动从回收站还原全部文件，再使用「关联已有文件夹」重新关联。',
     },
     ja: {
+        generate_selected_keyframe: "選択キーフレームのプレビューサンプリング",
         delete_all: 'すべて削除', removed_all: '一覧のすべてのプレビューと動画・latent・バージョン情報をごみ箱に移動しますか？Ctrl+Z では復元できません。',
         batch: '一括操作', unlink: '関連付け解除（ファイルを保持）', unlink_all: 'すべての関連付けを解除',
         associate: '既存フォルダーを関連付け', no_match: 'この Clip のプレビューが見つかりません。', hd: '高解像度版を生成', segment: 'キーフレーム {interval} · {part}/{parts}', start: 'Clip 内開始 {time}',

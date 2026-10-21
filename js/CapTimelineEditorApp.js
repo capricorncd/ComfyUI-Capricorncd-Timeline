@@ -1727,6 +1727,9 @@ export class CapTimelineEditorApp {
             { separator: true },
             { label: draftT("generate_all"), icon: "listCollapse", fn: () => void this._runAllActiveClipsDownstream({ h3Generation: {action: "draft"} }) },
             { label: draftT("generate_selected"), icon: "listCollapse", fn: () => void this._runSelectedClipsDownstream({action: "draft"}) },
+            { label: draftT("generate_selected_keyframe"), icon: "listCollapse",
+                disabled: !this._hasH3VideoGeneratorDownstream() || !selectedKeyframeRun(this),
+                fn: () => void this._runSelectedKeyframeDownstream("draft") },
         ], r.left, r.bottom + 4, { ignoreNextClick: false });
     }
 
@@ -18309,12 +18312,12 @@ export class CapTimelineEditorApp {
         button.disabled = !run;
     }
 
-    async _runSelectedKeyframeDownstream() {
+    async _runSelectedKeyframeDownstream(action = "normal") {
         if (!this._hasH3VideoGeneratorDownstream()) return;
         const request = selectedKeyframeRun(this);
         const target = this._directorKeyframes?.selectedTarget();
         if (!request || !target) return;
-        return this._runAllActiveClipsDownstream({clips: [target.clip], h3Generation: request});
+        return this._runAllActiveClipsDownstream({clips: [target.clip], h3Generation: {...request, action}});
     }
 
     async _queueClipsDownstream(clips, workflowPreview = null, h3Generation = null) {

@@ -41,14 +41,15 @@ assert.deepEqual(meta.promptMediaIds,['hero']);assert(host.saved);
 assert(appSource.includes('prompt_media_ids: [...(m.promptMediaIds || [])]'));
 console.log('PASS: prompt-only references stay separate from visible materials and persist');
 
-globalThis.document = Object.assign(new EventTarget(),{createElement:()=>Object.assign(new EventTarget(),{configure(){},remove(){}})});
+globalThis.document = Object.assign(new EventTarget(),{createElement:()=>Object.assign(new EventTarget(),{configure(textarea, assets){this.assets=assets;},remove(){}})});
 globalThis.window = new EventTarget();
 const textarea = Object.assign(new EventTarget(), {value:'@', selectionStart:1, selectionEnd:1,after(){}});
 const livePicker = Object.assign(Object.create(PromptMentions.prototype), {
     root:{querySelectorAll:()=>[]},
     search:{value:''}, render(){this.results=this.assets;}, place(){}, onKey(){}, hidden:true,
 });
-livePicker.bind(textarea, () => [{id:'hero', name:'角色'}]);
+const mentionAssets = [{id:'hero', name:'角色'}, {id:'effect', name:'特效/火球', refmod:true}];
+livePicker.bind(textarea, () => mentionAssets);
 const composingInput = new Event('input');
 composingInput.isComposing = true;
 textarea.dispatchEvent(composingInput);
@@ -61,6 +62,8 @@ livePicker.connectedCallback();
 textarea.dispatchEvent(new Event('input'));
 assert.equal(livePicker.hidden, false, 'reconnect restores prompt input listeners');
 assert.equal(livePicker.results[0].id, 'hero');
+assert.deepEqual(livePicker.results.map(asset => asset.id), ['hero'], '@ suggestions only include managed project materials');
+assert.equal(livePicker.tags.assets, mentionAssets, 'existing RefMod mentions remain available to inline tags and bindings');
 livePicker.disconnectedCallback();
 console.log('PASS: IME commit and reconnect keep @ suggestions active');
 

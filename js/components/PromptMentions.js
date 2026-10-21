@@ -4,7 +4,6 @@ import { assetMentionRanges } from './InlinePromptEditor.js';
 import './Button.js';
 import { iconHtml } from '../cap_icons.js';
 import { makeT } from '../cap_i18n.js';
-import { refModPlaybackRate } from '../editor/RefMods.js';
 const T = makeT({
     zh: { dialogue: '选择台词语言', h3: 'H3 标签与用法', h3Search: '搜索标签或说明…', h3Empty: '没有匹配的 H3 选项', h3Close: '关闭 H3 列表', retention: '选择参考保留标记', fully_preserved: '完整保留参考特征（如保持人物身份和服装）', partially_preserved: '部分保留并修改特征（如保留服装版型，去掉标志）', attribute_transfer: '将特征转移给另一主体（如把材质用于另一人物）', weak_reference: '仅借鉴风格、类别或氛围（如借鉴场景色调）', fully_copy: '完整复用音频（如原声贯穿整段视频）', partially_copy: '部分复用音频（如只保留某段对白）', reference: '参考音色、节奏等特征（如参考声音生成新对白）', audio_weak: '仅借鉴声音类别或氛围（如相似的环境声）', unavailable: '素材预览不可用', remove: '删除素材引用', title: '选择关联素材', search: '搜索素材名称…', all: '全部', character: '角色', scene: '场景', prop: '道具', grid_storyboard: '宫格图', other: '其他', empty: '没有匹配的素材', close: '关闭素材列表' },
     en: { dialogue: 'Select dialogue language', h3: 'H3 tags and usage', h3Search: 'Search tags or descriptions…', h3Empty: 'No matching H3 options', h3Close: 'Close H3 list', retention: 'Select reference retention', fully_preserved: 'Preserve defined features (e.g. identity and clothing)', partially_preserved: 'Keep some features and change others (e.g. remove a clothing logo)', attribute_transfer: 'Transfer features to another subject (e.g. apply a material to another character)', weak_reference: 'Borrow broad style or atmosphere (e.g. scene colors)', fully_copy: 'Reuse all audio (e.g. original soundtrack throughout)', partially_copy: 'Reuse part of the audio (e.g. one dialogue segment)', reference: 'Reference audio features (e.g. voice timbre for new dialogue)', audio_weak: 'Borrow broad audio character (e.g. similar ambience)', unavailable: 'Asset preview unavailable', remove: 'Remove asset reference', title: 'Select linked asset', search: 'Search asset names…', all: 'All', character: 'Characters', scene: 'Scenes', prop: 'Props', grid_storyboard: 'Storyboard grids', other: 'Other', empty: 'No matching assets', close: 'Close asset list' },
@@ -120,7 +119,7 @@ export class PromptMentions extends HTMLElement {
             this.match = h3 || mentionQuery(textarea.value, textarea.selectionStart);
             if (!this.match || textarea.selectionStart !== textarea.selectionEnd
                 || assetMentionRanges(textarea.value, getAssets()).some(range => this.match.start === range.start && this.match.end === range.end)) { this.close(); return; }
-            this.assets = retention ? retentionOptions(retention.kind) : h3 ? h3.options : getAssets();
+            this.assets = retention ? retentionOptions(retention.kind) : h3 ? h3.options : getAssets().filter(asset => !asset.refmod);
             this.search.value = this.match.query;
             this.hidden = false;
             this.render();
@@ -164,7 +163,7 @@ export class PromptMentions extends HTMLElement {
         this.root.querySelector('strong').textContent = T(this.match?.dialogue ? 'dialogue' : this.mode === 'h3' ? 'h3' : retention ? 'retention' : 'title');
         this.root.querySelector('.list').setAttribute('aria-label', T(this.match?.dialogue ? 'dialogue' : this.mode === 'h3' ? 'h3' : retention ? 'retention' : 'title'));
         this.results = this.assets.filter(asset => (retention || this.category === 'all' || (asset.category || 'other') === this.category)
-            && `${asset.name} ${retention || asset.refmod ? asset.file : ''}`.toLocaleLowerCase().includes(query));
+            && `${asset.name} ${retention ? asset.file : ''}`.toLocaleLowerCase().includes(query));
         this.index = 0;
         for (const button of this.root.querySelectorAll('nav cap-button')) button.setAttribute('aria-pressed', String(button.dataset.category === this.category));
         const list = this.root.querySelector('.list');
@@ -182,7 +181,7 @@ export class PromptMentions extends HTMLElement {
                 if (asset.kind === 'image') { media.alt = ''; media.loading = 'lazy'; }
                 else {
                     media.muted = true; media.preload = 'none'; media.loop = true; media.playsInline = true;
-                    button.onpointerenter = () => {media.playbackRate = asset.refmod ? refModPlaybackRate() : 1; void media.play().catch(() => {});};
+                    button.onpointerenter = () => {void media.play().catch(() => {});};
                     button.onpointerleave = () => media.pause();
                 }
                 row.append(media);

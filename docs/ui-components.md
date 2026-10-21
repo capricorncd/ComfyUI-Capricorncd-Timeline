@@ -26,6 +26,8 @@ Keyframe prompts use the shared rich prompt editor. `Ctrl+/` toggles `//` commen
 
 Search includes relative paths and descriptions; the folder selector includes nested folders. Inserted mentions use the full relative path. Previews use the containment-checked `/refmods/preview` endpoint. Videos play muted on hover/focus and pause on leave, close or disconnect. Global settings stores preview playback speed locally (1×, 2× default, 4×), without changing generation timing. Clip `refmods` are distinct from visible media and frame anchors.
 
+The `@` asset picker lists project-managed materials only; catalog RefMods are selected through the prompt footer's RefMod list. Existing RefMod mentions keep their inline tags and Clip bindings. Moving focus from the rich prompt to the asset picker's categories or search keeps it open so filtered results can be selected.
+
 Run `node tests/test_refmods.mjs` and `python -m unittest discover -s tests -p test_refmods.py`. `tests/refmods.browser.html` covers search, insertion, themes, long names and playback against `tests/refmods_fixture_server.py` on loopback port 8768.
 
 ## Project video list

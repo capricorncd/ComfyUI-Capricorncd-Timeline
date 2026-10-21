@@ -46,7 +46,7 @@ export class InlinePromptEditor extends HTMLElement {
         </style><div class="editor" part="editor" contenteditable="true" role="textbox" aria-multiline="true"></div><div class="preview" popover="manual"></div>`;
         this.editor = this.shadowRoot.querySelector('.editor');
         this.editor.addEventListener('focus', () => this.textarea?.dispatchEvent(new Event('focus')));
-        this.editor.addEventListener('blur', () => { this.hidePreview(); this.textarea?.dispatchEvent(new Event('blur')); this.textarea?.dispatchEvent(new Event('change', {bubbles: true})); });
+        this.editor.addEventListener('blur', event => { this.hidePreview(); this.textarea?.dispatchEvent(new FocusEvent('blur', {relatedTarget: event.relatedTarget})); this.textarea?.dispatchEvent(new Event('change', {bubbles: true})); });
         this.editor.addEventListener('pointerup', () => this.syncSelection());
         this.editor.addEventListener('keyup', () => this.syncSelection());
         this.editor.addEventListener('keydown', event => {

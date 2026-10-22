@@ -76,6 +76,19 @@ class ReferenceTimelineTests(unittest.TestCase):
         self.clip['reference_timeline']['audios'][0]['muted'] = True
         self.assertEqual(self.compose(), [])
 
+    def test_muted_reference_video_does_not_export_original_soundtrack(self):
+        voiced = self.root / 'voiced.mp4'
+        run(['ffmpeg', '-v', 'error', '-i', str(self.video), '-i', str(self.audio),
+             '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', str(voiced)])
+        self.project['media'][0]['file'] = str(voiced)
+        self.clip['reference_timeline']['audios'] = []
+        for muted in (False, True):
+            self.clip['reference_timeline']['videos'][0]['muted'] = muted
+            row = self.compose()[0]
+            kinds = {stream['codec_type'] for stream in probe(row['file'])['streams']}
+            self.assertIn('video', kinds)
+            self.assertEqual('audio' in kinds, not muted)
+
     def test_missing_catalog_reference_fails_clearly(self):
         self.clip['reference_timeline']['videos'][0]['media_id'] = 'missing'
         with self.assertRaisesRegex(ValueError, 'catalog'):

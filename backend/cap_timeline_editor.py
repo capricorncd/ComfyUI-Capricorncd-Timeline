@@ -743,7 +743,7 @@ class CAP_TimelineEditor:
                 # Audio follows mute only (same as editor playback). Visuals also
                 # respect clip/track visibility.
                 if is_audio_clip:
-                    if track.get("muted", False) or clip.get("muted", False):
+                    if not is_audio_track or track.get("muted", False) or clip.get("muted", False):
                         continue
                     audio_clips.append(clip)
                 else:
@@ -751,14 +751,6 @@ class CAP_TimelineEditor:
                         continue
                     clip = source_clip_timing(clip)
                     visual_clips.append((track, clip, z_index))
-                    media_rows = resolve_clip_media(project, clip)
-                    has_video_item = any(str(row.get("kind") or "").lower() == "video" for row in media_rows)
-                    source_kind = str(self._source(clip).get("kind") or clip_type).lower()
-                    is_video = clip_type == "video" or source_kind == "video" or has_video_item
-                    if is_video and clip.get("has_audio", False) and not clip.get("muted", False):
-                        embedded = dict(clip)
-                        embedded["source"] = dict(self._source(clip), kind="video")
-                        audio_clips.append(embedded)
 
         segments = self._visual_segments(visual_clips)
 

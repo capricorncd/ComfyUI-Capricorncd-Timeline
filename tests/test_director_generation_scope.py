@@ -13,16 +13,16 @@ end = next(i for i, n in enumerate(execute.body) if isinstance(n, ast.Assign)
 selection = compile(ast.Module(body=execute.body[start:end], type_ignores=[]), str(source), "exec")
 
 
-def select(tracks, only_ids=None):
+def select(tracks, only_ids=None, media=None):
     env = {
-        "project": {"tracks": tracks},
+        "project": {"tracks": tracks, "media": media or []},
         "only_ids": only_ids,
         "self": SimpleNamespace(
             _track_active=lambda t: t.get("enabled", True) and t.get("visible", True),
             _audio_track_active=lambda t: t.get("enabled", True), _source=lambda c: {}),
         "_is_subtitle_clip": lambda c, t: c.get("type") in ("subtitle", "text"),
         "source_clip_timing": lambda c: c,
-        "resolve_clip_media": lambda p, c: [],
+        "resolve_clip_media": lambda p, c: [m for m in p["media"] if m["id"] in c.get("media_ids", [])],
     }
     exec(selection, env)
     return [c[1]["id"] for c in env["visual_clips"]], [c["id"] for c in env["audio_clips"]]
@@ -61,6 +61,21 @@ class DirectorGenerationScopeTests(unittest.TestCase):
         self.assertEqual(visuals, [first["id"], second["id"]])
         self.assertEqual(audio, [bgm["id"]])
 
+    def test_video_soundtrack_never_enters_audio_track_references(self):
+        for clip_type in ('video', 'clip'):
+            for child_muted in (False, True):
+                for only_ids in (None, {'video'}):
+                    with self.subTest(clip_type=clip_type, child_muted=child_muted, only_ids=only_ids):
+                        video = dict(id='video', type=clip_type, has_audio=True, muted=False, media_ids=['ref'],
+                                     reference_timeline=dict(videos=[dict(muted=child_muted)]))
+                        tracks = [dict(type='director', clips=[video]),
+                                  dict(type='audio', clips=[dict(id='music', type='audio'),
+                                      dict(id='muted', type='audio', muted=True),
+                                      dict(id='disabled', type='audio', enabled=False)]),
+                                  dict(type='audio', muted=True, clips=[dict(id='muted-track', type='audio')])]
+                        self.assertEqual(select(tracks, only_ids, [dict(id='ref', kind='video', file='original.mp4')]),
+                                         (['video'], ['music']))
+
     def test_muted_disabled_hidden_and_misplaced_audio(self):
         c = dict(id="clip", type="clip")
         visuals, audio = select([
@@ -72,7 +87,7 @@ class DirectorGenerationScopeTests(unittest.TestCase):
             dict(type="audio", visible=False, clips=[dict(c, id="audio")]),
         ])
         self.assertEqual(visuals, [])
-        self.assertEqual(audio, ["voice", "audio"])
+        self.assertEqual(audio, ["audio"])
 
 
 if __name__ == "__main__":

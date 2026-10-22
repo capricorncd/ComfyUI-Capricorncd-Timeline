@@ -155,6 +155,46 @@ class H3AudioTrimTests(unittest.TestCase):
         # Context prefix is handled separately: 78 generated - 22 context = 56 content frames.
         self.assertEqual(scope['_h3_audio_clip'](original, round((78 - 22) * 1000 / 24))['end_ms'], 2333)
 
+    def test_keyframe_audio_matches_context_and_full_padded_length(self):
+        definitions = [n for n in TREE.body if isinstance(n, ast.FunctionDef)
+                       and n.name == '_h3_keyframe_reference_audio']
+        definitions += [n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == '_load_audio_ref']
+        scope = dict(torch=torch, CAP_DataJsonClipParser=object, playback_rate=lambda v: float(v or 1),
+                     os=SimpleNamespace(path=SimpleNamespace(normpath=lambda p:p, isfile=lambda p:True)))
+        exec(compile(ast.Module(body=definitions, type_ignores=[]), '<keyframe audio>', 'exec'), scope)
+        plan, load_audio = scope['_h3_keyframe_reference_audio'], scope['_load_audio_ref']
+        original = dict(h3_timing=dict(context_carry_frames=0), audios=[dict(
+            source_start_ms=44250, source_end_ms=51167, clip_offset_ms=0,
+            host_local_start_ms=8000, host_duration_ms=73375)])
+        parser = SimpleNamespace(_audio_row_path=lambda *a:'music.wav',
+            _load_waveform=lambda p:(torch.arange(100000).reshape(1, 1, -1).float(), 1000),
+            _trim=lambda w, sr, start, end:dict(waveform=w[..., start:end], sample_rate=sr))
+        for carry, context in [(0, 22), (7, 22), (22, 22), (0, 0)]:
+            original['h3_timing']['context_carry_frames'] = carry
+            row = plan(original, 192, 24, context)[0]
+            expected = round(44250 - max(0, context - carry) * 1000 / 24)
+            self.assertEqual(row['source_start_ms'], expected)
+            audio = load_audio(None, row, {}, parser)
+            self.assertEqual(audio['waveform'].shape[-1], 8000)
+            self.assertEqual(audio['waveform'][0, 0, 0].item(), expected)
+        self.assertEqual(original['audios'][0]['source_start_ms'], 44250)
+        original['h3_timing']['context_carry_frames'] = 0
+        original['audios'][0]['playback_rate'] = 2
+        self.assertEqual(plan(original, 192, 24, 22)[0]['source_start_ms'], round(44250 - 22 / 24 * 2000))
+
+        # Audio starts at the interval boundary: unavailable pre-roll stays silent.
+        short = dict(audios=[dict(source_start_ms=0, source_end_ms=1000,
+                                 host_local_start_ms=0, host_duration_ms=1000, clip_offset_ms=0)])
+        row = plan(short, 141, 24, 22)[0]
+        audio = load_audio(None, row, {}, parser)['waveform']
+        self.assertEqual(audio.shape[-1], round(141 / 24 * 1000))
+        self.assertTrue(torch.all(audio[..., :917] == 0))
+        self.assertEqual(audio[0, 0, 918].item(), 1)
+        self.assertTrue(torch.all(audio[..., 1917:] == 0))
+        # Late starts retain their gap instead of pulling unrelated earlier audio.
+        short['audios'][0]['clip_offset_ms'] = 500
+        self.assertAlmostEqual(plan(short, 141, 24, 22)[0]['clip_offset_ms'], 500 + 22 / 24 * 1000)
+
     def test_reference_tail_and_eof_silence(self):
         fn = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == '_load_audio_ref')
         scope = dict(torch=torch, CAP_DataJsonClipParser=object, playback_rate=lambda v: float(v or 1),

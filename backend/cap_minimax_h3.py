@@ -47,6 +47,35 @@ def _h3_audio_clip(clip, duration_ms):
     return {**clip, "end_ms": start_ms + duration_ms, "audios": rows}
 
 
+def _h3_keyframe_reference_audio(clip, frames, fps, context_frames):
+    """Match model reference audio to the raw H3 window, including context and padding."""
+    timing = clip.get("h3_timing") or {}
+    overlap_ms = max(0, context_frames - int(timing.get("context_carry_frames", 0))) * 1000 / fps
+    duration_ms = frames * 1000 / fps
+    rows = []
+    for source in clip.get("audios") or []:
+        row = dict(source)
+        rate = playback_rate(row.get("playback_rate"))
+        start = float(row.get("source_start_ms", 0))
+        offset = float(row.get("clip_offset_ms", 0))
+        local = float(row.get("host_local_start_ms", 0))
+        # Only extend an audio clip already playing at the interval boundary.
+        back = min(overlap_ms, local, start / rate) if offset == 0 else 0
+        offset += overlap_ms - back
+        start -= back * rate
+        end = start + max(0, duration_ms - offset) * rate
+        if row.get("host_duration_ms") is not None:
+            end = min(end, start + max(0, float(row["host_duration_ms"]) - local + back) * rate)
+        else:
+            end = min(end, float(row["source_end_ms"]))
+        if offset >= duration_ms or end <= start:
+            continue
+        row.update(source_start_ms=round(start), source_end_ms=round(end),
+                   clip_offset_ms=offset, reference_frames=frames, reference_fps=fps)
+        rows.append(row)
+    return rows
+
+
 def _lock_audio(latent, encoded):
     video, _ = latent["samples"].unbind()
     return {**latent,
@@ -469,7 +498,13 @@ class CAP_MiniMaxH3ReferenceToVideo:
             audio["waveform"] = parser._resample_waveform(audio["waveform"], round(sample_rate * rate), sample_rate)
         samples = max(1, round((src_end - src_start) / rate / 1000 * sample_rate))
         waveform = audio["waveform"][..., :samples].clone()
-        audio["waveform"] = torch.nn.functional.pad(waveform, (0, samples - waveform.shape[-1]))
+        if row.get("reference_frames") is not None:
+            total = max(1, round(row["reference_frames"] * sample_rate / row["reference_fps"]))
+            offset = min(total, max(0, round(row.get("clip_offset_ms", 0) * sample_rate / 1000)))
+            waveform = waveform[..., :total - offset]
+            audio["waveform"] = torch.nn.functional.pad(waveform, (offset, total - offset - waveform.shape[-1]))
+        else:
+            audio["waveform"] = torch.nn.functional.pad(waveform, (0, samples - waveform.shape[-1]))
         return audio
 
     def _letterbox_frames(self, image: torch.Tensor, height: int, width: int) -> torch.Tensor:
@@ -655,7 +690,9 @@ class CAP_MiniMaxH3ReferenceToVideo:
             prompt_references[-1] = (row, tag)
             image_frames.append(img)
 
-        for row in audio_clip.get("audios") if isinstance(audio_clip.get("audios"), list) else []:
+        reference_audios = (_h3_keyframe_reference_audio(clip_row, length, H3_FPS, pin if use_context else 0)
+                            if clip_row.get("keyframe_segment") else audio_clip.get("audios", []))
+        for row in reference_audios if isinstance(reference_audios, list) else []:
             if len(ref_audios) >= MAX_REF_AUDIOS:
                 break
             if not isinstance(row, dict):

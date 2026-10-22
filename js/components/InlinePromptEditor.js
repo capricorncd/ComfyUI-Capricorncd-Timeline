@@ -183,6 +183,20 @@ export class InlinePromptEditor extends HTMLElement {
         const selection = this.shadowRoot.getSelection?.() || window.getSelection();
         selection.removeAllRanges(); selection.addRange(range);
     }
+    scrollSelectionIntoView() {
+        const selection = this.shadowRoot.getSelection?.() || window.getSelection();
+        if (!selection?.rangeCount) return;
+        const range = selection.getRangeAt(0).cloneRange();
+        if (!this.editor.contains(range.endContainer)) return;
+        range.collapse(false);
+        const rect = range.getClientRects()[0];
+        if (!rect) return;
+        const viewport = this.editor.getBoundingClientRect();
+        const padding = 12;
+        if (rect.bottom > viewport.bottom - padding) this.editor.scrollTop += rect.bottom - viewport.bottom + padding;
+        else if (rect.top < viewport.top + padding) this.editor.scrollTop += rect.top - viewport.top - padding;
+    }
+
     beforeInput(event) {
         if (this.textarea.readOnly || this.textarea.disabled) { event.preventDefault(); return; }
         this.syncSelection();
@@ -311,6 +325,7 @@ export class InlinePromptEditor extends HTMLElement {
         if (this.renderedValue === textarea.value && this.renderedAssets === assets) return;
         const selectionStart = textarea.selectionStart, selectionEnd = textarea.selectionEnd;
         const focused = this.shadowRoot.activeElement === this.editor;
+        const {scrollTop, scrollLeft} = this.editor;
         this.editor.replaceChildren();
         const ranges = assetMentionRanges(textarea.value, assets);
         let offset = 0;
@@ -332,7 +347,12 @@ export class InlinePromptEditor extends HTMLElement {
             remove.setAttribute('aria-label', `${T('remove')}: ${name.textContent}`); remove.title = `${T('remove')}: ${name.textContent}`;
             remove.innerHTML = iconHtml('close', 12); remove.hidden = textarea.readOnly; remove.disabled = textarea.disabled;
             remove.addEventListener('pointerdown', event => event.preventDefault());
-            remove.addEventListener('click', () => replaceRichPromptRange(textarea, '', range.start, range.end, true));
+            remove.addEventListener('click', () => {
+                const {scrollTop, scrollLeft} = this.editor;
+                replaceRichPromptRange(textarea, '', range.start, range.end, true);
+                this.editor.scrollTop = scrollTop;
+                this.editor.scrollLeft = scrollLeft;
+            });
             tag.append(name, remove); this.editor.append(tag); offset = range.end;
         }
         this.appendText(textarea.value.slice(offset), offset);
@@ -341,6 +361,8 @@ export class InlinePromptEditor extends HTMLElement {
         }
         this.renderedValue = textarea.value; this.renderedAssets = assets;
         if (focused) this.setSelection(selectionStart, selectionEnd);
+        this.editor.scrollTop = scrollTop;
+        this.editor.scrollLeft = scrollLeft;
     }
 }
 customElements.define('cap-inline-prompt', InlinePromptEditor);

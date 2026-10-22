@@ -62,6 +62,7 @@ export class PromptTemplateActions extends HTMLElement {
             if (ta.disabled || ta.readOnly) return;
             replaceRichPromptRange(ta, text, ...selection);
             ta.dispatchEvent(new Event('change', {bubbles: true}));
+            ta._capInlineEditor?.scrollSelectionIntoView();
         };
         if (action === 'refmods') {
             const browser = document.createElement('cap-refmod-browser'); browser.setAttribute('compact','');

@@ -784,6 +784,7 @@ export class CapTimelineEditorApp {
     /** Walk to the outermost graph (root) for a LiteGraph graph / subgraph. */
     static _graphRoot(graph) {
         if (!graph) return null;
+        if (graph.rootGraph) return graph.rootGraph;
         let cur = graph;
         const seen = new Set();
         while (cur && !seen.has(cur)) {
@@ -2890,8 +2891,10 @@ export class CapTimelineEditorApp {
         try {
             const workflow = this._exportWorkflowSnapshot();
             const source = this._buildProject();
-            const name = `${source.name} - ${T("selected_clips")}`;
+            const now = new Date();
+            const name = `${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${T("untitled_project")}`;
             const project = selectedClipProject(source, selected.map(clip => clip.id), name);
+            Object.assign(project, createProjectIdentity());
             const graph = this.node.graph;
             const serializedGraph = graph === CapTimelineEditorApp._graphRoot(graph) ? workflow
                 : workflow.definitions?.subgraphs?.find(subgraph => subgraph.id === graph.id);
@@ -2905,8 +2908,9 @@ export class CapTimelineEditorApp {
                 if (widget.name in values) node.widgets_values[index] = values[widget.name];
             }
             workflow.id = crypto.randomUUID();
+            const newWorkflow = app.extensionManager.workflow.createTemporary(`${name}.json`, workflow);
             this.close();
-            await app.loadGraphData(workflow, true, true, `${name}.json`);
+            await app.loadGraphData(workflow, true, true, newWorkflow);
         } catch (error) {
             showCapAlert(error.message);
         }

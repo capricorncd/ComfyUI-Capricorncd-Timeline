@@ -1036,6 +1036,12 @@ export class CapTimelineEditorApp {
     }
 
     open() {
+        if (!this._isNodeOnLiveGraph()) {
+            const editor = this._liveNode()?._teApp;
+            this.close();
+            if (editor && editor !== this && !editor._destroyed) editor.open();
+            return;
+        }
         // Already visible for this node — ignore duplicate opens.
         if (CapTimelineEditorApp._open === this && this._overlay?.classList.contains("open")) {
             return;
@@ -2885,6 +2891,7 @@ export class CapTimelineEditorApp {
     }
 
     async _newProjectFromSelectedClips() {
+        if (!this._isNodeOnLiveGraph()) { this.open(); return; }
         if (!this._canCreateProject()) return;
         const selected = this._timeline.getSelectedClips();
         if (!selected.length) return;
@@ -22122,12 +22129,18 @@ export class CapTimelineEditorApp {
     }
 
     /** True when this editor's node still belongs to the live root graph. */
+    _liveNode() {
+        const graph = this.node?.graph;
+        const root = app.rootGraph ?? app.graph;
+        if (!graph || !root) return null;
+        const liveGraph = graph.id === CapTimelineEditorApp._graphRoot(graph).id ? root : root.subgraphs?.get(graph.id);
+        return liveGraph?.getNodeById?.(this.node.id) ?? null;
+    }
+
     _isNodeOnLiveGraph() {
-        if (this._destroyed || !this.node?.graph) return false;
-        const live = app.rootGraph ?? app.graph;
-        if (!live) return false;
-        return CapTimelineEditorApp._graphRoot(this.node.graph)
-            === CapTimelineEditorApp._graphRoot(live);
+        if (this._destroyed) return false;
+        const node = this._liveNode();
+        return !!node && (node === this.node || node._teApp === this);
     }
 
     _saveToWidgets() {

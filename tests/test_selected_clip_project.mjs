@@ -49,7 +49,7 @@ const create = new Function('selectedClipProject','createProjectIdentity','CapTi
     selectedClipProject,createProjectIdentity,CapTimelineEditorApp,key=>key === 'untitled_project' ? '\u672a\u547d\u540d\u9879\u76ee' : key,shots=>({schema_version:1,shots}),api,error=>{throw new Error(error);});
 const graph = {};
 const workflow = {id:'old-workflow',nodes:[{id:7,widgets_values:['old-project','old-storyboard'],properties:{cat_named:{project_json:'old-project'}}}]};
-await create.call({_canCreateProject:()=>true,_timeline:{getSelectedClips:()=>[{id:'a'}]},
+await create.call({_isNodeOnLiveGraph:()=>true,_canCreateProject:()=>true,_timeline:{getSelectedClips:()=>[{id:'a'}]},
     _exportWorkflowSnapshot:()=>structuredClone(workflow),_buildProject:()=>source,
     node:{id:7,graph,widgets:[{name:'project_json'},{name:'storyboard_json'}]},close(){closed=true;}});
 assert(closed);
@@ -81,12 +81,13 @@ const subgraphNode = structuredClone(workflow.nodes[0]);
 const subgraphWorkflow = {id:'original-workflow', nodes:[{id:1,type:'subgraph'}],
     definitions:{subgraphs:[{id:'nested',nodes:[subgraphNode]}]}};
 const rootGraph = {serialize:()=>structuredClone(subgraphWorkflow)};
-const subgraph = {id:'nested',get rootGraph() {return rootGraph;}};
+const subgraph = {id:'nested',get rootGraph() {return rootGraph;},getNodeById:id=>id===7 ? editor.node : null};
+rootGraph.subgraphs = new Map([['nested',subgraph]]);
 api.rootGraph = rootGraph;
 let saved = 0;
 const editor = {_canCreateProject:()=>true,_timeline:{getSelectedClips:()=>[{id:'a'}]},
     _buildProject:()=>source,_saveToWidgets(){saved++;},
-    _isNodeOnLiveGraph:editorMethod('_isNodeOnLiveGraph'),
+    _liveNode:editorMethod('_liveNode'),_isNodeOnLiveGraph:editorMethod('_isNodeOnLiveGraph'),
     _exportWorkflowSnapshot:editorMethod('_exportWorkflowSnapshot'),
     node:{id:7,graph:subgraph,widgets:[{name:'project_json'},{name:'storyboard_json'}]},close(){closed=true;}};
 await create.call(editor);
@@ -100,3 +101,34 @@ api.rootGraph = {};
 assert.equal(editor._isNodeOnLiveGraph(),false,'another workflow must still be rejected');
 assert.throws(()=>editor._exportWorkflowSnapshot(),/export_workflow_unavailable/);
 console.log('Native rootGraph subgraph: live editor detection, root workflow snapshot, copied node updates and stale workflow guard passed');
+
+api.rootGraph = rootGraph;
+const originalNode = editor.node;
+const nodeView = new Proxy(originalNode, {});
+editor.node = nodeView;
+originalNode._teApp = editor;
+subgraph.getNodeById = id=>id===7 ? originalNode : null;
+assert.equal(editor._isNodeOnLiveGraph(),true,'a wrapped node owned by this editor is still live');
+const replacement = {id:7,_teApp:{open(){events.push('open current');}}};
+subgraph.getNodeById = ()=>replacement;
+assert.equal(editor._isNodeOnLiveGraph(),false,'reused node ids do not keep a stale editor live');
+const events = [];
+editor.close = ()=>events.push('close stale');
+editor.open = editorMethod('open');
+await create.call(editor);
+assert.deepEqual(events,['close stale','open current'],'stale action closes the old editor and opens the current instance');
+replacement._teApp._destroyed = true;
+events.length = 0;
+editor.open();
+assert.deepEqual(events,['close stale'],'a destroyed replacement must not reopen');
+subgraph.getNodeById = ()=>null;
+events.length = 0;
+editor.open();
+assert.deepEqual(events,['close stale'],'a removed node closes without exporting a different workflow');
+console.log('Stale editor recovery: wrapped nodes, reused ids, automatic close/reopen and missing/destroyed replacements passed');
+
+const wrappedGraph = {id:'root',get rootGraph(){return unwrappedGraph;}};
+const unwrappedGraph = {id:'root',getNodeById:()=>originalNode};
+api.rootGraph = unwrappedGraph;
+editor.node = {...originalNode,graph:wrappedGraph};
+assert.equal(editor._isNodeOnLiveGraph(),true,'root graph wrappers resolve through their live node owner');

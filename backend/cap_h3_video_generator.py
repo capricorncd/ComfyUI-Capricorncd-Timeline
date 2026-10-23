@@ -24,7 +24,7 @@ from .cap_model_preview import CAP_ModelPreviewOverride
 from .cap_size_settings import CAP_SizeFromMegapixels
 from .cap_te_notify import EVENT_CLIP_RUNNING, notify_timeline
 from .cap_video_metadata import execution_graph
-from .h3_timing import timing_filename, plan_h3_clips
+from .h3_timing import timing_filename, timing_from_filename, plan_h3_clips
 from .h3_keyframe_runs import expand_keyframe_runs
 from .cap_h3_face_refine import FACE_NODES, validate_face_config
 from .cap_h3_selflift import validate_selflift_config
@@ -101,6 +101,30 @@ def _keyframe_composition_rows(rows, fps):
         row["compose_keyframe_frames"] = frames
         row.pop("playback_spans", None)
     return result
+
+
+def _keyframe_composition_clips(data):
+    """Include an existing continuation source without adding it to generation."""
+    rows, missing = [], []
+    generated = {_clip_id(row) for row in data["clips"]}
+    fps = float(data["fps"])
+    for source in data["clips"]:
+        row = copy.deepcopy(source)
+        previous = _context_source(row, [])
+        video = row.get("previous_output_video")
+        if previous and previous not in generated and video:
+            if not any(_clip_id(item) == previous for item in rows):
+                timing = timing_from_filename(video)
+                if not timing or not os.path.isfile(os.path.join(folder_paths.get_output_directory(), video)):
+                    missing.append(previous)
+                else:
+                    timing = _interpolated_timing(timing, fps / timing["fps"])
+                    end = row.get("preview_start_ms", row["start_ms"])
+                    start = end - timing["play_frames"] * 1000 / fps
+                    rows.append(dict(id=previous, source_clip_id=previous, start_ms=start, end_ms=end,
+                                     output_video=video, keyframe_segment={"existing": True}, h3_timing=timing))
+        rows.append(row)
+    return rows, missing
 
 
 def _composition_clips(data):
@@ -534,7 +558,8 @@ class CAP_H3VideoGenerator:
                 row["h3_drafts"] = [item["h3_draft"] for item in videos if item["clip_id"] == (row.get("keyframe_segment") or {}).get("clip_id", _clip_id(row))]
             data = source_data
         preview = videos[-1]
-        composition_clips, missing = _composition_clips(data) if compose_final and not keyframe_composition else (data["clips"], [])
+        composition_clips, missing = ((_keyframe_composition_clips(data) if keyframe_composition else _composition_clips(data))
+                                      if compose_final else (data["clips"], []))
         if missing:
             warnings.append(dict(code="missing_composition_video", clip_ids=missing))
         composed_video = paths[0] if compose_final and len(paths) == 1 else ""

@@ -60,8 +60,8 @@ class GeneratorTests(unittest.TestCase):
 
         scope = dict(copy=copy, json=json, math=math, secrets=secrets,
                      os=SimpleNamespace(path=os.path, replace=Mock()),
-                     expand_keyframe_runs=load_definitions("h3_keyframe_runs.py", dict(copy=copy, math=math, reference_context_media=media.reference_context_media))["expand_keyframe_runs"],
-                     plan_h3_clips=h3.plan_h3_clips,
+                     expand_keyframe_runs=load_definitions("h3_keyframe_runs.py", dict(copy=copy, math=math, reference_context_media=media.reference_context_media, timing_from_filename=h3.timing_from_filename))["expand_keyframe_runs"],
+                     plan_h3_clips=h3.plan_h3_clips, timing_from_filename=h3.timing_from_filename,
                      _prev_clip_output_video_path=Mock(return_value=""),
                      _previous_reference_media=Mock(return_value=dict(videos=[], audios=[], duration_ms=0)),
                      folder_paths=SimpleNamespace(get_full_path_or_raise=lambda *a: "valid"),
@@ -272,6 +272,37 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(len(data["clips"]), 2)
         self.assertTrue(all(r["compose_keyframe_tail_only"] for r in data["clips"]))
         self.assertTrue(all("compose_keyframe_tail_only" not in r for r in json.loads(result["result"][1])["clips"]))
+
+    def test_single_keyframe_composes_existing_previous_video(self):
+        with tempfile.TemporaryDirectory() as directory:
+            filename = "first__h3v2_c0_r124_h0_t4_f24000_s1_n0.mp4"
+            Path(directory, filename).touch()
+            self.scope["folder_paths"].get_output_directory = lambda: directory
+            self.scope["_prev_clip_output_video_path"].return_value = str(Path(directory, filename))
+            request = dict(keyframe_runs=[dict(clip_id="a", fps=24, clip_start_ms=0,
+                intervals=[dict(start_frame=120, end_frame=240, number=2,
+                                generation=dict(referencePrevious=True), previous_output_video=filename)])])
+            result = self.run_node([dict(id="a", start_ms=0, end_ms=10000)], h3_generation=request)
+            self.assertEqual(len(self.prepared), 1)
+            self.assertEqual(len(result["result"][0]), 1)
+            self.assertEqual(result["result"][2], "compose/final.mp4")
+            rows = self.composed[0][0]["clips"]
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0]["output_video"], filename)
+            self.assertEqual(rows[0]["compose_keyframe_frames"], 102)
+            self.assertEqual(rows[1]["compose_keyframe_frames"], 138)
+            self.assertEqual(rows[0]["end_ms"], rows[1]["start_ms"])
+            self.assertEqual(len(json.loads(result["result"][1])["clips"]), 1)
+
+    def test_missing_keyframe_source_does_not_return_partial_composition(self):
+        self.scope["folder_paths"].get_output_directory = lambda: "."
+        self.scope["_prev_clip_output_video_path"].return_value = "removed-after-generation.mp4"
+        request = dict(keyframe_runs=[dict(clip_id="a", fps=24, clip_start_ms=0,
+            intervals=[dict(start_frame=120, end_frame=240, generation=dict(referencePrevious=True),
+                            previous_output_video="missing__h3v2_c0_r124_h0_t4_f24000_s1_n0.mp4")])])
+        result = self.run_node([dict(id="a", start_ms=0, end_ms=10000)], h3_generation=request)
+        self.assertEqual(result["result"][2], "")
+        self.assertFalse(self.composed)
 
     def test_keyframe_cuts_follow_next_context_start(self):
         plays = [78, 74, 131, 59, 96, 88]

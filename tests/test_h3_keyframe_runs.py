@@ -5,12 +5,14 @@ from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from test_h3_context_media import media
+from test_h3_timing import h3
 
 spec = importlib.util.spec_from_file_location('h3_keyframe_runs', Path(__file__).resolve().parents[1] / 'backend/h3_keyframe_runs.py')
 module = importlib.util.module_from_spec(spec)
 tree = ast.parse(Path(spec.origin).read_text(encoding='utf-8'))
 tree.body = [node for node in tree.body if not isinstance(node, ast.ImportFrom)]
 module.reference_context_media = media.reference_context_media
+module.timing_from_filename = h3.timing_from_filename
 exec(compile(tree, spec.origin, 'exec'), module.__dict__)
 
 

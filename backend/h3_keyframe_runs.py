@@ -2,6 +2,7 @@
 import copy
 import math
 from .h3_context_media import reference_context_media
+from .h3_timing import timing_from_filename
 
 
 def expand_keyframe_runs(data, max_segment_seconds=15):
@@ -61,6 +62,10 @@ def expand_keyframe_runs(data, max_segment_seconds=15):
             previous_id = previous_row["source_clip_id"] if previous_row else (f"{parent}__previous_{first}" if reference_previous else None)
             carry = previous_row["h3_timing"]["tail_frames"] if previous_row else (
                 int((clip.get("h3_timing") or {}).get("context_carry_frames", 0)) if previous_video and not explicit else 0)
+            if explicit and previous_video and previous_row is None:
+                saved_timing = timing_from_filename(previous_video)
+                if saved_timing:
+                    carry = round(saved_timing["tail_frames"] * fps / saved_timing["fps"])
             if previous_row:
                 previous_row["save_latent"] = True
                 previous_row["h3_timing"]["save_latent"] = True

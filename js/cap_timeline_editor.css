@@ -1826,6 +1826,13 @@ body.cat-te-media-dnd-over-tl {
     opacity: 0.8;
 }
 .cat-te-gen-edit-volume-field { flex: 0 0 auto; }
+.cat-te-gen-edit-flip-field {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 28px;
+}
 .cat-te-gen-edit-tl-host .tl-track-muted .tl-clip-row-wave .tl-clip-waveform { visibility: hidden; }
 .cat-te-gen-edit-volume-control { width: 100%; }
 .cat-te-gen-edit-volume-value { float: right; font-variant-numeric: tabular-nums; }

@@ -4416,7 +4416,7 @@ export class CapTimelineEditorApp {
                       <input data-gen-transform="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${value}" disabled />
                     </cap-slider>
                   </label>`).join('')}
-                  <label class="cat-te-gen-edit-field"><span>${T("flip_horizontal_label")}</span>
+                  <label class="cat-te-gen-edit-field cat-te-gen-edit-flip-field"><span>${T("flip_horizontal_label")}</span>
                     <cap-switch><input data-gen-transform="flip_horizontal" type="checkbox" disabled /></cap-switch>
                   </label>
                   <label class="cat-te-gen-edit-field">

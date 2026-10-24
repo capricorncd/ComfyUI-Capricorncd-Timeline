@@ -1,5 +1,23 @@
 # Release notes / 更新记录
 
+## 0.17.35 — 2026-10-24
+
+### English
+
+- Add the RefMod library and prompt references; fix asset selection, selected keyframe drafts, and prompt cursor position when editing references.
+- Add Delete All to preview sampling batch actions; improve preview association and dialog layering.
+- Create a separate workflow from selected Clips, preserving referenced materials and complete overlapping audio Clips; recover stale editors after workflow changes.
+- Fix H3 continuation reference fallback, keyframe composition with an existing continuation video, and reference audio timing and muting.
+- Add horizontal flip for timeline images and videos and model reference media in preview, export, and generation. Restart ComfyUI and refresh the browser after updating.
+
+### 简体中文
+
+- 新增 RefMod 素材库及提示词引用；修复素材选择、选中关键帧草稿，以及编辑引用时的提示词光标位置。
+- 预览采样批量操作新增「全部删除」；完善预览关联界面和弹窗层级。
+- 支持将选中 Clip 新建为独立工作流，保留提示词引用素材和完整的重叠音频 Clip；工作流变化后自动恢复失效编辑器。
+- 修复 H3 续接参考素材回退、已有续接视频时的关键帧合成，以及参考音频的时间对齐和静音处理。
+- 为时间线图片、视频和模型参考素材增加水平翻转，覆盖预览、导出及生成。更新后重启 ComfyUI 并刷新浏览器。
+
 ## 0.17.34 — 2026-10-18
 
 ### English

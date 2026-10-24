@@ -2903,9 +2903,9 @@ export class CapTimelineEditorApp {
             const project = selectedClipProject(source, selected.map(clip => clip.id), name);
             Object.assign(project, createProjectIdentity());
             const graph = this.node.graph;
-            const serializedGraph = graph === CapTimelineEditorApp._graphRoot(graph) ? workflow
+            const serializedGraph = graph.id === CapTimelineEditorApp._graphRoot(graph).id ? workflow
                 : workflow.definitions?.subgraphs?.find(subgraph => subgraph.id === graph.id);
-            const node = serializedGraph?.nodes?.find(node => node.id === this.node.id);
+            const node = serializedGraph?.nodes?.find(node => String(node.id) === String(this.node.id));
             if (!node) throw new Error(T("export_workflow_unavailable"));
             const widgets = this.node.widgets.filter(widget => widget.serialize !== false);
             const values = {project_json: JSON.stringify(project), storyboard_json: JSON.stringify(buildStoryboardDocument([]))};

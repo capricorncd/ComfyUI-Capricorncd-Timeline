@@ -132,3 +132,185 @@ const unwrappedGraph = {id:'root',getNodeById:()=>originalNode};
 api.rootGraph = unwrappedGraph;
 editor.node = {...originalNode,graph:wrappedGraph};
 assert.equal(editor._isNodeOnLiveGraph(),true,'root graph wrappers resolve through their live node owner');
+unwrappedGraph.serialize = () => structuredClone(workflow);
+loaded = null;
+await create.call(editor);
+assert(loaded, 'a live editor on a wrapped root graph must create a new workflow');
+assert.equal(JSON.parse(loaded[0].nodes[0].widgets_values[0]).name, name);
+assert.notEqual(loaded[0].id, workflow.id);
+assert.deepEqual(loaded.slice(1), [true, true, temporary]);
+assert.equal(workflow.nodes[0].widgets_values[0], 'old-project');
+console.log('Wrapped root graph: selected Clips create and open a distinct workflow without a stale-editor alert');
+
+editor.node = {...originalNode, id:'7', graph:unwrappedGraph};
+unwrappedGraph.getNodeById = id => String(id) === '7' ? editor.node : null;
+assert.equal(editor._isNodeOnLiveGraph(), true, 'ComfyUI uses string IDs for live nodes');
+loaded = null;
+await create.call(editor);
+assert(loaded, 'serialized numeric node IDs must match the live string node ID');
+assert.equal(JSON.parse(loaded[0].nodes[0].widgets_values[0]).name, name);
+console.log('Current frontend: runtime string node ID matches numeric workflow serialization');
+
+api.rootGraph = rootGraph;
+editor.node = {...originalNode, id:'7', graph:subgraph};
+subgraph.getNodeById = id => String(id) === '7' ? editor.node : null;
+assert.equal(editor._isNodeOnLiveGraph(), true);
+loaded = null;
+await create.call(editor);
+assert.equal(JSON.parse(loaded[0].definitions.subgraphs[0].nodes[0].widgets_values[0]).name, name);
+console.log('Current frontend: subgraph string ID also matches numeric workflow serialization');
+
+const mentionSource = structuredClone(source);
+mentionSource.media.push(
+    {id:'riley',name:'莱利',file:'riley.png'},
+    {id:'riley2',name:'莱利2',file:'riley2.png',voice_audio_id:'rileyVoice'},
+    {id:'rileyVoice',file:'riley-voice.wav'},
+    {id:'rileyAlt',name:'莱利2号',file:'riley-alt.png'},
+    {id:'unnamed',file:'reference still.png'},
+    {id:'commentOnly',name:'仅注释',file:'comment-only.png'},
+);
+mentionSource.tracks[0].clips[0].prompt_media_ids = [];
+mentionSource.tracks[0].clips[0].prompt = 'Show @莱利2 and @reference still.png\n// @仅注释';
+mentionSource.tracks[0].clips[0].keyframes.points[0].description = 'Keep @莱利2号 visible';
+mentionSource.tracks[0].clips[1].prompt = '@莱利 and @莱利2号 belong to the unselected Clip';
+const mentionedBefore = structuredClone(mentionSource);
+const mentioned = selectedClipProject(mentionSource, ['a'], 'Mentioned');
+assert.deepEqual(mentioned.media.map(row => row.id), ['video','original','child','riley2','rileyVoice','rileyAlt','unnamed']);
+assert.deepEqual(mentioned.tracks[0].clips[0].prompt_media_ids, ['riley2','rileyAlt','unnamed']);
+assert.equal(mentioned.tracks[0].clips[0].prompt, mentionSource.tracks[0].clips[0].prompt);
+assert.deepEqual(mentionSource, mentionedBefore, 'copying mentions must preserve the source workflow');
+
+api.rootGraph = unwrappedGraph;
+editor.node = {...originalNode,id:'7',graph:unwrappedGraph};
+editor._buildProject = () => mentionSource;
+loaded = null;
+await create.call(editor);
+const copiedMentions = JSON.parse(loaded[0].nodes[0].widgets_values[0]);
+assert.deepEqual(copiedMentions.media.map(row => row.id), mentioned.media.map(row => row.id));
+assert.deepEqual(copiedMentions.tracks[0].clips[0].prompt_media_ids, ['riley2','rileyAlt','unnamed']);
+console.log('Prompt @references: copied materials, per-Clip model links, filename fallback, prefix boundary, comments and source isolation passed');
+
+const globalSource = structuredClone(source);
+globalSource.media.push({id:'globalRiley2',name:'莱利2',file:'global-riley2.png'});
+globalSource.settings.prepend_prompt = 'Every shot shows @莱利2\n// @unused';
+const globalBefore = structuredClone(globalSource);
+const globalProject = selectedClipProject(globalSource, ['a'], 'Global mention');
+assert(globalProject.media.some(row => row.id === 'globalRiley2'));
+assert(globalProject.tracks[0].clips[0].prompt_media_ids.includes('globalRiley2'));
+assert.deepEqual(globalSource, globalBefore);
+editor._buildProject = () => globalSource;
+loaded = null;
+await create.call(editor);
+const copiedGlobal = JSON.parse(loaded[0].nodes[0].widgets_values[0]);
+assert.equal(copiedGlobal.settings.prepend_prompt, globalSource.settings.prepend_prompt);
+assert(copiedGlobal.media.some(row => row.id === 'globalRiley2'));
+assert(copiedGlobal.tracks[0].clips[0].prompt_media_ids.includes('globalRiley2'));
+console.log('Project prepend_prompt @reference: asset and model link survive the new workflow');
+
+const everyPromptSource = structuredClone(source);
+everyPromptSource.settings.style_prompt = 'Style from @globalStyle';
+everyPromptSource.tracks[0].clips[0].style_prompt = 'Paint @clipStyle';
+everyPromptSource.tracks[0].clips[0].speech_prompt = 'Voice @clipSpeech';
+everyPromptSource.tracks[0].clips[0].h3_drafts = [{prompt:'Draft @draftAsset',keyframe_segment:{prompt:'Interval @intervalAsset'}}];
+everyPromptSource.tracks[0].clips[0].reference_timeline.videos[0].prompt = 'Reference @timelineAsset';
+everyPromptSource.tracks[0].clips[1].prompt = 'Discarded @unselectedAsset';
+everyPromptSource.media.find(row => row.id === 'video').generation_prompt = 'Material @mediaAsset';
+everyPromptSource.media.push(
+    {id:'globalStyle',name:'globalStyle',file:'global-style.png'},
+    {id:'clipStyle',name:'clipStyle',file:'clip-style.png'},
+    {id:'clipSpeech',name:'clipSpeech',file:'clip-speech.png'},
+    {id:'draftAsset',name:'draftAsset',file:'draft.png'},
+    {id:'intervalAsset',name:'intervalAsset',file:'interval.png'},
+    {id:'timelineAsset',name:'timelineAsset',file:'timeline.png'},
+    {id:'mediaAsset',name:'mediaAsset',file:'material.png',setting_description:'Description @nextAsset'},
+    {id:'nextAsset',name:'nextAsset',file:'next.png',video_shots:{points:[{description:'More @lastAsset'}]}},
+    {id:'lastAsset',name:'lastAsset',file:'last.png'},
+    {id:'unselectedAsset',name:'unselectedAsset',file:'unselected.png'},
+    {id:'unreferenced',name:'unreferenced',file:'unreferenced.png',prompt:'@unselectedAsset'},
+);
+const allPromptBefore = structuredClone(everyPromptSource);
+const allPromptProject = selectedClipProject(everyPromptSource,['a'],'All prompts');
+for (const id of ['globalStyle','clipStyle','clipSpeech','draftAsset','intervalAsset','timelineAsset','mediaAsset','nextAsset','lastAsset']) {
+    assert(allPromptProject.media.some(row => row.id === id), `${id} is referenced by a retained prompt`);
+}
+assert(!allPromptProject.media.some(row => ['unselectedAsset','unreferenced'].includes(row.id)));
+for (const id of ['globalStyle','clipStyle','clipSpeech','draftAsset','intervalAsset','timelineAsset']) {
+    assert(allPromptProject.tracks[0].clips[0].prompt_media_ids.includes(id));
+}
+assert.deepEqual(everyPromptSource, allPromptBefore);
+console.log('All retained prompts: settings, Clip, speech, drafts, keyframe segment, reference timeline and transitive media prompts');
+
+const audioSource = structuredClone(source);
+audioSource.tracks[0].type = 'director';
+audioSource.tracks[1].type = 'audio';
+audioSource.media.push({id:'music',kind:'audio',file:'music.wav'});
+audioSource.tracks[0].clips[0].duration_ms = 6000;
+audioSource.tracks[1].clips = [
+    {id:'music-clip',start_ms:10000,duration_ms:10000,media_ids:['music'],source:{in_ms:2000,out_ms:17000,duration_ms:20000},playback_rate:1.5,volume_points:[{source_ms:6500,gain:0.5}],fade_in_ms:1000,fade_out_ms:1000},
+    {id:'outside',start_ms:21000,duration_ms:2000,media_ids:['voice']},
+];
+audioSource.tracks[0].clips[0].use_audio_track_audio = true;
+const audioBefore = structuredClone(audioSource);
+const clipAudio = selectedClipProject(audioSource,['a'],'Clip audio');
+assert.deepEqual(clipAudio.tracks.map(track => track.id), ['director','audio']);
+assert.equal(clipAudio.tracks[1].clips.length,1);
+assert.equal(clipAudio.tracks[0].clips[0].start_ms,2000);
+assert.deepEqual(clipAudio.tracks[1].clips[0], {...audioSource.tracks[1].clips[0],start_ms:0});
+assert(clipAudio.media.some(row => row.id === 'music'));
+assert.deepEqual(audioSource,audioBefore);
+
+const keyAudioSource = structuredClone(audioSource);
+keyAudioSource.tracks[0].clips[0].use_audio_track_audio = false;
+keyAudioSource.tracks[0].clips[0].keyframes = {source_id:'a',points:[
+    {time:0,generation:{useAudioTrackAudio:false}},
+    {time:1,generation:{useAudioTrackAudio:true}},
+    {time:3,generation:{useAudioTrackAudio:false}},
+    {time:4,generation:{useAudioTrackAudio:true}},
+]};
+const keyAudio = selectedClipProject(keyAudioSource,['a'],'Keyframe audio');
+assert.equal(keyAudio.tracks[1].clips.length,1,'disjoint enabled keyframes select the same audio Clip once');
+assert.deepEqual(keyAudio.tracks[1].clips[0], {...audioSource.tracks[1].clips[0],start_ms:0});
+assert.equal(keyAudio.tracks[0].clips[0].start_ms,2000);
+assert.equal(selectedClipProject(keyAudioSource,['unused'],'No enabled audio').tracks.some(track => track.id === 'audio'),false);
+const boundaryAudioSource = structuredClone(keyAudioSource);
+boundaryAudioSource.tracks[1].clips = [
+    {id:'overlap',start_ms:14500,duration_ms:6000,media_ids:['music'],source:{in_ms:4000,out_ms:10000},fade_in_ms:500},
+    {id:'end-boundary',start_ms:18000,duration_ms:2000,media_ids:['voice']},
+    {id:'start-boundary',start_ms:12000,duration_ms:1000,media_ids:['voice']},
+];
+const boundaryAudio = selectedClipProject(boundaryAudioSource,['a'],'Boundary audio');
+assert.deepEqual(boundaryAudio.tracks[1].clips.map(row => row.id),['overlap']);
+assert.deepEqual(boundaryAudio.tracks[1].clips[0], {...boundaryAudioSource.tracks[1].clips[0],start_ms:2500});
+assert.equal(boundaryAudio.tracks[0].clips[0].start_ms,0);
+
+const trimmedKeyframe = structuredClone(keyAudioSource);
+trimmedKeyframe.media.find(row => row.id === 'video').kind = 'video';
+trimmedKeyframe.media.find(row => row.id === 'video').video_trim = {source_id:'original',start:4,rate:2};
+trimmedKeyframe.tracks[0].clips[0].source = {in_ms:2000};
+trimmedKeyframe.tracks[0].clips[0].playback_rate = 1.5;
+trimmedKeyframe.tracks[0].clips[0].clip_role = 'video_ref';
+delete trimmedKeyframe.tracks[0].clips[0].keyframes;
+delete trimmedKeyframe.tracks[0].clips[0].reference_timeline;
+trimmedKeyframe.media.find(row => row.id === 'video').video_shots = {source_id:'original',points:[
+    {time:11,generation:{useAudioTrackAudio:true}},
+    {time:17,generation:{useAudioTrackAudio:false}},
+]};
+const referenceAudio = selectedClipProject(trimmedKeyframe,['a'],'Reference keyframe audio');
+assert.deepEqual(referenceAudio.tracks[1].clips[0], {...audioSource.tracks[1].clips[0],start_ms:0});
+console.log('Selected Clip/keyframe audio: entire overlapping Clips, source offset and speed, disjoint intervals, fade, media, reference timeline and inactive selection passed');
+
+const mutedAudioSource = structuredClone(audioSource);
+mutedAudioSource.tracks[1].muted = true;
+assert.equal(selectedClipProject(mutedAudioSource,['a'],'Muted audio').tracks.some(track => track.id === 'audio'),false);
+const selectedAudioSource = structuredClone(audioSource);
+const selectedAudio = selectedClipProject(selectedAudioSource,['a','music-clip'],'Explicit audio');
+assert.equal(selectedAudio.tracks[1].clips.length,1,'explicitly selected audio stays single');
+assert.equal(selectedAudio.tracks[1].clips[0].duration_ms,10000);
+
+editor._buildProject = () => audioSource;
+loaded = null;
+await create.call(editor);
+const copiedAudio = JSON.parse(loaded[0].nodes[0].widgets_values[0]);
+assert.equal(copiedAudio.tracks[1].clips[0].source.in_ms,2000);
+assert(copiedAudio.media.some(row => row.id === 'music'));
+console.log('New workflow snapshot keeps complete audio, while muted and explicitly selected audio follow their track state');

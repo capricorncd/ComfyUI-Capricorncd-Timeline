@@ -1833,6 +1833,8 @@ body.cat-te-media-dnd-over-tl {
     justify-content: space-between;
     min-height: 28px;
 }
+.cat-te-gen-edit-speed-field { flex: 0 0 auto; }
+.cat-te-gen-edit-prompt-field { flex: 1 0 180px; }
 .cat-te-gen-edit-tl-host .tl-track-muted .tl-clip-row-wave .tl-clip-waveform { visibility: hidden; }
 .cat-te-gen-edit-volume-control { width: 100%; }
 .cat-te-gen-edit-volume-value { float: right; font-variant-numeric: tabular-nums; }

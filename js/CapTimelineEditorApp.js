@@ -4400,6 +4400,17 @@ export class CapTimelineEditorApp {
                 <div class="cat-te-gen-edit-right">
                   <div class="cat-te-gen-edit-name" title=""></div>
                   <div class="cat-te-gen-edit-file" title=""></div>
+                  <label class="cat-te-gen-edit-field cat-te-gen-edit-speed-field">
+                    <span>${T("clip_speed_label")}</span>
+                    <cap-slider default-value="1" reset-label="${T('slider_reset')}">
+                      <input class="cat-te-gen-edit-speed" type="range" min="0.25" max="4" step="0.05" value="1" disabled />
+                    </cap-slider>
+                    <output class="cat-te-gen-edit-speed-value">1×</output>
+                  </label>
+                  <label class="cat-te-gen-edit-field cat-te-gen-edit-prompt-field">
+                    <span>${T("desc_prompt_label")}</span>
+                    <textarea class="cat-te-gen-edit-prompt" rows="8" placeholder="${T("gen_edit_prompt_placeholder")}"></textarea>
+                  </label>
                   <label class="cat-te-gen-edit-field cat-te-gen-edit-volume-field">
                     <span>${T("clip_volume_label")} <output class="cat-te-gen-edit-volume-value">100%</output></span>
                     <cap-slider class="cat-te-gen-edit-volume-control" default-value="100" reset-label="${T("slider_reset")}">
@@ -4418,17 +4429,6 @@ export class CapTimelineEditorApp {
                   </label>`).join('')}
                   <label class="cat-te-gen-edit-field cat-te-gen-edit-flip-field"><span>${T("flip_horizontal_label")}</span>
                     <cap-switch><input data-gen-transform="flip_horizontal" type="checkbox" disabled /></cap-switch>
-                  </label>
-                  <label class="cat-te-gen-edit-field">
-                    <span>${T("clip_speed_label")}</span>
-                    <cap-slider default-value="1" reset-label="${T('slider_reset')}">
-                      <input class="cat-te-gen-edit-speed" type="range" min="0.25" max="4" step="0.05" value="1" disabled />
-                    </cap-slider>
-                    <output class="cat-te-gen-edit-speed-value">1×</output>
-                  </label>
-                  <label class="cat-te-gen-edit-field">
-                    <span>${T("desc_prompt_label")}</span>
-                    <textarea class="cat-te-gen-edit-prompt" rows="8" placeholder="${T("gen_edit_prompt_placeholder")}"></textarea>
                   </label>
                   <cap-button class="cat-te-gen-edit-dub" disabled title="${T("gen_edit_dub_todo_title")}">${T("gen_edit_dub_btn")}</cap-button>
                   <p class="cat-te-gen-edit-hint">${T("gen_edit_select_hint")}</p>

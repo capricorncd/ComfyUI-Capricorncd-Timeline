@@ -138,7 +138,7 @@ export class DirectorKeyframes {
             this.app._recordUndo();
             point = {time, description: ''};
             if (target.media.video_shots.source_id !== target.source.item.id) {
-                target.media.video_shots = {source_id: target.source.item.id, points: []};
+                target.media.video_shots = {source_id: target.source.item.id, points: target.local ? points : []};
             }
             if (frame > 0 && !target.media.video_shots.points.length) {
                 target.media.video_shots.points.push({time: target.start, description: ''});

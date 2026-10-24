@@ -127,6 +127,17 @@ editor.clear(clip);
 clip.track.type = 'media';
 editor.add(clip, 23);
 assert.deepEqual(meta.video_shots.points.map(point => point.time), [0, 3], 'Media Clips also add their starting keyframe');
+meta.video_shots = {source_id: 'previous-clip-id', points: [
+    {time: 0, description: 'Opening'}, {time: 1, description: 'Keep this anchor'},
+]};
+editor.sync(clip);
+assert.equal(clip.el.markers.args[0].length, 2, 'Existing local anchors remain visible before insertion');
+timeline.currentTime = 23;
+editor.key({code: 'KeyP', ctrlKey: true, preventDefault() {}, stopPropagation() {}});
+assert.deepEqual(meta.video_shots.points.map(point => point.time), [0, 1, 3],
+    'Ctrl+P preserves existing local anchors when the saved source ID differs');
+assert.equal(meta.video_shots.points[1].description, 'Keep this anchor');
+assert.equal(meta.video_shots.source_id, clip.id);
 clip.track.type = 'audio';
 assert.equal(editor.target(clip), null, 'Audio Clips retain their volume-point controls');
 clip.track.type = 'image';

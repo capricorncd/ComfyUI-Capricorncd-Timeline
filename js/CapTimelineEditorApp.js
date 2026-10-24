@@ -14252,6 +14252,16 @@ export class CapTimelineEditorApp {
                 fn: () => this._chooseMaterialFile({ file, kind }),
             });
             items.push({
+                label: T("copy_filename_menu"), icon: "copy",
+                fn: async () => {
+                    try {
+                        await navigator.clipboard.writeText(file.split(/[\\/]/).pop());
+                    } catch {
+                        showCapAlert(T("copy_filename_failed"));
+                    }
+                },
+            });
+            items.push({
                 label: T("open_folder_btn"), icon: "squareArrowOutUpRight",
                 disabled: status.location === "missing",
                 fn: () => void this._revealOutput({filename: file, location: status.location || "input", kind}),

@@ -196,6 +196,12 @@ class CAP_DataJsonClipParser:
         arr = np.array(img).astype(np.float32) / 255.0
         return torch.from_numpy(arr).unsqueeze(0)
 
+    def _load_reference_image(self, ref, materials):
+        image = self._load_image(self._ref_file(ref, materials))
+        row = materials.get(self._ref_id(ref), {})
+        flip = ref.get("flip_horizontal", row.get("flip_horizontal")) if isinstance(ref, dict) else row.get("flip_horizontal")
+        return image.flip([2]) if image is not None and flip is True else image
+
     def _match_image_size(self, image: torch.Tensor, height: int, width: int) -> torch.Tensor:
         if image.shape[1] == height and image.shape[2] == width:
             return image
@@ -208,7 +214,7 @@ class CAP_DataJsonClipParser:
     def _load_images_batch(self, refs, materials: dict, blank: torch.Tensor) -> torch.Tensor:
         frames = []
         for ref in refs:
-            img = self._load_image(self._ref_file(ref, materials))
+            img = self._load_reference_image(ref, materials)
             if img is not None:
                 frames.append(img)
         if not frames:
@@ -473,7 +479,7 @@ class CAP_DataJsonClipParser:
 
     def _first_loadable_image(self, refs, materials: dict):
         for ref in refs:
-            img = self._load_image(self._ref_file(ref, materials))
+            img = self._load_reference_image(ref, materials)
             if img is not None:
                 return img
         return None
@@ -521,7 +527,7 @@ class CAP_DataJsonClipParser:
             "file": path,
             "kind": kind,
         }
-        for key in ("name", "prompt", "media_type", "tags", "location", "stars", "video_trim", "grid_panels"):
+        for key in ("name", "prompt", "media_type", "tags", "location", "stars", "video_trim", "grid_panels", "flip_horizontal"):
             if key in mat:
                 entry[key] = copy.deepcopy(mat[key])
         return entry

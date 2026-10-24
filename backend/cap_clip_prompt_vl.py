@@ -1086,13 +1086,13 @@ def media_from_payload(payload: dict) -> tuple[list[Image.Image], list[list[Imag
                 continue
             frames = _load_video_frames(path)
             if frames:
-                videos.append(frames)
+                videos.append([frame.transpose(Image.Transpose.FLIP_LEFT_RIGHT) for frame in frames] if row.get("flip_horizontal") is True else frames)
             continue
         if kind != "image" or len(images) >= MAX_REF_IMAGES:
             continue
         still = _load_still(path)
         if still is not None:
-            images.append(still)
+            images.append(still.transpose(Image.Transpose.FLIP_LEFT_RIGHT) if row.get("flip_horizontal") is True else still)
     return images, videos
 
 

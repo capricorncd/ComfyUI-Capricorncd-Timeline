@@ -183,6 +183,7 @@ def _collect_plan(
                         "layer": "media",
                         "playback_rate": playback_rate(clip.get("playback_rate")) if kind == "video" else 1.0,
                         "opacity": max(0.0, min(1.0, float(clip.get("opacity", 1.0)))),
+                        "flip_horizontal": clip.get("flip_horizontal") is True,
                         "scale": max(1.0, min(300.0, float(clip.get("media_scale", 100)))) / 100,
                         "offset_x": max(-100.0, min(100.0, float(clip.get("media_offset_x", 0)))) / 100,
                         "offset_y": max(-100.0, min(100.0, float(clip.get("media_offset_y", 0)))) / 100,
@@ -234,6 +235,7 @@ def _collect_plan(
                         "kind": "video",
                         "layer": "director",
                         "playback_rate": rate,
+                        "flip_horizontal": gen.get("flip_horizontal") is True,
                         "scale": max(1.0, min(300.0, float(gen.get("media_scale", 100)))) / 100,
                         "offset_x": max(-100.0, min(100.0, float(gen.get("media_offset_x", 0)))) / 100,
                         "offset_y": max(-100.0, min(100.0, float(gen.get("media_offset_y", 0)))) / 100,
@@ -772,6 +774,7 @@ def compose_timeline_project(
                 f"fps={fps},trim=start_frame={source_frame}:end_frame={source_frame + round(count * rate)},"
                 f"{speed_filter}"
                 f"settb=expr=1/{fps},setpts=N+{start_frame},"
+                + ("hflip," if seg.get("flip_horizontal") else "")
             )
             if (seg.get("layer") == "media" or seg.get("kind") == "image"
                     or seg.get("scale", 1) != 1 or seg.get("offset_x", 0) != 0 or seg.get("offset_y", 0) != 0):

@@ -21,6 +21,8 @@ def compose_reference_timeline(project, clip, resolve_media):
             row = copy.deepcopy(saved)
             row["file"] = resolve_media(media["file"])
             row["location"] = "input"
+            if kind == "video":
+                row["flip_horizontal"] = (saved.get("flip_horizontal") is True) != (media.get("flip_horizontal") is True)
             rows.append(row)
     groups = [(videos, audios)]
     if timeline.get("per_track") is True:

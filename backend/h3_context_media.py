@@ -15,7 +15,8 @@ def reference_context_media(clip, materials, end_ms=None):
         if selected > 0:
             videos.append(dict(file=trim.get("file") or material.get("file", ""),
                 location=material.get("location", "input"), start=float(trim.get("start", 0)),
-                duration=selected, rate=rate))
+                duration=selected, rate=rate,
+                **({"flip_horizontal": True} if material.get("flip_horizontal") is True else {})))
     for row in clip.get("audios", []):
         material = materials.get(str(row.get("id", "")), row)
         rate = float(row.get("playback_rate", 1))

@@ -78,3 +78,39 @@ app.genEditSpeed.value = '4';
 method('_onGenEditSpeedInput').call(app);
 assert.equal(row.playback_rate, 0.5);
 console.log('Trim speed changes duration while preserving source trims and persists across normalization');
+
+const flipped = normalize({file:'video.mp4',flip_horizontal:true});
+assert.equal(normalize(JSON.parse(JSON.stringify(flipped))).flip_horizontal,true);
+assert.equal(normalize({file:'video.mp4'}).flip_horizontal,false);
+app._genEditState.audioMap.clear();
+clip.track.locked = false;
+method('_onGenEditTransformInput').call(app,{type:'checkbox',checked:true,dataset:{genTransform:'flip_horizontal'}});
+assert.equal(row.flip_horizontal,true);
+calls.length = 0;
+method('_drawMediaLayer').call({_drawContain:()=>true},ctx,{},1000,500,
+    {mediaScale:75,mediaOffsetX:10,mediaOffsetY:-20,mediaFlipHorizontal:true});
+assert.deepEqual(calls,[['translate',600,150],['scale',-0.75,0.75],['translate',-500,-250]]);
+console.log('Horizontal flip: saved child state, checkbox updates and mirrored preview preserving offsets passed');
+
+const mainMeta = {};
+let mainChanged;
+const mainCalls = [];
+const main = {_selClip:{track:{locked:false}},mediaFlipInput:{checked:true,addEventListener(type,fn){mainChanged=fn;}},
+    _ensureClipMeta:()=>mainMeta,_recordUndo:()=>mainCalls.push('undo'),
+    _saveToWidgets:()=>mainCalls.push('save'),_renderProgramPreview:()=>mainCalls.push('render')};
+const bindStart = source.indexOf('        this.mediaFlipInput.addEventListener(');
+new Function(source.slice(bindStart,source.indexOf('\n        });',bindStart)+12)).call(main);
+mainChanged();
+assert.equal(mainMeta.mediaFlipHorizontal,true);
+assert.deepEqual(mainCalls,['undo','save','render']);
+main._selClip.track.locked = true;
+mainCalls.length = 0;
+mainChanged();
+assert.deepEqual(mainCalls,[]);
+const resource = {id:'image',kind:'image',file:'reference.png'};
+const catalog = {_parseMediaMeta:method('_parseMediaMeta'),_ensureMedia:()=>resource,_findMedia:()=>resource,
+    _mediaStarsId:()=>resource.id,_mediaStarsByDir:{},_saveMediaStarsForDir(){}};
+method('_writeMediaMeta').call(catalog,'image',resource.file,{name:'Reference',flipHorizontal:true});
+assert.equal(resource.flip_horizontal,true);
+assert.equal(method('_getMediaMeta').call(catalog,'image',resource.file).flipHorizontal,true);
+console.log('Main and reference controls: undo, persistence, locking and material metadata round trip passed');

@@ -168,6 +168,7 @@ def _material_row(row: dict, resolve_media) -> dict | None:
         "setting_description": str(row.get("setting_description") or ""),
         "media_type": str(row.get("media_type") or "").strip(),
         "grid_panels": row.get("grid_panels", 0),
+        "flip_horizontal": row.get("flip_horizontal") is True,
         "tags": [str(tag).strip() for tag in tags if str(tag).strip()],
         "location": str(row.get("location") or "input"),
         **({"video_trim": dict(row["video_trim"])} if isinstance(row.get("video_trim"), dict) else {}),

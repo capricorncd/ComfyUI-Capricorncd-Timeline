@@ -79,6 +79,8 @@ def prompt_materials(data, row, parser, video_frame_count=0, video_frame_mode="u
             continue
         if len(pictures) < start:
             raise ValueError(f"No visual frames could be read from {entry['name']}.")
+        if entry.get("flip_horizontal") is True:
+            pictures[start - 1:] = [ImageOps.mirror(image) for image in pictures[start - 1:]]
         mapping.append(f"Visual input pictures {start}–{len(pictures)} show @{entry['name']} ({kind})." + frame_mapping)
         files.append(entry)
     for ref in row.get("audios", []):

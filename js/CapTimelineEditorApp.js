@@ -299,6 +299,7 @@ function normalizeGeneratedVideo(row) {
         playback_rate: normalizePlaybackRate(row.playback_rate),
         auto_arrange: row.auto_arrange === true,
         volume: normalizeClipVolume(row.volume),
+        flip_horizontal: row.flip_horizontal === true,
         media_scale: Math.max(1, Math.min(300, Number(row.media_scale ?? 100))),
         media_offset_x: Math.max(-100, Math.min(100, Number(row.media_offset_x ?? 0))),
         media_offset_y: Math.max(-100, Math.min(100, Number(row.media_offset_y ?? 0))),
@@ -3983,6 +3984,9 @@ export class CapTimelineEditorApp {
                 </div>
               </div>
               <div class="cat-te-clip-opacity-panel" hidden>
+                <label class="cat-te-clip-setting-row"><span>${T("flip_horizontal_label")}</span>
+                  <cap-switch><input class="cat-te-media-flip" type="checkbox" /></cap-switch>
+                </label>
                 <label class="cat-te-clip-setting-row">
                   <span>${T("scale_label")}</span>
                   <span class="cat-te-clip-slider-controls">
@@ -4301,6 +4305,10 @@ export class CapTimelineEditorApp {
                       <span>${T("custom_type_label")}</span>
                       <input class="cat-te-media-preview-type-custom" type="text" placeholder="${T("enter_type_placeholder")}" />
                     </label>
+                    <label class="cat-te-media-preview-meta-row cat-te-media-preview-flip-row">
+                      <span>${T("reference_flip_horizontal_label")}</span>
+                      <cap-switch><input class="cat-te-media-preview-flip" type="checkbox" /></cap-switch>
+                    </label>
                     <label class="cat-te-media-preview-meta-row cat-te-media-preview-tags-row">
                       <span>${T("tags_label")}</span>
                       <input class="cat-te-media-preview-tags" type="text" placeholder="${T("tags_placeholder")}" />
@@ -4408,6 +4416,9 @@ export class CapTimelineEditorApp {
                       <input data-gen-transform="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${value}" disabled />
                     </cap-slider>
                   </label>`).join('')}
+                  <label class="cat-te-gen-edit-field"><span>${T("flip_horizontal_label")}</span>
+                    <cap-switch><input data-gen-transform="flip_horizontal" type="checkbox" disabled /></cap-switch>
+                  </label>
                   <label class="cat-te-gen-edit-field">
                     <span>${T("clip_speed_label")}</span>
                     <cap-slider default-value="1" reset-label="${T('slider_reset')}">
@@ -5054,6 +5065,7 @@ export class CapTimelineEditorApp {
             [el.querySelector(".cat-te-media-x"), "mediaOffsetX", 0, -100, 100],
             [el.querySelector(".cat-te-media-y"), "mediaOffsetY", 0, -100, 100],
         ];
+        this.mediaFlipInput = el.querySelector(".cat-te-media-flip");
         this.clipOpacityInput = el.querySelector(".cat-te-clip-opacity");
         this.clipOpacityValue = el.querySelector(".cat-te-clip-opacity-value");
         this.clipVolumeInput = el.querySelector(".cat-te-clip-volume");
@@ -5198,6 +5210,7 @@ export class CapTimelineEditorApp {
         this.mediaPreviewType = el.querySelector(".cat-te-media-preview-type");
         this.mediaPreviewTypeCustom = el.querySelector(".cat-te-media-preview-type-custom");
         this.mediaPreviewTypeCustomRow = el.querySelector(".cat-te-media-preview-type-custom-row");
+        this.mediaPreviewFlip = el.querySelector(".cat-te-media-preview-flip");
         this.mediaPreviewTags = el.querySelector(".cat-te-media-preview-tags");
         this.addMaterialModal = el.querySelector(".cat-te-add-material-modal");
         this.addMaterialPreview = el.querySelector(".cat-te-add-material-preview");
@@ -5676,6 +5689,14 @@ export class CapTimelineEditorApp {
         this.clipAgentCustomInput?.addEventListener("change", () => this._onClipAgentCustomChange());
         this.clipVolumeInput?.addEventListener("pointerdown", () => this._armClipVolumeUndo());
         this.clipSpeedInput?.addEventListener("change", () => this._onClipSpeedChange());
+        this.mediaFlipInput.addEventListener("change", () => {
+            const clip = this._selClip;
+            if (!clip || clip.track.locked) return;
+            this._recordUndo();
+            this._ensureClipMeta(clip).mediaFlipHorizontal = this.mediaFlipInput.checked;
+            this._saveToWidgets();
+            this._renderProgramPreview();
+        });
         for (const [input, key, fallback, min, max] of this.mediaTransformInputs) {
             let undoArmed = false;
             input.addEventListener("input", () => {
@@ -5849,6 +5870,12 @@ export class CapTimelineEditorApp {
         this.mediaPreviewType?.addEventListener("change", () => this._onMediaPreviewTypeChange());
         this.mediaPreviewTypeCustom?.addEventListener("change", () => this._saveMediaPreviewMeta());
         this.mediaPreviewTypeCustom?.addEventListener("blur", () => this._saveMediaPreviewMeta());
+        this.mediaPreviewFlip.addEventListener("change", () => {
+            this._saveMediaPreviewMeta();
+            this._scheduleProgramPreview();
+            const media = this.mediaPreviewStage.querySelector("img, video");
+            if (media) media.style.transform = this.mediaPreviewFlip.checked ? "scaleX(-1)" : "";
+        });
         this.mediaPreviewTags?.addEventListener("change", () => this._saveMediaPreviewMeta());
         this.mediaPreviewTags?.addEventListener("blur", () => this._saveMediaPreviewMeta());
         el.querySelector(".cat-te-ai-optimize-close")?.addEventListener("click", () => this._closeAiOptimizeModal());
@@ -6705,6 +6732,7 @@ export class CapTimelineEditorApp {
                 generation_prompt: String(row.generation_prompt || ""),
                 setting_description: String(row.setting_description || ""),
                 media_type: String(row.media_type || "").trim(),
+                flip_horizontal: row.flip_horizontal === true,
                 grid_panels: [4, 6, 9].includes(Number(row.grid_panels)) ? Number(row.grid_panels) : 0,
                 ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
                 ...(row.voice_language ? { voice_language: String(row.voice_language) } : {}),
@@ -6807,6 +6835,7 @@ export class CapTimelineEditorApp {
                 prompt: String(row.prompt || local.prompt || ""),
                 generation_prompt: String(row.generation_prompt || row.generationPrompt || local.generationPrompt || ""),
                 setting_description: String(row.setting_description || row.settingDescription || local.settingDescription || ""),
+                flip_horizontal: row.flip_horizontal === true,
                 media_type: String(row.media_type || row.mediaType || local.mediaType || "").trim(),
                 grid_panels: [4, 6, 9].includes(Number(row.grid_panels ?? local.gridPanels)) ? Number(row.grid_panels ?? local.gridPanels) : 0,
                 ...(row.voice_audio_id ? { voice_audio_id: String(row.voice_audio_id) } : {}),
@@ -7099,6 +7128,7 @@ export class CapTimelineEditorApp {
         else if (typeof raw.generation_prompt === "string") out.generationPrompt = raw.generation_prompt;
         if (typeof raw.settingDescription === "string") out.settingDescription = raw.settingDescription;
         else if (typeof raw.setting_description === "string") out.settingDescription = raw.setting_description;
+        out.flipHorizontal = raw.flipHorizontal === true;
         const gridPanels = Number(raw.gridPanels ?? raw.grid_panels);
         out.gridPanels = [4, 6, 9].includes(gridPanels) ? gridPanels : 0;
         if (typeof raw.mediaType === "string") out.mediaType = raw.mediaType.trim();
@@ -7119,6 +7149,7 @@ export class CapTimelineEditorApp {
                 generationPrompt: String(row.generation_prompt || ""),
                 settingDescription: String(row.setting_description || ""),
                 mediaType: String(row.media_type || "").trim(),
+                flipHorizontal: row.flip_horizontal === true,
                 gridPanels: Number(row.grid_panels) || 0,
                 tags: Array.isArray(row.tags) ? [...row.tags] : [],
             };
@@ -7136,12 +7167,13 @@ export class CapTimelineEditorApp {
             row.setting_description = next.settingDescription || "";
             row.media_type = next.mediaType || "";
             row.grid_panels = next.gridPanels || 0;
+            row.flip_horizontal = next.flipHorizontal === true;
             row.tags = Array.isArray(next.tags) ? [...next.tags] : [];
             if (next.stars) row.stars = next.stars;
             else delete row.stars;
         }
         const id = this._mediaStarsId(kind, file);
-        if (!next.name && !next.stars && !next.prompt && !next.generationPrompt && !next.settingDescription && !next.mediaType && !(next.tags?.length)) {
+        if (!next.flipHorizontal && !next.name && !next.stars && !next.prompt && !next.generationPrompt && !next.settingDescription && !next.mediaType && !(next.tags?.length)) {
             delete this._mediaStarsByDir[id];
         } else {
             this._mediaStarsByDir[id] = next;
@@ -11129,6 +11161,7 @@ export class CapTimelineEditorApp {
         const name = row ? ((row.file || "").split(/[\\/]/).pop() || T("gen_video_label")) : "";
         for (const input of this.genEditTransformInputs || []) {
             input.disabled = !row || !!audioId || selected?.track?.locked === true;
+            if (input.type === "checkbox") { input.checked = row?.flip_horizontal === true; continue; }
             input.value = row?.[input.dataset.genTransform] ?? (input.dataset.genTransform === 'media_scale' ? 100 : 0);
             input.closest('label').querySelector('output').textContent = `${input.value}%`;
         }
@@ -11182,8 +11215,9 @@ export class CapTimelineEditorApp {
         this._pullGenEditDraftFromTimeline();
         const row = st.draft.find(row => row.id === st.clipMap.get(selected.id));
         if (!row) return;
-        row[input.dataset.genTransform] = Math.max(Number(input.min), Math.min(Number(input.max), Number(input.value)));
-        input.closest('label').querySelector('output').textContent = `${row[input.dataset.genTransform]}%`;
+        row[input.dataset.genTransform] = input.type === "checkbox" ? input.checked
+            : Math.max(Number(input.min), Math.min(Number(input.max), Number(input.value)));
+        if (input.type !== "checkbox") input.closest('label').querySelector('output').textContent = `${row[input.dataset.genTransform]}%`;
         this._applyGenEditChanges();
         this._scheduleGenEditPreview();
     }
@@ -15920,6 +15954,7 @@ export class CapTimelineEditorApp {
                 clipType: isMediaTrackType(track.type) ? "media" : "image",
                 mediaKind: isMediaTrackType(track.type) ? "media" : "clip",
                 opacity: Math.max(0, Math.min(1, Number(c.opacity ?? 1))),
+                mediaFlipHorizontal: c.flip_horizontal === true,
                 mediaScale: Math.max(1, Math.min(300, Number(c.media_scale ?? 100))),
                 mediaOffsetX: Math.max(-100, Math.min(100, Number(c.media_offset_x ?? 0))),
                 mediaOffsetY: Math.max(-100, Math.min(100, Number(c.media_offset_y ?? 0))),
@@ -16667,6 +16702,7 @@ export class CapTimelineEditorApp {
             media.preload = "metadata";
         }
         media.className = `cat-te-media-preview-content cat-te-media-preview-${kind}`;
+        if (this._getMediaMeta(kind, file).flipHorizontal && kind !== "audio") media.style.transform = "scaleX(-1)";
         this.mediaPreviewStage.appendChild(media);
         if (this._mediaPreviewDocked && kind !== "image") {
             media.autoplay = true;
@@ -16892,6 +16928,10 @@ export class CapTimelineEditorApp {
         if (this.mediaPreviewGridRow) this.mediaPreviewGridRow.hidden = kind !== "image" || meta.mediaType !== "grid_storyboard";
         const gridOption = this.mediaPreviewType?.querySelector('option[value="grid_storyboard"]');
         if (gridOption) gridOption.disabled = kind !== "image";
+        if (this.mediaPreviewFlip) {
+            this.mediaPreviewFlip.checked = meta.flipHorizontal === true;
+            this.mediaPreviewFlip.closest("label").hidden = !["image", "video"].includes(kind);
+        }
         if (this.mediaPreviewTags) this.mediaPreviewTags.value = (meta.tags || []).join(", ");
         this._characterVoice?.refresh();
     }
@@ -16915,7 +16955,8 @@ export class CapTimelineEditorApp {
         }
         const name = this.mediaPreviewName?.value.trim() || file.split(/[\\/]/).pop() || file;
         const gridPanels = Number(this.mediaPreviewGridPanels?.value) || 0;
-        if (name !== (prev.name || file.split(/[\\/]/).pop() || file) || mediaType !== prev.mediaType || gridPanels !== (prev.gridPanels || 0)) this._recordUndo();
+        const flipHorizontal = this.mediaPreviewFlip?.checked === true;
+        if (name !== (prev.name || file.split(/[\\/]/).pop() || file) || mediaType !== prev.mediaType || gridPanels !== (prev.gridPanels || 0) || flipHorizontal !== (prev.flipHorizontal === true)) this._recordUndo();
         this._writeMediaMeta(kind, file, {
             ...prev,
             name,
@@ -16923,6 +16964,7 @@ export class CapTimelineEditorApp {
             settingDescription: String(this.mediaSettingDescription?.value || ""),
             mediaType,
             gridPanels,
+            flipHorizontal,
             tags: this._parseTagList(this.mediaPreviewTags?.value),
         });
         if (name !== (prev.name || file.split(/[\\/]/).pop() || file)) {
@@ -19074,7 +19116,7 @@ export class CapTimelineEditorApp {
         const y = Math.max(-100, Math.min(100, Number(meta.mediaOffsetY ?? 0))) / 100 * ch;
         ctx.save();
         ctx.translate(cw / 2 + x, ch / 2 + y);
-        ctx.scale(scale, scale);
+        ctx.scale(meta.mediaFlipHorizontal === true ? -scale : scale, scale);
         ctx.translate(-cw / 2, -ch / 2);
         const drew = this._drawContain(ctx, media, cw, ch);
         ctx.restore();
@@ -19219,10 +19261,15 @@ export class CapTimelineEditorApp {
                     ? (c, m, w, h) => this._drawMediaLayer(c, m, w, h, layer.meta)
                     : layer.transform
                         ? (c, m, w, h) => this._drawMediaLayer(c, m, w, h, {
+                            mediaFlipHorizontal: (layer.transform.flip_horizontal === true) !== (layer.location === "input" && this._findMediaById(layer.transform.media_id)?.flip_horizontal === true),
                             mediaScale: layer.transform.media_scale, mediaOffsetX: layer.transform.media_offset_x, mediaOffsetY: layer.transform.media_offset_y,
                         })
                     : drawMedia;
                 ctx.save();
+                if (!layer.mediaTrack && !layer.transform && layer.item?.id && this._findMediaById(layer.item.id)?.flip_horizontal) {
+                    ctx.translate(cw, 0);
+                    ctx.scale(-1, 1);
+                }
                 if (layer.mediaTrack) ctx.globalAlpha *= Math.max(0, Math.min(1, Number(layer.meta.opacity ?? 1)));
                 if (this._previewVideoCanDraw(entry) && drawLayer(ctx, entry.el, cw, ch)) {
                     entry._hasDrawn = true;
@@ -19244,6 +19291,10 @@ export class CapTimelineEditorApp {
                     ? (c, m, w, h) => this._drawMediaLayer(c, m, w, h, layer.meta)
                     : drawMedia;
                 ctx.save();
+                if (!layer.mediaTrack && !layer.transform && layer.item?.id && this._findMediaById(layer.item.id)?.flip_horizontal) {
+                    ctx.translate(cw, 0);
+                    ctx.scale(-1, 1);
+                }
                 if (layer.mediaTrack) ctx.globalAlpha *= Math.max(0, Math.min(1, Number(layer.meta.opacity ?? 1)));
                 if (drawLayer(ctx, startEntry.el, cw, ch)) drew = true;
                 else pending = true;
@@ -20006,6 +20057,8 @@ export class CapTimelineEditorApp {
         }
         const media = !!clip && isMediaTrackType(clip.track?.type);
         this.clipOpacityPanel.hidden = !media;
+        this.mediaFlipInput.checked = media && this._ensureClipMeta(clip).mediaFlipHorizontal === true;
+        this.mediaFlipInput.disabled = !media || clip.track.locked;
         for (const [input, key, fallback] of this.mediaTransformInputs) {
             input.value = String(media ? this._ensureClipMeta(clip)[key] ?? fallback : fallback);
             input.nextElementSibling.textContent = `${input.value}%`;
@@ -20866,6 +20919,7 @@ export class CapTimelineEditorApp {
                 file: item.file,
                 name: media?.name || item.file.split(/[\\/]/).pop(),
                 location: status?.location || media?.location || "input",
+                flip_horizontal: media?.flip_horizontal === true,
                 setting_description: String(media?.setting_description || ""),
                 media_type: String(media?.media_type || ""),
                 grid_panels: Number(media?.grid_panels) || 0,
@@ -21949,6 +22003,7 @@ export class CapTimelineEditorApp {
                 if (Object.keys(source).length) row.source = source;
                 if (isMediaTrackType(track.type)) row.opacity = Math.max(0, Math.min(1, Number(m.opacity ?? 1)));
                 if (isMediaTrackType(track.type)) {
+                    row.flip_horizontal = m.mediaFlipHorizontal === true;
                     row.media_scale = Math.max(1, Math.min(300, Number(m.mediaScale ?? 100)));
                     row.media_offset_x = Math.max(-100, Math.min(100, Number(m.mediaOffsetX ?? 0)));
                     row.media_offset_y = Math.max(-100, Math.min(100, Number(m.mediaOffsetY ?? 0)));
@@ -22000,6 +22055,7 @@ export class CapTimelineEditorApp {
                             muted: v.muted === true,
                             playback_rate: normalizePlaybackRate(v.playback_rate),
                             volume: normalizeClipVolume(v.volume),
+                            flip_horizontal: v.flip_horizontal === true,
                             media_scale: v.media_scale ?? 100,
                             media_offset_x: v.media_offset_x ?? 0,
                             media_offset_y: v.media_offset_y ?? 0,

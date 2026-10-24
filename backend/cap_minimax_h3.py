@@ -596,6 +596,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
                     for source in reference_media["videos"]:
                         context_frames, context_audio = _load_motion_context_from_video(
                             source["file"], pin, source if "duration" in source else None)
+                        if context_frames is not None and source.get("flip_horizontal") is True:
+                            context_frames = context_frames.flip([2])
                         if context_frames is not None:
                             use_context = True
                             break
@@ -659,6 +661,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
                     max(0, length - round(clip_duration_ms * fps / 1000)), length)
                 if frames is None:
                     continue
+                if row.get("flip_horizontal") is True:
+                    frames = frames.flip([2])
                 n = len(ref_videos) + 1
                 ref_videos[f"ref_video_{n}"] = frames
                 prompt_references[-1] = (row, f"<Video {n}>")
@@ -675,6 +679,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 if strict_keyframes:
                     raise ValueError("Strict first/last frame image could not be decoded.")
                 continue
+            if row.get("flip_horizontal") is True:
+                img = img.flip([2])
             n = len(ref_images) + 1
             ref_images[f"ref_image_{n}"] = img
             is_last = parser._ref_id(ref) == last_frame_id if last_frame_id else anchor_count == 1

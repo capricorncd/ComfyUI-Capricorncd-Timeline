@@ -107,7 +107,8 @@ const css = readFileSync(new URL('../js/cap_timeline_editor.css', import.meta.ur
         addMaterialModal: { open: false, showModal() { this.open = true; } }, addMaterialConfirmBtn: {},
         _closeAddMaterial() { this.addMaterialModal.open = false; },
         async _uploadMaterialItem(item) { this.uploads++; return { file: item.file.name, kind: item.kind }; },
-        _replaceMediaReference(...args) { this.replaced = args; },
+        _regenerateCroppedMedia: async () => [{ row: { file: 'old-crop.png', kind: 'image' }, file: 'new-crop.png' }],
+        _replaceMediaReference(...args) { (this.replacements ||= []).push(args); },
         _saveToWidgets() {}, _renderMediaGrid() {}, uploads: 0,
     };
     const event = { target: { files: [{ name: 'new.png' }], value: 'new.png' } };
@@ -118,12 +119,19 @@ const css = readFileSync(new URL('../js/cap_timeline_editor.css', import.meta.ur
     confirmed = false;
     await method('_confirmAddMaterial').call(app);
     assert.equal(app.uploads, 0);
-    assert.equal(app.replaced, undefined);
+    assert.equal(app.replacements, undefined);
     confirmed = true;
     await method('_confirmAddMaterial').call(app);
     assert.equal(app.uploads, 1);
-    assert.deepEqual(app.replaced.slice(0, 4), ['old.png', 'new.png', 'image', true]);
+    assert.deepEqual(app.replacements.map(args => args.slice(0, 4)), [
+        ['old.png', 'new.png', 'image', true], ['old-crop.png', 'new-crop.png', 'image', false],
+    ]);
     assert.equal(app.addMaterialModal.open, false);
+    app.addMaterialModal.open = true;
+    app._regenerateCroppedMedia = async () => { throw new Error('crop failed'); };
+    await assert.rejects(method('_confirmAddMaterial').call(app), /crop failed/);
+    assert.equal(app.replacements.length, 2, 'failed cropping leaves all project references unchanged');
+    assert.equal(app.addMaterialModal.open, true);
 }
 
 // A completed replacement refreshes both library and Clip-source preview entries.

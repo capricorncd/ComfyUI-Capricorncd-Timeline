@@ -35,4 +35,30 @@ for (const type of ['image', 'video']) {
         for (const [name, value] of Object.entries(edits)) assert.equal(reference[name], value);
     }
 }
-console.log('Replacing a library video preserves director Clip duration while media Clips retain source-length clamping.');
+
+const regenerateStart = source.indexOf('    async _regenerateCroppedMedia(');
+const regenerate = new Function('api', `return ({${source.slice(regenerateStart, source.indexOf('\n    }', regenerateStart) + 6)}})._regenerateCroppedMedia`)(
+    {fetchApi: async (url, request) => {
+        requests.push({url, payload: JSON.parse(request.body)});
+        return {ok: true, json: async () => ({file: `new-crop-${requests.length}.${requests.length === 1 ? 'png' : 'mp4'}`})};
+    }},
+);
+const requests = [];
+for (const kind of ['image', 'video']) {
+    const original = {id: 'source', kind, file: `old.${kind === 'image' ? 'png' : 'mp4'}`};
+    const crop = {id: 'crop', kind, file: `old-crop.${kind === 'image' ? 'png' : 'mp4'}`,
+        ...(kind === 'image' ? {image_crop: {source_id: 'source', rect: {x: 0.1, y: 0.2, width: 0.5, height: 0.6}, ratio: 'custom'}}
+            : {video_trim: {source_id: 'source', start: 2, duration: 3, rate: 1.5}})};
+    const app = {_projectResources: [original, crop, {id: 'unrelated', kind, image_crop: {source_id: 'other'}}],
+        _findMedia: (type, file) => type === kind && file === original.file ? original : null,
+        assetsDirInput: {value: 'assets'}};
+    const uploaded = {kind, file: `new.${kind === 'image' ? 'png' : 'mp4'}`, location: 'input'};
+    const result = await regenerate.call(app, {kind, file: original.file}, uploaded);
+    assert.deepEqual(result, [{row: crop, file: `new-crop-${requests.length}.${kind === 'image' ? 'png' : 'mp4'}`}]);
+    assert.equal(crop.file.startsWith('old-crop'), true, 'generation does not mutate references');
+    assert.equal(requests.at(-1).payload.file, uploaded.file);
+    assert.equal(requests.at(-1).url, `/audio_keyframe_timeline/${kind === 'image' ? 'crop_image' : 'trim_video'}`);
+    if (kind === 'image') assert.deepEqual(requests.at(-1).payload.rect, crop.image_crop.rect);
+    else assert.deepEqual(requests.at(-1).payload, {file: uploaded.file, location: 'input', start: 2, duration: 3, rate: 1.5});
+}
+console.log('Media replacement and cropped derivative regeneration passed.');

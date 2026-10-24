@@ -17410,8 +17410,12 @@ export class CapTimelineEditorApp {
         try {
             if (relink) {
                 const uploaded = await this._uploadMaterialItem(items[0]);
+                const cropped = await this._regenerateCroppedMedia(relink, uploaded);
                 this._closeAddMaterial();
                 this._replaceMediaReference(relink.file, uploaded.file, uploaded.kind, true, uploaded);
+                for (const { row, file } of cropped) {
+                    this._replaceMediaReference(row.file, file, row.kind, false, row);
+                }
                 this._saveToWidgets();
                 this._renderMediaGrid();
             } else {
@@ -17425,6 +17429,27 @@ export class CapTimelineEditorApp {
         } finally {
             if (confirmBtn) confirmBtn.disabled = false;
         }
+    }
+
+    async _regenerateCroppedMedia(relink, uploaded) {
+        const source = this._findMedia(relink.kind, relink.file);
+        if (!source) return [];
+        const cropped = [];
+        for (const row of this._projectResources) {
+            const crop = row.kind === "image" ? row.image_crop : row.kind === "video" ? row.video_trim : null;
+            if (!crop || crop.source_id !== source.id || row.kind !== uploaded.kind) continue;
+            const image = row.kind === "image";
+            const payload = image
+                ? { file: uploaded.file, location: uploaded.location || "input", dir: this.assetsDirInput?.value || "", rect: crop.rect }
+                : { file: uploaded.file, location: uploaded.location || "input", start: crop.start, duration: crop.duration, rate: crop.rate };
+            const response = await api.fetchApi(`/audio_keyframe_timeline/${image ? "crop_image" : "trim_video"}`, {
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+            cropped.push({ row, file: result.file });
+        }
+        return cropped;
     }
 
     _registerMediaFile(file, kind, _location, metadata = {}) {

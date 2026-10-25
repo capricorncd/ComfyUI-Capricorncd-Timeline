@@ -1094,6 +1094,14 @@ body.cat-te-row-resize * {
     gap: 6px;
     align-content: start;
 }
+.cat-te-media-marquee {
+    position: fixed;
+    z-index: 100000;
+    pointer-events: none;
+    border: 1px solid var(--cat-action);
+    background: rgba(100, 216, 197, 0.2);
+    box-sizing: border-box;
+}
 
 .cat-te-media-grid > :not(.cat-te-media-item) {
     grid-column: 1 / -1;

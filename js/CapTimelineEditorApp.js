@@ -1484,6 +1484,8 @@ export class CapTimelineEditorApp {
         try {
             this._abortMediaDrag?.();
             this._abortMediaDrag = null;
+            this._abortMediaMarquee?.();
+            this._abortMediaMarquee = null;
             this._stopAutoSave();
             this._stopAudioPlayback();
             try { this._closeMediaPreview(); } catch { /* ignore */ }
@@ -5085,6 +5087,8 @@ export class CapTimelineEditorApp {
         this.mediaStarFilterHost = el.querySelector(".cat-te-media-header-actions");
         this.mediaTabs = el.querySelectorAll(".cat-te-media-tab");
         this.mediaGrid = el.querySelector(".cat-te-media-grid");
+        this.mediaGrid.tabIndex = -1;
+        this._bindMediaMarquee();
         this.mediaPrimaryActionBtn = el.querySelector(".cat-te-media-primary-action");
         this.mediaPanel = el.querySelector(".cat-te-media");
         this.mediaPanelSplit = el.querySelector(".cat-te-media-split");
@@ -6564,6 +6568,11 @@ export class CapTimelineEditorApp {
         if (!this._overlay?.classList.contains("open")) return false;
         if (isEditingField(e)) return false;
         if (e.key !== "Delete" && e.key !== "Backspace") return false;
+        if (this._mediaBatchMode && this.mediaGrid?.contains(document.activeElement)) {
+            e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.();
+            if (!e.repeat && this._mediaBatchSelected.size) void this._deleteSelectedLibraryMedia();
+            return true;
+        }
         if (e.repeat || this._directorKeyframes?.remove()) {
             e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.();
             return true;
@@ -13777,7 +13786,74 @@ export class CapTimelineEditorApp {
         if (this._mediaBatchSelected.has(key)) this._mediaBatchSelected.delete(key);
         else this._mediaBatchSelected.add(key);
         itemEl?.classList.toggle("cat-te-media-selected", this._mediaBatchSelected.has(key));
+        this.mediaGrid?.focus({ preventScroll: true });
         this._renderMediaStarFilter();
+    }
+
+    _bindMediaMarquee() {
+        this.mediaGrid.addEventListener("pointerdown", (e) => {
+            if (e.button !== 0 || e.pointerType === "touch" || this._assetLibraryTab !== "media") return;
+            const item = e.target.closest(".cat-te-media-item");
+            if (item && !this._mediaBatchMode) return;
+            const startX = e.clientX, startY = e.clientY, pointerId = e.pointerId;
+            const previous = e.shiftKey ? new Set(this._mediaBatchSelected) : new Set();
+            let box = null;
+            const update = (x, y) => {
+                const gridRect = this.mediaGrid.getBoundingClientRect();
+                const left = Math.max(gridRect.left, Math.min(startX, x));
+                const top = Math.max(gridRect.top, Math.min(startY, y));
+                const right = Math.min(gridRect.right, Math.max(startX, x));
+                const bottom = Math.min(gridRect.bottom, Math.max(startY, y));
+                box.style.left = `${left}px`;
+                box.style.top = `${top}px`;
+                box.style.width = `${Math.max(0, right - left)}px`;
+                box.style.height = `${Math.max(0, bottom - top)}px`;
+                const next = new Set(previous);
+                for (const card of this.mediaGrid.querySelectorAll(".cat-te-media-item")) {
+                    const rect = card.getBoundingClientRect();
+                    if (left < right && top < bottom && rect.left < right && rect.right > left
+                        && rect.top < bottom && rect.bottom > top) next.add(card.dataset.mediaKey);
+                    card.classList.toggle("cat-te-media-selected", next.has(card.dataset.mediaKey));
+                }
+                if (next.size !== this._mediaBatchSelected.size
+                    || [...next].some((key) => !this._mediaBatchSelected.has(key))) {
+                    this._mediaBatchSelected = next;
+                    this._renderMediaStarFilter();
+                }
+            };
+            const onMove = (ev) => {
+                if (ev.pointerId !== pointerId) return;
+                if (!box) {
+                    const dx = ev.clientX - startX, dy = ev.clientY - startY;
+                    if (dx * dx + dy * dy < 36) return;
+                    box = document.createElement("div");
+                    box.className = "cat-te-media-marquee";
+                    document.body.appendChild(box);
+                    this._mediaBatchMode = true;
+                    this._applyMediaGridView();
+                    this._renderMediaStarFilter();
+                    this.mediaGrid.focus({ preventScroll: true });
+                    if (item) item._catTeSuppressClick = true;
+                }
+                ev.preventDefault();
+                update(ev.clientX, ev.clientY);
+            };
+            const finish = (ev) => {
+                if (ev && ev.pointerId !== pointerId) return;
+                window.removeEventListener("pointermove", onMove, true);
+                window.removeEventListener("pointerup", finish, true);
+                window.removeEventListener("pointercancel", finish, true);
+                box?.remove();
+                if (item?._catTeSuppressClick) setTimeout(() => { item._catTeSuppressClick = false; }, 0);
+                if (this._abortMediaMarquee === abort) this._abortMediaMarquee = null;
+            };
+            const abort = () => finish();
+            this._abortMediaMarquee?.();
+            this._abortMediaMarquee = abort;
+            window.addEventListener("pointermove", onMove, true);
+            window.addEventListener("pointerup", finish, true);
+            window.addEventListener("pointercancel", finish, true);
+        });
     }
 
     _renderMediaStarFilter() {
@@ -14046,6 +14122,7 @@ export class CapTimelineEditorApp {
     }
 
     _renderMediaGrid() {
+        this._abortMediaMarquee?.();
         if (this._portraitFilterPreview) {
             this._portraitFilterPreview = null;
             this._programFrameKey = null;
@@ -14288,7 +14365,7 @@ export class CapTimelineEditorApp {
         const GHOST_W = 88;
         const GHOST_H = 64;
         item.addEventListener("pointerdown", (e) => {
-            if (e.button !== 0) return;
+            if (e.button !== 0 || this._mediaBatchMode) return;
             if (e.target.closest("button")) return;
 
             const startX = e.clientX;

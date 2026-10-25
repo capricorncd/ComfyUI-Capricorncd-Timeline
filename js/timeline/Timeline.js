@@ -739,42 +739,23 @@ export class Timeline extends EventEmitter {
     if (!clip) return;
 
     const t = this._snapTime(this.currentTime);
-    const MIN = 1 / this.fps; // minimum 1 frame
-
-    // Bail out before announcing anything if the playhead position means
-    // there's nothing to cut — only emit resizestart/resizeend (which is
-    // what the app hooks to record one undo step) once we know this will
-    // actually change something, same as the drag-trim gesture does.
+    const min = 1 / Math.max(1, this.fps || 24);
+    const start = clip.startTime;
+    const end = clip.endTime;
     if (side === 'left') {
-      if (t <= clip.startTime) return;
+      if (t <= start) return;
+      const newStart = Math.max(start, Math.min(t, end - min));
+      if (newStart <= start + 1e-7) return;
+      this.emit('clip:resizestart', { clip, track: clip.track });
+      clip.sourceOffset = (clip.sourceOffset || 0) + (newStart - start) * clip.playbackRate;
+      clip.duration = end - newStart;
+      clip.startTime = newStart;
     } else {
-      if (t >= clip.endTime) return;
-    }
-
-    this.emit('clip:resizestart', { clip, track: clip.track });
-
-    if (side === 'left') {
-      if (t >= clip.endTime - MIN) {            // playhead at/past end — entire clip removed
-        this.removeClip(clip.track.id, clip.id);
-        this.selectClip(null);
-        this.emit('clip:resizeend', { clip, track: clip.track, moved: true });
-        return;
-      }
-      // Cutting away the left portion reveals later source content, same
-      // as dragging the left handle — advance sourceOffset by however much
-      // startTime is moving forward, or playback keeps reading from the
-      // original (pre-trim) point in the source.
-      clip.sourceOffset = (clip.sourceOffset || 0) + (t - clip.startTime) * clip.playbackRate;
-      clip.duration = clip.endTime - t;
-      clip.startTime = t;
-    } else {
-      if (t <= clip.startTime + MIN) {          // playhead at/before start — entire clip removed
-        this.removeClip(clip.track.id, clip.id);
-        this.selectClip(null);
-        this.emit('clip:resizeend', { clip, track: clip.track, moved: true });
-        return;
-      }
-      clip.duration = t - clip.startTime;
+      if (t >= end) return;
+      const newEnd = Math.min(end, Math.max(t, start + min));
+      if (newEnd >= end - 1e-7) return;
+      this.emit('clip:resizestart', { clip, track: clip.track });
+      clip.duration = newEnd - start;
     }
 
     clip._applyPosition();

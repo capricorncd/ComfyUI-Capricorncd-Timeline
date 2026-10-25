@@ -473,6 +473,7 @@ export class Clip extends EventEmitter {
   _dragTrim(e, side) {
     const tl = this.track.timeline;
     const pps = tl.pixelsPerSecond;
+    const minDuration = 1 / Math.max(1, tl.fps || 24);
     const startX = e.clientX;
     const origStart = this.startTime;
     const origDur = this.duration;
@@ -513,7 +514,7 @@ export class Clip extends EventEmitter {
           Number.isFinite(this.sourceDuration) ? origStart - origSourceOffset / this.playbackRate : -Infinity,
           0,
         );
-        const maxStart = origStart + origDur - MIN_DURATION;
+        const maxStart = origStart + origDur - minDuration;
         let newStart = this._snap(clamp(origStart + dt, minStart, maxStart));
         newStart = tl._snapEdgeTime(this, newStart);
         newStart = clamp(newStart, minStart, maxStart);
@@ -528,7 +529,7 @@ export class Clip extends EventEmitter {
           nextClip ? nextClip.startTime : tl.duration,
           sourceMax,
         );
-        const minEnd = origStart + MIN_DURATION;
+        const minEnd = origStart + minDuration;
         let newEnd = this._snap(clamp(origStart + origDur + dt, minEnd, maxEnd));
         newEnd = tl._snapEdgeTime(this, newEnd);
         newEnd = clamp(newEnd, minEnd, maxEnd);

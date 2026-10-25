@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('../js/CapTimelineEditorApp.js', import.meta.url), 'utf8');
 function method(name) {
     const start = source.indexOf('    ' + name + '(');
-    return new Function('return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '}).' + name)();
+    return new Function('isEditingField', 'isDirectorTrackType', 'defaultAudioMeta', 'defaultImageMeta',
+        'return ({' + source.slice(start, source.indexOf('\n    }', start) + 6) + '}).' + name)(
+        () => false, () => false, () => ({}), () => ({}));
 }
 
 for (const type of ['audio', 'image', 'video', 'text', 'voiceover']) {
@@ -62,5 +64,73 @@ for (const type of ['audio', 'image', 'video', 'text', 'voiceover']) {
     if (type === 'audio') {
         assert.deepEqual([left.fadeIn, left.fadeOut, right.fadeIn, right.fadeOut], [0.5, 0, 0, 0.75]);
     }
+    if (type === 'image') {
+        const oneFrame = {...original, id: 'one-frame', startTime: 10, endTime: 12, duration: 2};
+        track.clips.push(oneFrame);
+        app._meta.set(oneFrame.id, {});
+        timeline.currentTime = 10 + 1 / 24;
+        timeline.getSelectedClips = () => [oneFrame];
+        app._splitClip(oneFrame);
+        assert.equal(track.clips.length, 4, 'an image can be split one frame from its start');
+        assert(Math.abs(track.clips[2].duration - 1 / 24) < 1e-7);
+        assert(Math.abs(track.clips[3].duration - (2 - 1 / 24)) < 1e-7);
+        const lastFrame = {...original, id: 'last-frame', startTime: 13, endTime: 15, duration: 2};
+        track.clips.push(lastFrame);
+        app._meta.set(lastFrame.id, {});
+        timeline.currentTime = 15 - 1 / 24;
+        timeline.getSelectedClips = () => [lastFrame];
+        app._splitClip(lastFrame);
+        assert.equal(track.clips.length, 6, 'an image can also be split one frame from its end');
+        assert(Math.abs(track.clips[5].duration - 1 / 24) < 1e-7);
+    }
 }
 console.log('Ctrl+X splits the only clip on each track type without pruning the track or losing either half');
+
+const timelineSource = readFileSync(new URL('../js/timeline/Timeline.js', import.meta.url), 'utf8');
+const trimStart = timelineSource.indexOf('  _trimClipAtPlayhead(side) {');
+const trim = new Function('return ({' + timelineSource.slice(trimStart,
+    timelineSource.indexOf('\n  }', trimStart) + 4) + '})._trimClipAtPlayhead')();
+for (const side of ['left', 'right']) {
+    const clip = {
+        startTime: 2, duration: 5, sourceOffset: 3, playbackRate: 2, track: {id: 'image'},
+        get endTime() { return this.startTime + this.duration; },
+        _applyPosition() { this.positioned = true; },
+    };
+    const events = [];
+    const timeline = {
+        _selected: clip, fps: 24,
+        currentTime: side === 'left' ? 7 - 1 / 24 : 2 + 1 / 24,
+        _snapTime: value => Math.round(value * 24) / 24,
+        emit: event => events.push(event),
+        removeClip() { assert.fail('trimming to one frame must not remove the Clip'); },
+    };
+    trim.call(timeline, side);
+    assert(Math.abs(clip.duration - 1 / 24) < 1e-7, `${side} trim retains one frame`);
+    assert.equal(clip.positioned, true);
+    assert.deepEqual(events, ['clip:resizestart', 'clip:resize', 'clip:resizeend']);
+    if (side === 'left') assert(Math.abs(clip.sourceOffset - (3 + (5 - 1 / 24) * 2)) < 1e-7);
+    else assert.equal(clip.sourceOffset, 3);
+}
+const frameMeta = {};
+const frameApp = {getFps: () => 24, _meta: new Map(), _ensureClipMeta: () => frameMeta};
+method('_rememberResourceTiming').call(frameApp, {id: 'frame', startTime: 2, duration: 1 / 24});
+assert(Math.abs(frameApp._meta.get('frame').resourceDurationSec - 1 / 24) < 1e-7,
+    'saved image timing keeps the one-frame duration');
+const adjacent = [{id: 'first', startTime: 2, duration: 1 / 24},
+    {id: 'next', startTime: 2 + 1 / 24, duration: 1}];
+for (const clip of adjacent) clip._applyPosition = () => {};
+method('_reflowTrackNoOverlap').call(frameApp, {clips: adjacent});
+assert(Math.abs(adjacent[1].startTime - (2 + 1 / 24)) < 1e-7,
+    'a neighboring Clip stays adjacent to a one-frame Clip');
+const linked = {id: 'audio', startTime: 2 + 1 / 24, duration: 1, _applyPosition() {}};
+const syncApp = {
+    getFps: () => 24, _mainTrack: {clips: [{id: 'image', startTime: 2, duration: 1 / 24}]},
+    _allAudioTracks: () => [{clips: [linked]}], _allVoiceoverTracks: () => [], _allTextTracks: () => [],
+    _meta: new Map([[linked.id, {resourceStartSec: linked.startTime, resourceDurationSec: 1}]]),
+    _ensureClipMeta: () => ({}), _ensureResourceStart: () => 2, _ensureResourceDuration: () => 1 / 24,
+    _reflowTrackNoOverlap: method('_reflowTrackNoOverlap'),
+};
+method('_rippleLinkedTracksFromImageLayout').call(syncApp);
+assert(Math.abs(linked.startTime - (2 + 1 / 24)) < 1e-7,
+    'a one-frame image does not shift linked audio on the timeline');
+console.log('A one-frame image split and Q/W trims preserve the Clip');

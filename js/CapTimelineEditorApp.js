@@ -7273,7 +7273,7 @@ export class CapTimelineEditorApp {
         const m = meta || this._ensureClipMeta(clip);
         const cur = Number(m.resourceDurationSec);
         if (!(Number.isFinite(cur) && cur > 0)) {
-            m.resourceDurationSec = Math.max(0.05, Number(clip.duration) || 0.05);
+            m.resourceDurationSec = Math.max(1 / this.getFps(), Number(clip.duration) || 0);
         }
         return m.resourceDurationSec;
     }
@@ -7290,6 +7290,7 @@ export class CapTimelineEditorApp {
     /** Push later clips on a track so expanded durations do not overlap (gaps kept). */
     _reflowTrackNoOverlap(track) {
         if (!track?.clips?.length) return;
+        const frame = 1 / this.getFps();
         const clips = [...track.clips].sort((a, b) => (
             (a.startTime - b.startTime) || String(a.id).localeCompare(String(b.id))
         ));
@@ -7300,7 +7301,7 @@ export class CapTimelineEditorApp {
                 st = cursor;
                 clip.startTime = st;
             }
-            const dur = Math.max(0.05, Number(clip.duration) || 0.05);
+            const dur = Math.max(frame, Number(clip.duration) || 0);
             cursor = st + dur;
             clip._applyPosition?.();
         }
@@ -7337,7 +7338,7 @@ export class CapTimelineEditorApp {
         if (!clip) return;
         const m = meta || this._ensureClipMeta(clip);
         m.resourceStartSec = Math.max(0, Number(clip.startTime) || 0);
-        m.resourceDurationSec = Math.max(0.05, Number(clip.duration) || 0.05);
+        m.resourceDurationSec = Math.max(1 / this.getFps(), Number(clip.duration) || 0);
         this._meta.set(clip.id, m);
     }
 
@@ -7521,6 +7522,7 @@ export class CapTimelineEditorApp {
      */
     _rippleLinkedTracksFromImageLayout() {
         const main = this._mainTrack;
+        const frame = 1 / this.getFps();
         const imageClips = [];
         for (const clip of main?.clips ?? []) {
             const m = this._ensureClipMeta(clip);
@@ -7530,7 +7532,7 @@ export class CapTimelineEditorApp {
                 resEnd: resStart + this._ensureResourceDuration(clip, m),
                 outStart: Math.max(0, Number(clip.startTime) || 0),
                 outEnd: Math.max(0, Number(clip.startTime) || 0)
-                    + Math.max(0.05, Number(clip.duration) || 0.05),
+                    + Math.max(frame, Number(clip.duration) || 0),
             });
         }
         if (!imageClips.length) return;
@@ -7547,7 +7549,7 @@ export class CapTimelineEditorApp {
                 if (seg.resStart <= t && t < seg.resEnd) {
                     const local = t - seg.resStart;
                     const resDur = Math.max(1e-6, seg.resEnd - seg.resStart);
-                    const outDur = Math.max(0.05, seg.outEnd - seg.outStart);
+                    const outDur = Math.max(frame, seg.outEnd - seg.outStart);
                     return seg.outStart + (local / resDur) * outDur;
                 }
                 break;
@@ -16100,7 +16102,7 @@ export class CapTimelineEditorApp {
             referenceTimeline: c.reference_timeline ? structuredClone(c.reference_timeline) : null,
                 previewMode: this._previewModeFromJson(c),
                 resourceDurationSec: Math.max(
-                    0.05,
+                    1 / fps,
                     Number(c.resource_duration_sec) || dur,
                 ),
                 resourceStartSec: Math.max(
@@ -18767,7 +18769,7 @@ export class CapTimelineEditorApp {
         const frameMin = 1 / Math.max(1, this.getFps());
         const leftDur = t - clip.startTime;
         const rightDur = clip.endTime - t;
-        if (leftDur < frameMin || rightDur < frameMin) return;
+        if (leftDur < frameMin - 1e-7 || rightDur < frameMin - 1e-7) return;
 
         this._recordUndo();
         const isAudio = track.type === "audio";

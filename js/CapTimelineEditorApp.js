@@ -6399,6 +6399,11 @@ export class CapTimelineEditorApp {
 
     _refreshTimelineDuration() {
         if (!this._timeline) return;
+        for (const track of this._timeline.tracks) {
+            if (!track.autoArrange || track.locked) continue;
+            track.arrangeClips();
+            track.refreshClips();
+        }
         const dur = this._computeTimelineDuration();
         this._timeline.duration = dur;
         this._syncMinZoom();

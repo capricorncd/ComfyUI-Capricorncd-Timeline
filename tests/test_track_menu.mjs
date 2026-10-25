@@ -60,3 +60,20 @@ assert.equal(arrange.call(automatic),false);
 assert(source.includes('autoArrange: row.auto_arrange === true'));
 assert(source.includes('auto_arrange: track.autoArrange === true'));
 console.log('Auto arrangement: timing edits, removal, disabled/locked tracks and persistence passed');
+
+const gapClips = [makeClip(0, 2), makeClip(6, 3)];
+let painted = 0;
+for (const clip of gapClips) clip._applyPosition = () => { painted++; };
+const autoTrack = {autoArrange: true, locked: false, clips: gapClips, arrangeClips: arrange,
+    refreshClips() { this.clips.forEach(clip => clip._applyPosition()); }};
+const refresh = method('_refreshTimelineDuration');
+const timeline = {tracks: [autoTrack], duration: 20, _refresh() {}, _durEl: null};
+const editor = {_timeline: timeline, _computeTimelineDuration: () => 20, _syncMinZoom() {}};
+refresh.call(editor);
+assert.deepEqual(gapClips.map(clip => clip.startTime), [0, 2],
+    'refresh closes a new gap while automatic arrangement remains enabled');
+assert(painted >= 2, 'refresh redraws the arranged Clip positions');
+autoTrack.autoArrange = false;
+gapClips[1].startTime = 8;
+refresh.call(editor);
+assert.equal(gapClips[1].startTime, 8, 'a track without automatic arrangement keeps its intentional gap');

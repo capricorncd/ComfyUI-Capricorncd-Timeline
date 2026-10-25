@@ -2,7 +2,7 @@ import { app } from "../../scripts/app.js";
 
 const INPUT_ORDER = [
     "model", "base_model", "clip", "vae", "audio_vae", "data_json", "audio_refine_config", "face_refine_config", "selflift_config", "interpolation_config",
-    "steps", "attention", "max_segment_seconds",
+    "steps", "attention", "ref_image_size", "max_segment_seconds",
     "second_sampling", "first_pass_megapixels", "preview_sampling_batch", "upscaler_model", "refine_sigmas",
     "motion_deblur",
     "sampling_preview", "preview_tiny_vae",
@@ -45,7 +45,7 @@ app.registerExtension({
             // LiteGraph saves widget values positionally; restore by the saved names.
             const inputWidgets = info.inputs?.filter(input => WIDGET_ORDER.includes(input.widget?.name) || ["strict_keyframes", "audio_refine", "audio_refine_steps", "normalize_audio"].includes(input.widget?.name))
                 .map(input => input.widget.name) ?? [];
-            const legacyOrder = schemaOrder.filter(name => !["preview_sampling_batch", "concat_full_videos", "max_segment_seconds"].includes(name))
+            const legacyOrder = schemaOrder.filter(name => !["preview_sampling_batch", "concat_full_videos", "max_segment_seconds", "ref_image_size"].includes(name))
                 .map(name => name === "chain_all_clips" ? "normalize_audio" : name);
             if (!info.properties?.cap_h3_widget_order && info.widgets_values?.length >= legacyOrder.length + 1) {
                 legacyOrder.splice(legacyOrder.indexOf("normalize_audio"), 0, "audio_refine", "audio_refine_steps");
@@ -62,7 +62,8 @@ app.registerExtension({
                 info = {...info, widgets_values: this.widgets.filter(widget => WIDGET_ORDER.includes(widget.name))
                     .map(widget => values.has(widget.name) ? values.get(widget.name)
                         : ["motion_deblur", "chain_all_clips"].includes(widget.name) ? false
-                            : widget.name === "preview_sampling_batch" ? 1 : widget.value)};
+                            : widget.name === "preview_sampling_batch" ? 1
+                                : widget.name === "ref_image_size" ? "match" : widget.value)};
             }
             configure?.call(this, info);
             // Graph loading/paste installs links after node.configure returns.

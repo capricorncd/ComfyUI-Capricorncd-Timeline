@@ -712,6 +712,10 @@
       }
     },
     "inputs": {
+      "ref_image_size": {
+        "name": "Reference image size",
+        "tooltip": "match (default): downsize to each sampling pass's pixel area. max: retain more detail, downscaling only above a 2048px short edge; uses more memory and time. Neither upscales small images. First/last frame anchors still use the output canvas size."
+      },
       "interpolation_config": {
         "name": "Interpolation config"
       },

@@ -730,6 +730,10 @@
   "CAP_H3VideoGenerator": {
     "display_name": "MiniMax H3 视频生成",
     "inputs": {
+      "ref_image_size": {
+        "name": "参考图尺寸",
+        "tooltip": "match（默认）：按当前采样画面的像素总量缩小。max：保留更多细节，仅在短边超过 2048 像素时缩小，增加显存和耗时。均不放大小图。首尾帧锚点仍按输出画布尺寸处理。"
+      },
       "audio_refine_config": {
         "name": "H3 音频修复配置",
         "tooltip": "连接 H3 音频修复配置节点，在该节点设置启用、步数、强度和缓存模式。"

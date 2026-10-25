@@ -262,6 +262,7 @@ class CAP_H3VideoGenerator:
                 "concat_full_videos": ("BOOLEAN", {"default": False, "tooltip": "When compose_final is enabled, concatenate complete generated files in generation order. Keep all frames and original audio; ignore Clip durations, context replacement and head/tail trimming. Also supports keyframe interval runs. A single file is reused."}),
                 "preview_sampling_batch": ("INT", {"default": 1, "min": 1, "max": 100, "tooltip": "Number of preview candidates per Clip, generated sequentially with different seeds. Only used by Batch preview sampling."}),
                 "max_segment_seconds": ("FLOAT", {"default": 15.0, "min": 0.1, "max": 3600.0, "step": 0.1, "tooltip": "Maximum duration per generated segment. Longer video-reference Clips and keyframe intervals use latent continuation. This is separate from second sampling."}),
+                "ref_image_size": (["match", "max"], {"default": "match", "tooltip": "Reference image sizing. match downsizes to each sampling pass's pixel area; max keeps more detail, downscaling only above a 2048px short edge. Neither upscales small images. max uses more memory and sampling time. First/last frame anchors still use the output canvas size."}),
             },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "unique_id": "UNIQUE_ID", "dynprompt": "DYNPROMPT"},
         }
@@ -277,7 +278,7 @@ class CAP_H3VideoGenerator:
                  prompt=None, extra_pnginfo=None,
                  unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None, motion_deblur=False,
                  face_refine_config=None, selflift_config=None,
-                 interpolation_config=None, audio_refine_config=None, preview_sampling_batch=1, concat_full_videos=False, auto_prompt_config=None, max_segment_seconds=15):
+                 interpolation_config=None, audio_refine_config=None, preview_sampling_batch=1, concat_full_videos=False, auto_prompt_config=None, max_segment_seconds=15, ref_image_size="match"):
         data = json.loads(data_json)
         width, height, fps = _validate(data)
         request = data.get("h3_generation") or {}
@@ -521,7 +522,7 @@ class CAP_H3VideoGenerator:
                 fps, steps, row.get("clip_role") == "first_last", second_sampling or clip_stage == "refine", upscaler_model, refine_sigmas,
                 audio_refine, audio_refine_steps, attention, prior_paths,
                 run_token, dict(records), extra_pnginfo,
-                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur, face_refine_config, None if clip_stage == "refine" else selflift_config, interpolation, audio_refine_config, clip_stage, clip_manifest)
+                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, motion_deblur, face_refine_config, None if clip_stage == "refine" else selflift_config, interpolation, audio_refine_config, clip_stage, clip_manifest, ref_image_size)
             filename = saved["result"][0]
             row["output_video"] = filename
             for owner in data["clips"]:
@@ -591,7 +592,7 @@ class CAP_H3VideoGenerator:
     def _generate_clip(self, model, base_model, clip, vae, audio_vae, data, index, width, height, low_width, low_height,
                        fps, steps, strict_keyframes, second_sampling, upscaler_model, refine_sigmas,
                        audio_refine, audio_refine_steps, attention, prior_paths,
-                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, motion_deblur=False, face_refine_config=None, selflift_config=None, interpolation=None, audio_refine_config=None, stage="normal", draft_manifest=None):
+                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, motion_deblur=False, face_refine_config=None, selflift_config=None, interpolation=None, audio_refine_config=None, stage="normal", draft_manifest=None, ref_image_size="match"):
         if progress:
             progress("prepare")
         row = data["clips"][index]
@@ -602,7 +603,7 @@ class CAP_H3VideoGenerator:
             if second_sampling:
                 high_context, = _call("MiniMaxH3MotionContextLoadLatent", records, latent_path=prior_paths[1], clip_index=0)
         prepared = CAP_MiniMaxH3ReferenceToVideo().execute(
-            clip, vae, audio_vae, low_width, low_height, "match",
+            clip, vae, audio_vae, low_width, low_height, ref_image_size,
             json.dumps(data, ensure_ascii=False), index, context_latent=low_context, strict_keyframes=strict_keyframes)
         positive, latent = prepared[:2]
         frame_count, composed_prompt, trim_frames, save_latent = prepared[2], prepared[3], prepared[8], prepared[9]
@@ -677,7 +678,7 @@ class CAP_H3VideoGenerator:
                 latent = _lock_audio(latent, locked_audio)
             if strict_keyframes or (trim_frames and high_context is None):
                 high_prepared = CAP_MiniMaxH3ReferenceToVideo().execute(
-                    clip, vae, audio_vae, width, height, "match", json.dumps(data, ensure_ascii=False), index,
+                    clip, vae, audio_vae, width, height, ref_image_size, json.dumps(data, ensure_ascii=False), index,
                     strict_keyframes=strict_keyframes)
                 positive = high_prepared[0]
                 del high_prepared

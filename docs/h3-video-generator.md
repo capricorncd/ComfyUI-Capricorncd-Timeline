@@ -2,6 +2,8 @@
 
 Maximum segment duration defaults to 15 seconds and is editable on the node. Longer video-reference Clips and keyframe intervals use latent continuation, with each segment associated at its original position. This setting is independent of second sampling.
 
+`ref_image_size` defaults to `match`, downsizing reference images to each sampling pass's pixel area. Select `max` to retain more reference detail, downscaling only when the short edge exceeds 2048 pixels, at higher memory/time cost. Small images are not upscaled. Applies to reference images in preview, normal and refinement runs; first/last frame anchors retain their canvas sizing.
+
 [README](../README.md) · [All nodes](nodes.md)
 
 Node ID: `CAP_H3VideoGenerator`. Category: `Capricorncd/MiniMaxH3`.

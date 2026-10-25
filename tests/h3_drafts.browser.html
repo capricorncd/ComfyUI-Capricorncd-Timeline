@@ -49,7 +49,12 @@ try {
     meta.h3Drafts = rows;
     view.render();
     const nav = view.dialog.querySelectorAll('[slot=title] cap-button');
-    assert(nav[0].disabled && !nav[1].disabled, 'navigation boundary');
+    assert(!nav[0].disabled && !nav[1].disabled, 'circular navigation');
+    const info = view.dialog.querySelector('[slot=footer] cap-help-icon');
+    assert(info?.getAttribute('icon') === 'info' && info.tip.textContent.includes('latent'), 'footer information tooltip');
+    nav[0].click();
+    assert(view.clipId === second.id, 'previous wraps to last Clip');
+    view.followSelection(clip);
     nav[1].click();
     assert(view.clipId === second.id && !view.dialog.querySelector('video'), 'next Clip clears previous video');
     view.followSelection(clip);

@@ -4171,6 +4171,7 @@ body.cat-te-media-dnd-over-tl {
 .cat-te-h3-draft-row.is-playing { border-color: var(--cat-accent); outline: 2px solid var(--cat-accent); outline-offset: 2px; background: color-mix(in srgb, var(--cat-accent) 8%, var(--cat-surface)); }
 .cat-te-h3-draft-row:focus-within { border-color: var(--cat-accent); }
 .cat-te-h3-draft-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cat-te-h3-draft-info { margin-right: auto; }
 .cat-te-h3-draft-detail { min-width: 0; }
 .cat-te-h3-alignment { --cap-dialog-width: 760px; --cap-dialog-min-width: 360px; --cap-dialog-min-height: 240px; }
 .cat-te-h3-alignment-body { padding: 20px 28px; }

@@ -27,6 +27,10 @@ export class HelpIcon extends HTMLElement {
             });
         }
     }
+    static get observedAttributes() { return ['icon']; }
+    attributeChangedCallback(name, oldValue, value) {
+        if (name === 'icon') this.button.innerHTML = iconHtml(value === 'info' ? 'info' : 'help', 12);
+    }
     configure(label, text) {
         this.button.setAttribute('aria-label', label);
         this.tip.textContent = text;

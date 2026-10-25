@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../js/editor/H3DraftVersions.js',import.meta.url),'utf8');
-const Manager=new Function(source.slice(source.indexOf('export class ')).replace('export class ','return class '))();
+const Manager=new Function('selectedKeyframeRun', source.slice(source.indexOf('export class ')).replace('export class ','return class '))(editor => {
+    const point = editor._directorKeyframes.selection.point;
+    const points = editor._directorKeyframes.points();
+    const index = points.indexOf(point);
+    return {keyframe_runs:[{fps:24, intervals:[{
+        start_frame:point.time*24, end_frame:(points[index+1]?.time ?? 10)*24,
+    }]}]};
+});
 const a={id:'a',startTime:0}, b={id:'b',startTime:4}, c={id:'c',startTime:8};
 const track={type:'image',clips:[c,a,b]}; for(const clip of track.clips) clip.track=track;
 const audio={id:'audio',track:{type:'audio'}};
@@ -15,13 +22,37 @@ manager.step(1);
 assert.equal(manager.clipId,'b');assert.equal(selected,b);assert.equal(manager.previewId,null);
 assert.equal(renders,2,'selection event and navigation render once');assert.equal(paused,2);
 manager.followSelection(c);assert.equal(manager.clipId,'c');
-manager.step(1);assert.equal(manager.clipId,'c');
-manager.step(-1);assert.equal(manager.clipId,'b');
-manager.followSelection(a);manager.step(-1);assert.equal(manager.clipId,'a');
-manager.followSelection(audio);assert.equal(manager.clipId,'a');
-manager.followSelection(null);assert.equal(manager.clipId,'a');
-manager.dialog.open=false;manager.followSelection(b);assert.equal(manager.clipId,'a');assert.equal(shown,0);
-console.log('PASS: Clip order, timeline selection sync, boundary navigation, preview reset, playback cleanup and closed-dialog guard');
+manager.step(1);assert.equal(manager.clipId,'a','last Clip wraps to first');
+manager.step(-1);assert.equal(manager.clipId,'c','first Clip wraps to last');
+manager.followSelection(audio);assert.equal(manager.clipId,'c');
+manager.followSelection(null);assert.equal(manager.clipId,'c');
+manager.dialog.open=false;manager.followSelection(b);assert.equal(manager.clipId,'c');assert.equal(shown,0);
+console.log('PASS: Clip order, timeline selection sync, circular navigation, preview reset, playback cleanup and closed-dialog guard');
+
+const points=[{time:0},{time:2},{time:5}];
+manager.editor.getFps=()=>24;
+manager.editor._findClipById=id=>id==='a' ? a : null;
+a.duration=10;
+manager.editor._directorKeyframes={
+    selection:null, target:clip=>({clip,start:0,rate:1,duration:10}),
+    points:()=>points,
+    select(target,point){this.selection={point}; manager.editor._timeline.selectClip(target.clip);},
+};
+manager.dialog.open=true; manager.open(a,{start_frame:48,end_frame:120,fps:24});
+manager.step(1);
+assert.equal(manager.interval.start_frame,120);
+assert.equal(manager.editor._directorKeyframes.selection.point,points[2]);
+manager.step(1);assert.equal(manager.interval.start_frame,0,'last keyframe wraps to first');
+manager.step(-1);assert.equal(manager.interval.start_frame,120,'first keyframe wraps to last');
+assert.equal(manager.clipId,'a','keyframe navigation stays on current Clip');
+assert.equal(manager.keyframes(a).length,3);
+manager.editor._directorKeyframes.target=clip=>({clip,start:10,rate:2,duration:20});
+manager.editor._directorKeyframes.points=()=>[{time:9},{time:10},{time:14},{time:20},{time:30}];
+assert.deepEqual(manager.keyframes(a).map(row=>row.frame),[0,48,120], 'source-trimmed keyframes map into Clip frames');
+manager.editor._directorKeyframes.target=clip=>({clip,start:0,rate:1,duration:10});
+manager.editor._directorKeyframes.points=()=>[points[2]];
+manager.step(1);assert.equal(manager.interval.start_frame,120,'single keyframe has no other target');
+console.log('PASS: keyframe mode loops through current Clip markers, syncs selection and preserves interval scope');
 
 const timeSource=source.slice(source.indexOf('export function draftStartTime'),source.indexOf('export function draftGeneratedTime'));
 const time=new Function(timeSource.replace('export function','return function'))();

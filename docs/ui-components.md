@@ -10,7 +10,7 @@ The reference-description menu lists exact named references from the field's unc
 
 `PromptHistoryActions.js` also registers `<cap-readonly-prompt>` for history entries and preview sampling prompts. Set its `value` and `aria-label`. It owns the read-only textarea, shared Copy icon with success feedback, and automatic full-text height; content scrolls with the dialog body. History entries retain their restore and delete actions below the field.
 
-`cap-dialog` supports `previous` and `next` slots for navigation buttons centered outside its left and right edges. Preview sampling management uses these slots for Clip navigation, matching Prompt Management.
+`cap-dialog` supports `previous` and `next` slots for navigation buttons centered outside its left and right edges. Preview sampling management uses these slots for circular Clip navigation or, in keyframe mode, circular navigation through the current Clip’s keyframes.
 
 `cap-shot-control` exposes a default slot for Clip-owned actions. Its keyframe preview sampling action opens the shared version manager filtered to the selected frame interval, including continuation parts. Sampling and HD generation in this view use that interval. Clicking the Clip outside its markers clears keyframe selection.
 
@@ -405,7 +405,7 @@ Catalog source: MiniMax-AI/MiniMax-H3 `skills/h3-prompt-writing/references/{ref,
 
 `::d` opens Chinese/English/Japanese dialogue language choices with the UI language first. Selecting inserts `<d>[Language]</d>` and positions the caret inside. The prompt template/reference toolbar includes a help icon with localized hover instructions for `@`, `:h3`, `::h3`, `::d` and keyboard selection.
 
-`cap-help-icon` (`HelpIcon.js`) uses the shared help SVG and button. Call `configure(label, text)` with localized plain text. Hover, focus or click opens a top-layer tooltip immediately; moving into the tooltip keeps it readable. Escape, leaving, outside clicks and resize dismiss it. It constrains placement to the viewport and avoids native title delays. Prompt input help uses this component.
+`cap-help-icon` (`HelpIcon.js`) uses the shared help/info SVG and button. Call `configure(label, text)` with localized plain text. Set `icon="info"` for an information icon; the default is Help. Hover, focus or click opens a top-layer tooltip immediately; moving into the tooltip keeps it readable. Escape, leaving, outside clicks and resize dismiss it. It constrains placement to the viewport and avoids native title delays. Prompt input help uses this component.
 
 `cap-inline-prompt` exposes `part="editor"` for a containing prompt field to own its border and background. Prompt toolbar containers show a single focus outline around the full field, including the toolbar; global prepend/append fields use flex sizing so the editable area fills the available height.
 

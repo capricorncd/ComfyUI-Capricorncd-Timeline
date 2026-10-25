@@ -256,6 +256,8 @@ pipeline._promptIdFromEvent = event => event.detail.prompt_id;
 pipeline._clipIdFromSpecifiedVideoPath = () => 'selected';
 pipeline._collectExecutedOutputVideos = method('_collectExecutedOutputVideos');
 pipeline._onPromptExecuted = method('_onPromptExecuted');
+pipeline.associatedFiles = [];
+pipeline._onTimelineVideoSaved = event => pipeline.associatedFiles.push(event.detail.file);
 pipeline._workflowPreview = {active: true, promptId: 'own', clipId: 'selected',
     nodeIds: new Set(['6:1']), imageId: crypto.randomUUID(), sequence: 0, entry: null};
 pipeline._runningPromptId = 'own';
@@ -274,6 +276,7 @@ pipeline._onPromptExecuted({detail: {prompt_id: 'own', output: {
 assert(!pipeline._workflowPreview.active);
 assert(pipeline.rendered.entry.final);
 assert.equal(pipeline.rendered.entry.url, '/view/project/saved_selected.mp4');
+assert.deepEqual(pipeline.associatedFiles, ['project/saved_selected.mp4'], 'normal output also associates with its Clip');
 assert.deepEqual(pipeline._collectExecutedOutputVideos({output: {
     'show-text': {text: ['not-created.mp4']},
     'save-video': {gifs: [{filename: 'saved.webm', subfolder: 'project', type: 'output'}]},

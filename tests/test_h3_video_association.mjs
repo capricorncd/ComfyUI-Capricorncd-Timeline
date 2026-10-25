@@ -32,7 +32,7 @@ function editor(ready = true) {
     };
     for (const name of ['_onH3ClipVideoReady', '_receiveKeyframeVideo', '_onTimelineVideoSaved', '_onPromptExecuted',
         '_persistGeneratedVideosToProjectJson', '_collectExecutedOutputVideos',
-        '_teNotifyBelongsHere', '_safeProjectFilename']) e[name] = method(name);
+        '_teNotifyBelongsHere', '_safeProjectFilename', '_clipIdFromSpecifiedVideoPath']) e[name] = method(name);
     return e;
 }
 function event(id, filename = `${id}.mp4`) {
@@ -71,6 +71,60 @@ closed._onTimelineVideoSaved({detail: {clip_id: 'a', file: 'custom/project/a.mp4
 assert.equal(files(closed).length, 1, 'ready, Seq To Video and completed events do not duplicate saved associations');
 assert.deepEqual(closed._collectExecutedOutputVideos({output: {'769': completed.detail.output}}),
     ['custom/project/a.mp4', 'custom/project/b.mp4'], 'history lookup excludes the final composition');
+
+const normal = editor(false);
+const saved = {detail: {prompt_id:'normal', output:{video:[
+    {filename:'20261024-091122_a_kf0.mp4', subfolder:'CapTimelineEditor/project', type:'output'},
+    {filename:'20261024-091123_b_kf0.mp4', subfolder:'CapTimelineEditor/project', type:'output'},
+]}}};
+normal._onPromptExecuted(saved);
+assert.deepEqual(files(normal), ['CapTimelineEditor/project/20261024-091122_a_kf0.mp4']);
+assert.deepEqual(files(normal, 1), ['CapTimelineEditor/project/20261024-091123_b_kf0.mp4'],
+    'normal workflow outputs link without a pending editor run');
+normal._onTimelineVideoSaved({detail:{clip_id:'a', file:files(normal)[0]}});
+normal._onPromptExecuted(saved);
+assert.equal(files(normal).length, 1, 'save notification and completion replay do not duplicate takes');
+const otherProject = editor(false);
+otherProject._onPromptExecuted({detail:{prompt_id:'foreign', output:{video:[
+    {filename:'20261024-091122_a_kf0.mp4',subfolder:'CapTimelineEditor/foreign',type:'output'},
+]}}});
+assert.deepEqual(files(otherProject), [], 'another project cannot claim matching Clip IDs');
+const pendingNormal = editor(false);
+pendingNormal._pendingGeneratedJobs.push({clipId:'a', promptId:'normal', files:[]});
+pendingNormal._onPromptExecuted(saved);
+assert.deepEqual(pendingNormal._pendingGeneratedJobs[0].files, [files(normal)[0]],
+    'editor-run jobs still collect their files until completion');
+assert.deepEqual(files(pendingNormal), [], 'pending jobs are not attached early');
+
+const historyStart = source.indexOf('    async _flushPendingGeneratedVideos(');
+const historyMethod = source.slice(historyStart, source.indexOf('\n    }', historyStart) + 6);
+const historyOutputs = {normal: {outputs: {
+    output: saved.detail.output,
+    h3: {clip_videos: [{clip_id:'b', filename:'h3.mp4', subfolder:'CapTimelineEditor/project', type:'output'}]},
+}}};
+const flushHistory = new Function('api', `return ({${historyMethod}})._flushPendingGeneratedVideos`)({
+    fetchApi: async path => {
+        assert.equal(path, '/history/normal');
+        return {ok: true, json: async () => historyOutputs};
+    },
+});
+const resumed = editor(false);
+resumed._clearRunningForPrompt = () => {};
+resumed._takePendingGeneratedJob = () => null;
+await flushHistory.call(resumed, {detail:{prompt_id:'normal'}});
+assert.deepEqual(files(resumed), ['CapTimelineEditor/project/20261024-091122_a_kf0.mp4']);
+assert.deepEqual(files(resumed, 1), ['CapTimelineEditor/project/h3.mp4',
+    'CapTimelineEditor/project/20261024-091123_b_kf0.mp4']);
+assert.equal(resumed._deferredGeneratedJobs.length, 3,
+    'completion history recovers output from a workflow already running when the editor opened');
+const resumedJob = editor(false);
+resumedJob._pendingGeneratedJobs.push({clipId:'a', promptId:'normal', files:[]});
+resumedJob._clearRunningForPrompt = () => {};
+let flushedFiles;
+resumedJob._flushOnePendingGeneratedJob = job => { flushedFiles = job.files; };
+await flushHistory.call(resumedJob, {detail:{prompt_id:'normal'}});
+assert.deepEqual(flushedFiles, [files(normal)[0]], 'history restores a missed executed event before flushing an editor job');
+assert.deepEqual(resumedJob._pendingGeneratedJobs, []);
 
 const detached = editor();
 detached._isNodeOnLiveGraph = () => false;

@@ -9097,6 +9097,8 @@ export class CapTimelineEditorApp {
                 if (job) {
                     if (promptId && !job.promptId) job.promptId = promptId;
                     job.files.push(file);
+                } else {
+                    this._onTimelineVideoSaved({detail: {clip_id: clipId, file, prompt_id: promptId}});
                 }
                 continue;
             }
@@ -9165,6 +9167,26 @@ export class CapTimelineEditorApp {
                 this._modelPreviewEntry?.final ? T("model_preview_complete") : T("model_preview_not_received"),
             );
             return;
+        }
+        // A normal ComfyUI run may have no editor-owned pending job, and its
+        // per-node WebSocket event may have been missed while the editor loaded.
+        if (promptId) {
+            try {
+                for (let attempt = 0; attempt < 4; attempt++) {
+                    const response = await api.fetchApi(`/history/${encodeURIComponent(promptId)}`);
+                    if (!response.ok) break;
+                    const history = await response.json();
+                    const outputs = history[promptId]?.outputs;
+                    if (outputs) {
+                        for (const output of Object.values(outputs)) {
+                            this._onPromptExecuted({detail: {prompt_id: promptId, output}});
+                        }
+                        break;
+                    }
+                    if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 250));
+                }
+            } catch { /* Live output notifications can still attach the videos. */ }
+            if (this._destroyed || !this._isNodeOnLiveGraph()) return;
         }
         // One prompt may finish several for-loop clips — flush every matching job.
         const jobs = [];

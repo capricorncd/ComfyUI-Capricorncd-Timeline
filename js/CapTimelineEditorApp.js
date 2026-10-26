@@ -3863,6 +3863,9 @@ export class CapTimelineEditorApp {
         const el = document.createElement("div");
         el.className = "cat-te-overlay";
         el.tabIndex = -1;
+        el.addEventListener("wheel", (e) => {
+            if (e.ctrlKey || e.metaKey) e.preventDefault();
+        }, { capture: true, passive: false });
         el.innerHTML = `
           <header class="cat-te-header">
             <div class="cat-te-brand">

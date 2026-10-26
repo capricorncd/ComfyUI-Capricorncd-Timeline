@@ -379,7 +379,8 @@ function onTeGlobalKeyDown(e) {
     const te = CapTimelineEditorApp._open;
     if (!te) return;
     if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey
-        && (["KeyC", "KeyV", "KeyX"].includes(e.code) || ["c", "v", "x"].includes(e.key?.toLowerCase())) && isEditingField(e)) {
+        && (["KeyC", "KeyV", "KeyX"].includes(e.code) || ["c", "v", "x"].includes(e.key?.toLowerCase()))
+        && (isEditingField(e) || ((e.code === "KeyC" || e.key?.toLowerCase() === "c") && window.getSelection()?.toString()))) {
         e.stopPropagation();
         e.stopImmediatePropagation();
         return;

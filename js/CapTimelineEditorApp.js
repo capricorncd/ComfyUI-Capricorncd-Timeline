@@ -1977,10 +1977,17 @@ export class CapTimelineEditorApp {
             disabled: !!track.locked || track.clips.length < 2,
             fn: () => this._removeTrackGaps(track),
         });
-        if (isDirectorTrackType(track.type) || isMediaTrackType(track.type)) items.push({
-            label: alignmentT('title'), icon: 'timeline', disabled: track.locked || !track.clips.length,
-            fn: () => openH3TrackAlignment(this, track),
-        });
+        if (isDirectorTrackType(track.type) || isMediaTrackType(track.type)) {
+            items.push({
+                label: alignmentT('title'), icon: 'timeline', disabled: track.locked || !track.clips.length,
+                fn: () => openH3TrackAlignment(this, track),
+            }, {
+                label: T("realign_generated_videos"), icon: "refresh",
+                disabled: track.locked || !track.clips.some(clip => this._clipGeneratedVideos(this._ensureClipMeta(clip))
+                    .some(row => row.enabled && !row.h3_context_from && !row.keyframe_segment && h3TimingFromFilename(row.file))),
+                fn: () => void this._realignTrackGeneratedVideos(track),
+            });
+        }
         items.push({
             label: T("auto_arrange_track"), icon: track.autoArrange ? "check" : "timeline",
             disabled: !!track.locked,
@@ -7431,6 +7438,125 @@ export class CapTimelineEditorApp {
             }
         }
         return changed;
+    }
+
+    _matchGeneratedVideoAudio(clip, gen, video) {
+        const timing = h3TimingFromFilename(gen.file);
+        const trimIn = Number(gen.trim_in_sec) || 0;
+        const duration = (Number(gen.trim_out_sec) || 0) - trimIn;
+        if (!timing || !video?.numberOfChannels || duration < 0.5 || normalizePlaybackRate(gen.playback_rate) !== 1) return null;
+        const start = Math.min(Math.max(0.25, trimIn + 1), video.duration - 1);
+        const count = Math.floor(Math.min(1, video.duration - start, duration) * 3000);
+        if (count < 1500) return null;
+        const left = video.getChannelData(0), right = video.numberOfChannels > 1 ? video.getChannelData(1) : left;
+        const samples = new Float32Array(count);
+        let videoPower = 0;
+        for (let i = 0; i < count; i++) {
+            const index = Math.floor((start + i / 3000) * video.sampleRate);
+            const value = (left[index] + right[index]) / 2;
+            samples[i] = value;
+            videoPower += value * value;
+        }
+        if (videoPower < 0.001) return null;
+        const nominalFrame = Math.round(trimIn * timing.fps);
+        const span = Math.ceil(timing.context + timing.fps / 2);
+        const lastFrame = Math.floor((video.duration - duration + 0.001) * timing.fps);
+        let bestScore = 0, nominalScore = 0, bestFrame = nominalFrame;
+        for (const track of this._timeline.tracks) {
+            if (track.type !== "audio" || track.muted || this._trackInfo.get(track.id)?.enabled === false) continue;
+            for (const source of track.clips) {
+                const buffer = source._audioBuffer;
+                if (!buffer?.numberOfChannels || clip.startTime < source.startTime || clip.endTime > source.endTime) continue;
+                const meta = this._ensureClipMeta(source);
+                if (meta.muted || meta.disabled) continue;
+                const a = buffer.getChannelData(0), b = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : a;
+                const sourceRate = source.playbackRate || 1;
+                for (let frame = Math.max(0, nominalFrame - span); frame <= Math.min(lastFrame, nominalFrame + span); frame++) {
+                    const sourceStart = (source.sourceOffset || 0)
+                        + (clip.startTime + (Number(gen.edit_start_sec) || 0) + start - frame / timing.fps - source.startTime) * sourceRate;
+                    if (sourceStart < 0 || sourceStart + count / 3000 * sourceRate >= buffer.duration) continue;
+                    let dot = 0, power = 0;
+                    for (let i = 0; i < count; i++) {
+                        const index = Math.floor((sourceStart + i / 3000 * sourceRate) * buffer.sampleRate);
+                        const value = (a[index] + b[index]) / 2;
+                        dot += samples[i] * value;
+                        power += value * value;
+                    }
+                    const score = power > 0 ? dot / Math.sqrt(videoPower * power) : 0;
+                    if (frame === nominalFrame) nominalScore = Math.max(nominalScore, score);
+                    if (score > bestScore) { bestScore = score; bestFrame = frame; }
+                }
+            }
+        }
+        return bestScore >= 0.85 && bestScore > nominalScore + 0.15 ? bestFrame / timing.fps : null;
+    }
+
+    async _realignTrackGeneratedVideos(track) {
+        if (!track || track.locked || !this._timeline?.tracks.includes(track)) return false;
+        const clips = [...track.clips].sort((a, b) => a.startTime - b.startTime);
+        const rows = new Map(clips.map(clip => [clip, this._clipGeneratedVideos(this._ensureClipMeta(clip))]));
+        const targets = clips.flatMap(clip => rows.get(clip)
+            .filter(row => row.enabled && !row.h3_context_from && !row.keyframe_segment && h3TimingFromFilename(row.file))
+            .map(row => ({ clip, row })));
+        if (!targets.length) return false;
+        const loadSeq = this._loadSeq;
+        const durations = await Promise.all(targets.map(({ row }) => this._probeOutputVideoDuration(row.file, row.location || "output")));
+        if (this._destroyed || loadSeq !== this._loadSeq || !this._timeline?.tracks.includes(track) || track.locked) return false;
+        let failed = 0;
+        let aligned = 0;
+        for (let i = 0; i < targets.length; i++) {
+            if (durations[i] == null) { failed++; continue; }
+            const { clip, row } = targets[i];
+            const next = {...row, duration_sec: durations[i], h3_trim_applied: false};
+            try {
+                if (!applyH3VideoTrim(next)) { failed++; continue; }
+            } catch { failed++; continue; }
+            delete next.h3_context_original_out;
+            const buffer = await this._ensureGenVideoAudioBuffer(next.file, next.location || "output");
+            if (this._destroyed || loadSeq !== this._loadSeq || !this._timeline?.tracks.includes(track) || track.locked) return false;
+            const matched = this._matchGeneratedVideoAudio(clip, next, buffer);
+            if (matched != null) {
+                const shift = matched - next.trim_in_sec;
+                next.trim_in_sec = matched;
+                next.trim_out_sec += shift;
+            }
+            Object.assign(row, next);
+            aligned++;
+        }
+        if (!aligned) {
+            if (failed) showCapAlert(T("realign_generated_videos_failed", { count: failed }));
+            return false;
+        }
+        for (let i = 0; i < clips.length; i++) {
+            const clip = clips[i], next = clips[i + 1];
+            const meta = this._ensureClipMeta(clip), nextMeta = next && this._ensureClipMeta(next);
+            const adjacent = next && Math.abs(clip.endTime - next.startTime) <= 0.001 && !meta.disabled && !nextMeta.disabled;
+            rows.set(clip, replaceH3ContextTail(rows.get(clip), adjacent ? rows.get(next) : [], clip.duration));
+        }
+        const changed = clips.filter(clip => JSON.stringify(rows.get(clip)) !== JSON.stringify(this._ensureClipMeta(clip).generatedVideos || []));
+        if (changed.length) {
+            this._recordUndo();
+            for (const clip of changed) {
+                const meta = this._ensureClipMeta(clip);
+                const linked = rows.get(clip);
+                const linkedIds = new Set(linked.filter(row => row.enabled !== false).map(row => row.id));
+                const replacedIds = new Set((meta.generatedVideos || [])
+                    .filter(row => row.h3_context_from && !linkedIds.has(row.id)).map(row => row.id));
+                for (const audio of meta.genEditAudios || []) {
+                    if (replacedIds.has(audio.from_gen_id)) audio.muted = true;
+                }
+                meta.generatedVideos = linked;
+                this._meta.set(clip.id, meta);
+                this._decorateClip(clip);
+                this._syncClipPrimaryAppearance(clip, { refreshVideo: true });
+                if (this._selClip?.id === clip.id) this._updateClipInfoPanel(clip);
+            }
+            this._saveToWidgets();
+            this._scheduleProgramPreview();
+            if (this._timeline._playing) this._startAudioPlayback();
+        }
+        if (failed) showCapAlert(T("realign_generated_videos_failed", { count: failed }));
+        return !!changed.length;
     }
 
     _setClipPreviewMode(clip, mode, { recordUndo = true, refresh = true } = {}) {

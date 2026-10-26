@@ -33,6 +33,28 @@ run(overlaps);
 assert.deepEqual(overlaps.map(c => c.startTime), [0, 2, 5], 'preserve overlaps while closing genuine empty spans');
 console.log('Track menu: gap removal, timing preservation, locks and undo passed');
 
+const visualTrack = {type: 'image', name: 'Director', clips: [{id: 'visual'}], locked: false};
+let menuItems, realigned;
+const menuApp = {
+    _clipGeneratedVideos: () => [{file: 'video__h3v2_c0_r124_h0_t4_f24000_s1_n0.mp4', enabled: true}],
+    _ensureClipMeta: () => ({}), _canMoveTrack: () => false,
+    _buildCtxMenu(items) { menuItems = items; return {dataset: {}, addEventListener() {}}; },
+    _realignTrackGeneratedVideos(track) { realigned = track; },
+};
+const anchor = {getBoundingClientRect: () => ({right: 100, top: 0})};
+const filenameHasTiming = file => file.includes('__h3v2_');
+const showMenu = new Function('T', 'alignmentT', 'isDirectorTrackType', 'isMediaTrackType', 'isSubtitleTrackType',
+    'h3TimingFromFilename', `return ({${source.slice(source.indexOf('    _showTrackTypeMenu('), source.indexOf('\n    }', source.indexOf('    _showTrackTypeMenu(')) + 6)}})._showTrackTypeMenu`)
+    (key => key, key => key, type => type === 'image', () => false, () => false, filenameHasTiming);
+showMenu.call(menuApp, visualTrack, anchor);
+const action = menuItems.find(item => item.label === 'realign_generated_videos');
+assert(action && !action.disabled);
+action.fn();
+assert.equal(realigned, visualTrack);
+visualTrack.locked = true;
+showMenu.call(menuApp, visualTrack, anchor);
+assert(menuItems.find(item => item.label === 'realign_generated_videos').disabled);
+
 const trackSource = readFileSync(new URL('../js/timeline/Track.js', import.meta.url), 'utf8');
 const start = trackSource.indexOf('  arrangeClips() {');
 const arrange = new Function('return ({' + trackSource.slice(start, trackSource.indexOf('\n  }', start) + 4) + '}).arrangeClips')();

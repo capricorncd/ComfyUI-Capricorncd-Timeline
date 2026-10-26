@@ -40,6 +40,15 @@ assert.equal(Math.round(firstParts[0].trim_out_sec * 24),18);
 assert.equal(Math.round(firstParts[1].trim_out_sec * 24),102);
 assert.throws(() => applyH3VideoTrim({file:chain[1].file,duration_sec:119/24}), /carry/);
 assert.equal(stripH3Timing(chain[1].file),'b.mp4');
+const carriedVideo = {id:'carried',file:'carried__h3v2_c22_r192_h0_t16_f24000_s1_n14.mp4',
+    duration_sec:8, trim_in_sec:22/24, trim_out_sec:190/24, enabled:true, h3_trim_applied:true};
+const priorVideo = {id:'prior',file:'prior__h3v2_c0_r158_h0_t14_f24000_s1_n0.mp4',
+    duration_sec:158/24, trim_in_sec:0, trim_out_sec:6, enabled:true, h3_trim_applied:true};
+const carriedRows = replaceH3ContextTail([priorVideo], [carriedVideo], 6);
+assert.equal(Math.round(carriedRows.find(row => row.h3_context_from).trim_in_sec * 24), 14,
+    'the preceding clip uses the successor frames whose audio matches its end');
+assert.equal(Math.round(carriedRows.find(row => row.h3_context_from).trim_out_sec * 24), 22);
+
 
 const file = 'CapTimelineEditor/test/20260910-120000_clip_1__h3v1_c39_r175_h0_t0_f24000_s1.mp4';
 assert.equal(stripH3Timing(file), 'CapTimelineEditor/test/20260910-120000_clip_1.mp4');
@@ -98,6 +107,97 @@ const resolve = method('_resolveH3VideoTiming', { h3TimingFromFilename, applyH3V
 assert(await resolve.call(app, { track: { clips: [] } }));
 assert.equal(meta.generatedVideos[0].trim_in_sec, 39/24);
 assert.equal(await resolve.call(app, { track: { clips: [] } }), false);
+const realign = method('_realignTrackGeneratedVideos', {
+    h3TimingFromFilename, applyH3VideoTrim, replaceH3ContextTail,
+    showCapAlert: () => { throw new Error('Unexpected alignment error'); }, T: key => key,
+});
+const firstClip = {id: 'first-clip', startTime: 0, duration: 100/24,
+    get endTime() { return this.startTime + this.duration; }};
+const secondClip = {id: 'second-clip', startTime: 100/24, duration: 100/24,
+    get endTime() { return this.startTime + this.duration; }};
+const otherClip = {id: 'other-clip', startTime: 0, duration: 1};
+const realignTrack = {clips: [firstClip, secondClip], locked: false};
+const unrelatedTrack = {clips: [otherClip]};
+const staleFirst = {...prior, trim_in_sec: 0.5, trim_out_sec: 2,
+    h3_context_original_out: 100/24, note: 'keep'};
+const staleSecond = {...next, trim_in_sec: 0.25};
+const byClip = new Map([
+    [firstClip, {generatedVideos: [{...linked[0], trim_out_sec: 0.5}, staleFirst]}],
+    [secondClip, {generatedVideos: [staleSecond]}],
+    [otherClip, {generatedVideos: [{id:'other',file:'other.mp4',trim_in_sec:0.75}]}],
+]);
+let realignUndo = 0, realignSaved = 0, refreshed = 0;
+const realignApp = {
+    _timeline: {tracks: [realignTrack, unrelatedTrack]}, _loadSeq: 1, _meta: {set() {}},
+    _ensureClipMeta: clip => byClip.get(clip),
+    _clipGeneratedVideos: meta => meta.generatedVideos.map(row => ({...row})),
+    _probeOutputVideoDuration: async file => file === prior.file ? 100/24 : 122/24,
+    _ensureGenVideoAudioBuffer: async () => null, _matchGeneratedVideoAudio: () => null,
+    _recordUndo() { realignUndo++; }, _decorateClip() {},
+    _syncClipPrimaryAppearance() { refreshed++; },
+    _saveToWidgets() { realignSaved++; }, _scheduleProgramPreview() {},
+};
+assert(await realign.call(realignApp, realignTrack));
+const firstRows = byClip.get(firstClip).generatedVideos;
+assert.equal(Math.round(firstRows.find(row => row.id === 'first').trim_out_sec * 24), 78);
+assert.equal(Math.round(firstRows.find(row => row.h3_context_from).trim_out_sec * 24), 22);
+assert.equal(firstRows.find(row => row.id === 'first').note, 'keep');
+assert.equal(byClip.get(secondClip).generatedVideos[0].trim_in_sec, 22/24);
+assert.equal(byClip.get(otherClip).generatedVideos[0].trim_in_sec, 0.75);
+assert.equal(realignUndo, 1); assert.equal(realignSaved, 1); assert.equal(refreshed, 2);
+assert.equal(await realign.call(realignApp, realignTrack), false, 'repeated realignment is unchanged');
+assert.equal(realignUndo, 1);
+realignTrack.locked = true;
+assert.equal(await realign.call(realignApp, realignTrack), false);
+assert.equal(realignUndo, 1);
+
+const sampleRate = 12000, song = new Float32Array(sampleRate * 15), output = new Float32Array(sampleRate * 8);
+for (let i = 0; i < song.length; i++) {
+    song[i] = Math.sin(i * 0.071) + 0.3 * Math.sin(i * 0.0331) + 0.2 * Math.sin(i * 0.1037);
+}
+for (let i = 22 * sampleRate / 24; i < output.length; i++) {
+    output[i] = song[Math.round((6 + i / sampleRate - 22 / 24) * sampleRate)];
+}
+const buffer = data => ({duration:data.length/sampleRate, sampleRate, numberOfChannels:1,
+    getChannelData:() => data});
+const soundClip = {startTime:100, endTime:115, sourceOffset:0, playbackRate:1, _audioBuffer:buffer(song)};
+const visualClip = {startTime:106, endTime:113};
+const matchAudio = method('_matchGeneratedVideoAudio', {h3TimingFromFilename,
+    normalizePlaybackRate: rate => rate || 1});
+const matchApp = {_timeline:{tracks:[{type:'audio', clips:[soundClip]}]}, _trackInfo:new Map(),
+    _ensureClipMeta:() => ({})};
+assert.equal(matchAudio.call(matchApp, visualClip,
+    {file:carriedVideo.file, trim_in_sec:8/24, trim_out_sec:176/24}, buffer(output)), 22/24);
+const visual17 = {id:'visual17',startTime:100,duration:6,
+    get endTime() { return this.startTime + this.duration; }};
+const visual18 = {id:'visual18',startTime:106,duration:7,
+    get endTime() { return this.startTime + this.duration; }};
+const visualTrack = {clips:[visual17,visual18]};
+const sourceTrack = {id:'song-track',type:'audio',clips:[soundClip]};
+const alignedMeta = new Map([
+    [visual17,{generatedVideos:[{...priorVideo}]}],
+    [visual18,{generatedVideos:[{...carriedVideo,trim_in_sec:8/24,trim_out_sec:176/24}]}],
+]);
+let alignedUndo = 0;
+const alignedApp = {
+    ...matchApp, _timeline:{tracks:[visualTrack,sourceTrack]},
+    _ensureClipMeta:clip => alignedMeta.get(clip) || {},
+    _clipGeneratedVideos:meta => (meta.generatedVideos || []).map(row => ({...row})),
+    _probeOutputVideoDuration:async file => file === carriedVideo.file ? 8 : 158/24,
+    _ensureGenVideoAudioBuffer:async file => file === carriedVideo.file ? buffer(output) : null,
+    _matchGeneratedVideoAudio:matchAudio, _loadSeq:1, _meta:{set() {}},
+    _recordUndo() { alignedUndo++; }, _decorateClip() {}, _syncClipPrimaryAppearance() {},
+    _saveToWidgets() {}, _scheduleProgramPreview() {},
+};
+assert(await realign.call(alignedApp, visualTrack));
+assert.equal(alignedMeta.get(visual18).generatedVideos[0].trim_in_sec, 22/24);
+assert.equal(Math.round(alignedMeta.get(visual18).generatedVideos[0].trim_out_sec * 24), 190);
+assert.equal(Math.round(alignedMeta.get(visual17).generatedVideos.find(row => row.h3_context_from).trim_in_sec * 24), 14);
+assert.equal(alignedUndo,1);
+assert.equal(await realign.call(alignedApp, visualTrack), false);
+assert.equal(alignedUndo,1);
+
+
 const project = {tracks:[{clips:[{id:'clip_1', generated_videos:[{...meta.generatedVideos[0],prompt:'keep this prompt',edit_start_sec:0.25}]}]}]};
 const persist = method('_persistGeneratedVideosToProjectJson', {
     normalizeOutputVideoPath:value=>value, normalizeGeneratedVideo:row=>({...row}), genVideoUid:()=> 'new',

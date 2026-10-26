@@ -620,7 +620,11 @@ class CAP_MiniMaxH3ReferenceToVideo:
         length = align_frame_count(clip_frames + pin) if use_context else clip_frames
         if timing:
             length = int(timing["raw_frames"])
-        audio_clip = _h3_audio_clip(clip_row, round((length - (pin if use_context else 0)) * 1000 / H3_FPS))
+        carry = int((timing or {}).get("context_carry_frames", 0)) if use_context else 0
+        digital_human_audio_rows = bool(clip_row.get("clip_role") == "digital_human"
+                                        and not clip_row.get("keyframe_segment") and clip_row.get("audios"))
+        audio_prefix = pin - carry if digital_human_audio_rows else pin if use_context else 0
+        audio_clip = _h3_audio_clip(clip_row, round((length - audio_prefix) * 1000 / H3_FPS))
 
         ref_images = {}
         ref_videos = {}
@@ -696,8 +700,12 @@ class CAP_MiniMaxH3ReferenceToVideo:
             prompt_references[-1] = (row, tag)
             image_frames.append(img)
 
-        reference_audios = (_h3_keyframe_reference_audio(clip_row, length, H3_FPS, pin if use_context else 0)
-                            if clip_row.get("keyframe_segment") else audio_clip.get("audios", []))
+        if clip_row.get("keyframe_segment") or clip_row.get("clip_role") == "digital_human":
+            reference_audios = _h3_keyframe_reference_audio(
+                clip_row if clip_row.get("keyframe_segment") else audio_clip,
+                length, H3_FPS, pin if use_context else 0)
+        else:
+            reference_audios = audio_clip.get("audios", [])
         for row in reference_audios if isinstance(reference_audios, list) else []:
             if len(ref_audios) >= MAX_REF_AUDIOS:
                 break
@@ -759,7 +767,11 @@ class CAP_MiniMaxH3ReferenceToVideo:
         else:
             if clip_row.get("clip_role") == "digital_human" and not ref_audios:
                 raise ValueError("Digital Human requires an audio clip on the corresponding timeline audio track.")
-            audio_out = parser._clip_audio_from_audios(audio_clip, 0, materials=materials)
+            source_clip = audio_clip
+            if digital_human_audio_rows:
+                source_clip = {**audio_clip, "start_ms": 0, "end_ms": round(length * 1000 / H3_FPS),
+                               "audios": reference_audios}
+            audio_out = parser._clip_audio_from_audios(source_clip, 0, materials=materials)
         if clip_row.get("clip_role") == "digital_human":
             prompt += ("\nPerformance instruction: Lip-sync only to the audible lead voice in the supplied audio, "
                        "matching its words, syllables and pauses. During instrumental passages and vocal pauses, "
@@ -838,7 +850,8 @@ class CAP_MiniMaxH3ReferenceToVideo:
                 trim_frames = 0
 
         if clip_row.get("clip_role") == "digital_human":
-            latent, audio_out, _ = _digital_human_audio(latent, audio_out, audio_vae, length, trim_frames)
+            prefix = 0 if digital_human_audio_rows else trim_frames - carry
+            latent, audio_out, _ = _digital_human_audio(latent, audio_out, audio_vae, length, prefix)
 
         if refmod_clip is not None:
             positive = refmod_clip.attach(positive)

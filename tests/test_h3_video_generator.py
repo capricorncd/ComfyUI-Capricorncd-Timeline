@@ -913,6 +913,17 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(loads, [os.path.normpath(path + ".safetensors") for path in saves[:2]])
         self.assertNotIn(saves[2] + ".safetensors", loads)
 
+    def test_linked_clip_regenerates_instead_of_reusing_old_preview(self):
+        self.scope["latest_draft"] = Mock()
+        rows = [{"id": "a", "start_ms": 0, "end_ms": 6000, "save_latent": True},
+                {"id": "b", "start_ms": 6000, "end_ms": 13000, "reference_previous": True,
+                 "h3_timing": {"context_frames": 22, "previous_source_clip_id": "a"},
+                 "h3_drafts": [{"id": "old-preview"}]}]
+        self.run_node(rows, compose_final=False)
+        self.scope["latest_draft"].assert_not_called()
+        self.assertEqual(len(self.saved), 2)
+        self.assertEqual([row["id"] for _, _, row, _ in self.prepared], ["a", "b"])
+
     def test_missing_chain_generates_independently_with_persistent_warning(self):
         self.run_node([{"id": "b", "reference_previous": True, "start_ms": 5000, "end_ms": 10000,
                         "h3_timing": {"context_frames": 22, "previous_source_clip_id": "a"}}])
@@ -1126,7 +1137,7 @@ class StrictKeyframeTests(unittest.TestCase):
         from test_h3_prompt_mentions import h3 as mentions
         path = BACKEND / "cap_minimax_h3.py"
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        tree.body = [n for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef)) and n.name in ("CAP_MiniMaxH3ReferenceToVideo", "_snap_h3_grid", "_h3_audio_clip")]
+        tree.body = [n for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef)) and n.name in ("CAP_MiniMaxH3ReferenceToVideo", "_snap_h3_grid", "_h3_audio_clip", "_h3_keyframe_reference_audio")]
         self.native = Mock(return_value=SimpleNamespace(args=("positive", "latent")))
         self.reference = Mock(return_value=SimpleNamespace(args=("positive", "latent")))
         self.guide = Mock(return_value=SimpleNamespace(args=("guided",)))
@@ -1221,6 +1232,33 @@ class StrictKeyframeTests(unittest.TestCase):
         self.assertEqual(result[6], "aligned_source")
         lock.assert_called_once_with("latent", "source_audio", "audio_vae", result[2], 0)
         self.assertIn("vocal pauses", result[3])
+
+    def test_digital_human_continuation_aligns_audio_with_visible_frames(self):
+        row = {"start_ms": 106000, "end_ms": 113000, "clip_role": "digital_human",
+               "images": [{"file": "portrait"}], "audios": [{"file": "voice.wav", "id": "voice",
+               "source_start_ms": 106000, "source_end_ms": 113000, "clip_offset_ms": 0,
+               "host_local_start_ms": 106000}],
+               "h3_timing": {"fps": 24, "context_frames": 22, "context_carry_frames": 14,
+                             "raw_frames": 192}}
+        self.node._parse_clip = lambda *a: ({"fps": 24}, row, {}, self.parser)
+        self.parser._clip_audio_from_audios = Mock(return_value="source_audio")
+        self.node._load_audio_ref = Mock(return_value="reference_audio")
+        lock = Mock(return_value=("locked_latent", "aligned_source", "encoded"))
+        self.scope["_digital_human_audio"] = lock
+        self.scope["_context_latent_usable"] = lambda *a: True
+        self.scope["_motion_context_cls"] = lambda: lambda: SimpleNamespace(apply=Mock(return_value=("positive", 22)))
+        result = self.node.execute("clip", "vae", "audio_vae", 864, 480, "match", "{}", 0,
+                                   context_latent={"samples": "previous"})
+        lock.assert_called_once_with("latent", "source_audio", "audio_vae", 192, 0)
+        reference = self.node._load_audio_ref.call_args.args[0]
+        self.assertEqual(reference["clip_offset_ms"], 0)
+        self.assertEqual(reference["source_start_ms"], round(106000 - 8 / 24 * 1000))
+        self.assertEqual(reference["reference_frames"], 192)
+        audio_source = self.parser._clip_audio_from_audios.call_args.args[0]
+        self.assertEqual(audio_source["end_ms"], 8000)
+        self.assertEqual(audio_source["audios"], [reference])
+        self.assertEqual(self.reference.call_args.kwargs["ref_audios"], {"ref_audio_1": "reference_audio"})
+        self.assertEqual(result[6], "aligned_source")
 
     def test_standalone_digital_human_rejects_missing_audio(self):
         with self.assertRaisesRegex(ValueError, "requires an audio clip"):

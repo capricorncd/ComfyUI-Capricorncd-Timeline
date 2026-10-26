@@ -294,7 +294,9 @@ class CAP_H3VideoGenerator:
         keyframe_composition = bool(segmented and request.get("keyframe_runs"))
         if segmented and not keyframe_composition and not concat_full_videos:
             compose_final = False
-        previews = {i: latest_draft(data, row) for i, row in enumerate(data["clips"]) if row.get("h3_drafts")} if stage == "normal" and not chain_all_clips else {}
+        previews = {i: latest_draft(data, row) for i, row in enumerate(data["clips"])
+                    if row.get("h3_drafts") and _context_source(row, data["clips"][:i]) not in
+                    {_clip_id(previous) for previous in data["clips"][:i]}} if stage == "normal" and not chain_all_clips else {}
         previews = {i: value for i, value in previews.items() if value is not None}
         draft_manifest = None
         candidate_count = 1

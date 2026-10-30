@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {h3TimingFromFilename} from '../js/editor/H3Timing.js';
 const source=readFileSync(new URL('../js/CapTimelineEditorApp.js',import.meta.url),'utf8');
 const method=name=>{
  const start=source.indexOf(`    ${name}(`);
- return new Function('isDirectorTrackType','isMediaTrackType','normalizePlaybackRate','defaultImageMeta',`return ({${source.slice(start,source.indexOf('\n    }',start)+6)}}).${name}`)(t=>t==='director',t=>t==='media',v=>Number(v)||1,()=>({}));
+ return new Function('isDirectorTrackType','isMediaTrackType','normalizePlaybackRate','defaultImageMeta','h3TimingFromFilename',`return ({${source.slice(start,source.indexOf('\n    }',start)+6)}}).${name}`)(t=>t==='director',t=>t==='media',v=>Number(v)||1,()=>({}),h3TimingFromFilename);
 };
 const clips=[0,1,2].map(i=>({id:String(i),startTime:i*4,endTime:(i+1)*4,duration:4}));
 const track={id:'director',type:'director',clips};
@@ -37,3 +38,15 @@ assert.deepEqual(pieces.map(row=>row.file),['new.mp4','first.mp4']);
 assert.equal(pieces[0].edit_start_sec,2);
 assert.equal(pieces[0].trim_in_sec,10/24);
 assert(Math.abs(pieces[0].trim_out_sec-pieces[0].trim_in_sec-2)<1e-9);
+
+app._draftPreviewMode=true;
+meta.get('1').h3Drafts=[{id:'linked',file:'linked__h3v2_c22_r124_h0_t13_f24000_s1_n7.mp4',frames:124,fps:24}];
+const saved=JSON.stringify([...meta]);
+for(const t of [4,5,7.99]) {
+ const layer=app._collectPreviewLayers(t)[0];
+ assert.equal(layer.trimInSec,15/24,'linked draft skips context minus carried frames');
+ assert.equal(layer.editStartSec,0);
+ assert.equal(layer.transform.trim_out_sec-layer.trimInSec,4);
+}
+assert.equal(app._collectPreviewLayers(8)[0].file,'preview2.mp4','alignment stays inside its timeline Clip');
+assert.equal(JSON.stringify([...meta]),saved,'playback alignment leaves draft metadata unchanged');

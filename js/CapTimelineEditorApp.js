@@ -7734,7 +7734,9 @@ export class CapTimelineEditorApp {
             const start = part ? part.start_frame / part.fps : 0;
             const end = part ? Math.min(clip.duration, part.end_frame / part.fps) : clip.duration;
             if (end <= start || selected.some(gen => gen.edit_start_sec < end && gen.edit_start_sec + gen.trim_out_sec - gen.trim_in_sec > start)) continue;
-            const trim = part ? Math.max(0, (part.trim_frames || 0) / (part.output_fps || part.fps)) : 0;
+            const timing = h3TimingFromFilename(row.file);
+            const sourceTrim = timing ? (timing.context - timing.carry + timing.head) / timing.fps : 0;
+            const trim = part ? Math.max(0, (part.trim_frames || 0) / (part.output_fps || part.fps)) : sourceTrim;
             const seconds = Number(row.frames) / Number(row.fps);
             const duration = Math.min(end - start, seconds > trim ? seconds - trim : end - start);
             selected.push({ id: `draft-${row.id}`, file: row.file, enabled: true, muted: true,

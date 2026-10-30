@@ -30,6 +30,21 @@ export class AgentSettings {
         this.agentForm = root.querySelector(".cat-te-agent-form");
         this.agentLabelInput = root.querySelector(".cat-te-agent-label");
         this.agentProviderSelect = root.querySelector(".cat-te-agent-provider");
+        this.agentBaseUrlInput = root.querySelector(".cat-te-agent-base-url");
+        this.agentLocalHint = root.querySelector(".cat-te-agent-local-hint");
+        this.serviceModelSelect = root.querySelector(".cat-te-agent-service-models");
+        this.serviceModelsStatus = root.querySelector(".cat-te-agent-models-status");
+        this.serviceModelsRefresh = root.querySelector(".cat-te-agent-models-refresh");
+        this._serviceModelsAbort = null;
+        this.agentProviderSelect.addEventListener("change", () => {
+            this._updateProvider();
+            void this._loadServiceModels();
+        });
+        this.agentBaseUrlInput.addEventListener("change", () => void this._loadServiceModels());
+        this.serviceModelsRefresh.addEventListener("click", () => void this._loadServiceModels());
+        this.serviceModelSelect.addEventListener("change", () => {
+            if (this.serviceModelSelect.value) this.agentModelInput.value = this.serviceModelSelect.value;
+        });
         this.agentModelInput = root.querySelector(".cat-te-agent-model");
         this.agentKeyInput = root.querySelector(".cat-te-agent-key");
         this.agentEnabledCb = root.querySelector(".cat-te-agent-enabled input");
@@ -199,7 +214,7 @@ export class AgentSettings {
             const title = document.createElement("strong");
             title.textContent = config.label || T("unnamed");
             const detail = document.createElement("span");
-            detail.textContent = `${config.provider === "gemini" ? "Gemini" : "OpenAI"} · ${config.model}${config.enabled ? "" : T("agent_disabled_suffix")}`;
+            detail.textContent = `${({openai: "OpenAI", gemini: "Gemini", ollama: "Ollama", openai_compatible: T("agent_openai_compatible")})[config.provider] || config.provider} · ${config.model}${config.enabled ? "" : T("agent_disabled_suffix")}`;
             text.append(title, detail);
             const edit = document.createElement("cap-button");
             edit.textContent = T("edit_btn");
@@ -214,16 +229,77 @@ export class AgentSettings {
         this._editingAgentId = config?.id || "";
         this.agentLabelInput.value = config?.label || "";
         this.agentProviderSelect.value = config?.provider || "openai";
+        this.agentBaseUrlInput.value = config?.base_url || "";
         this.agentModelInput.value = config?.model || "";
         this.agentKeyInput.value = config?.has_key ? "****" : "";
         this.agentKeyInput.placeholder = config?.has_key ? T("leave_blank_keep_key") : T("enter_api_key");
+        this._updateProvider();
         this.agentEnabledCb.checked = config?.enabled !== false;
         this.agentDeleteBtn.hidden = !config;
         this.agentForm.hidden = false;
         this.agentLabelInput.focus();
     }
 
+    _updateProvider() {
+        this._serviceModelsAbort?.abort();
+        this.serviceModelSelect.closest("label").hidden = true;
+        this.serviceModelSelect.replaceChildren();
+        this.serviceModelsStatus.setStatus("");
+        const provider = this.agentProviderSelect.value;
+        const local = provider === "ollama" || provider === "openai_compatible";
+        this.agentBaseUrlInput.closest("label").hidden = !local;
+        this.agentLocalHint.hidden = !local;
+        this.agentBaseUrlInput.placeholder = provider === "ollama" ? "http://localhost:11434/v1" : "http://localhost:1234/v1";
+        this.agentKeyInput.placeholder = this.agentKeyInput.value === "****" ? T("leave_blank_keep_key")
+            : T(local ? "agent_api_key_optional" : "enter_api_key");
+    }
+
+    async _loadServiceModels() {
+        this._serviceModelsAbort?.abort();
+        const provider = this.agentProviderSelect.value;
+        if (provider !== "ollama" && provider !== "openai_compatible") return;
+        const controller = new AbortController();
+        this._serviceModelsAbort = controller;
+        this.serviceModelSelect.closest("label").hidden = true;
+        this.serviceModelSelect.replaceChildren();
+        this.serviceModelsRefresh.disabled = true;
+        this.serviceModelsStatus.setStatus(T("loading_ellipsis"), "info");
+        try {
+            const response = await fetch(api.apiURL("/audio_keyframe_timeline/agent_service_models"), {
+                method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+                body: JSON.stringify({id: this._editingAgentId, provider,
+                    base_url: this.agentBaseUrlInput.value.trim(),
+                    api_key: this.agentKeyInput.value.trim() === "****" ? "" : this.agentKeyInput.value.trim()}),
+            });
+            const data = await response.json();
+            if (controller.signal.aborted) return;
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            const models = data.models;
+            const placeholder = document.createElement("option");
+            placeholder.value = "";
+            placeholder.textContent = T("agent_select_model");
+            this.serviceModelSelect.appendChild(placeholder);
+            for (const model of models) {
+                const option = document.createElement("option");
+                option.value = model;
+                option.textContent = model;
+                this.serviceModelSelect.appendChild(option);
+            }
+            this.serviceModelSelect.value = models.includes(this.agentModelInput.value) ? this.agentModelInput.value : "";
+            this.serviceModelSelect.closest("label").hidden = !models.length;
+            this.serviceModelsStatus.setStatus(models.length ? "" : T("agent_models_empty"), "info");
+        } catch (error) {
+            if (!controller.signal.aborted) this.serviceModelsStatus.setStatus(T("load_failed", {msg: error.message}), "error");
+        } finally {
+            if (this._serviceModelsAbort === controller) {
+                this.serviceModelsRefresh.disabled = false;
+                this._serviceModelsAbort = null;
+            }
+        }
+    }
+
     cancel() {
+        this._serviceModelsAbort?.abort();
         this._localTestAbort?.abort();
         this._editingAgentId = "";
         if (this.agentForm) this.agentForm.hidden = true;
@@ -236,6 +312,7 @@ export class AgentSettings {
             label: this.agentLabelInput?.value.trim() || "",
             provider: this.agentProviderSelect?.value || "openai",
             model: this.agentModelInput?.value.trim() || "",
+            base_url: this.agentBaseUrlInput.value.trim(),
             api_key: this.agentKeyInput?.value.trim() === "****" ? "" : (this.agentKeyInput?.value.trim() || ""),
             enabled: !!this.agentEnabledCb?.checked,
         };

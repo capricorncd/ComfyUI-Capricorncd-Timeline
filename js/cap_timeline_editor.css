@@ -514,7 +514,7 @@ body.cat-te-row-resize * {
     background: var(--cat-raised);
 }
 
-.cat-te-agent-form > label:not(.cat-te-agent-enabled) {
+.cat-te-agent-form > label:not(.cat-te-agent-enabled):not([hidden]) {
     display: grid;
     grid-template-columns: 72px minmax(0, 1fr);
     align-items: center;
@@ -526,6 +526,8 @@ body.cat-te-row-resize * {
 
 .cat-te-agent-form > label > input[type="text"],
 .cat-te-agent-form > label > input[type="password"],
+.cat-te-agent-form > label > input[type="url"],
+.cat-te-agent-url-row > input,
 .cat-te-agent-form > label > select {
     min-width: 0;
     padding: 6px 8px;
@@ -534,6 +536,9 @@ body.cat-te-row-resize * {
     background: var(--cat-surface);
     color: var(--cat-text);
 }
+
+.cat-te-agent-url-row { display: flex; align-items: center; gap: 8px; }
+.cat-te-agent-url-row > input { flex: 1; }
 
 .cat-te-agent-enabled {
     display: flex;

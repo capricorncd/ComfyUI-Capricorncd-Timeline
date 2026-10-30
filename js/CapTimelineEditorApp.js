@@ -5015,8 +5015,12 @@ export class CapTimelineEditorApp {
                   <div class="cat-te-agent-list"></div>
                   <div class="cat-te-agent-form" hidden>
                     <label><span>${T("name_label")}</span><input class="cat-te-agent-label" type="text" maxlength="80" placeholder="${T("eg_chatgpt_placeholder")}" /></label>
-                    <label><span>${T("provider_label")}</span><select class="cat-te-agent-provider"><option value="openai">OpenAI</option><option value="gemini">Gemini</option></select></label>
+                    <label><span>${T("provider_label")}</span><select class="cat-te-agent-provider"><option value="openai">OpenAI</option><option value="gemini">Gemini</option><option value="ollama">Ollama</option><option value="openai_compatible">${T("agent_openai_compatible")}</option></select></label>
                     <label><span>${T("model_label")}</span><input class="cat-te-agent-model" type="text" maxlength="120" placeholder="${T("eg_model_placeholder")}" /></label>
+                    <label hidden><span>${T("agent_base_url")}</span><div class="cat-te-agent-url-row"><input class="cat-te-agent-base-url" type="url" /><cap-button class="cat-te-agent-models-refresh">${T("agent_fetch_models")}</cap-button></div></label>
+                    <label hidden><span>${T("model_label")}</span><select class="cat-te-agent-service-models"></select></label>
+                    <cap-status-message class="cat-te-agent-models-status"></cap-status-message>
+                    <div class="cat-te-agent-note cat-te-agent-local-hint" hidden>${T("agent_local_service_hint")}</div>
                     <label><span>API Key</span><input class="cat-te-agent-key" type="password" autocomplete="new-password" placeholder="${T("enter_api_key")}" /></label>
                     <label class="cat-te-agent-enabled"><input type="checkbox" checked /><span>${T("enable_show_in_ai_optimize_label")}</span></label>
                     <div class="cat-te-agent-form-actions">

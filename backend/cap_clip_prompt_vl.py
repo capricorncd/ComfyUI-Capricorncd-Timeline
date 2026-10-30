@@ -42,7 +42,8 @@ MAX_AUDIO_BYTES = 20 * 1024 * 1024
 SKILL_URL = "https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills"
 OUTPUT_LANGUAGES = ("简体中文", "繁體中文", "English", "日本語")
 DEFAULT_OUTPUT_LANGUAGE = "简体中文"
-AGENT_PROVIDERS = ("openai", "gemini")
+AGENT_PROVIDERS = ("openai", "gemini", "ollama", "openai_compatible")
+_AGENT_BASE_URLS = {"ollama": "http://localhost:11434/v1", "openai_compatible": "http://localhost:1234/v1"}
 _AGENT_CONFIG_LOCK = threading.Lock()
 _AGENT_ENDPOINTS = {
     "openai": "https://api.openai.com/v1/responses",
@@ -353,7 +354,7 @@ def public_agent_configs(enabled_only: bool = False) -> list[dict]:
         configs = _read_agent_configs()
     for row in configs:
         enabled = row.get("enabled") is not False
-        if enabled_only and (not enabled or not row.get("api_key")):
+        if enabled_only and (not enabled or (row.get("provider") not in _AGENT_BASE_URLS and not row.get("api_key"))):
             continue
         rows.append({
             "id": str(row.get("id") or ""),
@@ -362,8 +363,43 @@ def public_agent_configs(enabled_only: bool = False) -> list[dict]:
             "model": str(row.get("model") or ""),
             "enabled": enabled,
             "has_key": bool(row.get("api_key")),
+            "base_url": str(row.get("base_url") or ""),
         })
     return rows
+
+
+def _agent_base_url(provider: str, value: str) -> str:
+    url = str(value or _AGENT_BASE_URLS[provider]).strip().rstrip("/")
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError(_t("agent_base_url_invalid", get_last_known_lang()))
+    return url if parsed.path else url + "/v1"
+
+
+def list_agent_service_models(payload: dict) -> list[str]:
+    provider = str(payload.get("provider") or "").strip().lower()
+    if provider not in _AGENT_BASE_URLS:
+        raise ValueError(_t("unsupported_agent_provider", get_last_known_lang()))
+    base_url = _agent_base_url(provider, payload.get("base_url"))
+    api_key = str(payload.get("api_key") or "").strip()
+    if not api_key and payload.get("id"):
+        with _AGENT_CONFIG_LOCK:
+            saved = next((row for row in _read_agent_configs() if row.get("id") == payload["id"]), None)
+        if saved and saved.get("provider") == provider and _agent_base_url(provider, saved.get("base_url")) == base_url:
+            api_key = str(saved.get("api_key") or "")
+    headers = {"Accept": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    request = urllib.request.Request(base_url + "/models", headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError) as exc:
+        reason = exc.reason if isinstance(exc, urllib.error.URLError) else str(exc)
+        raise RuntimeError(_t("provider_api_connection_failed", get_last_known_lang(), provider=provider, reason=reason)) from exc
+    if not isinstance(result, dict) or not isinstance(result.get("data"), list):
+        raise ValueError(_t("agent_model_list_invalid", get_last_known_lang()))
+    return sorted({row["id"] for row in result["data"] if isinstance(row, dict) and isinstance(row.get("id"), str) and row["id"].strip()})
 
 
 def save_agent_config(payload: dict) -> dict:
@@ -373,26 +409,28 @@ def save_agent_config(payload: dict) -> dict:
     api_key = str(payload.get("api_key") or "").strip()
     agent_id = str(payload.get("id") or "").strip()
     if provider not in AGENT_PROVIDERS:
-        raise ValueError(_t("provider_must_be_openai_gemini", get_last_known_lang()))
+        raise ValueError(_t("unsupported_agent_provider", get_last_known_lang()))
     if not label or len(label) > 80:
         raise ValueError(_t("agent_name_required", get_last_known_lang()))
     if not model or len(model) > 120:
         raise ValueError(_t("model_name_required", get_last_known_lang()))
+    base_url = _agent_base_url(provider, payload.get("base_url")) if provider in _AGENT_BASE_URLS else ""
     with _AGENT_CONFIG_LOCK:
         configs = _read_agent_configs()
         existing = next((row for row in configs if str(row.get("id")) == agent_id), None)
         if existing is None:
-            if not api_key:
-                raise ValueError(_t("api_key_required_new_agent", get_last_known_lang()))
             existing = {"id": uuid.uuid4().hex}
             configs.append(existing)
-        elif not api_key:
+        elif not api_key and existing.get("provider") == provider:
             api_key = str(existing.get("api_key") or "")
+        if not api_key and provider not in _AGENT_BASE_URLS:
+            raise ValueError(_t("api_key_required_new_agent", get_last_known_lang()))
         existing.update({
             "label": label,
             "provider": provider,
             "model": model,
             "api_key": api_key,
+            "base_url": base_url,
             "enabled": payload.get("enabled") is not False,
         })
         write_config(_agent_config_path(), "agents", configs)
@@ -1162,7 +1200,7 @@ def _agent_config(agent_id: str) -> dict:
         raise ValueError(_t("agent_not_found_reconfigure", get_last_known_lang()))
     if config.get("enabled") is False:
         raise ValueError(_t("agent_disabled", get_last_known_lang()))
-    if not str(config.get("api_key") or "").strip():
+    if config.get("provider") not in _AGENT_BASE_URLS and not str(config.get("api_key") or "").strip():
         raise ValueError(_t("agent_missing_api_key", get_last_known_lang()))
     return config
 
@@ -1182,10 +1220,11 @@ def _remote_images(images: list[Image.Image], videos: list[list[Image.Image]]) -
 
 def _post_agent_json(url: str, api_key: str, payload: dict, provider: str) -> dict:
     headers = {"Content-Type": "application/json"}
-    if provider == "openai":
-        headers["Authorization"] = f"Bearer {api_key}"
-    else:
-        headers["x-goog-api-key"] = api_key
+    if api_key:
+        if provider == "gemini":
+            headers["x-goog-api-key"] = api_key
+        else:
+            headers["Authorization"] = f"Bearer {api_key}"
     request = urllib.request.Request(
         url,
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
@@ -1252,6 +1291,23 @@ def _generate_with_agent(payload: dict, agent_id: str) -> str:
                     if part.get("type") == "output_text" and part.get("text"):
                         parts.append(str(part["text"]))
             text = "\n".join(parts).strip()
+    elif provider in _AGENT_BASE_URLS:
+        content = [{"type": "text", "text": user_prompt}]
+        content.extend({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}}
+                       for mime, data in encoded_images)
+        content.extend({"type": "input_audio", "input_audio": {"data": data, "format": fmt}}
+                       for _mime, fmt, data in encoded_audio)
+        body = {
+            "model": str(config["model"]),
+            "messages": [{"role": "system", "content": system_prompt},
+                         {"role": "user", "content": content if encoded_images or encoded_audio else user_prompt}],
+            "max_tokens": max_tokens,
+            "stream": False,
+        }
+        url = _agent_base_url(provider, config.get("base_url")) + "/chat/completions"
+        result = _post_agent_json(url, str(config.get("api_key") or ""), body, provider)
+        choices = result.get("choices") or []
+        text = str(choices[0].get("message", {}).get("content") or "").strip() if choices else ""
     elif provider == "gemini":
         parts = [
             {"inlineData": {"mimeType": mime, "data": data}}

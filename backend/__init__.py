@@ -1224,6 +1224,20 @@ def _register_routes():
         except ValueError as exc:
             return web.json_response({"error": str(exc)}, status=400)
 
+    @routes.post("/audio_keyframe_timeline/agent_service_models")
+    async def api_timeline_agent_service_models(request: web.Request) -> web.Response:
+        from .cap_clip_prompt_vl import list_agent_service_models
+        try:
+            payload = await request.json()
+            if not isinstance(payload, dict):
+                return web.json_response({"error": t("invalid_payload", resolve_lang(request))}, status=400)
+            models = await asyncio.to_thread(list_agent_service_models, payload)
+            return web.json_response({"models": models})
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        except RuntimeError as exc:
+            return web.json_response({"error": str(exc)}, status=502)
+
     @routes.delete("/audio_keyframe_timeline/agents/{agent_id}")
     async def api_delete_timeline_agent(request: web.Request) -> web.Response:
         from .cap_clip_prompt_vl import delete_agent_config

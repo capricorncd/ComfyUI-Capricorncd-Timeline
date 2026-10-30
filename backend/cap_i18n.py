@@ -271,10 +271,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "zh": "找不到水印图片: {file}",
         "ja": "透かし画像が見つかりません: {file}",
     },
-    "provider_must_be_openai_gemini": {
-        "en": "Provider must be OpenAI or Gemini",
-        "zh": "服务商必须是 OpenAI 或 Gemini",
-        "ja": "プロバイダーはOpenAIまたはGeminiである必要があります",
+    "agent_model_list_invalid": {
+        "en": "The service returned an invalid model list.",
+        "zh": "服务返回的模型列表格式无效。",
+        "ja": "サービスから無効なモデル一覧が返されました。",
+    },
+    "agent_base_url_invalid": {
+        "en": "Enter an HTTP or HTTPS API base URL without credentials, query or fragment.",
+        "zh": "请输入 HTTP 或 HTTPS API 基础地址，不含账号密码、查询参数或片段。",
+        "ja": "認証情報・クエリ・フラグメントを含まない HTTP または HTTPS の API ベース URL を入力してください。",
     },
     "agent_name_required": {
         "en": "Agent name is required and must be 80 characters or fewer",

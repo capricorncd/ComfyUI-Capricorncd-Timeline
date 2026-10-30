@@ -3,6 +3,7 @@ import copy
 import json
 import re
 import secrets
+from datetime import datetime
 from pathlib import Path
 
 import folder_paths
@@ -14,7 +15,7 @@ DRAFT_ROOT = "capricorncd-timeline/h3_drafts"
 
 
 def draft_directory(version_id):
-    if not isinstance(version_id, str) or not re.fullmatch(r"[0-9a-f]{32}", version_id):
+    if not isinstance(version_id, str) or not re.fullmatch(r"(?:[0-9a-f]{32}|[0-9]{8}(?:[01][0-9]|2[0-3])?-[0-9a-f]{8})", version_id):
         raise ValueError("Invalid first-pass version ID.")
     root = Path(folder_paths.get_output_directory()).resolve()
     path = (root / DRAFT_ROOT / version_id).resolve()
@@ -34,9 +35,14 @@ def read_draft(version_id):
 
 
 def save_draft(latent, data, index, width, height, frame_count, prompt, steps):
-    version_id = secrets.token_hex(16)
-    path = draft_directory(version_id)
-    path.mkdir(parents=True, exist_ok=False)
+    while True:
+        version_id = f"{datetime.now():%Y%m%d%H}-{secrets.token_hex(4)}"
+        path = draft_directory(version_id)
+        try:
+            path.mkdir(parents=True, exist_ok=False)
+            break
+        except FileExistsError:
+            continue
     tensors, layout = {}, {}
     for key in ("samples", "noise_mask"):
         value = latent.get(key)

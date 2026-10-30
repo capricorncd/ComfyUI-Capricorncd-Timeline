@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import secrets
 import sys
+from datetime import datetime
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -23,7 +24,7 @@ class DraftStorageTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.scope = load_definitions('cap_h3_drafts.py', dict(
-            copy=copy, json=json, math=math, Path=Path, re=re, secrets=secrets,
+            copy=copy, json=json, math=math, Path=Path, re=re, secrets=secrets, datetime=datetime,
             folder_paths=SimpleNamespace(get_output_directory=lambda: self.temp.name),
             NestedTensor=NestedTensor, save_file=save_file, load_file=load_file))
         self.row = dict(id='clip-1', seed=17, prompt='Original prompt', start_ms=0, end_ms=5000, output_video='out.mp4')
@@ -34,6 +35,8 @@ class DraftStorageTests(unittest.TestCase):
         audio = torch.ones(1, 4, 7, dtype=torch.float32)
         latent = dict(samples=NestedTensor([video, audio]), noise_mask=NestedTensor([torch.ones_like(video), torch.zeros_like(audio)]))
         manifest = self.scope['save_draft'](latent, self.data, 0, 608, 352, 124, 'Original prompt', 8)
+        self.assertRegex(manifest['id'], r'^\d{8}(?:[01]\d|2[0-3])-[0-9a-f]{8}$')
+        self.assertTrue((self.scope['draft_directory'](manifest['id']) / 'latent.safetensors').is_file())
         self.row.update(prompt='Changed', seed=999)
         self.scope['finish_draft'](manifest, 'preview.mp4')
         read = self.scope['read_draft'](manifest['id'])
@@ -49,6 +52,18 @@ class DraftStorageTests(unittest.TestCase):
         self.data['fps'] = 30
         with self.assertRaisesRegex(ValueError, 'fps changed'):
             self.scope['restore_draft'](self.data, manifest['id'])
+
+    def test_dated_id_retries_existing_directory(self):
+        self.scope['datetime'] = SimpleNamespace(now=lambda: datetime(2026, 10, 28, 23))
+        candidates = iter(('deadbeef', 'cafebabe'))
+        self.scope['secrets'] = SimpleNamespace(token_hex=lambda count: next(candidates) if count == 4 else None)
+        existing = self.scope['draft_directory']('2026102823-deadbeef')
+        existing.mkdir(parents=True)
+        manifest = self.scope['save_draft']({'samples': torch.zeros(1, 2, 3)},
+                                            self.data, 0, 608, 352, 124, 'candidate', 8)
+        self.assertEqual(manifest['id'], '2026102823-cafebabe')
+        self.assertEqual(list(existing.iterdir()), [])
+        self.assertEqual(self.scope['read_draft'](manifest['id'])['id'], manifest['id'])
 
     def test_restore_continuation_keeps_predecessor_video_from_snapshot(self):
         self.row.update(h3_timing=dict(context_frames=22, previous_source_clip_id='previous'))
@@ -96,7 +111,8 @@ class DraftStorageTests(unittest.TestCase):
         self.assertIsNone(self.scope['latest_draft'](self.data, self.row))
 
     def test_bad_ids_and_missing_versions_fail_explicitly(self):
-        for version in ('../outside', '/tmp/file', 'C:\\file', '', None):
+        for version in ('../outside', '/tmp/file', 'C:\\file', '', None,
+                        '20261028-deadbeeff', '20261028-XYZ12345', '2026102824-deadbeef'):
             with self.subTest(version=version), self.assertRaises(ValueError):
                 self.scope['read_draft'](version)
         with self.assertRaisesRegex(ValueError, 'missing'):

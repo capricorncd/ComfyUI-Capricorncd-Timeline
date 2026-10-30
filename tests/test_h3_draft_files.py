@@ -65,6 +65,24 @@ class DraftFilesTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             associate(str(self.root.parent), 'clip-1')
 
+    def test_dated_versions_can_be_associated_and_recycled(self):
+        for version_id in ('20261028-1234abcd', '2026102823-1234abcd'):
+            with self.subTest(version_id=version_id):
+                directory = self.scope['draft_directory'](version_id)
+                directory.mkdir(parents=True)
+                video = directory / 'preview.mp4'
+                video.write_bytes(b'preview')
+                (directory / 'latent.safetensors').write_bytes(b'latent')
+                (directory / 'version.json').write_text(json.dumps(dict(
+                    id=version_id, schema_version=1, clip_id='clip-1',
+                    file=video.relative_to(self.root).as_posix())), encoding='utf-8')
+                rows = self.scope['associated_versions'](str(directory), 'clip-1')
+                self.assertEqual(rows[0]['id'], version_id)
+                self.scope['recycle_version'](version_id)
+                self.assertEqual(self.moved, [str(video), str(directory / 'latent.safetensors'),
+                                              str(directory / 'version.json')])
+                self.moved.clear()
+
     def test_partial_recycle_can_be_retried(self):
         (self.directory / 'latent.safetensors').unlink()
         self.scope['recycle_version'](self.version_id)

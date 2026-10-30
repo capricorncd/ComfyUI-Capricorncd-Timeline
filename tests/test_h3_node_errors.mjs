@@ -11,19 +11,17 @@ new Function('app', 'api', 't', source.slice(source.indexOf('const PLAYER_NODES'
     source.indexOf('function clampWidth')))(app, {addEventListener: (name, fn) => listeners.set(name, fn)}, key => key);
 const emit = (name, detail) => listeners.get(name)({detail});
 const error = {node_id: '1:769', node_type: 'CAP_H3VideoGenerator',
-    exception_message: 'ValueError: SelfLift does not support Motion Context yet.'};
+    exception_message: 'ValueError: Selected RIFE model is unavailable.'};
 emit('execution_error', error);
 assert.equal(panel.state, 'error');
-assert.ok(panel.text.includes('h3_error_selflift_context'));
+assert.ok(panel.text.includes(error.exception_message));
 assert.equal(panel.title, error.exception_message);
 emit('executing', null);
 assert.equal(panel.state, 'error', 'queue completion must preserve the error');
 emit('execution_error', {...error, node_type: 'OtherNode', exception_message: 'unrelated'});
-assert.ok(panel.text.includes('h3_error_selflift_context'));
+assert.ok(panel.text.includes(error.exception_message));
 emit('execution_error', {...error, exception_message: '<script>unknown failure</script>'});
 assert.ok(panel.text.includes('<script>unknown failure</script>'), 'unknown errors are passed to the plain-text status component');
-emit('execution_error', {...error, exception_message: 'SelfLift does not support Digital Human audio locking yet.'});
-assert.ok(panel.text.includes('h3_error_selflift_digital_human'));
 emit('executing', '1:769');
 assert.equal(panel.text, '');
 assert.equal(panel.title, 'h3_progress_tip');
@@ -34,4 +32,4 @@ assert.equal(panel.state, 'warning', 'completion must retain the independent-gen
 assert.ok(panel.text.includes('h3_warning_missing_context'));
 emit('cat_h3_progress', {workflow_id: 'workflow', node_id: '1:769', phase: 'prepare', percent: 0, warnings: []});
 assert.equal(panel.state, 'info', 'the next normal run clears the warning');
-console.log('H3 inline errors: routing, hints, raw errors and retry clearing passed.');
+console.log('H3 inline errors: routing, raw errors and retry clearing passed.');

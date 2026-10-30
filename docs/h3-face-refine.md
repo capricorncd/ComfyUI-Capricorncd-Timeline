@@ -8,7 +8,7 @@ Each Clip tracks one face. `select` ranks faces for the initial selection; `sele
 
 Defaults: confidence 0.35, denoise 0.4, large-face strength 0.35, square canvas 768, crop factor 2.5, smoothing window 21, feather 6, blend 1.0. Large faces receive gentler treatment. Higher denoise can change identity; larger canvases consume more memory.
 
-Processing runs after motion deblur, using the connected sampling model and matching 4/8-step LoRA. It adds crop encoding, sampling and decoding, then stitches only the face region. Original audio, frame count, Context prefix and strict endpoint frames are retained. Full-frame keyframes and Context audio anchors are excluded from crop conditioning. Saved Context latents are encoded from the final repaired pixels, adding encoding work. Audio latents are held with a zero noise mask; this does not guarantee lip-sync or visual quality. CPU integration tests simulate model/VAE inference; GPU output quality still requires a real generation run.
+Processing runs after video decoding, using the connected sampling model and matching 4/8-step LoRA. It adds crop encoding, sampling and decoding, then stitches only the face region. Original audio, frame count, Context prefix and strict endpoint frames are retained. Full-frame keyframes and Context audio anchors are excluded from crop conditioning. Saved Context latents are encoded from the final repaired pixels, adding encoding work. Audio latents are held with a zero noise mask; this does not guarantee lip-sync or visual quality. CPU integration tests simulate model/VAE inference; GPU output quality still requires a real generation run.
 
 ## Attribution
 

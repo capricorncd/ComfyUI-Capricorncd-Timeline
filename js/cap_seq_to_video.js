@@ -109,10 +109,7 @@ api.addEventListener("execution_error", event => {
     const node = findGeneratorVideoNode(app.rootGraph ?? app.graph, data.node_id);
     if (!node?._stvProgress) return;
     const message = String(data.exception_message ?? "").trim();
-    const hint = message.includes("SelfLift does not support Motion Context") ? t("h3_error_selflift_context")
-        : message.includes("SelfLift does not support Digital Human") ? t("h3_error_selflift_digital_human")
-        : message;
-    node._stvProgress.setStatus(`${t("h3_error_title")}\n${hint}`, "error");
+    node._stvProgress.setStatus(`${t("h3_error_title")}\n${message}`, "error");
     node._stvProgress.title = message;
     node.setDirtyCanvas?.(true, true);
 });

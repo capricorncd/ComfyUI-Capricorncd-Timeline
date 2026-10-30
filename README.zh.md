@@ -82,7 +82,7 @@ flowchart LR
 |---|---|
 | [H3 自动提示词配置](docs/zh/h3-shared-prompt.md) | `auto_prompt_config → auto_prompt_config`；在目标 Clip 中开启“自动生成提示词”。共用生成节点的 CLIP，在配置中选择兼容的 generation tail。 |
 | [H3 音频修复配置](docs/zh/h3-video-generator.md#音频修复配置) / [H3 人脸修复配置](docs/zh/h3-face-refine.md) | 分别连接 `audio_refine_config` / `face_refine_config`，在配置节点启用所需修复。 |
-| [H3 插帧配置](docs/zh/h3-video-generator.md#rife-插帧) / [H3 SelfLift 配置](docs/zh/h3-video-generator.md#selflift-渐进采样实验) | 分别连接 `interpolation_config` / `selflift_config`，安装各自文档要求的依赖。 |
+| [H3 插帧配置](docs/zh/h3-video-generator.md#rife-插帧) | 连接 `interpolation_config`，安装文档要求的依赖。 |
 | [Show Anything](docs/zh/show-anything.md) | 接入 `generated_prompts`，查看实际用于采样的提示词。 |
 
 自定义模型流程可用[片段数据解析](docs/zh/data-json-clip-parser.md)提取单个 Clip，将提示词、图片和帧数接入模型，再将解码图像与可选音频交给[序列帧合成视频](docs/zh/seq-to-video.md)。自行搭建 H3 采样时，可用 [MiniMaxH3](docs/zh/minimax-h3.md) 提供条件和 latent。[多段视频合成](docs/zh/compose-clip-videos.md)读取包含已保存视频路径的 `data_json`；核心 H3 生成节点开启最终合成后已包含这一步。

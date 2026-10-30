@@ -1,15 +1,14 @@
 import { app } from "../../scripts/app.js";
 
 const INPUT_ORDER = [
-    "model", "base_model", "clip", "vae", "audio_vae", "data_json", "audio_refine_config", "face_refine_config", "selflift_config", "interpolation_config",
+    "model", "base_model", "clip", "vae", "audio_vae", "data_json", "audio_refine_config", "face_refine_config", "interpolation_config",
     "steps", "attention", "ref_image_size", "max_segment_seconds",
     "second_sampling", "first_pass_megapixels", "preview_sampling_batch", "upscaler_model", "refine_sigmas",
-    "motion_deblur",
     "sampling_preview", "preview_tiny_vae",
     "generate_audio", "chain_all_clips",
     "compose_final", "concat_full_videos",
 ];
-const WIDGET_ORDER = INPUT_ORDER.slice(10);
+const WIDGET_ORDER = INPUT_ORDER.slice(INPUT_ORDER.indexOf("steps"));
 const rank = name => {
     const index = INPUT_ORDER.indexOf(name);
     return index < 0 ? INPUT_ORDER.length : index;
@@ -43,7 +42,7 @@ app.registerExtension({
         const configure = nodeType.prototype.configure;
         nodeType.prototype.configure = function (info) {
             // LiteGraph saves widget values positionally; restore by the saved names.
-            const inputWidgets = info.inputs?.filter(input => WIDGET_ORDER.includes(input.widget?.name) || ["strict_keyframes", "audio_refine", "audio_refine_steps", "normalize_audio"].includes(input.widget?.name))
+            const inputWidgets = info.inputs?.filter(input => input.widget?.name)
                 .map(input => input.widget.name) ?? [];
             const legacyOrder = schemaOrder.filter(name => !["preview_sampling_batch", "concat_full_videos", "max_segment_seconds", "ref_image_size"].includes(name))
                 .map(name => name === "chain_all_clips" ? "normalize_audio" : name);
@@ -61,9 +60,12 @@ app.registerExtension({
                 const values = new Map(savedOrder.map((name, i) => [name, info.widgets_values[i]]));
                 info = {...info, widgets_values: this.widgets.filter(widget => WIDGET_ORDER.includes(widget.name))
                     .map(widget => values.has(widget.name) ? values.get(widget.name)
-                        : ["motion_deblur", "chain_all_clips"].includes(widget.name) ? false
+                        : widget.name === "chain_all_clips" ? false
                             : widget.name === "preview_sampling_batch" ? 1
                                 : widget.name === "ref_image_size" ? "match" : widget.value)};
+            }
+            if (info.inputs) {
+                info = {...info, inputs: info.inputs.filter(input => !["selflift_config", "motion_deblur"].includes(input.name))};
             }
             configure?.call(this, info);
             // Graph loading/paste installs links after node.configure returns.

@@ -397,49 +397,6 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(json.loads(self.saved[0][1]["metadata"])["h3_refine_version"], "saved")
         self.assertFalse(self.composed)
 
-    def selflift_config(self):
-        folders = SimpleNamespace(folder_names_and_paths={"latent_upscale_models": []},
-            get_filename_list=lambda name: ["h3_up.safetensors"], get_full_path_or_raise=lambda *args: "valid")
-        config_scope = load_definitions("cap_h3_selflift.py", dict(math=math, folder_paths=folders))
-        self.scope["validate_selflift_config"] = config_scope["validate_selflift_config"]
-        self.selflift_node = config_scope["CAP_H3SelfLiftConfig"]()
-        return self.selflift_node.configure(**{key: options["default"] for key, (_, options) in self.selflift_node.INPUT_TYPES()["required"].items()})[0]
-
-    def test_selflift_replaces_two_pass_and_keeps_target_dimensions(self):
-        config = self.selflift_config()
-        self.run_node(selflift_config=config, second_sampling=True,
-                      upscaler_model="none", refine_sigmas="invalid")
-        names = [name for name, _ in self.calls]
-        self.assertIn("SelfLiftH3Sampler", names)
-        self.assertNotIn("SamplerCustomAdvanced", names)
-        self.assertNotIn("MinimaxH3LatentUpscaler3D", names)
-        call = next(kw for name, kw in self.calls if name == "SelfLiftH3Sampler")
-        self.assertEqual(call["transition_step"], 6)
-        self.assertEqual(call["cfg"], 1.0)
-        self.assertFalse(call["highres_tiling"])
-        self.assertEqual(next(kw for name, kw in self.calls if name == "BasicScheduler")["scheduler"], "beta")
-        self.assertTrue(self.saved)
-        self.assertEqual(self.prepared[0][:2], (1376, 768))
-
-    def test_selflift_postprocessing_receives_seeded_noise(self):
-        for deblur, face in ((True, False), (False, True), (True, True)):
-            with self.subTest(deblur=deblur, face=face):
-                self.setUp()
-                config = self.selflift_config()
-                self.enable_face_refine()
-                registered = self.scope["nodes"].NODE_CLASS_MAPPINGS.copy()
-                self.enable_motion_deblur()
-                self.scope["nodes"].NODE_CLASS_MAPPINGS.update(registered)
-                self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, "seed": 42}],
-                              selflift_config=config, motion_deblur=deblur,
-                              face_refine_config={"configured": True} if face else None)
-                self.assertEqual([kw["noise_seed"] for name, kw in self.calls if name == "RandomNoise"], [42])
-                if deblur:
-                    self.assertEqual(self.node._deblur_clip.call_args.args[7], "RandomNoise_output")
-                if face:
-                    self.assertEqual(self.node._refine_faces.call_args.args[5], "RandomNoise_output")
-                self.assertEqual(self.saved[0][1]["images"], "face-images" if face else "recovered-images")
-
     def enable_interpolation(self):
         import torch
         self.scope["torch"] = torch
@@ -506,9 +463,9 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(self.composed[0][0]["clips"][1]["h3_timing"]["context_frames"], 44)
         self.assertEqual(self.saved_fps, [48, 48])
 
-    def test_selflift_interpolation_and_disabled_interpolation(self):
+    def test_interpolation_silent_output_and_disabled_interpolation(self):
         self.enable_interpolation()
-        self.run_node(selflift_config=self.selflift_config(), interpolation_config=self.interpolation_node.configure()[0],
+        self.run_node(interpolation_config=self.interpolation_node.configure()[0],
                       generate_audio=False, compose_final=False)
         self.assertEqual(self.saved_fps, [48])
         self.assertIsNone(self.saved[0][1]["audio"])
@@ -539,32 +496,6 @@ class GeneratorTests(unittest.TestCase):
                 self.run_node(interpolation_config={**self.interpolation_node.configure()[0], **kw})
         self.assertEqual(self.calls, [])
 
-    def test_selflift_rejects_incompatible_inputs_before_sampling(self):
-        config = self.selflift_config()
-        for row in ({"clip_role": "digital_human"}, {"h3_motion_context_length": 22},
-                    {"h3_timing": {"context_frames": 22}}):
-            with self.subTest(row=row), self.assertRaisesRegex(ValueError, "SelfLift"):
-                self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, **row}],
-                              selflift_config=config)
-        for invalid in ({}, {**config, "transition_step": 8}, {**config, "rho": float("nan")},
-                        {**config, "w_min": 1, "w_max": 0.5}, {**config, "upscaler_model": "../outside"},
-                        {**config, "upscaler_model": "none"}):
-            with self.subTest(config=invalid), self.assertRaises(ValueError):
-                self.run_node(selflift_config=invalid)
-        with self.assertRaisesRegex(ValueError, "less than 4"):
-            self.run_node(steps="4", selflift_config=config)
-        self.assertFalse(self.calls)
-
-    def test_selflift_four_steps_first_last_and_disabled_config(self):
-        config = self.selflift_config()
-        config["transition_step"] = 3
-        self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, "clip_role": "first_last"}],
-                      steps="4", selflift_config=config)
-        self.assertEqual(next(kw for name, kw in self.calls if name == "SelfLiftH3Sampler")["transition_step"], 3)
-        self.calls.clear()
-        self.run_node(selflift_config=self.selflift_node.configure(enabled=False)[0])
-        self.assertNotIn("SelfLiftH3Sampler", [name for name, _ in self.calls])
-
     def test_digital_human_locks_both_passes_and_saves_source_audio(self):
         source = {"waveform": "original", "sample_rate": 44100}
         self.digital_audio = source
@@ -572,14 +503,13 @@ class GeneratorTests(unittest.TestCase):
         self.scope["_lock_audio"] = Mock(return_value="locked_refine")
         self.run_node(rows=[{"id": "a", "start_ms": 0, "end_ms": 5000, "seed": 1,
                              "clip_role": "digital_human"}], second_sampling=True, upscaler_model="upscaler",
-                      audio_refine=True, motion_deblur=True, face_refine_config={"configured": True})
+                      audio_refine=True, face_refine_config={"configured": True})
         sampled = [kw["latent_image"] for name, kw in self.calls if name == "SamplerCustomAdvanced"]
         self.assertEqual(sampled, [self.digital_latent, "locked_refine"])
         self.assertIs(self.saved[0][1]["audio"], source)
         names = [name for name, _ in self.calls]
         self.assertNotIn("VAEDecodeAudio", names)
         self.assertNotIn("H3AudioRefineSampler", names)
-        self.assertNotIn("H3JerkOracle", names)
 
 
     def test_lora_is_external_and_audio_repair_uses_separate_base(self):
@@ -634,31 +564,10 @@ class GeneratorTests(unittest.TestCase):
         self.assertNotIn("filename_prefix", schema["required"])
         self.assertNotIn("first_pass_steps", schema["required"])
         self.assertEqual(schema["optional"]["base_model"][0], "MODEL")
-        self.assertFalse(schema["optional"]["motion_deblur"][1]["default"])
+        self.assertNotIn("motion_deblur", schema["optional"])
+        self.assertNotIn("selflift_config", schema["optional"])
         self.assertNotIn("face_refine", schema["optional"])
         self.assertNotIn("sampling_mode", schema["optional"])
-
-    def test_motion_deblur_disabled_does_not_require_mainodes(self):
-        lookup = Mock(return_value=object)
-        self.scope["_node_class"] = lookup
-        self.node._deblur_clip = Mock(side_effect=AssertionError("disabled"))
-        self.run_node()
-        self.node._deblur_clip.assert_not_called()
-        self.assertFalse(set(self.scope["MOTION_NODES"]) & {c.args[0] for c in lookup.call_args_list})
-        self.assertFalse(json.loads(self.saved[0][1]["metadata"])["motion_deblur"])
-
-    def test_motion_deblur_missing_requirements_fail_before_sampling(self):
-        with self.assertRaisesRegex(ValueError, "base_model"):
-            self.run_node(motion_deblur=True, base_model=None)
-        self.scope["nodes"].NODE_CLASS_MAPPINGS = {}
-        with self.assertRaisesRegex(RuntimeError, "ComfyUI-MAINodes"):
-            self.run_node(motion_deblur=True)
-        self.assertEqual(self.calls, [])
-        self.assertEqual(self.prepared, [])
-
-    def enable_motion_deblur(self):
-        self.scope["nodes"].NODE_CLASS_MAPPINGS = dict.fromkeys((*self.scope["MOTION_NODES"], "H3AudioSmear"), object)
-        self.node._deblur_clip = Mock(return_value="recovered-images")
 
     def enable_face_refine(self):
         self.scope["FACE_NODES"] = ("H3FaceTrackCrop", "H3PerFrameDenoise", "H3FaceStitch")
@@ -691,66 +600,14 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(self.saved[0][1]["audio"], "VAEDecodeAudio_output")
         self.assertTrue(json.loads(self.saved[0][1]["metadata"])["face_refine"])
 
-    def test_face_after_deblur_and_silent_two_size_context(self):
+    def test_face_silent_two_size_context(self):
         self.enable_face_refine()
-        registered = self.scope["nodes"].NODE_CLASS_MAPPINGS.copy()
-        self.enable_motion_deblur()
-        self.scope["nodes"].NODE_CLASS_MAPPINGS.update(registered)
         self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "save_latent": True}],
-                      face_refine_config={"configured": True}, motion_deblur=True,
+                      face_refine_config={"configured": True},
                       generate_audio=False, second_sampling=True, upscaler_model="up")
-        self.assertEqual(self.node._refine_faces.call_args.args[3], "recovered-images")
+        self.assertEqual(self.node._refine_faces.call_args.args[3], "VAEDecode_output")
         self.assertEqual([kw["pixels"] for n, kw in self.calls if n == "VAEEncode"], ["face-images", "ImageScale_output"])
         self.assertFalse(any(n == "VAEDecodeAudio" for n, _ in self.calls))
-
-    def test_motion_deblur_short_clip_fails_before_sampling(self):
-        self.enable_motion_deblur()
-        prepare = self.scope["CAP_MiniMaxH3ReferenceToVideo"].execute
-        def short_clip(*args, **kwargs):
-            result = list(prepare(*args, **kwargs))
-            result[2] = 5
-            return tuple(result)
-        self.scope["CAP_MiniMaxH3ReferenceToVideo"].execute = short_clip
-        with self.assertRaisesRegex(ValueError, "22 frames"):
-            self.run_node(motion_deblur=True)
-        self.assertFalse(any(name == "SamplerCustomAdvanced" for name, _ in self.calls))
-        self.assertEqual(self.saved, [])
-
-    def test_motion_deblur_preserves_audio_timing_and_runs_after_decode(self):
-        self.enable_motion_deblur()
-        self.run_node(motion_deblur=True, audio_refine=True)
-        repair = self.node._deblur_clip.call_args.args
-        self.assertEqual(repair[0], "base")
-        self.assertEqual(repair[3:5], ("VAEDecode_output", "VAEDecodeAudio_output"))
-        self.assertEqual(self.saved[0][1]["images"], "recovered-images")
-        self.assertEqual(self.saved[0][1]["audio"], "VAEDecodeAudio_output")
-        phases = [d["phase"] for n, d, _ in self.events if n == "cat_h3_progress"]
-        self.assertEqual(phases, ["prepare", "sample", "audio", "decode", "deblur", "save", "done"])
-        self.assertTrue(json.loads(self.saved[0][1]["metadata"])["motion_deblur"])
-
-    def test_motion_deblur_silent_context_uses_repaired_pixels_at_both_sizes(self):
-        self.enable_motion_deblur()
-        del self.scope["nodes"].NODE_CLASS_MAPPINGS["H3AudioSmear"]
-        rows = [{"id": "a", "start_ms": 0, "end_ms": 5000, "save_latent": True},
-                {"id": "b", "start_ms": 5000, "end_ms": 10000,
-                 "h3_timing": {"context_frames": 22, "previous_source_clip_id": "a"}}]
-        self.run_node(rows, motion_deblur=True, generate_audio=False, second_sampling=True, upscaler_model="up")
-        self.assertTrue(all(c.args[4] is None for c in self.node._deblur_clip.call_args_list))
-        encoded = [kw["pixels"] for n, kw in self.calls if n == "VAEEncode"]
-        self.assertEqual(encoded, ["recovered-images", "ImageScale_output"])
-        resize = next(kw for n, kw in self.calls if n == "ImageScale")
-        self.assertEqual((resize["image"], resize["width"], resize["height"]), ("recovered-images", 608, 352))
-        saved = [kw for n, kw in self.calls if n == "MiniMaxH3MotionContextSaveLatent"]
-        self.assertEqual([kw["latent"] for kw in saved], ["LTXVConcatAVLatent_output"] * 2)
-        loaded = [kw["latent_path"] for n, kw in self.calls if n == "MiniMaxH3MotionContextLoadLatent"]
-        self.assertEqual(loaded, [os.path.normpath(saved[i]["filename_prefix"] + ".safetensors") for i in [1, 0]])
-        self.assertFalse(any(n in ("H3AudioSmear", "VAEEncodeAudio", "VAEDecodeAudio") for n, _ in self.calls))
-
-    def test_motion_deblur_single_pass_saves_only_repaired_context(self):
-        self.enable_motion_deblur()
-        self.run_node([{"id": "a", "start_ms": 0, "end_ms": 5000, "save_latent": True}], motion_deblur=True)
-        self.assertEqual([kw["pixels"] for n, kw in self.calls if n == "VAEEncode"], ["recovered-images"])
-        self.assertEqual([kw["latent"] for n, kw in self.calls if n == "MiniMaxH3MotionContextSaveLatent"], ["LTXVConcatAVLatent_output"])
 
     def test_output_path_is_required_before_any_clip_is_sampled(self):
         for path in (None, "", "   ", 123):
@@ -1331,7 +1188,7 @@ class NodeAdapterTests(unittest.TestCase):
         memory = SimpleNamespace(aimdo_enabled=True)
         scope = load_definitions("cap_h3_video_generator.py", {
             "nodes": SimpleNamespace(NODE_CLASS_MAPPINGS={
-                "SamplerCustomAdvanced": Native, "SelfLiftH3Sampler": Native, "BasicGuider": Native}),
+                "SamplerCustomAdvanced": Native, "BasicGuider": Native}),
             "io": SimpleNamespace(ComfyNode=Native),
             "comfy": SimpleNamespace(
                 memory_management=memory,
@@ -1340,9 +1197,9 @@ class NodeAdapterTests(unittest.TestCase):
             "comfy_aimdo": SimpleNamespace(model_vbar=SimpleNamespace(
                 vbars_reset_watermark_limits=lambda: events.append("watermarks"))),
         })
-        for name in ("SamplerCustomAdvanced", "SelfLiftH3Sampler", "SamplerCustomAdvanced"):
+        for name in ("SamplerCustomAdvanced", "SamplerCustomAdvanced"):
             self.assertEqual(scope["_call"](name, {}), (output,))
-        self.assertEqual(events, ["sample", "prefetch", "casts", "watermarks"] * 3)
+        self.assertEqual(events, ["sample", "prefetch", "casts", "watermarks"] * 2)
         events.clear()
         scope["_call"]("BasicGuider", {})
         memory.aimdo_enabled = False

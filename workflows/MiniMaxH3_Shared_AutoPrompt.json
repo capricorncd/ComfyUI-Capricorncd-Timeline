@@ -196,7 +196,7 @@
         }
       },
       "widgets_values": [
-        "## 所需节点与模型\n\n### 使用方法\n\n打开时间轴编辑器-右上角导入zip-选择`workflows/resoure`里对应的工程素材zip文件包\n\n### 节点与软件\n- 支持原生 MiniMax H3 的 ComfyUI：UNETLoader、CLIPLoader（minimax）、VAELoader、LoraLoaderModelOnly，以及原生 H3 采样与解码节点。\n- ComfyUI-Capricorncd-Timeline：Timeline Editor、MiniMax H3 Video Generator、H3 Face Refine Config。\n- ComfyUI-Easy-Use：easy ifElse。\n- ComfyUI-KJNodes：INTConstant、ModelPreviewOverrideKJ（采样预览）。\n- FFmpeg：媒体处理与视频导出。\n\n### 参考生成模型\n路径相对于 ComfyUI 根目录，请在加载器中选择本机已安装的兼容模型。\n- `models/diffusion_models/MiniMax_H3-Pruned-Ref-Delta-Fused-r1024-comfy-int8-convrot.safetensors`\n- `models/text_encoders/qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors`\n- `models/vae/minimax_h3_video_vae_fp16.safetensors`\n- `models/vae/minimax_h3_audio_vae_fp32.safetensors`\n- `models/loras/MiniMaxH3/ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors`\n- `models/loras/MiniMaxH3/ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors`\n\n### 首尾帧生成模型（FL2V）\n- `models/diffusion_models/MiniMax_H3_FL2VA_int8_convrot.safetensors`\n- `models/loras/MiniMaxH3/fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors`\n- `models/loras/MiniMaxH3/fl2v_turbo_4step_v1.2_768p_comfyui_bf16.safetensors`\n\n主模型与 LoRA 的类型需匹配，LoRA 需与选定的 4/8 步采样一致。\n\n### 附加功能依赖\n- 二次 Latent 放大与细化采样：Comfyui_Minimax_h3_latent_Upscaler + `models/latent_upscale_models/minimax_h3_latent_upscaler_3d_fp16.safetensors`。\n- RGB 采样预览：`models/vae_approx/taeh3.safetensors` + ComfyUI-KJNodes。\n- 面部修复：ComfyUI-H3-FaceRefine + `models/ultralytics/bbox/face_yolov8m.pt`（工作流中的配置节点已选择该模型）。\n- 音频修复：ComfyUI-H3-AudioRefine。\n- 响度归一化：ComfyUI-WanVideoWrapper（NormalizeAudioLoudness）。\n- Latent 动作上下文：ComfyUI-H3-Motion-Context。\n- 运动去模糊：ComfyUI-MAINodes + 未加载加速 LoRA 的独立 base_model。\n\n[MiniMax H3 Video Generator 中文文档](https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline/blob/main/docs/zh/h3-video-generator.md)\n"
+        "## 所需节点与模型\n\n### 使用方法\n\n打开时间轴编辑器-右上角导入zip-选择`workflows/resoure`里对应的工程素材zip文件包\n\n### 节点与软件\n- 支持原生 MiniMax H3 的 ComfyUI：UNETLoader、CLIPLoader（minimax）、VAELoader、LoraLoaderModelOnly，以及原生 H3 采样与解码节点。\n- ComfyUI-Capricorncd-Timeline：Timeline Editor、MiniMax H3 Video Generator、H3 Face Refine Config。\n- ComfyUI-Easy-Use：easy ifElse。\n- ComfyUI-KJNodes：INTConstant、ModelPreviewOverrideKJ（采样预览）。\n- FFmpeg：媒体处理与视频导出。\n\n### 参考生成模型\n路径相对于 ComfyUI 根目录，请在加载器中选择本机已安装的兼容模型。\n- `models/diffusion_models/MiniMax_H3-Pruned-Ref-Delta-Fused-r1024-comfy-int8-convrot.safetensors`\n- `models/text_encoders/qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors`\n- `models/vae/minimax_h3_video_vae_fp16.safetensors`\n- `models/vae/minimax_h3_audio_vae_fp32.safetensors`\n- `models/loras/MiniMaxH3/ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors`\n- `models/loras/MiniMaxH3/ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors`\n\n### 首尾帧生成模型（FL2V）\n- `models/diffusion_models/MiniMax_H3_FL2VA_int8_convrot.safetensors`\n- `models/loras/MiniMaxH3/fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors`\n- `models/loras/MiniMaxH3/fl2v_turbo_4step_v1.2_768p_comfyui_bf16.safetensors`\n\n主模型与 LoRA 的类型需匹配，LoRA 需与选定的 4/8 步采样一致。\n\n### 附加功能依赖\n- 二次 Latent 放大与细化采样：Comfyui_Minimax_h3_latent_Upscaler + `models/latent_upscale_models/minimax_h3_latent_upscaler_3d_fp16.safetensors`。\n- RGB 采样预览：`models/vae_approx/taeh3.safetensors` + ComfyUI-KJNodes。\n- 面部修复：ComfyUI-H3-FaceRefine + `models/ultralytics/bbox/face_yolov8m.pt`（工作流中的配置节点已选择该模型）。\n- 音频修复：ComfyUI-H3-AudioRefine。\n- 响度归一化：ComfyUI-WanVideoWrapper（NormalizeAudioLoudness）。\n- Latent 动作上下文：ComfyUI-H3-Motion-Context。\n\n[MiniMax H3 Video Generator 中文文档](https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline/blob/main/docs/zh/h3-video-generator.md)\n"
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -226,7 +226,7 @@
         }
       },
       "widgets_values": [
-        "## Required Nodes and Models\n\n### How to Use\n\nOpen the Timeline Editor, click Import ZIP in the upper-right corner, and select the corresponding project and assets ZIP package from `workflows/resoure`.\n\n### Nodes and software\n- ComfyUI with native MiniMax H3 support: UNETLoader, CLIPLoader (minimax), VAELoader, LoraLoaderModelOnly and native H3 sampling/decoding nodes.\n- ComfyUI-Capricorncd-Timeline: Timeline Editor, MiniMax H3 Video Generator and H3 Face Refine Config.\n- ComfyUI-Easy-Use: easy ifElse.\n- ComfyUI-KJNodes: INTConstant and ModelPreviewOverrideKJ (sampling preview).\n- FFmpeg for media processing and video export.\n\n### Reference generation models\nPaths are relative to the ComfyUI folder. Select locally installed compatible files in the loaders.\n- `models/diffusion_models/MiniMax_H3-Pruned-Ref-Delta-Fused-r1024-comfy-int8-convrot.safetensors`\n- `models/text_encoders/qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors`\n- `models/vae/minimax_h3_video_vae_fp16.safetensors`\n- `models/vae/minimax_h3_audio_vae_fp32.safetensors`\n- `models/loras/MiniMaxH3/ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors`\n- `models/loras/MiniMaxH3/ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors`\n\n### First/last-frame generation models (FL2V)\n- `models/diffusion_models/MiniMax_H3_FL2VA_int8_convrot.safetensors`\n- `models/loras/MiniMaxH3/fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors`\n- `models/loras/MiniMaxH3/fl2v_turbo_4step_v1.2_768p_comfyui_bf16.safetensors`\n\nUse matching model and LoRA families, with the LoRA matching the selected 4/8 sampling steps.\n\n### Additional feature dependencies\n- Second-pass latent upscale and refinement: Comfyui_Minimax_h3_latent_Upscaler + `models/latent_upscale_models/minimax_h3_latent_upscaler_3d_fp16.safetensors`.\n- RGB sampling preview: `models/vae_approx/taeh3.safetensors` + ComfyUI-KJNodes.\n- Face refinement: ComfyUI-H3-FaceRefine + `models/ultralytics/bbox/face_yolov8m.pt` (selected by the included config node).\n- Audio refinement: ComfyUI-H3-AudioRefine.\n- Loudness normalization: ComfyUI-WanVideoWrapper (NormalizeAudioLoudness).\n- Latent motion context: ComfyUI-H3-Motion-Context.\n- Motion deblur: ComfyUI-MAINodes + a separate base model without acceleration LoRA.\n\n[MiniMax H3 Video Generator documentation](https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline/blob/main/docs/h3-video-generator.md)\n"
+        "## Required Nodes and Models\n\n### How to Use\n\nOpen the Timeline Editor, click Import ZIP in the upper-right corner, and select the corresponding project and assets ZIP package from `workflows/resoure`.\n\n### Nodes and software\n- ComfyUI with native MiniMax H3 support: UNETLoader, CLIPLoader (minimax), VAELoader, LoraLoaderModelOnly and native H3 sampling/decoding nodes.\n- ComfyUI-Capricorncd-Timeline: Timeline Editor, MiniMax H3 Video Generator and H3 Face Refine Config.\n- ComfyUI-Easy-Use: easy ifElse.\n- ComfyUI-KJNodes: INTConstant and ModelPreviewOverrideKJ (sampling preview).\n- FFmpeg for media processing and video export.\n\n### Reference generation models\nPaths are relative to the ComfyUI folder. Select locally installed compatible files in the loaders.\n- `models/diffusion_models/MiniMax_H3-Pruned-Ref-Delta-Fused-r1024-comfy-int8-convrot.safetensors`\n- `models/text_encoders/qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors`\n- `models/vae/minimax_h3_video_vae_fp16.safetensors`\n- `models/vae/minimax_h3_audio_vae_fp32.safetensors`\n- `models/loras/MiniMaxH3/ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors`\n- `models/loras/MiniMaxH3/ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors`\n\n### First/last-frame generation models (FL2V)\n- `models/diffusion_models/MiniMax_H3_FL2VA_int8_convrot.safetensors`\n- `models/loras/MiniMaxH3/fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors`\n- `models/loras/MiniMaxH3/fl2v_turbo_4step_v1.2_768p_comfyui_bf16.safetensors`\n\nUse matching model and LoRA families, with the LoRA matching the selected 4/8 sampling steps.\n\n### Additional feature dependencies\n- Second-pass latent upscale and refinement: Comfyui_Minimax_h3_latent_Upscaler + `models/latent_upscale_models/minimax_h3_latent_upscaler_3d_fp16.safetensors`.\n- RGB sampling preview: `models/vae_approx/taeh3.safetensors` + ComfyUI-KJNodes.\n- Face refinement: ComfyUI-H3-FaceRefine + `models/ultralytics/bbox/face_yolov8m.pt` (selected by the included config node).\n- Audio refinement: ComfyUI-H3-AudioRefine.\n- Loudness normalization: ComfyUI-WanVideoWrapper (NormalizeAudioLoudness).\n- Latent motion context: ComfyUI-H3-Motion-Context.\n\n[MiniMax H3 Video Generator documentation](https://github.com/capricorncd/ComfyUI-Capricorncd-Timeline/blob/main/docs/h3-video-generator.md)\n"
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -291,13 +291,6 @@
           "link": 50
         },
         {
-          "localized_name": "SelfLift 配置",
-          "name": "selflift_config",
-          "shape": 7,
-          "type": "CAP_H3_SELFLIFT_CONFIG",
-          "link": 49
-        },
-        {
           "localized_name": "插帧配置",
           "name": "interpolation_config",
           "shape": 7,
@@ -355,16 +348,6 @@
           "type": "STRING",
           "widget": {
             "name": "refine_sigmas"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "运动去模糊（实验）",
-          "name": "motion_deblur",
-          "shape": 7,
-          "type": "BOOLEAN",
-          "widget": {
-            "name": "motion_deblur"
           },
           "link": null
         },
@@ -467,7 +450,6 @@
           "first_pass_megapixels",
           "upscaler_model",
           "refine_sigmas",
-          "motion_deblur",
           "sampling_preview",
           "preview_tiny_vae",
           "generate_audio",
@@ -511,7 +493,6 @@
         0.2,
         "minimax_h3_latent_upscaler_3d_fp16.safetensors",
         "0.9035, 0.8000, 0.6316, 0.3158, 0.0000",
-        false,
         true,
         "taeh3.safetensors",
         true,
@@ -734,123 +715,6 @@
         1,
         false,
         10,
-        false
-      ]
-    },
-    {
-      "id": 798,
-      "type": "CAP_H3SelfLiftConfig",
-      "pos": [
-        -80.18537739751122,
-        271.8407746532592
-      ],
-      "size": [
-        321.833984375,
-        226
-      ],
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "低分辨率采样步数",
-          "name": "transition_step",
-          "type": "INT",
-          "widget": {
-            "name": "transition_step"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "低分辨率比例",
-          "name": "lowres_scale",
-          "type": "FLOAT",
-          "widget": {
-            "name": "lowres_scale"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "调度器",
-          "name": "scheduler",
-          "type": "COMBO",
-          "widget": {
-            "name": "scheduler"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "放大模型",
-          "name": "upscaler_model",
-          "type": "COMBO",
-          "widget": {
-            "name": "upscaler_model"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "修正比例",
-          "name": "rho",
-          "type": "FLOAT",
-          "widget": {
-            "name": "rho"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "最小修正权重",
-          "name": "w_min",
-          "type": "FLOAT",
-          "widget": {
-            "name": "w_min"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "最大修正权重",
-          "name": "w_max",
-          "type": "FLOAT",
-          "widget": {
-            "name": "w_max"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "Enable",
-          "name": "enabled",
-          "type": "BOOLEAN",
-          "widget": {
-            "name": "enabled"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "selflift_config",
-          "name": "selflift_config",
-          "type": "CAP_H3_SELFLIFT_CONFIG",
-          "links": [
-            49
-          ]
-        }
-      ],
-      "properties": {
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        },
-        "Node name for S&R": "CAP_H3SelfLiftConfig"
-      },
-      "widgets_values": [
-        6,
-        0.5,
-        "beta",
-        "minimax_h3_latent_upscaler_3d_fp16.safetensors",
-        0,
-        0.5,
-        1,
         false
       ]
     },
@@ -1154,7 +1018,7 @@
       796,
       5,
       769,
-      9,
+      8,
       "COMBO"
     ],
     [
@@ -1162,16 +1026,8 @@
       797,
       0,
       769,
-      8,
-      "CAP_H3_INTERPOLATION_CONFIG"
-    ],
-    [
-      49,
-      798,
-      0,
-      769,
       7,
-      "CAP_H3_SELFLIFT_CONFIG"
+      "CAP_H3_INTERPOLATION_CONFIG"
     ],
     [
       50,

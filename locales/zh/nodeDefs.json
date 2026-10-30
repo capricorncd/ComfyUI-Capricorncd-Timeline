@@ -723,7 +723,7 @@
       },
       "enabled": {
         "name": "启用",
-        "tooltip": "默认关闭。在去模糊和面部修复后执行，按倍数提高输出帧率，保持时长和音频同步。需要 ComfyUI-Frame-Interpolation；首次使用可能下载所选模型。"
+        "tooltip": "默认关闭。在面部修复后执行，按倍数提高输出帧率，保持时长和音频同步。需要 ComfyUI-Frame-Interpolation；首次使用可能下载所选模型。"
       }
     }
   },
@@ -743,10 +743,6 @@
       },
       "face_refine_config": {
         "name": "H3 面部修复配置"
-      },
-      "motion_deblur": {
-        "name": "运动去模糊（实验）",
-        "tooltip": "默认关闭。使用 MatlowAI 的 MAINodes 额外修复快速运动拖影；需要安装 MAINodes，并连接不含加速 LoRA 的基础模型。增加耗时和内存，可能改变动作细节。保留原帧数、原音轨、Context 前缀及严格首尾帧。"
       },
       "concat_full_videos": {
         "name": "直接拼接完整视频（不裁剪）",
@@ -770,7 +766,7 @@
       },
       "base_model": {
         "name": "基础模型（可选）",
-        "tooltip": "连接时用于音频修复和基础采样日程；未连接时，两者均复用输入的采样模型。开启运动去模糊时必须连接不含加速 LoRA 的基础模型，供额外修复使用。"
+        "tooltip": "连接时用于音频修复和基础采样日程；未连接时，两者均复用输入的采样模型。开启"
       },
       "clip": {
         "name": "文本编码器 CLIP"
@@ -821,9 +817,6 @@
       },
       "attention": {
         "name": "注意力后端"
-      },
-      "selflift_config": {
-        "name": "SelfLift 配置"
       },
       "preview_sampling_batch": {
         "name": "预览采样批次",
@@ -1061,37 +1054,6 @@
         "name": "Latent"
       }
     }
-  },
-  "CAP_H3SelfLiftConfig": {
-    "display_name": "H3 SelfLift 配置",
-    "inputs": {
-      "transition_step": {
-        "name": "低分辨率采样步数",
-        "tooltip": "低分辨率采样步数必须小于主节点总步数。总步数为 4 时设为 3（3 步低清 + 1 步高清，可用范围 1–3）；总步数为 8 时设为 6（6 步低清 + 2 步高清，可用范围 1–7）。切换总步数后，请同步修改此值并选择匹配的 4/8 步 LoRA；不会自动切换。"
-      },
-      "lowres_scale": {
-        "name": "低分辨率比例"
-      },
-      "scheduler": {
-        "name": "调度器"
-      },
-      "upscaler_model": {
-        "name": "放大模型"
-      },
-      "rho": {
-        "name": "修正比例"
-      },
-      "w_min": {
-        "name": "最小修正权重"
-      },
-      "w_max": {
-        "name": "最大修正权重"
-      },
-      "enabled": {
-        "name": "启用"
-      }
-    },
-    "description": "实验性 SelfLift 配置。连接 MiniMax H3 视频生成节点，并开启本配置；未连接或关闭时使用普通采样。低分辨率采样步数必须小于主节点总步数。总步数为 4 时设为 3（3 步低清 + 1 步高清，可用范围 1–3）；总步数为 8 时设为 6（6 步低清 + 2 步高清，可用范围 1–7）。切换总步数后，请同步修改此值并选择匹配的 4/8 步 LoRA；不会自动切换。"
   },
   "CAP_H3AutoPromptConfig": {
     "inputs": {

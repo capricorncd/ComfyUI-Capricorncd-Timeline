@@ -1,5 +1,15 @@
 # Release notes / 更新记录
 
+## 0.17.36 — 2026-10-31
+
+### English
+
+- Remove motion deblur and SelfLift sampling from MiniMax H3 Video Generator, including the SelfLift config node, related options and example workflow connections. Restart ComfyUI and refresh the browser after updating.
+
+### 简体中文
+
+- 删除 MiniMax H3 视频生成的运动去模糊和 SelfLift 采样，移除 SelfLift 配置节点、相关选项及示例工作流连线。更新后重启 ComfyUI 并刷新浏览器。
+
 ## 0.17.35 — 2026-10-24
 
 ### English

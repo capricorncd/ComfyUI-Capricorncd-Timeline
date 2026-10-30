@@ -43,7 +43,6 @@ Capricorncd
 | **音频修复（加速）**<br>`CAP_H3FastAudioRepair` | 包含注意力、shift 与缓存配置的音频修复。 | [→](h3-audio-refine.md#音频修复加速) |
 | **H3 Interpolation Config**<br>`CAP_H3InterpolationConfig` | RIFE 配置 → interpolation_config。 | [→](h3-video-generator.md#rife-插帧) |
 | **H3 Auto Prompt Config**<br>`CAP_H3AutoPromptConfig` | 配置 → auto_prompt_config。 | [→](h3-shared-prompt.md) |
-| **H3 SelfLift Config**<br>`CAP_H3SelfLiftConfig` | 渐进采样配置 → selflift_config。 | [→](h3-video-generator.md#selflift-渐进采样实验) |
 | **Timeline Sequence Sampler**<br>`CAP_H3TimelineSequenceSampler` | 自定义连续采样 → 图像帧和音频。 | [→](h3-sequence.md#timeline-sequence-sampler) |
 | **MiniMax H3 Video Generator**<br>`CAP_H3VideoGenerator` | 时间轴 → 采样、保存及可选拼接视频。 | [→](h3-video-generator.md) |
 | **H3 Motion Context (Refine)**<br>`CAP_H3MotionContextRefine` | 高清续接条件。 | [→](h3-motion-context.md#h3-motion-context-refine) |

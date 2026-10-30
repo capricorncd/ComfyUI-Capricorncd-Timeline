@@ -10,9 +10,9 @@ vm.runInNewContext(readFileSync(new URL('../js/cap_h3_video_generator.js', impor
 const oldWidgets = ['steps', 'strict_keyframes', 'second_sampling', 'first_pass_megapixels',
     'upscaler_model', 'refine_sigmas', 'audio_refine', 'audio_refine_steps', 'normalize_audio',
     'attention', 'compose_final', 'sampling_preview', 'preview_tiny_vae', 'generate_audio'];
-const currentWidgets = [...oldWidgets.filter(name => !['strict_keyframes', 'audio_refine', 'audio_refine_steps'].includes(name)).map(name => name === 'normalize_audio' ? 'chain_all_clips' : name), 'motion_deblur', 'preview_sampling_batch'];
+const currentWidgets = [...oldWidgets.filter(name => !['strict_keyframes', 'audio_refine', 'audio_refine_steps'].includes(name)).map(name => name === 'normalize_audio' ? 'chain_all_clips' : name), 'preview_sampling_batch'];
 const expected = ['steps', 'attention', 'second_sampling', 'first_pass_megapixels', 'preview_sampling_batch',
-    'upscaler_model', 'refine_sigmas', 'motion_deblur', 'sampling_preview', 'preview_tiny_vae', 'generate_audio',
+    'upscaler_model', 'refine_sigmas', 'sampling_preview', 'preview_tiny_vae', 'generate_audio',
     'chain_all_clips', 'compose_final'];
 const oldInputs = ['model', 'clip', 'vae', 'audio_vae', 'data_json', 'base_model']
     .map((name, i) => ({name, link: i + 1}));
@@ -22,7 +22,7 @@ class Node {
         this.id = 9;
         this.comfyClass = 'CAP_H3VideoGenerator';
         this.inputs = structuredClone(oldInputs);
-        this.widgets = currentWidgets.map(name => ({name, value: name === 'preview_sampling_batch' ? 1 : ['motion_deblur'].includes(name) ? false : `default:${name}`}));
+        this.widgets = currentWidgets.map(name => ({name, value: name === 'preview_sampling_batch' ? 1 : `default:${name}`}));
         this.widgets.push({name: 'stv_ui', serialize: false});
     }
     configure(info) {
@@ -41,7 +41,6 @@ assert.deepEqual(node.widgets.map(w => w.name), [...expected, 'stv_ui']);
 const values = Object.fromEntries(oldWidgets.map(name => [name, `saved:${name}`]));
 values.second_sampling = true;
 values.strict_keyframes = false;
-values.motion_deblur = false;
 values.chain_all_clips = false;
 values.normalize_audio = true;
 values.preview_sampling_batch = 1;
@@ -55,11 +54,10 @@ for (const inputs of [savedInputs, oldInputs, [...oldInputs, {name: 'steps', wid
     node.inputs.forEach((input, i) => {if (input.link) assert.equal(links.get(input.link).target_slot, i);});
     expected.forEach(name => assert.equal(node.widgets.find(w => w.name === name).value, values[name]));
 }
-node.configure({properties: {cap_h3_widget_order: expected.filter(name => name !== 'motion_deblur')},
-    widgets_values: expected.filter(name => name !== 'motion_deblur').map(name => values[name])});
+node.configure({properties: {cap_h3_widget_order: expected},
+    widgets_values: expected.map(name => values[name])});
 pending.splice(0).forEach(cb => cb());
 expected.forEach(name => assert.equal(node.widgets.find(w => w.name === name).value, values[name]));
-values.motion_deblur = true;
 const serialized = {widgets_values: expected.map(name => values[name])};
 node.onSerialize(serialized);
 assert.deepEqual(Array.from(serialized.properties.cap_h3_widget_order), expected);
@@ -68,22 +66,18 @@ pending.splice(0).forEach(cb => cb());
 expected.forEach(name => assert.equal(node.widgets.find(w => w.name === name).value, values[name]));
 node.configure({inputs: oldInputs, widgets_values: oldWidgets.map(name => values[name])});
 pending.splice(0).forEach(cb => cb());
-assert.equal(node.widgets.find(w => w.name === 'motion_deblur').value, false);
 extension.loadedGraphNode(node);
 assert.equal(node.widgets.at(-1).name, 'stv_ui');
 assert.equal(node.widgets.at(-2).name, 'compose_final');
 console.log('H3 layout: adjacent models, ordered options, preserved values/links and reload passed.');
 
-node.configure({widgets_values: [...oldWidgets.map(name => values[name]), true]});
-pending.splice(0).forEach(cb => cb());
-assert.equal(node.widgets.find(w => w.name === 'motion_deblur').value, true);
 const previousOrder = [...expected];
-previousOrder.splice(previousOrder.indexOf('motion_deblur') + 1, 0, 'face_refine', 'frame_interpolation');
+previousOrder.splice(previousOrder.indexOf('refine_sigmas') + 1, 0, 'motion_deblur', 'face_refine', 'frame_interpolation');
 node.configure({properties: {cap_h3_widget_order: previousOrder},
-    widgets_values: previousOrder.map(name => ['face_refine', 'frame_interpolation'].includes(name) ? true : values[name])});
+    widgets_values: previousOrder.map(name => ['motion_deblur', 'face_refine', 'frame_interpolation'].includes(name) ? true : values[name])});
 pending.splice(0).forEach(cb => cb());
 expected.forEach(name => assert.equal(node.widgets.find(w => w.name === name).value, values[name]));
-assert.ok(!node.widgets.some(w => ['face_refine', 'frame_interpolation'].includes(w.name)));
+assert.ok(!node.widgets.some(w => ['motion_deblur', 'face_refine', 'frame_interpolation'].includes(w.name)));
 
 node.inputs.push({name: 'interpolation_config', link: null});
 node.onNodeCreated();
@@ -95,3 +89,16 @@ node.configure({properties: {cap_h3_widget_order: expected.map(n => n === 'chain
 assert.equal(node.widgets.find(w => w.name === 'chain_all_clips').value, false, 'old normalization true must not enable chaining');
 node.configure({properties: {cap_h3_widget_order: expected}, widgets_values: expected.map(n => n === 'chain_all_clips' ? true : values[n])});
 assert.equal(node.widgets.find(w => w.name === 'chain_all_clips').value, true, 'new chaining choice survives reload');
+
+node.configure({inputs: [...oldInputs, {name: 'auto_prompt_config', link: null}, {name: 'selflift_config', link: 99}, {name: 'motion_deblur', widget: {name: 'motion_deblur'}, link: null}],
+    properties: {cap_h3_widget_order: previousOrder},
+    widgets_values: previousOrder.map(name => name === 'motion_deblur' ? true : values[name])});
+pending.splice(0).forEach(cb => cb());
+assert.ok(!node.inputs.some(input => ['selflift_config', 'motion_deblur'].includes(input.name)));
+assert.ok(node.inputs.some(input => input.name === 'auto_prompt_config'));
+expected.forEach(name => assert.equal(node.widgets.find(w => w.name === name).value, values[name]));
+
+node.configure({inputs: [...oldInputs, ...previousOrder.map(name => ({name, widget: {name}, link: null}))],
+    widgets_values: previousOrder.map(name => name === 'motion_deblur' ? true : values[name])});
+pending.splice(0).forEach(cb => cb());
+expected.forEach(name => assert.equal(node.widgets.find(w => w.name === name).value, values[name]));

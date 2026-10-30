@@ -23,54 +23,25 @@ The node prepares conditioning, samples, decodes and saves videos; no separate C
 
 `compose_final` defaults to on and joins this run's generated videos. Use the editor's Export → Compose Video for the complete music, subtitle and media tracks. `concat_full_videos` keeps the full output lengths instead of trimming to Clip timing. There is no need to add another Compose Clip Videos when automatic composition is enabled.
 
-Connect [H3 Auto Prompt Config](h3-shared-prompt.md) to `auto_prompt_config`. Other optional configs feed `audio_refine_config`, `face_refine_config`, `interpolation_config` and `selflift_config`.
+Connect [H3 Auto Prompt Config](h3-shared-prompt.md) to `auto_prompt_config`. Other optional configs feed `audio_refine_config`, `face_refine_config`, and `interpolation_config`.
 
 ## RIFE frame interpolation
 
-Connect **H3 Interpolation Config** to `interpolation_config`, then use the enable switch on the config node (disconnect or disable to skip interpolation) to run the installed ComfyUI-Frame-Interpolation RIFE node after deblur, face repair and context latent saving. Model, multiplier, scale, ensemble and cache interval live on the config node. Defaults: rife426.pth, 2x, scale 1.0, ensemble off, cache interval 10. Supports integer 2–4x; the plugin may download the selected model on first use. RIFE 4.26 ignores ensemble. Output fps and timing snapshots are multiplied, including composition and returned data_json. Hold the final frame to preserve exact duration and original audio. Sampling and latent contexts retain the original frame rate. Disabled interpolation ignores its parameters.
-
-
-## SelfLift progressive sampling (experimental)
-
-Install [facok/comfyui-SelfLift](https://github.com/facok/comfyui-SelfLift), restart ComfyUI, connect **H3 SelfLift Config** to `selflift_config`, and enable the config node. Disconnected or disabled uses standard sampling. The integration calls the upstream `SelfLiftH3Sampler`; it does not copy its sampling implementation or download models.
-
-The main node keeps the total **4/8 steps**. Config defaults: 6 low-resolution steps, scale 0.5, beta scheduler, rho 0, weights 0.5/1. Select an installed H3 latent upscaler in the config. For 4 steps, lower `transition_step` to 1–3. Without an upscaler, use `none` with positive rho and correction weight (upstream suggests rho 0.6 and weights 1/1 for H3). Euler and CFG 1 are used; spatial tiling is disabled.
-
-SelfLift prepares conditioning at the project output resolution and performs its own low-to-high transition. It ignores `second_sampling`, `first_pass_megapixels`, the main node's `upscaler_model`, and `refine_sigmas`; no additional upscale/refine pass is stacked on top. Disconnecting or disabling SelfLift preserves existing one/two-pass behavior.
-
-Text, image/video references and strict first/last-frame conditioning are routed to SelfLift. Digital Human audio locking and Motion Context are not supported in this integration yet; these combinations fail before sampling with an instruction to disconnect or disable SelfLift. Existing preview, export and post-processing paths remain connected. CPU/mock tests cover routing and validation; GPU speed, visual quality, FL2V endpoint fidelity and sampling previews have not been validated. The upstream H3 adaptation is experimental.
+Connect **H3 Interpolation Config** to `interpolation_config`, then use the enable switch on the config node (disconnect or disable to skip interpolation) to run the installed ComfyUI-Frame-Interpolation RIFE node after face repair and context latent saving. Model, multiplier, scale, ensemble and cache interval live on the config node. Defaults: rife426.pth, 2x, scale 1.0, ensemble off, cache interval 10. Supports integer 2–4x; the plugin may download the selected model on first use. RIFE 4.26 ignores ensemble. Output fps and timing snapshots are multiplied, including composition and returned data_json. Hold the final frame to preserve exact duration and original audio. Sampling and latent contexts retain the original frame rate. Disabled interpolation ignores its parameters.
 
 
 Category: `Capricorncd/MiniMaxH3`. A compact wrapper around existing nodes, not another model implementation.
 
-Optional **face_refine** defaults to off. Connect [H3 Face Refine Config](h3-face-refine.md) to configure the detector and repair strength. It uses Carasibana's installed H3-FaceRefine nodes after motion deblur, with existing detectors in `models/ultralytics/bbox`.
+Optional **face_refine** defaults to off. Connect [H3 Face Refine Config](h3-face-refine.md) to configure the detector and repair strength. It uses Carasibana's installed H3-FaceRefine nodes after video decoding, with existing detectors in `models/ultralytics/bbox`.
 
 ## Digital Human
 
 Choose **Digital Human** as the Clip type, add a character reference, and place driving audio on the corresponding audio track. The generator uses the timeline offsets and trims, encodes the audio into the target latent, and locks it during both sampling passes. Output uses the source track instead of regenerated vocals. No additional audio-lock node is required.
 
-A default performance instruction requests lip-sync only during audible vocals and closed lips during pauses or instrumental passages. Digital Human clips skip audio repair, motion deblur and face refinement to protect lip timing; other clip types still follow these switches. Turning off **Generate audio** silences the output but keeps audio-driven generation. Audio normalization still changes output loudness when enabled.
+A default performance instruction requests lip-sync only during audible vocals and closed lips during pauses or instrumental passages. Digital Human clips skip audio repair and face refinement to protect lip timing; other clip types still follow these switches. Turning off **Generate audio** silences the output but keeps audio-driven generation. Audio normalization still changes output loudness when enabled.
 
 Missing readable driving audio raises an error. Short tracks are padded with silence, never looped or stretched. Context prefixes receive leading silence to keep the current clip aligned. For songs, use an isolated vocal stem with all original instrumental pauses preserved, then restore the full mix in the editor. This node does not separate vocals automatically or guarantee perfect lip synchronization.
 
-
-## Motion deblur (experimental)
-
-`motion_deblur` defaults to **false**. Enable it with **ComfyUI-MAINodes** installed and `base_model` connected to a model without acceleration LoRA. Missing requirements fail before sampling. Disabled workflows do not require MAINodes or run additional passes.
-
-After video sampling and optional audio repair, MAINodes analyzes motion, stretches frame spans, encodes and re-samples them, then recovers the original frame count. The independent repair uses the last 12 steps of a 25-step simple schedule (inject 0.5, Euler, CFG 1, video/audio shift 12/3); it does not reuse the 4/8-step or upscale-refine schedule. Oracle settings are q=0.75, d_max=4, ramp=true, bridge=8. These settings need playback evaluation on actual content; motion and background detail may change.
-
-- Requires at least 22 frames. Extra expanded frames, VAE operations and sampling cost memory and time. No automatic streamed-block patch or window splitting is enabled.
-- Output retains frame count, playback FPS, timeline trims and the original soundtrack. For audible output, `H3AudioSmear` stretches the baseline audio to seed the repair pass; final audio remains the baseline track. Silent mode skips audio stretching/encoding. Lip synchronization still needs visual verification.
-- The context prefix is not dilated and its original pixels are restored after recovery. Strict endpoint mode also restores the original generated first/last frames; this does not imply pixel-exact reference-image matching.
-- Save Latent encodes the repaired frames. With upscale/refine, low-resolution context is resized from the repaired final frames; high-resolution context uses final dimensions. Both retain the original video-sampling audio latent. VAE round trips may affect color/detail.
-- Progress reports the MAINodes repair stage, and video provenance records the option and internal node parameters. Existing workflows default to off.
-
-### Attribution
-
-Motion Lab algorithms are by **MatlowAI / MATLOWAI**, [ComfyUI-MAINodes](https://github.com/matlowai/ComfyUI-MAINodes), Copyright © 2026 MATLOWAI, [GPL-3.0-or-later](https://github.com/matlowai/ComfyUI-MAINodes/blob/f4868b4a08e8a504ce86db54a17961d399ffa2bc/LICENSE). Reviewed interface revision: `f4868b4a08e8a504ce86db54a17961d399ffa2bc`.
-
-Cap calls the installed `H3JerkOracle`, `H3TimeSmear`, `H3AudioSmear`, `H3V2VInit`, `H3InjectSchedule` and `H3ExactRecover` nodes; it does not copy or relabel their algorithms. Cap provides the switch, orchestration, timeline/context integration and output management. References: upstream [motion.py](https://github.com/matlowai/ComfyUI-MAINodes/blob/f4868b4a08e8a504ce86db54a17961d399ffa2bc/motion.py) and [TUNING.md](https://github.com/matlowai/ComfyUI-MAINodes/blob/f4868b4a08e8a504ce86db54a17961d399ffa2bc/TUNING.md). Upstream measurements are not GPU quality validation of this integration. The separately installed package retains its copyright and license.
 
 ## Generation
 
@@ -132,7 +103,7 @@ Connect `H3 Audio Refine Config` to the generator's `audio_refine_config`. It co
 
 ## Preview sampling management
 
-Select a director Clip and open Preview sampling management, or choose Batch preview sampling from the run menu. The generator defaults to 0.2 megapixels and one candidate. Each candidate saves its video, AV latent, prompt and input snapshot; preview sampling skips upscale/refine, SelfLift, repair, interpolation and final composition.
+Select a director Clip and open Preview sampling management, or choose Batch preview sampling from the run menu. The generator defaults to 0.2 megapixels and one candidate. Each candidate saves its video, AV latent, prompt and input snapshot; preview sampling skips upscale/refine, repair, interpolation and final composition.
 
 Run reuses the latest enabled compatible preview for each Clip and refines its saved latent; Clips without a valid preview generate normally. Changing duration or project fps requires new candidates. Keyframe previews retain their interval metadata, and the manager follows the selected director Clip.
 
@@ -142,6 +113,6 @@ Deleting a version moves its video, latent and manifest to the Windows recycle b
 
 `chain_all_clips` defaults to false. When enabled, all clips in this execution are chained in execution order, overriding per-Clip continuation switches across tracks and gaps. The first clip starts independently; preceding clips save latents for their successors. Project switches and timeline positions remain unchanged. Selected keyframe intervals are also chained in execution order.
 
-When disabled, Clip settings apply. Normal generation with chaining does not reuse old previews; explicit refinement retains its saved preview context. First/last-frame and SelfLift Motion Context restrictions still apply.
+When disabled, Clip settings apply. Normal generation with chaining does not reuse old previews; explicit refinement retains its saved preview context. First/last-frame Motion Context restrictions still apply.
 
 This continues both picture and sound, without guaranteeing identical BGM. It is not audio-only continuation; use an independent audio track for unchanged music across cuts. Loudness normalization has been removed; generated volume is preserved. Old normalization settings never enable chaining.

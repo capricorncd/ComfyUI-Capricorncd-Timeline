@@ -82,7 +82,7 @@ These nodes connect to **MiniMax H3 Video Generator** only when needed:
 |---|---|
 | [H3 Auto Prompt Config](docs/h3-shared-prompt.md) | `auto_prompt_config → auto_prompt_config`; enable **Generate prompt automatically** on the intended Clips. Reuses the generator's CLIP; select a compatible generation tail in the config. |
 | [H3 Audio Refine Config](docs/h3-video-generator.md#audio-repair-configuration) / [H3 Face Refine Config](docs/h3-face-refine.md) | Connect to `audio_refine_config` / `face_refine_config`; configure and enable the desired repair. |
-| [H3 Interpolation Config](docs/h3-video-generator.md#rife-frame-interpolation) / [H3 SelfLift Config](docs/h3-video-generator.md#selflift-progressive-sampling-experimental) | Connect to `interpolation_config` / `selflift_config`; each feature needs its documented dependency. |
+| [H3 Interpolation Config](docs/h3-video-generator.md#rife-frame-interpolation) | Connect to `interpolation_config`; install the dependency described in the documentation. |
 | [Show Anything](docs/show-anything.md) | Connect `generated_prompts` to inspect the actual sampling prompts. |
 
 For custom model workflows, use [Data Json Clip Parser](docs/data-json-clip-parser.md) to extract one Clip, connect its prompt/images/frame count to your model, then decoded images and optional audio to [Seq To Video](docs/seq-to-video.md). For a custom H3 sampler, [MiniMaxH3](docs/minimax-h3.md) supplies conditioning and latent. [Compose Clip Videos](docs/compose-clip-videos.md) accepts `data_json` with saved video paths; the compact H3 generator already composes when `compose_final` is on.

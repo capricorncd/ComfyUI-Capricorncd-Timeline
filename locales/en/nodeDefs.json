@@ -697,7 +697,7 @@
       },
       "enabled": {
         "name": "Enable",
-        "tooltip": "Off by default. Runs after face/deblur repair. Multiplies output fps, preserves duration and audio. Requires ComfyUI-Frame-Interpolation; first use may download the selected model."
+        "tooltip": "Off by default. Runs after face repair. Multiplies output fps, preserves duration and audio. Requires ComfyUI-Frame-Interpolation; first use may download the selected model."
       }
     }
   },
@@ -722,10 +722,6 @@
       "face_refine_config": {
         "name": "H3 Face Refine Config"
       },
-      "motion_deblur": {
-        "name": "Motion deblur (experimental)",
-        "tooltip": "Off by default. Uses MatlowAI's MAINodes for an extra motion repair pass. Requires MAINodes and base_model without acceleration LoRA. Costs time/memory and may change motion detail. Keeps original length, audio, context prefix and strict endpoints."
-      },
       "first_pass_megapixels": {
         "name": "Preview sampling megapixels",
         "tooltip": "Resolution for preview candidates and the first pass of second sampling. Ordinary single-pass generation uses project dimensions."
@@ -736,7 +732,7 @@
       },
       "base_model": {
         "name": "Base model (optional)",
-        "tooltip": "Used for audio repair and the base schedule when connected; otherwise both use the sampling model. Motion deblur requires this input with no acceleration LoRA for its extra repair pass."
+        "tooltip": "Used for audio repair and the base schedule when connected; otherwise both use the sampling model."
       },
       "audio_refine": {
         "name": "Repair audio",
@@ -765,9 +761,6 @@
       "strict_keyframes": {
         "name": "Strict first/last frames",
         "tooltip": "Off: multimodal references or text-to-video. On: one image = first frame; two ordered images = first/last, using native keyframe conditioning (not pixel-exact enforcement). No video/audio references or Motion Context. Select a compatible FL model and LoRA manually."
-      },
-      "selflift_config": {
-        "name": "SelfLift config"
       },
       "preview_sampling_batch": {
         "name": "Preview sampling batch",
@@ -991,37 +984,6 @@
         "name": "Latent"
       }
     }
-  },
-  "CAP_H3SelfLiftConfig": {
-    "display_name": "H3 SelfLift Config",
-    "inputs": {
-      "transition_step": {
-        "name": "Low-resolution steps",
-        "tooltip": "Low-resolution steps must be less than the generator's total steps. For 4 total steps, set 3 (3 low-res + 1 high-res; valid range 1–3). For 8 total steps, set 6 (6 low-res + 2 high-res; valid range 1–7). When changing total steps, update this value and select the matching 4/8-step LoRA; neither changes automatically."
-      },
-      "lowres_scale": {
-        "name": "Low-resolution scale"
-      },
-      "scheduler": {
-        "name": "Scheduler"
-      },
-      "upscaler_model": {
-        "name": "Upscaler model"
-      },
-      "rho": {
-        "name": "Correction fraction"
-      },
-      "w_min": {
-        "name": "Minimum correction weight"
-      },
-      "w_max": {
-        "name": "Maximum correction weight"
-      },
-      "enabled": {
-        "name": "Enable"
-      }
-    },
-    "description": "Experimental SelfLift configuration. Connect to MiniMax H3 Video Generator and enable this config. Disconnected or disabled uses standard sampling. Low-resolution steps must be less than the generator's total steps. For 4 total steps, set 3 (3 low-res + 1 high-res; valid range 1–3). For 8 total steps, set 6 (6 low-res + 2 high-res; valid range 1–7). When changing total steps, update this value and select the matching 4/8-step LoRA; neither changes automatically."
   },
   "CAP_H3AutoPromptConfig": {
     "inputs": {

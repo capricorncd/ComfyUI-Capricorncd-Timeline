@@ -43,7 +43,6 @@ The main path is **Timeline Editor.data_json → MiniMax H3 Video Generator.data
 | **音频修复（加速）**<br>`CAP_H3FastAudioRepair` | Audio repair with attention/shift/cache setup. | [→](h3-audio-refine.md#音频修复加速) |
 | **H3 Interpolation Config**<br>`CAP_H3InterpolationConfig` | RIFE settings → interpolation_config. | [→](h3-video-generator.md#rife-frame-interpolation) |
 | **H3 Auto Prompt Config**<br>`CAP_H3AutoPromptConfig` | Settings → auto_prompt_config. | [→](h3-shared-prompt.md) |
-| **H3 SelfLift Config**<br>`CAP_H3SelfLiftConfig` | Progressive sampling → selflift_config. | [→](h3-video-generator.md#selflift-progressive-sampling-experimental) |
 | **Timeline Sequence Sampler**<br>`CAP_H3TimelineSequenceSampler` | Custom sequence graph → frames and audio. | [→](h3-sequence.md#timeline-sequence-sampler) |
 | **MiniMax H3 Video Generator**<br>`CAP_H3VideoGenerator` | Timeline → sampled and saved videos. | [→](h3-video-generator.md) |
 | **H3 Motion Context (Refine)**<br>`CAP_H3MotionContextRefine` | High-resolution continuation conditioning. | [→](h3-motion-context.md#h3-motion-context-refine) |

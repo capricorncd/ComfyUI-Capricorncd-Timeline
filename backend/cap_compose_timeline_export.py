@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import base64
+import io
 import logging
 import os
 import re
@@ -14,7 +16,7 @@ import tempfile
 from typing import Any
 
 import folder_paths
-from PIL import ImageFilter
+from PIL import Image, ImageFilter
 
 from .audio_envelope import normalize_volume_points, volume_points_filter
 from .media_speed import playback_rate, audio_speed_filter
@@ -140,6 +142,7 @@ def _collect_plan(
                 start = _ms(clip.get("start_ms")) / 1000.0
                 duration = max(1, _ms(clip.get("duration_ms"), 1)) / 1000.0
                 subtitle_segs.append({
+                    "id": clip.get("id"),
                     "text": text,
                     "start_sec": start,
                     "end_sec": start + duration,
@@ -562,6 +565,28 @@ def _render_subtitle_png(text: str, style: dict) -> str:
     return path
 
 
+def _save_subtitle_overlays(overlays: dict, size: tuple[int, int], directory: str) -> dict:
+    if not isinstance(overlays, dict):
+        raise ValueError("Expected subtitle overlays keyed by clip ID")
+    rendered = {}
+    prefix = "data:image/png;base64,"
+    for index, (clip_id, png) in enumerate(overlays.items()):
+        if not isinstance(png, str) or not png.startswith(prefix):
+            raise ValueError("Expected a PNG subtitle overlay")
+        data = base64.b64decode(png[len(prefix):], validate=True)
+        with Image.open(io.BytesIO(data), formats=("PNG",)) as image:
+            if image.size != size or image.mode != "RGBA":
+                raise ValueError("Subtitle overlay must match the export size and include alpha")
+            left, top, right, bottom = image.getbbox() or (0, 0, 1, 1)
+            # Keep the crop origin on the 4:2:0 chroma grid used by FFmpeg overlay.
+            left -= left % 2
+            top -= top % 2
+            path = os.path.join(directory, f"{index}.png")
+            image.crop((left, top, right, bottom)).save(path)
+        rendered[clip_id] = (path, left, top)
+    return rendered
+
+
 def _random_schedule(total_sec: float, rng) -> list[tuple[float, float, str]]:
     segments: list[tuple[float, float, str]] = []
     t = 0.0
@@ -674,6 +699,7 @@ def compose_timeline_project(
     audio_output_path: str | None = None,
     audio_format: str = "wav",
     output_fps: float | None = None,
+    subtitle_overlays: dict | None = None,
 ) -> dict:
     if not export_video and not audio_output_path:
         raise ValueError("Select video or audio for export")
@@ -716,6 +742,7 @@ def compose_timeline_project(
     video_segs = list(plan["video_segs"])
     audio_segs = plan["audio_segs"]
     subtitle_segs = plan["subtitle_segs"]
+    subtitle_overlays = subtitle_overlays or {}
     if not video_segs and not audio_segs and not subtitle_segs:
         raise ValueError(_t("no_generated_videos_to_compose", get_last_known_lang()))
 
@@ -764,8 +791,12 @@ def compose_timeline_project(
         cmd += wm_input_args
         subtitle_input_index = watermark_input_index + (1 if wm_input_args else 0)
         for seg in subtitle_segs:
-            path = _render_subtitle_png(seg["text"], seg["style"])
-            subtitle_paths.append(path)
+            overlay = subtitle_overlays.get(seg["id"])
+            if overlay:
+                path = overlay[0]
+            else:
+                path = _render_subtitle_png(seg["text"], seg["style"])
+                subtitle_paths.append(path)
             cmd += ["-loop", "1", "-i", _ffmpeg_path(path)]
 
         for i, seg in enumerate(video_segs):
@@ -826,23 +857,27 @@ def compose_timeline_project(
         filters.append(f"[{prev}]format=yuv420p[vout]")
         filters += wm_filters
         for i, seg in enumerate(subtitle_segs):
-            style = seg["style"]
-            align = str(style.get("align") or "center").lower()
-            v_align = str(style.get("v_align") or "bottom").lower()
-            offset_x = float(style.get("offset_x", 0) or 0) / 100.0
-            offset_y = float(style.get("offset_y", 0) or 0) / 100.0
-            pad = round(width * 0.04)
-            x_base = str(pad) if align == "left" else f"main_w-overlay_w-{pad}" if align == "right" else "(main_w-overlay_w)/2"
-            y_base = str(pad) if v_align == "top" else "(main_h-overlay_h)/2" if v_align in ("center", "middle") else f"main_h-overlay_h-{pad}"
-            x = f"({x_base})+main_w*{offset_x:.6f}"
-            y_sign = "-" if v_align not in ("top", "center", "middle") else "+"
-            y = f"({y_base}){y_sign}main_h*{offset_y:.6f}"
+            label = f"{subtitle_input_index + i}:v"
+            overlay = subtitle_overlays.get(seg["id"])
+            if overlay:
+                _, x, y = overlay
+            else:
+                style = seg["style"]
+                align = str(style.get("align") or "center").lower()
+                v_align = str(style.get("v_align") or "bottom").lower()
+                offset_x = float(style.get("offset_x", 0) or 0) / 100.0
+                offset_y = float(style.get("offset_y", 0) or 0) / 100.0
+                pad = round(width * 0.04)
+                x_base = str(pad) if align == "left" else f"main_w-overlay_w-{pad}" if align == "right" else "(main_w-overlay_w)/2"
+                y_base = str(pad) if v_align == "top" else "(main_h-overlay_h)/2" if v_align in ("center", "middle") else f"main_h-overlay_h-{pad}"
+                x = f"({x_base})+main_w*{offset_x:.6f}"
+                y_sign = "-" if v_align not in ("top", "center", "middle") else "+"
+                y = f"({y_base}){y_sign}main_h*{offset_y:.6f}"
+                filters.append(f"[{label}]scale=iw*{render_scale:.9f}:ih*{render_scale:.9f}[subscaled{i}]")
+                label = f"subscaled{i}"
             out = f"vsub{i}"
             filters.append(
-                f"[{subtitle_input_index + i}:v]scale=iw*{render_scale:.9f}:ih*{render_scale:.9f}[subscaled{i}]"
-            )
-            filters.append(
-                f"[{video_out_label}][subscaled{i}]overlay=x={x}:y={y}:eof_action=pass:"
+                f"[{video_out_label}][{label}]overlay=x={x}:y={y}:eof_action=pass:"
                 f"enable='{_escape_enable(seg['start_sec'], seg['end_sec'])}'[{out}]"
             )
             video_out_label = out
@@ -1032,6 +1067,7 @@ def compose_to_output(
     audio_format: str = "wav",
     output_fps: float | None = None,
     output_directory: str | None = None,
+    subtitle_overlays: dict | None = None,
 ) -> dict:
     if type(export_video) is not bool or type(export_audio) is not bool:
         raise ValueError("Video and audio selections must be booleans")
@@ -1047,13 +1083,19 @@ def compose_to_output(
         )
         outputs.append({"filename": leaf, "subfolder": subfolder, "output_path": path})
     primary = outputs[0]
-    meta = compose_timeline_project(
-        project, primary["output_path"], watermark=watermark,
-        output_resolution=output_resolution, export_quality=export_quality,
-        export_range=export_range, export_video=export_video,
-        audio_output_path=outputs[-1]["output_path"] if export_audio else None,
-        audio_format=audio_format, output_fps=output_fps,
-    )
+    with tempfile.TemporaryDirectory(prefix="cap_subtitle_overlays_") as directory:
+        rendered = {}
+        if export_video and subtitle_overlays:
+            settings = _as_dict(project.get("settings"))
+            size = _compose_size(max(16, int(settings.get("width") or 1344)), max(16, int(settings.get("height") or 768)), output_resolution)
+            rendered = _save_subtitle_overlays(subtitle_overlays, size, directory)
+        meta = compose_timeline_project(
+            project, primary["output_path"], watermark=watermark,
+            output_resolution=output_resolution, export_quality=export_quality,
+            export_range=export_range, export_video=export_video,
+            audio_output_path=outputs[-1]["output_path"] if export_audio else None,
+            audio_format=audio_format, output_fps=output_fps, subtitle_overlays=rendered,
+        )
     meta.update(primary)
     meta["outputs"] = outputs
     return meta

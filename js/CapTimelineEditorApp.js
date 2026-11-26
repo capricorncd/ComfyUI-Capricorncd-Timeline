@@ -3336,12 +3336,16 @@ export class CapTimelineEditorApp {
         if (this.composeRunBtn) this.composeRunBtn.disabled = true;
         this._setComposeStatus(T("composing_please_wait"));
         try {
+            const settings = this._composeSubmittedSettings;
+            const subtitleOverlays = settings.export_video
+                ? await this._composeSubtitleOverlays(project, settings.output_resolution) : undefined;
             const response = await fetch(api.apiURL("/audio_keyframe_timeline/compose_video"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     project,
-                    ...this._composeSubmittedSettings,
+                    ...settings,
+                    subtitle_overlays: subtitleOverlays,
                 }),
             });
             const data = await response.json().catch(() => ({}));
@@ -20877,10 +20881,41 @@ export class CapTimelineEditorApp {
         }
     }
 
-    _paintSubtitle(ctx, cw, ch, m) {
+    async _composeSubtitleOverlays(project, resolution) {
+        const tracks = project.tracks.filter(track => isSubtitleTrackType(track.type) && track.visible !== false);
+        if (!tracks.length) return;
+        const { width, height } = project.settings;
+        const shortSide = { "720p": 720, "1080p": 1080, "2k": 1440 }[resolution];
+        const scale = shortSide ? shortSide / Math.min(width, height) : 1;
+        const even = size => Math.max(16, Math.floor(Math.round(size * scale) / 2) * 2);
+        const canvas = document.createElement("canvas");
+        canvas.width = even(width);
+        canvas.height = even(height);
+        const ctx = canvas.getContext("2d");
+        const overlays = Object.create(null);
+        await document.fonts.ready;
+        for (const track of tracks) {
+            const style = subtitleStyleFromJson(track.subtitle_style);
+            for (const clip of track.clips) {
+                if (clip.enabled === false || clip.visible === false || !clip.text?.trim()) continue;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                this._paintSubtitle(ctx, canvas.width, canvas.height, { ...style, text: clip.text }, height);
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+                const reader = new FileReader();
+                overlays[clip.id] = await new Promise((resolve, reject) => {
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(reader.error);
+                    reader.readAsDataURL(blob);
+                });
+            }
+        }
+        return overlays;
+    }
+
+    _paintSubtitle(ctx, cw, ch, m, projectHeight = Number(this._w("height")?.value) || ch) {
         const text = String(m.text || "").trim();
         if (!text) return;
-        const scale = ch / Math.max(1, Number(this._w("height")?.value) || ch)
+        const scale = ch / Math.max(1, projectHeight)
             * Math.max(10, Math.min(300, Number(m.subtitleScale ?? 100))) / 100;
         const fontSize = Math.max(8, Number(m.fontSize) || 48) * scale;
         const letterSpacing = (Number(m.letterSpacing) || 0) * scale;

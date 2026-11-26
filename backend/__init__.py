@@ -814,6 +814,7 @@ def _register_routes():
                 watermark=watermark if isinstance(watermark, dict) else None,
                 output_resolution=output_resolution,
                 output_fps=payload.get("output_fps"),
+                subtitle_overlays=payload.get("subtitle_overlays"),
                 export_quality=str(payload.get("export_quality") or "maximum"),
                 export_range=payload.get("export_range"),
                 export_video=payload.get("export_video", True),

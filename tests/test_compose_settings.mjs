@@ -30,6 +30,7 @@ function fixture() {
         _safeProjectFilename:()=> 'Project',
         getFps:()=>24,
         _setComposeStatus(text){this.status=text;}, _saveToWidgets(){}, _buildProject:()=>({tracks:[]}),
+        _composeSubtitleOverlays:async()=>({subtitle1:'preview-png'}),
     };
     for (const name of ['_composeExportSettings','_composeDefaultFilename','_onComposeSettingsChange']) app[name]=method(name);
     app._composeSubmittedSettings=JSON.parse(JSON.stringify(app._composeExportSettings()));
@@ -50,6 +51,7 @@ function fixture() {
     });
     await run.call(app);
     assert.equal(payload.output_directory, 'D:/selected');
+    assert.deepEqual(payload.subtitle_overlays, {subtitle1:'preview-png'});
     assert.deepEqual(app._lastComposeOutput, { reveal_token: 'external' });
     assert.match(app.status, /export_saved_path/);
     assert.equal(app.composeDirectory.disabled, false);
@@ -104,6 +106,7 @@ for (const edit of [
     });
     const pending=run.call(app);
     assert.equal(app._composeBusy,true);
+    await Promise.resolve();
     app._watermark.opacity=80;
     app._onComposeSettingsChange();
     assert.equal(app.composeRunBtn.disabled,true,'do not allow simultaneous exports');

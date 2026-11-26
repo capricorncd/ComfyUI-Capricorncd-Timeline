@@ -1,4 +1,6 @@
 import ast
+import base64
+import io
 import os
 from pathlib import Path
 import re
@@ -11,12 +13,29 @@ from PIL import Image, ImageFilter, ImageFont
 
 source = Path(__file__).resolve().parents[1] / 'backend' / 'cap_compose_timeline_export.py'
 tree = ast.parse(source.read_text(encoding='utf-8-sig'))
-scope = dict(re=re, os=os, tempfile=tempfile, ImageFilter=ImageFilter, resolve_font_path=lambda _: '')
+scope = dict(re=re, os=os, tempfile=tempfile, base64=base64, io=io, Image=Image, ImageFilter=ImageFilter, resolve_font_path=lambda _: '')
 exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef)
-                            and n.name in {'_subtitle_rgba', '_render_subtitle_image', '_render_subtitle_png'}], type_ignores=[]), str(source), 'exec'), scope)
+                            and n.name in {'_subtitle_rgba', '_render_subtitle_image', '_render_subtitle_png', '_save_subtitle_overlays'}], type_ignores=[]), str(source), 'exec'), scope)
 
 
 class SubtitleRgbaTests(unittest.TestCase):
+    def test_canvas_overlay_keeps_preview_pixels_and_position(self):
+        canvas = Image.new('RGBA', (96, 64))
+        canvas.paste((88, 99, 111, 128), (11, 21, 81, 39))
+        buffer = io.BytesIO()
+        canvas.save(buffer, 'PNG')
+        overlays = {'subtitle-1': 'data:image/png;base64,' + base64.b64encode(buffer.getvalue()).decode()}
+        with tempfile.TemporaryDirectory() as directory:
+            saved = scope['_save_subtitle_overlays'](overlays, canvas.size, directory)
+            path, x, y = saved['subtitle-1']
+            self.assertEqual((x, y), (10, 20))
+            restored = Image.new('RGBA', canvas.size)
+            with Image.open(path) as crop:
+                restored.paste(crop, (x, y))
+            self.assertEqual(restored.tobytes(), canvas.tobytes())
+            with self.assertRaises(ValueError):
+                scope['_save_subtitle_overlays'](overlays, (192, 128), directory)
+
     def test_color_and_combined_opacity(self):
         color = scope['_subtitle_rgba']
         self.assertEqual(color('#112233', 1), (17, 34, 51, 255))

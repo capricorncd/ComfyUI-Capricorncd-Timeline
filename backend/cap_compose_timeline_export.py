@@ -503,14 +503,13 @@ def _subtitle_rgba(value: str, opacity: float) -> tuple[int, int, int, int]:
     return (*rgb, round(255 * alpha * opacity))
 
 
-def _render_subtitle_png(text: str, style: dict) -> str:
+def _render_subtitle_image(text: str, style: dict, font_path: str):
     from PIL import Image, ImageDraw, ImageFont
 
     try:
         font_size = max(1, round(float(style.get("font_size", 36))))
     except (TypeError, ValueError):
         font_size = 36
-    font_path = resolve_font_path(style.get("font_path") or "")
     render_scale = 2
     font = ImageFont.truetype(font_path, font_size * render_scale) if font_path else ImageFont.load_default(size=font_size * render_scale)
     color = str(style.get("color") or "#ffffff").lstrip("#")
@@ -544,7 +543,19 @@ def _render_subtitle_png(text: str, style: dict) -> str:
     draw.multiline_text(pos, text, font=font, fill=fill, spacing=spacing, align=align, stroke_width=stroke_width, stroke_fill=stroke_fill)
     image = Image.alpha_composite(image, foreground)
     subtitle_scale = max(10.0, min(300.0, float(style.get("subtitle_scale", 100)))) / 100
-    image = image.resize((max(1, round(width * subtitle_scale / render_scale)), max(1, round(height * subtitle_scale / render_scale))), Image.Resampling.LANCZOS)
+    return image.resize((max(1, round(width * subtitle_scale / render_scale)), max(1, round(height * subtitle_scale / render_scale))), Image.Resampling.LANCZOS)
+
+
+def _render_subtitle_png(text: str, style: dict) -> str:
+    font_path = resolve_font_path(style.get("font_path") or "")
+    try:
+        image = _render_subtitle_image(text, style, font_path)
+    except OSError:
+        # FreeType can open a font and still fail when measuring or drawing its glyphs.
+        fallback = resolve_font_path("")
+        if os.path.normcase(fallback) == os.path.normcase(font_path):
+            raise
+        image = _render_subtitle_image(text, style, fallback)
     fd, path = tempfile.mkstemp(suffix=".png", prefix="cap_subtitle_")
     os.close(fd)
     image.save(path)

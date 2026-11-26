@@ -4,15 +4,16 @@ from pathlib import Path
 import re
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageFont
 
 
 source = Path(__file__).resolve().parents[1] / 'backend' / 'cap_compose_timeline_export.py'
 tree = ast.parse(source.read_text(encoding='utf-8-sig'))
 scope = dict(re=re, os=os, tempfile=tempfile, ImageFilter=ImageFilter, resolve_font_path=lambda _: '')
 exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef)
-                            and n.name in {'_subtitle_rgba', '_render_subtitle_png'}], type_ignores=[]), str(source), 'exec'), scope)
+                            and n.name in {'_subtitle_rgba', '_render_subtitle_image', '_render_subtitle_png'}], type_ignores=[]), str(source), 'exec'), scope)
 
 
 class SubtitleRgbaTests(unittest.TestCase):
@@ -43,6 +44,19 @@ class SubtitleRgbaTests(unittest.TestCase):
         self.assertIn(128, red)
         self.assertIn(64, blue)
         self.assertTrue(any(r == g == b == 255 and a == 255 for r, g, b, a in pixels))
+
+    def test_font_with_invalid_glyph_reference_uses_fallback(self):
+        expected = self.render()
+        selected = ImageFont.load_default(size=120)
+        truetype = ImageFont.truetype
+
+        def load_font(path, *args, **kwargs):
+            return selected if path == 'selected.ttf' else truetype(path, *args, **kwargs)
+
+        with patch.dict(scope, resolve_font_path=lambda path: path), patch.object(ImageFont, 'truetype', load_font), \
+                patch.object(selected, 'getbbox', side_effect=OSError('invalid reference')) as measure:
+            self.assertEqual(self.render(font_path='selected.ttf'), expected)
+            measure.assert_called()
 
     def test_transparent_effects_and_overall_opacity(self):
         pixels = self.render(stroke_color='rgba(255,0,0,0)', shadow_color='rgba(0,0,255,0)')

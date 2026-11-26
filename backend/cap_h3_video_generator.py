@@ -29,6 +29,7 @@ from .h3_keyframe_runs import expand_keyframe_runs
 from .cap_h3_face_refine import FACE_NODES, validate_face_config
 from .cap_h3_prompt_generator import generate_h3_prompts
 from .cap_h3_interpolation import validate_interpolation_config
+from .h3_sampling import sampling_strategy
 from .cap_h3_drafts import DRAFT_ROOT, save_draft, finish_draft, restore_draft, load_draft_latent, latest_draft
 
 
@@ -211,6 +212,7 @@ class CAP_H3VideoGenerator:
         "Audio repair and face refinement are skipped for Digital Human clips to protect lip sync. "
         "Reference mode also permits FL models but does not force endpoints. "
         "Standard sampling runs the full selected 4/8-step schedule; refine uses explicit sigmas. "
+        "For HyperFlow Flash, use HyperFlow Loader and connect H3 HyperFlow Config to sampling_config; it overrides steps and refine_sigmas. "
         "Run connected Save Latent clips together; high/low contexts are matched by source Clip ID, not newest file. "
         "chain_all_clips overrides per-Clip continuation switches in execution order, continuing picture and sound. "
         "Each saved Clip immediately updates the node player. compose_final defaults to true and trims/joins "
@@ -227,7 +229,7 @@ class CAP_H3VideoGenerator:
         default_upscaler = "minimax_h3_latent_upscaler_3d_fp32.pth"
         return {
             "required": {
-                "model": ("MODEL", {"tooltip": "Sampling model after external acceleration/style LoRA loading. Used for both video passes and their previews; this node does not load LoRAs."}),
+                "model": ("MODEL", {"tooltip": "Sampling model from an external loader, optionally LoRA-patched. HyperFlow requires HyperFlow Loader and H3 HyperFlow Config. Used for both video passes and their previews; this node does not load LoRAs."}),
                 "clip": ("CLIP",),
                 "vae": ("VAE",),
                 "audio_vae": ("VAE",),
@@ -254,6 +256,7 @@ class CAP_H3VideoGenerator:
                 "preview_sampling_batch": ("INT", {"default": 1, "min": 1, "max": 100, "tooltip": "Number of preview candidates per Clip, generated sequentially with different seeds. Only used by Batch preview sampling."}),
                 "max_segment_seconds": ("FLOAT", {"default": 15.0, "min": 0.1, "max": 3600.0, "step": 0.1, "tooltip": "Maximum duration per generated segment. Longer video-reference Clips and keyframe intervals use latent continuation. This is separate from second sampling."}),
                 "ref_image_size": (["match", "max"], {"default": "match", "tooltip": "Reference image sizing. match downsizes to each sampling pass's pixel area; max keeps more detail, downscaling only above a 2048px short edge. Neither upscales small images. max uses more memory and sampling time. First/last frame anchors still use the output canvas size."}),
+                "sampling_config": ("CAP_H3_SAMPLING_CONFIG", {"tooltip": "Optional sampling strategy. Connect H3 HyperFlow Config for a model loaded by HyperFlow Loader; disconnected uses the existing H3 steps/refine_sigmas."}),
             },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "unique_id": "UNIQUE_ID", "dynprompt": "DYNPROMPT"},
         }
@@ -269,7 +272,7 @@ class CAP_H3VideoGenerator:
                  prompt=None, extra_pnginfo=None,
                  unique_id=None, dynprompt=None, compose_final=True, sampling_preview=True, preview_tiny_vae="none", generate_audio=True, base_model=None,
                  face_refine_config=None,
-                 interpolation_config=None, audio_refine_config=None, preview_sampling_batch=1, concat_full_videos=False, auto_prompt_config=None, max_segment_seconds=15, ref_image_size="match"):
+                 interpolation_config=None, audio_refine_config=None, preview_sampling_batch=1, concat_full_videos=False, auto_prompt_config=None, max_segment_seconds=15, ref_image_size="match", sampling_config=None):
         data = json.loads(data_json)
         width, height, fps = _validate(data)
         request = data.get("h3_generation") or {}
@@ -322,11 +325,12 @@ class CAP_H3VideoGenerator:
         audio_refine = bool(generate_audio and audio_refine)
         if all(row.get("clip_role") == "digital_human" for row in data["clips"]):
             audio_refine = face_refine = False
-        if str(steps) not in ("4", "8"):
-            raise ValueError("H3 steps must be 4 or 8.")
-        steps = int(steps)
+        sampling = sampling_strategy(sampling_config, steps, refine_sigmas)
+        steps = sampling.steps
+        if audio_refine and sampling.audio_refine_requires_base and base_model is None:
+            raise ValueError("HyperFlow audio repair requires a standard H3 base_model. Connect one or disable audio repair.")
         required = ["MiniMaxH3SigmaShift", "RandomNoise", "BasicGuider", "KSamplerSelect",
-                    "BasicScheduler", "SamplerCustomAdvanced", "VAEDecode"]
+                    "SamplerCustomAdvanced", "VAEDecode", *sampling.nodes]
         if face_refine:
             face_refine_config = validate_face_config(face_refine_config)
             for name in FACE_NODES:
@@ -349,10 +353,8 @@ class CAP_H3VideoGenerator:
             if upscaler_model == "none":
                 raise ValueError("Select a latent upscaler model for second sampling.")
             folder_paths.get_full_path_or_raise("latent_upscale_models", upscaler_model)
-            sigmas = [float(v.strip()) for v in refine_sigmas.split(",")]
-            if len(sigmas) < 2 or sigmas[-1] != 0 or any(not math.isfinite(v) or v < 0 for v in sigmas) or any(a <= b for a, b in zip(sigmas, sigmas[1:])):
-                raise ValueError("Refine sigmas must strictly decrease and end at 0.")
-            required += ["MinimaxH3LatentUpscaler3D", "LTXVSeparateAVLatent", "LTXVConcatAVLatent", "ManualSigmas"]
+            sampling.validate_refine()
+            required += ["MinimaxH3LatentUpscaler3D", "LTXVSeparateAVLatent", "LTXVConcatAVLatent", *sampling.refine_nodes]
         if (stage != "draft" or segmented or chain_all_clips) and any(row.get("save_latent") for row in data["clips"]):
             required += ["MiniMaxH3MotionContextSaveLatent", "MiniMaxH3MotionContextLoadLatent"]
         if audio_refine:
@@ -479,7 +481,7 @@ class CAP_H3VideoGenerator:
                 fps, steps, row.get("clip_role") == "first_last", second_sampling or clip_stage == "refine", upscaler_model, refine_sigmas,
                 audio_refine, audio_refine_steps, attention, prior_paths,
                 run_token, dict(records), extra_pnginfo,
-                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, face_refine_config, interpolation, audio_refine_config, clip_stage, clip_manifest, ref_image_size)
+                f"{display_id}::h3:{run_token}_{index}" if sampling_preview else None, preview_tiny_vae, progress, generate_audio, face_refine_config, interpolation, audio_refine_config, clip_stage, clip_manifest, ref_image_size, sampling)
             filename = saved["result"][0]
             row["output_video"] = filename
             for owner in data["clips"]:
@@ -549,7 +551,9 @@ class CAP_H3VideoGenerator:
     def _generate_clip(self, model, base_model, clip, vae, audio_vae, data, index, width, height, low_width, low_height,
                        fps, steps, strict_keyframes, second_sampling, upscaler_model, refine_sigmas,
                        audio_refine, audio_refine_steps, attention, prior_paths,
-                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, face_refine_config=None, interpolation=None, audio_refine_config=None, stage="normal", draft_manifest=None, ref_image_size="match"):
+                       run_token, records, extra_pnginfo, preview_id=None, preview_tiny_vae="none", progress=None, generate_audio=True, face_refine_config=None, interpolation=None, audio_refine_config=None, stage="normal", draft_manifest=None, ref_image_size="match", sampling=None):
+        if sampling is None:
+            sampling = sampling_strategy(None, steps, refine_sigmas)
         if progress:
             progress("prepare")
         row = data["clips"][index]
@@ -586,7 +590,7 @@ class CAP_H3VideoGenerator:
         records["h3_clip_prompt"] = {"class_type": "MiniMaxH3ImageToVideo" if strict_keyframes else "MiniMaxH3ReferenceToVideo",
                                    "inputs": {"prompt": composed_prompt, "width": low_width, "height": low_height, "length": frame_count}}
         sampler, = _call("KSamplerSelect", records, sampler_name="euler")
-        sigmas, = _call("BasicScheduler", records, model=base_model, scheduler="simple", steps=steps, denoise=1.0)
+        sigmas = sampling.primary_sigmas(_call, records, model, base_model)
         noise, = _call("RandomNoise", records, noise_seed=seed)
         if progress and stage != "refine":
             progress("sample")
@@ -632,7 +636,7 @@ class CAP_H3VideoGenerator:
                 positive, = CAP_H3MotionContextRefine().apply(positive, vae, latent, trim_frames, high_context)
             del high_context
             guider, = _call("BasicGuider", records, model=model, conditioning=positive)
-            sigmas, = _call("ManualSigmas", records, sigmas=refine_sigmas)
+            sigmas = sampling.refine_sigmas(_call, records, model)
             if progress:
                 progress("refine")
             result, denoised = _call("SamplerCustomAdvanced", records, noise=noise, guider=guider, sampler=sampler, sigmas=sigmas, latent_image=latent)
@@ -669,7 +673,7 @@ class CAP_H3VideoGenerator:
                 progress("face")
             images = self._refine_faces(model, positive, audio_result, images, vae, noise, steps,
                                         face_refine_config, trim_frames, strict_keyframes, records,
-                                        preview_id, preview_tiny_vae, fps)
+                                        preview_id, preview_tiny_vae, fps, sampling)
         del audio_result
         if save_latent and face_refine_config:
             context_video, context_audio = _call("LTXVSeparateAVLatent", records, av_latent=result)
@@ -718,7 +722,7 @@ class CAP_H3VideoGenerator:
             progress("save")
         saved = CAP_SeqToVideo().execute("", output_fps, output, images=images, audio=audio,
                                         metadata=json.dumps({"clip_id": cid, "keyframe_segment": row.get("keyframe_segment"), "strict_keyframes": strict_keyframes,
-                                                             "generate_audio": generate_audio, "audio_refine": bool(generate_audio and audio_refine),
+                                                             "generate_audio": generate_audio, "sampling_config": sampling.settings, "audio_refine": bool(generate_audio and audio_refine),
                                                              "audio_refine_config": audio_refine_config if generate_audio and audio_refine else None,
                                                              "digital_human": digital_human,
                                                              "second_sampling": second_sampling, "width": low_width if stage == "draft" else width, "height": low_height if stage == "draft" else height,
@@ -737,7 +741,7 @@ class CAP_H3VideoGenerator:
         return saved, (low_path, high_path) if save_latent else None, composed_prompt
 
     def _refine_faces(self, model, positive, samples, images, vae, noise, steps, config,
-                      trim_frames, strict_keyframes, records, preview_id, preview_tiny_vae, fps):
+                      trim_frames, strict_keyframes, records, preview_id, preview_tiny_vae, fps, sampling=None):
         # Tracking, per-frame denoise and stitching: Carasibana, MIT, H3-FaceRefine.
         # https://github.com/Carasibana/ComfyUI-H3-FaceRefine/tree/d8521d14fe0d721d80cd9417fff5a559cbc21aba
         # Only the timeline/crop orchestration below belongs to Cap.
@@ -776,7 +780,9 @@ class CAP_H3VideoGenerator:
         if preview_id is not None:
             model, = CAP_ModelPreviewOverride().patch(model, 1024, 80, True, frame_count,
                 max(1, min(60, round(fps))), tiny_vae=preview_tiny_vae, unique_id=preview_id)
-        sigmas, = _call("BasicScheduler", records, model=model, scheduler="simple", steps=steps, denoise=config["denoise"])
+        if sampling is None:
+            sampling = sampling_strategy(None, steps, REFINE_SIGMAS)
+        sigmas = sampling.face_sigmas(_call, records, model, config["denoise"])
         guider, = _call("BasicGuider", records, model=model, conditioning=conditioning)
         sampler, = _call("KSamplerSelect", records, sampler_name="euler")
         refined, denoised = _call("SamplerCustomAdvanced", records, noise=noise, guider=guider,

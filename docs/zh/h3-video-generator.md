@@ -10,6 +10,18 @@
 
 本节点完成条件准备、采样、解码及保存，无需再接片段解析器或 Seq To Video。二采、预览及其他可选功能的依赖见下文；关闭不使用的选项可省去对应依赖。
 
+## HyperFlow H3 Flash
+
+安装 [ComfyUI-HyperFlow-Flash](https://github.com/Video-Rebirth/ComfyUI-HyperFlow-Flash)（1.1.0+），用 **HyperFlow Loader** 加载其 ComfyUI INT8 safetensors；GGUF 还需 ComfyUI-GGUF。将 `MODEL` 接到本生成器，复用 H3 的 CLIP、视频 VAE 和音频 VAE，再连接 **H3 HyperFlow Config → sampling_config**。文生和首尾帧选择 FL2VA，参考图选择 Ref2VA。不要使用普通 UNET 加载器，也不要默认叠加原版 H3 的加速或风格 LoRA。
+
+配置节点选择 4／6／8 步，默认 6 步，覆盖生成器的 `steps` 和 `refine_sigmas`；保留 Euler、CFG 1、视频／音频 shift 12／3。首次试用建议关闭二采、音频修复和人脸修复，以 24 fps、约 5.2 秒的 Clip 开始。上游 Flash 的 ComfyUI 参考生成目前支持图片；此处尚未验证视频／音频参考行为。
+
+二采及候选精修使用上游日程从 `refine_start_step` 开始的后半段（从 0 编号，默认 2，须小于步数）。人脸修复取日程末尾 `ceil(steps × denoise)` 步。这些精修路径属于实验接入，CPU 测试不代表画质验证。音频修复沿用普通 H3 采样器，因此必须另接普通 H3 `base_model`。断开或关闭配置节点，恢复原有 H3 行为。
+
+采样策略位于 `backend/h3_sampling.py`，生成器继续负责条件准备、续接、保存和合成。以后扩展 H3 兼容的采样策略，可实现该接口并通过独立配置节点输出 `CAP_H3_SAMPLING_CONFIG`；视频元数据记录实际策略，模型仍由外部加载器负责。不同 latent 格式或条件接口需在对应集成层适配，不能只换采样日程。
+
+验证范围：原有生成流程回归、上游日程 CPU 对照；GPU 出片、显存和短／长片画质对照待权重就绪后测试。
+
 | 输出 | 用途 |
 |---|---|
 | `video_files` | 各 Clip 的视频路径列表，非 IMAGE/VIDEO 对象。 |

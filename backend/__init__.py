@@ -115,6 +115,7 @@ from .cap_h3_interpolation import (
     NODE_CLASS_MAPPINGS as _H3FI_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _H3FI_NAMES,
 )
+from .h3_sampling import NODE_CLASS_MAPPINGS as _H3S_CLASS, NODE_DISPLAY_NAME_MAPPINGS as _H3S_NAMES
 from .cap_h3_audio_refine import (
     NODE_CLASS_MAPPINGS as _H3AR_CLASS,
     NODE_DISPLAY_NAME_MAPPINGS as _H3AR_NAMES,
@@ -168,6 +169,7 @@ NODE_CLASS_MAPPINGS = {
     **_H3FR_CLASS,
     **_H3AR_CLASS,
     **_H3FI_CLASS,
+    **_H3S_CLASS,
     **_CVP_CLASS,
     **_H3PG_CLASS,
     "CAP_JoinStrings": CAP_JoinStrings,
@@ -199,6 +201,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **_H3FR_NAMES,
     **_H3AR_NAMES,
     **_H3FI_NAMES,
+    **_H3S_NAMES,
     **_CVP_NAMES,
     **_H3PG_NAMES,
     "CAP_JoinStrings": "Join Strings",

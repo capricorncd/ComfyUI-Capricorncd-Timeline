@@ -1,7 +1,7 @@
 import { app } from "../../scripts/app.js";
 
 const INPUT_ORDER = [
-    "model", "base_model", "clip", "vae", "audio_vae", "data_json", "audio_refine_config", "face_refine_config", "interpolation_config",
+    "model", "base_model", "clip", "vae", "audio_vae", "data_json", "sampling_config", "audio_refine_config", "face_refine_config", "interpolation_config",
     "steps", "attention", "ref_image_size", "max_segment_seconds",
     "second_sampling", "first_pass_megapixels", "preview_sampling_batch", "upscaler_model", "refine_sigmas",
     "sampling_preview", "preview_tiny_vae",

@@ -25,6 +25,18 @@ The node prepares conditioning, samples, decodes and saves videos; no separate C
 
 Connect [H3 Auto Prompt Config](h3-shared-prompt.md) to `auto_prompt_config`. Other optional configs feed `audio_refine_config`, `face_refine_config`, and `interpolation_config`.
 
+## HyperFlow H3 Flash
+
+Install [ComfyUI-HyperFlow-Flash](https://github.com/Video-Rebirth/ComfyUI-HyperFlow-Flash) (1.1.0+) and load its ComfyUI INT8 safetensors with **HyperFlow Loader**. GGUF additionally requires ComfyUI-GGUF. Connect its `MODEL` to this generator, reuse the H3 CLIP/video VAE/audio VAE, and connect **H3 HyperFlow Config → sampling_config**. Choose FL2VA for text/endpoint generation or Ref2VA for reference images. Do not use a stock UNET loader or assume existing H3 acceleration/style LoRAs are compatible.
+
+The config selects 4/6/8 steps (default 6), overriding this generator's `steps` and `refine_sigmas`. Euler, CFG 1 and video/audio shifts 12/3 are retained. For the first trial, disable `second_sampling`, audio repair and face repair. Start with a 5.2-second Clip at 24 fps. ComfyUI reference generation in the upstream Flash integration currently supports images; video/audio reference behavior has not been validated here.
+
+Second sampling and preview refinement use the selected upstream schedule starting at `refine_start_step` (zero-based, default 2, must be less than steps). Face repair uses a tail containing `ceil(steps * denoise)` steps. These refinement paths are experimental; CPU contracts do not establish visual quality. Audio repair uses its existing ordinary-H3 sampler and therefore requires an explicitly connected standard H3 `base_model`. Disconnect/disable the config to restore the original H3 behavior.
+
+Sampling schedules live in `backend/h3_sampling.py`; the generator retains conditioning, continuation, saving and composition. Future H3-compatible sampling strategies implement that interface and supply a dedicated config through `CAP_H3_SAMPLING_CONFIG`. Video metadata records the resolved strategy. Model loading remains external. Changes to latent formats or conditioning still require their owning integration, not just another schedule.
+
+Validation: ordinary generation regression tests and upstream CPU schedule checks. GPU output, memory use and short/long visual comparison remain pending model weights.
+
 ## RIFE frame interpolation
 
 Connect **H3 Interpolation Config** to `interpolation_config`, then use the enable switch on the config node (disconnect or disable to skip interpolation) to run the installed ComfyUI-Frame-Interpolation RIFE node after face repair and context latent saving. Model, multiplier, scale, ensemble and cache interval live on the config node. Defaults: rife426.pth, 2x, scale 1.0, ensemble off, cache interval 10. Supports integer 2–4x; the plugin may download the selected model on first use. RIFE 4.26 ignores ensemble. Output fps and timing snapshots are multiplied, including composition and returned data_json. Hold the final frame to preserve exact duration and original audio. Sampling and latent contexts retain the original frame rate. Disabled interpolation ignores its parameters.

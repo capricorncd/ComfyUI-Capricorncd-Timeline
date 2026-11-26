@@ -18,11 +18,16 @@ BACKEND = Path(__file__).resolve().parents[1] / "backend"
 
 
 def load_definitions(name, scope):
+    if name == "cap_h3_video_generator.py":
+        scope.setdefault("sampling_strategy", sampling_scope["sampling_strategy"])
     path = BACKEND / name
     tree = ast.parse(path.read_text(encoding="utf-8"))
     tree.body = [n for n in tree.body if not isinstance(n, (ast.Import, ast.ImportFrom))]
     exec(compile(tree, str(path), "exec"), scope)
     return scope
+
+
+sampling_scope = load_definitions("h3_sampling.py", dict(math=math, io=SimpleNamespace(ComfyNode=object)))
 
 
 class GeneratorTests(unittest.TestCase):
@@ -870,6 +875,65 @@ class GeneratorTests(unittest.TestCase):
                 self.run_node(**kw)
         with self.assertRaisesRegex(ValueError, "director"):
             self.run_node([{"id": "a", "clip_type": "video", "start_ms": 0, "end_ms": 5000}])
+
+    def test_hyperflow_overrides_legacy_steps_and_uses_sampling_model(self):
+        self.run_node(sampling_config=dict(kind="hyperflow", steps=6, refine_start_step=2))
+        self.assertFalse(any(name in ("BasicScheduler", "ManualSigmas") for name, _ in self.calls))
+        schedule = next(kw for name, kw in self.calls if name == "HyperFlowSigmas")
+        self.assertEqual(schedule, dict(model="MiniMaxH3SigmaShift_output", steps=6))
+        sampled = next(kw for name, kw in self.calls if name == "SamplerCustomAdvanced")
+        self.assertEqual(sampled["sigmas"], "HyperFlowSigmas_output")
+        metadata = json.loads(self.saved[0][1]["metadata"])
+        self.assertEqual(metadata["sampling_config"], dict(kind="hyperflow", steps=6, refine_start_step=2))
+
+    def test_hyperflow_second_pass_uses_schedule_tail(self):
+        original_call = self.scope["_call"]
+        schedule = [1, .98, .91, .67, .38, .16, 0]
+
+        def call(name, records, **kw):
+            result = original_call(name, records, **kw)
+            return (schedule,) if name == "HyperFlowSigmas" else result
+
+        self.scope["_call"] = call
+        self.run_node(second_sampling=True, upscaler_model="up", refine_sigmas="ignored",
+                      sampling_config=dict(kind="hyperflow", steps=6, refine_start_step=2))
+        sampled = [kw for name, kw in self.calls if name == "SamplerCustomAdvanced"]
+        self.assertEqual([kw["sigmas"] for kw in sampled], [schedule, schedule[2:]])
+        self.assertFalse(any(name in ("BasicScheduler", "ManualSigmas") for name, _ in self.calls))
+
+    def test_standard_h3_preserves_base_model_schedule(self):
+        self.run_node(base_model="separate-base")
+        self.assertEqual(next(kw["model"] for name, kw in self.calls if name == "BasicScheduler"), "separate-base")
+
+    def test_hyperflow_validates_before_preparing_clips(self):
+        for config in (dict(kind="unknown", steps=6, refine_start_step=2),
+                       dict(kind="hyperflow", steps=5, refine_start_step=2),
+                       dict(kind="hyperflow", steps=4, refine_start_step=4)):
+            with self.subTest(config=config), self.assertRaises(ValueError):
+                self.run_node(sampling_config=config)
+        self.assertFalse(self.prepared)
+
+    def test_hyperflow_missing_dependency_fails_before_sampling(self):
+        def node_class(name):
+            if name == "HyperFlowSigmas":
+                raise RuntimeError("Install ComfyUI-HyperFlow-Flash: HyperFlowSigmas")
+            return object
+
+        self.scope["_node_class"] = node_class
+        with self.assertRaisesRegex(RuntimeError, "HyperFlow"):
+            self.run_node(sampling_config=dict(kind="hyperflow", steps=6, refine_start_step=2))
+        self.assertFalse(self.prepared)
+        self.assertFalse(self.calls)
+
+    def test_hyperflow_audio_repair_requires_explicit_standard_base(self):
+        config = dict(kind="hyperflow", steps=6, refine_start_step=2)
+        audio_config = dict(steps=3, audio_denoise=.5, cache_mode="off")
+        with self.assertRaisesRegex(ValueError, "standard H3 base_model"):
+            self.run_node(base_model=None, sampling_config=config, audio_refine_config=audio_config)
+        self.assertFalse(self.prepared)
+        self.run_node(base_model="standard-h3", sampling_config=config, audio_refine_config=audio_config)
+        repair_shift = [kw for name, kw in self.calls if name == "MiniMaxH3SigmaShift"][-1]
+        self.assertEqual(repair_shift["model"], "standard-h3")
 
     def test_each_video_is_sent_before_next_clip_and_final_compose_is_default(self):
         rows = [{"id": "a", "start_ms": 0, "end_ms": 5000}, {"id": "b", "start_ms": 5000, "end_ms": 10000}]

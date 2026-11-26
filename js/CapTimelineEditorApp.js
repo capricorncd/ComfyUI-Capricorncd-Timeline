@@ -1945,6 +1945,48 @@ export class CapTimelineEditorApp {
         this._syncTrackOrder({ save: true });
     }
 
+    _duplicateTrack(track) {
+        const tl = this._timeline;
+        const index = tl.tracks.indexOf(track);
+        if (index < 0) return;
+        const info = structuredClone(this._trackInfo.get(track.id));
+        if (info.role === "main") info.role = "director";
+        const clips = track.clips.map(source => ({ source, meta: structuredClone(this._ensureClipMeta(source)) }));
+        this._recordUndo();
+        const copy = tl.addTrackAt({
+            type: track.type, name: T("duplicate_track_name", { name: track.name }), color: track.color,
+            isMain: false, locked: track.locked, visible: track.visible, muted: track.muted,
+        }, index + 1);
+        this._trackInfo.set(copy.id, info);
+        copy.setVisible(track.visible);
+        copy.setMuted(track.muted);
+
+        // Populate the new row before applying its edit lock and automatic arrangement.
+        copy.locked = false;
+        const groups = new Map();
+        for (const { source, meta } of clips) {
+            if (source.groupId && !groups.has(source.groupId)) groups.set(source.groupId, uid());
+            const clip = copy.addClip({
+                name: source.name, startTime: source.startTime, duration: source.duration,
+                groupId: groups.get(source.groupId), src: source.src, thumbnail: source.thumbnail,
+                color: source.color, sourceDuration: source.sourceDuration, sourceOffset: source.sourceOffset,
+                playbackRate: source.playbackRate, fadeIn: source.fadeIn, fadeOut: source.fadeOut,
+                hasAudio: source.hasAudio, waveformPeaks: source.waveformPeaks.slice(),
+            });
+            clip._audioBuffer = source._audioBuffer;
+            clip.waveformVolume = source.waveformVolume;
+            clip.waveformWindow = structuredClone(source.waveformWindow);
+            clip.waveformAbsoluteScale = source.waveformAbsoluteScale;
+            this._meta.set(clip.id, meta);
+            this._decorateClip(clip);
+        }
+        copy.autoArrange = track.autoArrange;
+        copy.setLocked(track.locked);
+        this._syncTrackOrder({ save: true });
+        this._renderMediaGrid();
+        if (tl._playing) this._startAudioPlayback();
+    }
+
     _showAddTrackMenu(e) {
         const r = e.currentTarget.getBoundingClientRect();
         const addTrack = type => {
@@ -1971,6 +2013,9 @@ export class CapTimelineEditorApp {
         }, { separator: true }, {
             label: T("track_color_menu"), icon: "image",
             fn: () => this._openTrackColorModal(track),
+        }, {
+            label: T("duplicate_track_menu"), icon: "copy",
+            fn: () => this._duplicateTrack(track),
         }];
         items.push({
             label: T("remove_track_gaps"), icon: "scissors",

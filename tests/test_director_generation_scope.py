@@ -18,8 +18,7 @@ def select(tracks, only_ids=None, media=None):
         "project": {"tracks": tracks, "media": media or []},
         "only_ids": only_ids,
         "self": SimpleNamespace(
-            _track_active=lambda t: t.get("enabled", True) and t.get("visible", True),
-            _audio_track_active=lambda t: t.get("enabled", True), _source=lambda c: {}),
+            _track_active=lambda t: t.get("visible", True), _source=lambda c: {}),
         "_is_subtitle_clip": lambda c, t: c.get("type") in ("subtitle", "text"),
         "source_clip_timing": lambda c: c,
         "resolve_clip_media": lambda p, c: [m for m in p["media"] if m["id"] in c.get("media_ids", [])],
@@ -87,7 +86,7 @@ class DirectorGenerationScopeTests(unittest.TestCase):
             dict(type="audio", visible=False, clips=[dict(c, id="audio")]),
         ])
         self.assertEqual(visuals, [])
-        self.assertEqual(audio, ["audio"])
+        self.assertEqual(audio, ["disabled", "audio"])
 
 
 if __name__ == "__main__":

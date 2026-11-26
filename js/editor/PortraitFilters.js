@@ -1,8 +1,8 @@
 export const FILTER_PRESETS = ['fair', 'bright', 'natural'];
 
-export function activePortraitFilters(tracks, meta, time, info) {
+export function activePortraitFilters(tracks, meta, time) {
     return [...tracks].reverse().flatMap(track => {
-        if (track.type !== 'filter' || !track.visible || info?.get(track.id)?.enabled === false) return [];
+        if (track.type !== 'filter' || !track.visible) return [];
         return track.clips.filter(clip => time >= clip.startTime && time < clip.endTime).flatMap(clip => {
             const m = meta.get(clip.id);
             return m && !m.disabled && m.visible !== false && m.filterStrength > 0

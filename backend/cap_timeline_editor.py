@@ -622,12 +622,7 @@ class CAP_TimelineEditor:
 
     @staticmethod
     def _track_active(track: dict) -> bool:
-        return track.get("enabled", True) is not False and track.get("visible", True) is not False
-
-    @staticmethod
-    def _audio_track_active(track: dict) -> bool:
-        # Match timeline playback: audio export ignores track visibility/eye toggle.
-        return track.get("enabled", True) is not False
+        return track.get("visible", True) is not False
 
     def _audio_slices(self, start_ms: int, end_ms: int, audio_clips: list[dict], resolve_media, project: dict, materials: list, seen: set) -> list[dict]:
         result = []
@@ -722,9 +717,6 @@ class CAP_TimelineEditor:
             # Only director tracks create generation jobs; audio is reference data.
             if track_type != "director" and not is_audio_track:
                 continue
-            if is_audio_track:
-                if not self._audio_track_active(track):
-                    continue
             for clip in track.get("clips", []):
                 if not isinstance(clip, dict):
                     continue

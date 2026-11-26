@@ -14,7 +14,7 @@ const linked = (prev, next) => active(prev) && active(next) && h3(prev) && h3(ne
 
 export function relatedH3ClipIds(project, clipId) {
     for (const track of project.tracks || []) {
-        if (track.enabled === false || track.visible === false
+        if (track.visible === false
             || !['director', 'visual', 'image', 'video'].includes(track.type || 'visual')) continue;
         const clips = [...(track.clips || [])].sort((a, b) => start(a) - start(b));
         const index = clips.findIndex(c => String(c.id) === String(clipId));

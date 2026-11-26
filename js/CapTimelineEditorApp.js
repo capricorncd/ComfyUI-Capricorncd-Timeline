@@ -2259,14 +2259,13 @@ export class CapTimelineEditorApp {
         return track;
     }
 
-    /** Visual clips that are not disabled (and whose track is enabled). */
+    /** Visual clips that are not disabled and whose track is visible. */
     _listActiveVisualClips({ withoutGenerated = false, track: onlyTrack = null, anchor = null, side = null } = {}) {
         const out = [];
         const tracks = onlyTrack ? [onlyTrack] : this._allImageTracks();
         for (const track of tracks) {
             if (!this._allImageTracks().includes(track)) continue;
-            const info = this._trackInfo.get(track.id) || {};
-            if (info.enabled === false || track.visible === false) continue;
+            if (track.visible === false) continue;
             for (const clip of track.clips) {
                 if (anchor && clip.id !== anchor.id) {
                     if (side === "left" && clip.startTime > anchor.startTime) continue;
@@ -3144,7 +3143,7 @@ export class CapTimelineEditorApp {
         this._timeline?.pause();
         this._composeOriginalTime = this._timeline?.currentTime ?? 0;
         const project = this._buildProject();
-        const endMs = Math.max(0, ...(project.tracks || []).filter(track => track.enabled !== false)
+        const endMs = Math.max(0, ...(project.tracks || [])
             .flatMap(track => (track.clips || []).filter(clip => clip.enabled !== false)
                 .map(clip => Number(clip.start_ms || 0) + Number(clip.duration_ms || 0))));
         this.composeRange.configure(Math.round(endMs / 1000 * this.getFps()), this.getFps(), {
@@ -6505,6 +6504,7 @@ export class CapTimelineEditorApp {
                 render();
                 this._decorateAllClips();
                 this._scheduleProgramPreview();
+                if (this._timeline?._playing) this._startAudioPlayback();
             });
             render();
         } else if (kind === "mute") {
@@ -6795,6 +6795,7 @@ export class CapTimelineEditorApp {
         }
         delete src.settings.prompt_concat_order;
         for (const track of src.tracks) {
+            if (track && typeof track === "object") delete track.enabled;
             for (const clip of track?.clips || []) {
                 if (!clip || typeof clip !== "object") continue;
                 if (!("use_prepend_prompt" in clip)) {
@@ -7467,7 +7468,7 @@ export class CapTimelineEditorApp {
         const lastFrame = Math.floor((video.duration - duration + 0.001) * timing.fps);
         let bestScore = 0, nominalScore = 0, bestFrame = nominalFrame;
         for (const track of this._timeline.tracks) {
-            if (track.type !== "audio" || track.muted || this._trackInfo.get(track.id)?.enabled === false) continue;
+            if (track.type !== "audio" || track.muted) continue;
             for (const source of track.clips) {
                 const buffer = source._audioBuffer;
                 if (!buffer?.numberOfChannels || clip.startTime < source.startTime || clip.endTime > source.endTime) continue;
@@ -8711,7 +8712,7 @@ export class CapTimelineEditorApp {
         const end = clip.startTime + clip.duration;
         this._modelPreviewAudioClock = { media: video.currentTime, time: ctx.currentTime };
         for (const track of this._timeline?.tracks || []) {
-            if (track.type !== "audio" || track.muted || this._trackInfo.get(track.id)?.enabled === false) continue;
+            if (track.type !== "audio" || track.muted) continue;
             for (const audioClip of track.clips) {
                 const meta = this._meta.get(audioClip.id) || {};
                 if (meta.muted || meta.disabled || !audioClip._audioBuffer) continue;
@@ -9414,8 +9415,6 @@ export class CapTimelineEditorApp {
             const enabled = [];
             for (const track of this._allImageTracks()) {
                 if (track.visible === false) continue;
-                const info = this._trackInfo.get(track.id) || {};
-                if (info.enabled === false) continue;
                 for (const c of track.clips) {
                     const m = this._meta.get(c.id) ?? defaultImageMeta();
                     if (m.disabled || m.visible === false) continue;
@@ -14731,7 +14730,7 @@ export class CapTimelineEditorApp {
             height: trackHeightFor(type),
         });
         this._trackInfo.set(track.id, {
-            trackIndex: this._nextTrackIndex(), enabled: true,
+            trackIndex: this._nextTrackIndex(),
             role: type === "audio" ? "audio" : type === "voiceover" ? "voiceover" : isMediaTrackType(type) ? "media" : "director",
         });
         this._setupTrackControls(track);
@@ -15447,8 +15446,6 @@ export class CapTimelineEditorApp {
         for (const track of this._allImageTracks()) {
             if (!onlyClip && (track.visible === false || track.muted)) continue;
             if (this._draftPreviewMode && !onlyClip && isDirectorTrackType(track.type)) continue;
-            const info = this._trackInfo.get(track.id) || {};
-            if (!onlyClip && info.enabled === false) continue;
             for (const clip of track.clips) {
                 if (onlyClip && clip !== onlyClip) continue;
                 const m = this._meta.get(clip.id) ?? defaultImageMeta();
@@ -15892,12 +15889,12 @@ export class CapTimelineEditorApp {
             type: "audio", name: T("audio_track_name"), height: trackHeightFor("audio"), color: "#3dd68c",
         });
         this._trackInfo.set(this._subtitleTrack.id, {
-            trackIndex: 0, enabled: true, role: "subtitle", subtitleStyle: pickSubtitleStyle(defaultSubtitleMeta()),
+            trackIndex: 0, role: "subtitle", subtitleStyle: pickSubtitleStyle(defaultSubtitleMeta()),
         });
-        this._trackInfo.set(this._mediaTrack.id, { trackIndex: 1, enabled: true, role: "media" });
-        this._trackInfo.set(this._mainTrack.id, { trackIndex: 2, enabled: true, role: "director" });
-        this._trackInfo.set(this._voiceoverTrack.id, { trackIndex: 3, enabled: true, role: "voiceover" });
-        this._trackInfo.set(this._audioTrack.id, { trackIndex: 4, enabled: true, role: "audio" });
+        this._trackInfo.set(this._mediaTrack.id, { trackIndex: 1, role: "media" });
+        this._trackInfo.set(this._mainTrack.id, { trackIndex: 2, role: "director" });
+        this._trackInfo.set(this._voiceoverTrack.id, { trackIndex: 3, role: "voiceover" });
+        this._trackInfo.set(this._audioTrack.id, { trackIndex: 4, role: "audio" });
         for (const t of [this._subtitleTrack, this._mediaTrack, this._mainTrack, this._voiceoverTrack, this._audioTrack]) {
             this._setupTrackControls(t);
         }
@@ -15943,7 +15940,6 @@ export class CapTimelineEditorApp {
                 : null;
             this._trackInfo.set(track.id, {
                 trackIndex: row.trackIndex ?? index,
-                enabled: row.enabled !== false,
                 role: row.role || (
                     isMain
                         ? "main"
@@ -19317,7 +19313,7 @@ export class CapTimelineEditorApp {
         const horizon = 1.25;
         let nextTime = Infinity;
         for (const track of this._allRenderableTracks()) {
-            if (track.visible === false || this._trackInfo.get(track.id)?.enabled === false) continue;
+            if (track.visible === false) continue;
             for (const clip of track.clips) {
                 const m = this._meta.get(clip.id) ?? defaultImageMeta();
                 if (m.disabled || m.visible === false) continue;
@@ -19413,8 +19409,6 @@ export class CapTimelineEditorApp {
         // tracks[] has overlays first (top), then main — paint bottom→top via reverse.
         for (const track of [...this._allRenderableTracks()].reverse()) {
             if (track.visible === false) continue;
-            const info = this._trackInfo.get(track.id) || {};
-            if (info.enabled === false) continue;
             for (const clip of track.clips) {
                 if (onlyClip && clip !== onlyClip) continue;
                 if (!(t >= clip.startTime - 1e-6 && t < clip.endTime - 1e-9)) continue;
@@ -19585,8 +19579,6 @@ export class CapTimelineEditorApp {
     _hasVisibleSubtitleAt(t) {
         for (const track of this._allTextTracks()) {
             if (track.visible === false) continue;
-            const info = this._trackInfo.get(track.id) || {};
-            if (info.enabled === false) continue;
             for (const clip of track.clips) {
                 if (!(t >= clip.startTime - 1e-6 && t < clip.endTime - 1e-9)) continue;
                 const m = this._meta.get(clip.id) ?? defaultSubtitleMeta();
@@ -19667,7 +19659,7 @@ export class CapTimelineEditorApp {
             layers,
             onVideoUsed: (key) => usedVideoKeys.add(key),
         });
-        const portraitFilters=activePortraitFilters(this._timeline.tracks,this._meta,t,this._trackInfo);
+        const portraitFilters=activePortraitFilters(this._timeline.tracks,this._meta,t);
         if (this._portraitFilterPreview) portraitFilters.push(this._portraitFilterPreview);
         if(portraitFilters.length){
             this._portraitFilterRenderer ??= new PortraitFilterRenderer(()=>{this._programFrameKey=null;this._scheduleProgramPreview();});
@@ -20761,7 +20753,6 @@ export class CapTimelineEditorApp {
         for (const track of tracks) {
             if (track.visible === false) continue;
             const info = this._trackInfo.get(track.id) || {};
-            if (info.enabled === false) continue;
             for (const clip of track.clips) {
                 if (!(t >= clip.startTime - 1e-6 && t < clip.endTime - 1e-9)) continue;
                 const m = this._meta.get(clip.id) ?? defaultSubtitleMeta();
@@ -21215,8 +21206,6 @@ export class CapTimelineEditorApp {
         }));
         for (const track of this._timeline?.tracks || []) {
             if (track.type !== "audio" || track.muted) continue;
-            const info = this._trackInfo.get(track.id) || {};
-            if (info.enabled === false) continue;
             for (const audioClip of track.clips || []) {
                 const audioStart = Number(audioClip.startTime) || 0;
                 const audioEnd = audioStart + Math.max(0, Number(audioClip.duration) || 0);
@@ -22411,7 +22400,6 @@ export class CapTimelineEditorApp {
                     )),
                 name: track.name,
                 order,
-                enabled: trackInfo.enabled !== false,
                 visible: track.visible !== false,
                 muted: !!track.muted,
                 locked: !!track.locked,
@@ -22574,7 +22562,7 @@ export class CapTimelineEditorApp {
             const enabled = [];
             for (const track of project.tracks) {
                 if (String(track?.type || "").toLowerCase() === "audio") continue;
-                if (track?.enabled === false) continue;
+                if (track?.visible === false) continue;
                 for (const clip of track.clips || []) {
                     if (!clip || clip.enabled === false) continue;
                     if (String(clip.type || "").toLowerCase() === "audio") continue;

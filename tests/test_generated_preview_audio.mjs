@@ -52,6 +52,10 @@ meta.muted=false;
 track.muted=true;
 assert.equal(app._collectGeneratedVideoAudioJobs(10).length,0);
 track.muted=false;
+track.visible=false;
+assert.deepEqual(app._collectGeneratedVideoAudioJobs(10), [], 'hidden director suppresses generated video and attached audio');
+track.visible=true;
+assert(app._collectGeneratedVideoAudioJobs(10).length > 0, 'showing the track restores unmuted audio');
 assert.deepEqual(app._collectGeneratedVideoAudioJobs(16).map(j=>j.file), ['second.mp4','voice.wav']);
 
 const played=[];

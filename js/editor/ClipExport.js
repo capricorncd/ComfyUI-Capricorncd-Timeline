@@ -11,6 +11,8 @@ export function clipExportProject(project, clipId) {
     const source = track?.clips.find(clip => clip.id === clipId);
     if (!source) return null;
     const clip = structuredClone(source);
+    const exportTrack = { ...track, visible: true, muted: false, clips: [clip] };
+    delete exportTrack.enabled;
     const media = project.media || [];
     const audio = track.type === 'audio' || track.type === 'voiceover';
     const supported = track.type === 'audio' ? clip.media_ids?.length || clip.source?.file
@@ -24,7 +26,7 @@ export function clipExportProject(project, clipId) {
     if (audio && clip.muted) { clip.muted = false; clip.volume = 0; }
     return { audio, duration: clip.duration_ms / 1000, project: {
         ...project, name: clip.name || project.name,
-        tracks: [{ ...track, enabled: true, visible: true, muted: false, clips: [clip] }],
+        tracks: [exportTrack],
     } };
 }
 

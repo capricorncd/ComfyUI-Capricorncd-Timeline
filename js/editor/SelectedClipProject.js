@@ -3,6 +3,7 @@ import {stripPromptComments} from '../prompt_text.js';
 
 export function selectedClipProject(source, clipIds, name) {
     const project = structuredClone(source);
+    for (const track of project.tracks) delete track.enabled;
     const selected = new Set(clipIds);
     const audioTracks = project.tracks.filter(track => ['audio', 'voiceover'].includes(track.type));
     project.tracks = project.tracks.map(track => ({...track,
@@ -42,7 +43,7 @@ export function selectedClipProject(source, clipIds, name) {
         }
     }
     for (const track of audioTracks) {
-        if (track.enabled === false || track.muted === true) continue;
+        if (track.muted === true) continue;
         const selectedAudio = project.tracks.find(row => row.id === track.id);
         const copied = [];
         for (const audio of track.clips) {

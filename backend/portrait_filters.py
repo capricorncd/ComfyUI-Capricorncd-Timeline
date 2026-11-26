@@ -12,7 +12,7 @@ LUT_FILE = Path(__file__).resolve().parents[1] / "js" / "filters" / "portrait.js
 def collect_filters(tracks, fps):
     rows = []
     for track in reversed(tracks):
-        if track.get("type") != "filter" or track.get("enabled") is False or track.get("visible") is False:
+        if track.get("type") != "filter" or track.get("visible") is False:
             continue
         for clip in track.get("clips", []):
             if clip.get("enabled") is False or clip.get("visible") is False:

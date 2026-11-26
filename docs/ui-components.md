@@ -434,3 +434,7 @@ Preview sampling “Associate existing previews” reuses the generated-video pi
 ## AI Agent services
 
 `editor/AgentSettings.js` supports Ollama and OpenAI-compatible services alongside OpenAI and Gemini. Local services accept an optional API key, an API base URL and an installed model name. Defaults are `http://localhost:11434/v1` for Ollama and `http://localhost:1234/v1` for compatible servers. Changing a local service address or provider fetches `/v1/models`; Fetch models refreshes the list manually. Selecting a returned model fills the model name, which remains editable. Requests use Chat Completions; images and audio require service/model support. Enabled services appear in the existing AI optimization selector. Credentials remain in local settings.
+
+## Timeline track state
+
+Tracks use `visible` for picture output and `muted` for sound; there is no track-level `enabled`. Audio and voiceover ignore `visible`, so hiding a waveform never mutes playback or export. A hidden video track suppresses its picture and embedded sound; muting it preserves its picture. Clip and generated-candidate enable controls remain independent. Import removes obsolete track `enabled` values without overriding explicit visibility or mute settings. Preview, generation and composition follow these same controls.

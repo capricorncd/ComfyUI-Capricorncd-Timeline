@@ -1,7 +1,7 @@
 // Continuation requires saving the previous latent in addition to manual saves.
 export function applyContinuationSettings(tracks) {
     for (const track of tracks) {
-        if (track.type !== 'director' || track.enabled === false || track.visible === false) continue;
+        if (track.type !== 'director' || track.visible === false) continue;
         const clips = [...(track.clips || [])].filter(c => c.enabled !== false && c.visible !== false)
             .sort((a, b) => a.start_ms - b.start_ms);
         for (let i = 0; i < clips.length; i++) {

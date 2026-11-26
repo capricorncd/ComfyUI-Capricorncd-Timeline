@@ -52,6 +52,7 @@ assert.equal(selected.project.tracks[0].clips[0].start_ms, 0);
 assert.deepEqual(selected.project.tracks[0].clips[0].source, { in_ms: 3000 });
 assert.equal(selected.project.tracks[0].clips[0].playback_rate, 2);
 assert.equal(selected.project.tracks[0].muted, false);
+assert.equal(Object.hasOwn(selected.project.tracks[0], "enabled"), false);
 for (const id of ['director', 'video']) assert.equal(clipExportProject(project, id).audio, false);
 assert.equal(clipExportProject(project, 'voiceover').audio, true);
 for (const id of ['image', 'subtitle', 'empty', 'missing']) assert.equal(clipExportProject(project, id), null);

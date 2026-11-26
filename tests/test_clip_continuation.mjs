@@ -7,7 +7,8 @@ assert.deepEqual(clips.map(c=>c.save_latent),[true,false,false]);
 clips=rows(); clips[1].start_ms+=10; applyContinuationSettings([{type:'director',clips}]); assert.equal(clips[0].save_latent,false);
 clips=rows(); clips[1].enabled=false; applyContinuationSettings([{type:'director',clips}]); assert.equal(clips[0].save_latent,false);
 clips=rows(); clips[0].agent='other'; applyContinuationSettings([{type:'director',clips}]); assert.equal(clips[0].save_latent,false);
-clips=rows(); applyContinuationSettings([{type:'director',enabled:false,clips}]); assert.equal(clips[0].save_latent,false);
+clips=rows(); applyContinuationSettings([{type:'director',enabled:false,clips}]); assert.equal(clips[0].save_latent,true);
+clips=rows(); applyContinuationSettings([{type:'director',visible:false,clips}]); assert.equal(clips[0].save_latent,false);
 const old=[{type:'director',clips:[{id:'a',start_ms:0,duration_ms:5000,save_latent:true},{id:'b',start_ms:5000,duration_ms:5000,h3_motion_context_length:0}]}];
 const migrated=migrateContinuationSettings(old); assert.equal(migrated[0].clips[1].reference_previous,false); assert.equal(old[0].clips[1].reference_previous,undefined);
 old[0].clips[1].reference_previous=false; assert.equal(migrateContinuationSettings(old)[0].clips[1].reference_previous,false);
@@ -15,7 +16,7 @@ const source=readFileSync(new URL('../js/CapTimelineEditorApp.js',import.meta.ur
 const start=source.indexOf('    _onReferencePreviousChange() {');
 const change=new Function(`return ({${source.slice(start,source.indexOf('\n    }',start)+6)}})._onReferencePreviousChange`)();
 const meta={}; let saves=0,undo=0;
-const app={_selClip:{id:'x'},referencePreviousCb:{checked:true,disabled:false},_recordUndo(){undo++},_ensureClipMeta:()=>meta,_saveToWidgets(){saves++}};
+const app={_selClip:{id:'x'},referencePreviousCb:{checked:true,disabled:false},_recordUndo(){undo++},_generationSettingsMeta:()=>meta,_saveToWidgets(){saves++}};
 change.call(app); assert.equal(meta.h3MotionContextLength,22); assert.equal(meta.referencePrevious,true);
 app.referencePreviousCb.checked=false; change.call(app); assert.equal(meta.h3MotionContextLength,0); assert.equal(meta.referencePrevious,false);
 app.referencePreviousCb.disabled=true; change.call(app); assert.equal(saves,2); assert.equal(undo,2);

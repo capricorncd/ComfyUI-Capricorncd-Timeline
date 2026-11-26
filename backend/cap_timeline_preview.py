@@ -122,7 +122,7 @@ def _preview_data(
     for track in project.get("tracks") or []:
         if not isinstance(track, dict) or str(track.get("type") or "").lower() != "audio":
             continue
-        if track.get("enabled", True) is False or track.get("muted", False):
+        if track.get("muted", False):
             continue
         for audio_clip in track.get("clips") or []:
             if isinstance(audio_clip, dict) and audio_clip.get("enabled", True) is not False and not audio_clip.get("muted", False):

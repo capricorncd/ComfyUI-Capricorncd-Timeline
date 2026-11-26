@@ -123,9 +123,6 @@ def _collect_plan(
 
     for track in reversed(tracks):
         track_type = str(track.get("type") or "").lower()
-        enabled = track.get("enabled", True) is not False
-        if not enabled:
-            continue
         for clip in _as_list(track.get("clips")):
             if isinstance(clip, dict) and clip.get("enabled", True) is not False:
                 end_ms = max(end_ms, _ms(clip.get("start_ms")) + _ms(clip.get("duration_ms")))

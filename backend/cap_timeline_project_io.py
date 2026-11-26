@@ -219,6 +219,9 @@ def migrate_project(project: dict, *, source_path=None) -> dict:
     _normalize_timeline_prompt_selection(out)
     _normalize_media_catalog(out)
     _ensure_clip_media_ids(out)
+    for track in out.get("tracks") or []:
+        if isinstance(track, dict):
+            track.pop("enabled", None)
     out["schema_version"] = SCHEMA_VERSION
     return ensure_project_identity(out, source_path)
 

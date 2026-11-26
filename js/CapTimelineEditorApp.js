@@ -56,6 +56,7 @@ import { LocalAudioJobs } from "./editor/LocalAudioJobs.js";
 import { ClipExport } from "./editor/ClipExport.js";
 import { DirectorKeyframes } from "./editor/DirectorKeyframes.js";
 import { SubtitleSpeech } from "./editor/SubtitleSpeech.js";
+import { punctuationGroups, removeTrailingPunctuation } from "./editor/SubtitlePunctuation.js";
 import { ImageCrop } from "./editor/ImageCrop.js";
 import { CharacterVoice } from "./editor/CharacterVoice.js";
 import { Timeline, ICONS } from "./timeline/index.js";
@@ -1500,6 +1501,7 @@ export class CapTimelineEditorApp {
             this.exportDialog?.close();
             this._subtitleSpeech?.dialog.close();
             this._subtitleBatchDialog?.close();
+            this._subtitlePunctuationDialog?.close();
             this._removeCtxMenu();
             try { this._persistPanelLayout(); } catch { /* ignore */ }
             try { this._persistViewToLocalCache(); } catch { /* ignore */ }
@@ -2048,7 +2050,11 @@ export class CapTimelineEditorApp {
                 if (this._timeline._playing) this._startAudioPlayback();
             },
         });
-        if (isSubtitleTrackType(track.type)) items.push({ label: T('speech_convert'), disabled: track.locked || !track.clips.length,
+        if (isSubtitleTrackType(track.type)) items.push({
+            label: T("remove_subtitle_trailing_punctuation"), icon: "text", danger: true,
+            disabled: !!track.locked || !track.clips.length,
+            fn: () => this._openSubtitlePunctuationDialog(track),
+        }, { label: T('speech_convert'), disabled: track.locked || !track.clips.length,
             fn: () => this._openLocalSubtitleSpeech(track.clips) });
         for (const [direction, label] of [[-1, "move_up_title"], [1, "move_down_title"]]) {
             items.push({
@@ -2101,6 +2107,66 @@ export class CapTimelineEditorApp {
         this._saveToWidgets();
         this._scheduleProgramPreview();
         if (this._timeline._playing) this._startAudioPlayback();
+    }
+
+    _openSubtitlePunctuationDialog(track) {
+        this._subtitlePunctuationDialog?.close();
+        const dialog = document.createElement("cap-dialog");
+        this._subtitlePunctuationDialog = dialog;
+        const title = T("remove_subtitle_trailing_punctuation");
+        dialog.setAttribute("aria-label", title);
+        dialog.setAttribute("close-label", T("close_title"));
+        dialog.width = 380;
+        dialog.height = "fit-content";
+        dialog.minWidth = 260;
+        dialog.minHeight = 220;
+        dialog.innerHTML = `<span slot="title">${title}</span>
+            <div class="cat-te-modal-body">
+                ${punctuationGroups.map(({ id, checked }) => `<label class="cat-te-modal-check-row">
+                    <input type="checkbox" value="${id}" ${checked ? "checked" : ""}><span>${T("subtitle_punctuation_" + id)}</span>
+                </label>`).join("")}
+            </div>
+            <div slot="footer" class="cat-te-confirm-actions">
+                <cap-button data-cancel>${T("cancel_btn")}</cap-button>
+                <cap-button data-confirm variant="danger">${T("confirm_btn")}</cap-button>
+            </div>`;
+        const confirm = dialog.querySelector("[data-confirm]");
+        dialog.onchange = () => { confirm.disabled = !dialog.querySelector("input:checked"); };
+        dialog.querySelector("[data-cancel]").onclick = () => dialog.close();
+        confirm.onclick = () => {
+            const selected = new Set(Array.from(dialog.querySelectorAll("input:checked"), input => input.value));
+            this._removeSubtitleTrailingPunctuation(track, selected);
+            dialog.close();
+        };
+        dialog.addEventListener("close", () => {
+            dialog.remove();
+            if (this._subtitlePunctuationDialog === dialog) this._subtitlePunctuationDialog = null;
+        }, { once: true });
+        this._overlay.append(dialog);
+        dialog.showModal();
+    }
+
+    _removeSubtitleTrailingPunctuation(track, selected) {
+        if (!isSubtitleTrackType(track?.type) || track.locked || !this._timeline?.tracks.includes(track)) return;
+        const changes = [];
+        for (const clip of track.clips) {
+            const meta = this._ensureClipMeta(clip);
+            const current = String(meta.text ?? "");
+            const text = removeTrailingPunctuation(current, selected);
+            if (text !== current) changes.push({ clip, meta, text });
+        }
+        if (!changes.length) return;
+        this._recordUndo();
+        for (const { clip, meta, text } of changes) {
+            meta.text = text;
+            clip.name = (text.trim() || T("subtitle_default_text")).slice(0, 40);
+            const label = clip.el?.querySelector(".tl-clip-label");
+            if (label) label.textContent = clip.name;
+            this._decorateClip(clip);
+        }
+        if (track.clips.includes(this._selClip)) this._updateClipInfoPanel(this._selClip);
+        this._saveToWidgets();
+        this._scheduleProgramPreview();
     }
 
     _scheduleTrackTypeMenuHide() {
@@ -17486,6 +17552,7 @@ export class CapTimelineEditorApp {
 
             || this._subtitleSpeech?.dialog.open
             || this._subtitleBatchDialog?.open
+            || this._subtitlePunctuationDialog?.open
             || (this.outputVideosModal?.open && this._outputPickerKind === "audio")
             || (this.aiOptimizeModal && !this.aiOptimizeModal.hidden)
             || this.skillPickerModal?.open,
